@@ -14,7 +14,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { setIsAuthenticated } = useAppContext();
+  const { setIsAuthenticated, setCurrentUser } = useAppContext();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -34,13 +34,15 @@ export default function Login() {
 
     try {
       setIsSubmitting(true);
-      await login(email, password);
+      const response = await login(email, password);
       setIsAuthenticated(true);
+      setCurrentUser(response.user);
       toast({ title: "Welcome back!", description: "You have been logged in." });
       navigate("/");
     } catch (error) {
       const description = error instanceof Error ? error.message : "Login failed";
       setIsAuthenticated(false);
+      setCurrentUser(null);
       toast({
         title: "Login failed",
         description,

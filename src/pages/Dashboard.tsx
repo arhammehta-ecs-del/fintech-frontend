@@ -3,48 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useAppContext } from "@/contexts/AppContext";
 import { CompanyPreviewDialog, type ApprovalEvent } from "@/components/CompanyPreviewDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Users, XCircle, Clock } from "lucide-react";
+import { Building2, XCircle, Clock } from "lucide-react";
 
 type AuditEntry = {
   approvalHistory: ApprovalEvent[];
 };
-
-const COMPANY_AUDIT: Record<string, AuditEntry> = {
-  "1a": {
-    approvalHistory: [
-      { name: "Priya M.", action: "Approved", at: "2026-03-28T08:30:00.000Z" },
-      { name: "Rohit S.", action: "Risk cleared", at: "2026-03-27T12:00:00.000Z" },
-      { name: "Ananya G.", action: "Submitted", at: "2026-03-26T09:10:00.000Z" },
-    ],
-  },
-  "1b": {
-    approvalHistory: [
-      { name: "Mehul V.", action: "Pending review", at: "2026-03-30T09:10:00.000Z" },
-      { name: "Tata Motors Ops", action: "Submitted", at: "2026-03-29T16:20:00.000Z" },
-    ],
-  },
-  "1c": {
-    approvalHistory: [
-      { name: "Compliance Board", action: "Rejected", at: "2026-03-25T14:40:00.000Z" },
-      { name: "Nidhi K.", action: "Returned for corrections", at: "2026-03-24T11:05:00.000Z" },
-      { name: "Tata Chemicals", action: "Company created", at: "2026-03-23T07:45:00.000Z" },
-    ],
-  },
-  "2a": {
-    approvalHistory: [
-      { name: "Rahul D.", action: "Approved", at: "2026-03-29T13:25:00.000Z" },
-      { name: "Aparna J.", action: "Financials verified", at: "2026-03-28T10:15:00.000Z" },
-      { name: "Jio Platforms", action: "Company created", at: "2026-03-27T15:55:00.000Z" },
-    ],
-  },
-};
-
-const getAuditEntry = (companyName: string): AuditEntry => ({
-  approvalHistory: [
-    { name: companyName, action: "Company created", at: "2026-03-31T00:00:00.000Z" },
-    { name: companyName, action: "Draft reviewed", at: "2026-03-31T08:30:00.000Z" },
-  ],
-});
 
 const approvalStatusLabel = {
   Approved: "Approved",
@@ -57,7 +20,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [auditEntries, setAuditEntries] = useState<Record<string, AuditEntry>>(COMPANY_AUDIT);
   const totalCompanies = groups.reduce((acc, g) => acc + g.subsidiaries.length, 0);
   const pending = groups.reduce((acc, g) => acc + g.subsidiaries.filter(c => c.status === "Pending").length, 0);
   const inactive = groups.reduce((acc, g) => acc + g.subsidiaries.filter(c => c.status === "Inactive").length, 0);
@@ -69,12 +31,13 @@ export default function Dashboard() {
   ];
 
   // Flatten all companies for the recent list
-  const allCompanies = groups.flatMap(g => g.subsidiaries.map(s => ({ ...s, groupName: g.groupName })));
+  const allCompanies = groups.flatMap(g => g.subsidiaries);
   const selectedCompany = groups.flatMap((g) => g.subsidiaries).find((company) => company.id === selectedCompanyId) ?? null;
   const selectedGroupName = groups.find((group) => group.subsidiaries.some((company) => company.id === selectedCompanyId))?.groupName ?? "";
+  const selectedGroupCode = groups.find((group) => group.subsidiaries.some((company) => company.id === selectedCompanyId))?.code ?? "";
   const selectedCompanyAudit = useMemo(
-    () => (selectedCompany ? auditEntries[selectedCompany.id] ?? getAuditEntry(selectedCompany.companyName) : undefined),
-    [auditEntries, selectedCompany],
+    () => (selectedCompany ? ({ approvalHistory: [] } satisfies AuditEntry) : undefined),
+    [selectedCompany],
   );
 
   const handleOpenPreview = (companyId: string) => {
@@ -108,21 +71,6 @@ export default function Dashboard() {
         ),
       })),
     );
-
-    const event = {
-      name: "Admin Portal",
-      action: isActive ? "Approved" : "Marked inactive",
-      at: new Date().toISOString(),
-    };
-    setAuditEntries((previous) => {
-      const baseEntry = previous[companyId] ?? getAuditEntry(selected.companyName);
-      return {
-        ...previous,
-        [companyId]: {
-          approvalHistory: [event, ...baseEntry.approvalHistory],
-        },
-      };
-    });
   };
 
   return (
@@ -166,7 +114,6 @@ export default function Dashboard() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-primary">{c.companyName}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{c.groupName}</p>
                   </div>
                   <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs ${
                     c.status === "Approved" ? "bg-success/10 text-success border-success/20" :
@@ -183,7 +130,6 @@ export default function Dashboard() {
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Company</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Group</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                 </tr>
               </thead>
@@ -195,7 +141,6 @@ export default function Dashboard() {
                     onClick={() => handleOpenPreview(c.id)}
                   >
                     <td className="px-4 py-3 text-sm font-medium text-primary hover:underline">{c.companyName}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{c.groupName}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${
                         c.status === "Approved" ? "bg-success/10 text-success border-success/20" :
@@ -213,25 +158,16 @@ export default function Dashboard() {
 
       <CompanyPreviewDialog
         company={selectedCompany}
+        companyCode={selectedCompany?.companyCode ?? ""}
         groupName={selectedGroupName}
+        groupCode={selectedGroupCode}
         open={isPreviewOpen}
         onOpenChange={setIsPreviewOpen}
         onSave={handleSaveCompany}
         onToggleActive={handleToggleCompanyActive}
         approvalHistory={selectedCompanyAudit?.approvalHistory ?? []}
         approvalStatusLabel={selectedCompany ? approvalStatusLabel[selectedCompany.status] : undefined}
-        onAuditEvent={(event) => {
-          if (!selectedCompany) return;
-          setAuditEntries((previous) => {
-            const baseEntry = previous[selectedCompany.id] ?? getAuditEntry(selectedCompany.companyName);
-            return {
-              ...previous,
-              [selectedCompany.id]: {
-                approvalHistory: [event, ...baseEntry.approvalHistory],
-              },
-            };
-          });
-        }}
+        onAuditEvent={() => {}}
       />
     </div>
   );

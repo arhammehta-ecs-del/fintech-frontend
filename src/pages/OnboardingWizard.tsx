@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAppContext, GroupCompany, Signatory } from "@/contexts/AppContext";
+import { useAppContext, Signatory } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 const steps = ["Group Company", "Company Details", "Authorized Signatories", "Preview & Submit"];
 
 export default function OnboardingWizard() {
-  const { groups, setGroups } = useAppContext();
+  const { groups } = useAppContext();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [step, setStep] = useState(0);
@@ -92,24 +92,7 @@ export default function OnboardingWizard() {
   const removeSignatory = (id: string) => setSignatories(prev => prev.filter(s => s.id !== id));
 
   const handleSubmit = () => {
-    const newCompany = {
-      id: crypto.randomUUID(),
-      companyName, legalName, incorporationDate: incDate, address, gstin, ieCode,
-      status: "Pending" as const, signatories,
-    };
-
-    if (isNewGroup) {
-      const newGroup: GroupCompany = {
-        id: crypto.randomUUID(), groupName, code: groupCode, remarks,
-        createdDate: new Date().toISOString().split("T")[0],
-        subsidiaries: [newCompany],
-      };
-      setGroups(prev => [...prev, newGroup]);
-    } else if (isExistingGroup) {
-      setGroups(prev => prev.map(g => g.id === selectedGroupId ? { ...g, subsidiaries: [...g.subsidiaries, newCompany] } : g));
-    }
-    toast({ title: "Onboarding submitted!", description: "Status: Pending Approval" });
-    navigate("/corporates");
+    toast({ title: "Submission unavailable", description: "This screen no longer creates local demo data." });
   };
 
   return (

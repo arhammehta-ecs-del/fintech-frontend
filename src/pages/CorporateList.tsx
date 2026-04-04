@@ -32,56 +32,6 @@ type AuditEntry = {
   approvalHistory: ApprovalEvent[];
 };
 
-const COMPANY_AUDIT: Record<string, AuditEntry> = {
-  "1a": {
-    lastUpdatedAt: "2026-03-31T10:20:00.000Z",
-    approvedBy: "Priya M.",
-    approvedAt: "2026-03-28T08:30:00.000Z",
-    approvalHistory: [
-      { name: "Priya M.", action: "Approved", at: "2026-03-28T08:30:00.000Z" },
-      { name: "Rohit S.", action: "Risk cleared", at: "2026-03-27T12:00:00.000Z" },
-      { name: "Ananya G.", action: "Submitted", at: "2026-03-26T09:10:00.000Z" },
-    ],
-  },
-  "1b": {
-    lastUpdatedAt: "2026-03-30T09:10:00.000Z",
-    approvedBy: "Awaiting approval",
-    approvedAt: "2026-03-30T09:10:00.000Z",
-    approvalHistory: [
-      { name: "Mehul V.", action: "Pending review", at: "2026-03-30T09:10:00.000Z" },
-      { name: "Tata Motors Ops", action: "Submitted", at: "2026-03-29T16:20:00.000Z" },
-    ],
-  },
-  "1c": {
-    lastUpdatedAt: "2026-03-25T14:40:00.000Z",
-    approvedBy: "Compliance Board",
-    approvedAt: "2026-03-25T14:40:00.000Z",
-    approvalHistory: [
-      { name: "Compliance Board", action: "Rejected", at: "2026-03-25T14:40:00.000Z" },
-      { name: "Nidhi K.", action: "Returned for corrections", at: "2026-03-24T11:05:00.000Z" },
-      { name: "Tata Chemicals", action: "Company created", at: "2026-03-23T07:45:00.000Z" },
-    ],
-  },
-  "2a": {
-    lastUpdatedAt: "2026-03-31T06:50:00.000Z",
-    approvedBy: "Rahul D.",
-    approvedAt: "2026-03-29T13:25:00.000Z",
-    approvalHistory: [
-      { name: "Rahul D.", action: "Approved", at: "2026-03-29T13:25:00.000Z" },
-      { name: "Aparna J.", action: "Financials verified", at: "2026-03-28T10:15:00.000Z" },
-      { name: "Jio Platforms", action: "Company created", at: "2026-03-27T15:55:00.000Z" },
-    ],
-  },
-};
-
-const getAuditEntry = (company: Company): AuditEntry =>
-  COMPANY_AUDIT[company.id] ?? {
-    lastUpdatedAt: "2026-03-31T00:00:00.000Z",
-    approvedBy: "Admin Portal",
-    approvedAt: "2026-03-31T00:00:00.000Z",
-    approvalHistory: [{ name: company.companyName, action: "Company created", at: "2026-03-31T00:00:00.000Z" }],
-  };
-
 type VisibleColumn = "groupName" | "code" | "createdDate" | "status" | "manage";
 
 type DragPayload =
@@ -356,7 +306,7 @@ function SortableGroupBody({
           <td className="px-4 py-3 text-sm font-medium text-foreground">{group.groupName}</td>
         )}
         {visibleColumns.has("code") && (
-          <td className="px-4 py-3 text-sm text-muted-foreground font-mono">{group.code}</td>
+          <td className="px-4 py-3 text-sm text-muted-foreground"></td>
         )}
         {visibleColumns.has("createdDate") && (
           <td className="px-4 py-3 text-sm text-muted-foreground">{group.createdDate}</td>
@@ -399,7 +349,6 @@ export default function CorporateList() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [defaultEditing, setDefaultEditing] = useState(false);
-  const [auditEntries, setAuditEntries] = useState<Record<string, AuditEntry>>(COMPANY_AUDIT);
   const [visibleColumns, setVisibleColumns] = useState<Set<VisibleColumn>>(
     new Set(["groupName", "code", "createdDate", "manage", "status"]),
   );
@@ -456,14 +405,26 @@ export default function CorporateList() {
     () => {
       const parentGroup = groups.find((group) => group.subsidiaries.some((company) => company.id === selectedCompany?.id));
       if (!parentGroup || isUngroupedGroup(parentGroup)) {
-        return "Independent company";
+        return "";
       }
       return parentGroup.groupName;
     },
     [groups, selectedCompany],
   );
+  const selectedGroupCode = useMemo(
+    () => {
+      const parentGroup = groups.find((group) => group.subsidiaries.some((company) => company.id === selectedCompany?.id));
+      if (!parentGroup || isUngroupedGroup(parentGroup)) {
+        return "";
+      }
+      return parentGroup.code;
+    },
+    [groups, selectedCompany],
+  );
 
-  const selectedCompanyAudit = selectedCompany ? auditEntries[selectedCompany.id] ?? getAuditEntry(selectedCompany) : undefined;
+  const selectedCompanyAudit = selectedCompany
+    ? { lastUpdatedAt: "", approvedBy: "", approvedAt: "", approvalHistory: [] as ApprovalEvent[] }
+    : undefined;
 
   const filtered = useMemo(() => {
     const result = groups
@@ -476,14 +437,33 @@ export default function CorporateList() {
     const term = appliedSearch.trim().toLowerCase();
     if (!term) return result;
 
-    return result.filter(
-      (g) =>
-        g.groupName.toLowerCase().includes(term) ||
-        g.code.toLowerCase().includes(term) ||
-        g.subsidiaries.some(
-          (s) => s.companyName.toLowerCase().includes(term) || s.legalName.toLowerCase().includes(term),
-        ),
-    );
+    return result
+      .map((group) => {
+        const groupMatches =
+          group.groupName.toLowerCase().includes(term) ||
+          group.code.toLowerCase().includes(term);
+
+        if (groupMatches) {
+          return group;
+        }
+
+        const matchingSubsidiaries = group.subsidiaries.filter((company) =>
+          [
+            company.companyName,
+            company.legalName,
+            company.brand ?? "",
+            company.gstin,
+            company.ieCode,
+            company.incorporationDate,
+          ].some((value) => value.toLowerCase().includes(term)),
+        );
+
+        return {
+          ...group,
+          subsidiaries: matchingSubsidiaries,
+        };
+      })
+      .filter((group) => group.subsidiaries.length > 0);
   }, [appliedSearch, groups, statusFilter]);
 
   const displayRows = useMemo(
@@ -493,6 +473,10 @@ export default function CorporateList() {
           ? group.subsidiaries.map((company) => ({ type: "company" as const, company, groupId: group.id }))
           : [{ type: "group" as const, group } as const],
       ),
+    [filtered],
+  );
+  const hasGroupedCompanies = useMemo(
+    () => filtered.some((group) => !isUngroupedGroup(group)),
     [filtered],
   );
 
@@ -589,35 +573,9 @@ export default function CorporateList() {
     );
   };
 
-  const appendAuditEvent = (companyId: string, event: ApprovalEvent, approvedBy?: string) => {
-    const company = groups.flatMap((group) => group.subsidiaries).find((item) => item.id === companyId);
-    if (!company) return;
-
-    setAuditEntries((previous) => {
-      const baseEntry = previous[companyId] ?? getAuditEntry(company);
-      return {
-        ...previous,
-        [companyId]: {
-          ...baseEntry,
-          lastUpdatedAt: event.at,
-          approvedBy: approvedBy ?? baseEntry.approvedBy,
-          approvedAt: event.at,
-          approvalHistory: [event, ...baseEntry.approvalHistory],
-        },
-      };
-    });
-  };
-
   const handleSaveCompany = (updatedCompany: Company) => {
     updateSpecificCompany(updatedCompany.id, () => updatedCompany);
     setSelectedCompany(updatedCompany);
-    setAuditEntries((previous) => ({
-      ...previous,
-      [updatedCompany.id]: {
-        ...(previous[updatedCompany.id] ?? getAuditEntry(updatedCompany)),
-        lastUpdatedAt: new Date().toISOString(),
-      },
-    }));
   };
 
   const handleToggleCompanyActive = (companyId: string, isActive: boolean) => {
@@ -634,19 +592,6 @@ export default function CorporateList() {
         ? { ...previous, status: nextStatus }
         : previous,
     );
-    const action = isActive ? "Approved" : "Marked inactive";
-    const lastEvent = (auditEntries[companyId] ?? getAuditEntry(existingCompany)).approvalHistory[0];
-    if (!lastEvent || lastEvent.action !== action || lastEvent.name !== "Admin Portal") {
-      appendAuditEvent(
-        companyId,
-        {
-          name: "Admin Portal",
-          action,
-          at: new Date().toISOString(),
-        },
-        "Admin Portal",
-      );
-    }
   };
 
   const toggleColumn = (column: VisibleColumn, checked: boolean) => {
@@ -663,7 +608,6 @@ export default function CorporateList() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Corporate List</h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage group companies and subsidiaries</p>
         </div>
         <Button onClick={() => navigate("/onboarding")} className="gap-2 self-start sm:self-auto">
           <Plus className="h-4 w-4" /> Onboard new corporate
@@ -724,9 +668,9 @@ export default function CorporateList() {
               <div className="space-y-3">
                 <p className="text-sm font-medium text-foreground">View Columns</p>
                 {[
-                  { id: "groupName", label: "Group Name" },
+                  { id: "groupName", label: hasGroupedCompanies ? "Group Name" : "Company Name" },
                   { id: "code", label: "Code / Legal Name" },
-                  { id: "createdDate", label: "Created Date" },
+                  { id: "createdDate", label: "Incorporation Date" },
                   { id: "manage", label: "Manage" },
                   ...(shouldShowStatusColumn ? [{ id: "status", label: "Status" }] : []),
                 ].map((column) => (
@@ -779,9 +723,6 @@ export default function CorporateList() {
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground">{row.group.groupName}</p>
-                      {visibleColumns.has("code") && (
-                        <p className="mt-1 text-sm text-muted-foreground">{row.group.code}</p>
-                      )}
                     </div>
                     {expanded.has(row.group.id) ? (
                       <ChevronDown className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
@@ -869,7 +810,7 @@ export default function CorporateList() {
                     <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider w-16"></th>
                     {visibleColumns.has("groupName") && (
                       <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Group Name
+                        {hasGroupedCompanies ? "Group Name" : "Company Name"}
                       </th>
                     )}
                     {visibleColumns.has("code") && (
@@ -879,7 +820,7 @@ export default function CorporateList() {
                     )}
                     {visibleColumns.has("createdDate") && (
                       <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Created Date
+                        Incorporation Date
                       </th>
                     )}
                     {visibleColumns.has("manage") && (
@@ -934,7 +875,9 @@ export default function CorporateList() {
 
       <CompanyPreviewDialog
         company={selectedCompany}
+        companyCode={selectedCompany?.companyCode ?? ""}
         groupName={selectedGroupName}
+        groupCode={selectedGroupCode}
         open={isPreviewOpen}
         onOpenChange={setIsPreviewOpen}
         onSave={handleSaveCompany}
@@ -942,10 +885,7 @@ export default function CorporateList() {
         approvalHistory={selectedCompanyAudit?.approvalHistory ?? []}
         approvalStatusLabel={selectedCompany ? approvalStatusLabel[selectedCompany.status] : undefined}
         defaultEditing={defaultEditing}
-        onAuditEvent={(event) => {
-          if (!selectedCompany) return;
-          appendAuditEvent(selectedCompany.id, event);
-        }}
+        onAuditEvent={() => {}}
       />
     </div>
   );

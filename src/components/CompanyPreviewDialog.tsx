@@ -5,15 +5,17 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/hooks/use-toast";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Company } from "@/contexts/AppContext";
-import { Building2, ChevronLeft, ChevronRight, Pencil, Save } from "lucide-react";
+import { Building2, History, Pencil, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ApprovalEvent {
@@ -24,7 +26,9 @@ export interface ApprovalEvent {
 
 interface CompanyPreviewDialogProps {
   company: Company | null;
+  companyCode?: string;
   groupName: string;
+  groupCode?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (company: Company) => void;
@@ -46,11 +50,6 @@ const fieldLabelClassName = "text-[11px] uppercase tracking-[0.06em] text-muted-
 const fieldValueClassName = "text-[14px] font-medium text-foreground";
 const sectionHeadingClassName = "text-[15px] font-medium text-foreground";
 
-const fallbackHistory = (company: Company): ApprovalEvent[] => [
-  { name: company.companyName, action: "Company created", at: "2026-03-31T00:00:00.000Z" },
-  { name: company.companyName, action: "Draft reviewed", at: "2026-03-31T08:30:00.000Z" },
-];
-
 const getInitials = (name: string) =>
   name
     .split(" ")
@@ -63,7 +62,9 @@ const renderValue = (value: string) => <p className={fieldValueClassName}>{value
 
 export function CompanyPreviewDialog({
   company,
+  companyCode = "",
   groupName,
+  groupCode = "",
   open,
   onOpenChange,
   onSave,
@@ -94,7 +95,7 @@ export function CompanyPreviewDialog({
       setHistoryEvents([]);
       return;
     }
-    setHistoryEvents(approvalHistory?.length ? approvalHistory : fallbackHistory(company));
+    setHistoryEvents(approvalHistory ?? []);
   }, [approvalHistory, company, open]);
 
   const history = useMemo(() => {
@@ -109,18 +110,10 @@ export function CompanyPreviewDialog({
   };
 
   const handleSave = () => {
-    const hasChanges = JSON.stringify(draft) !== JSON.stringify(company);
-    if (hasChanges) {
-      const event = {
-        name: "Admin Portal",
-        action: "Details updated",
-        at: new Date().toISOString(),
-      };
-      setHistoryEvents((previous) => [event, ...previous]);
-      onAuditEvent?.(event);
-    }
-    onSave(draft);
-    setIsEditing(false);
+    toast({
+      title: "Currently not available",
+      description: "Editing company details is currently not available.",
+    });
   };
 
   const handleCancel = () => {
@@ -130,6 +123,8 @@ export function CompanyPreviewDialog({
 
   const isActive = draft.status === "Approved";
   const timelineEvents = history.slice(0, 12);
+  const headerCompanyName = company?.companyName ?? draft.companyName;
+  const headerBrand = company?.brand ?? draft.brand;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,8 +139,12 @@ export function CompanyPreviewDialog({
                 <Building2 className="h-6 w-6" />
               </div>
               <div>
-                <DialogTitle className="text-xl">{draft.companyName}</DialogTitle>
-                <DialogDescription className="mt-1">Manage</DialogDescription>
+                <DialogTitle className="text-xl">
+                  {headerBrand && headerBrand !== headerCompanyName
+                    ? `${headerCompanyName} = ${headerBrand}`
+                    : headerCompanyName}
+                </DialogTitle>
+                {groupName ? <p className="mt-1 text-sm text-muted-foreground">{groupName}</p> : null}
               </div>
             </div>
             <Badge
@@ -158,47 +157,113 @@ export function CompanyPreviewDialog({
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 lg:border-r lg:border-border">
+          <div
+            className={cn(
+              "relative min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6",
+              isHistoryOpen && "lg:border-r lg:border-border",
+            )}
+          >
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div>
                 <h3 className={sectionHeadingClassName}>Company Information</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{groupName}</p>
+                {groupName ? <p className="mt-1 text-sm text-muted-foreground">{groupName}</p> : null}
               </div>
-              {isEditing ? (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Button variant="outline" size="sm" onClick={handleCancel}>
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={handleSave}>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsEditing(true)}
-                  aria-label="Edit company details"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              )}
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                {isEditing ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Button variant="outline" size="sm" onClick={handleCancel}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleSave}>
+                      <Save className="mr-2 h-4 w-4" />
+                      Save
+                    </Button>
+                  </div>
+                ) : (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        aria-label="Open company actions"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-64 space-y-4">
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => setIsEditing(true)}
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit details
+                      </Button>
+                      {onToggleActive && draft.status !== "Pending" && (
+                        <div className="rounded-xl border border-border bg-muted/20 p-3">
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">Company Status</p>
+                              <p className={cn("mt-1 text-sm font-medium", isActive ? "text-success" : "text-destructive")}>
+                                {isActive ? "Approved" : "Inactive"}
+                              </p>
+                            </div>
+                            <Switch
+                              checked={isActive}
+                              onCheckedChange={() => {
+                                toast({
+                                  title: "Currently not available",
+                                  description: "Status updates are currently not available.",
+                                });
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                )}
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10 rounded-full border border-border bg-muted/20"
+                        onClick={() => setIsHistoryOpen((previous) => !previous)}
+                        aria-label={isHistoryOpen ? "Hide audit history" : "Show audit history"}
+                      >
+                        <History className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end">Audit History</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
             </div>
 
             <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
               <div>
-                <p className={fieldLabelClassName}>Company Name</p>
+                <p className={fieldLabelClassName}>Group Code</p>
                 <div className="mt-2">
-                  {isEditing ? (
-                    <Input value={draft.companyName} onChange={(event) => updateField("companyName", event.target.value)} />
-                  ) : (
-                    renderValue(draft.companyName)
-                  )}
+                  {isEditing ? <Input value={groupCode} readOnly disabled /> : renderValue(groupCode || "—")}
                 </div>
               </div>
               <div>
-                <p className={fieldLabelClassName}>Legal Name</p>
+                <p className={fieldLabelClassName}>Group Name</p>
+                <div className="mt-2">
+                  {isEditing ? <Input value={groupName} readOnly disabled /> : renderValue(groupName || "—")}
+                </div>
+              </div>
+              <div>
+                <p className={fieldLabelClassName}>Company Code</p>
+                <div className="mt-2">
+                  {isEditing ? <Input value={companyCode} readOnly disabled /> : renderValue(companyCode || "—")}
+                </div>
+              </div>
+              <div>
+                <p className={fieldLabelClassName}>Name</p>
                 <div className="mt-2">
                   {isEditing ? (
                     <Input value={draft.legalName} onChange={(event) => updateField("legalName", event.target.value)} />
@@ -208,29 +273,19 @@ export function CompanyPreviewDialog({
                 </div>
               </div>
               <div>
-                <p className={fieldLabelClassName}>Incorporation Date</p>
+                <p className={fieldLabelClassName}>GST No</p>
                 <div className="mt-2">
-                  {isEditing ? (
-                    <Input type="date" value={draft.incorporationDate} readOnly disabled />
-                  ) : (
-                    renderValue(draft.incorporationDate)
-                  )}
+                  {isEditing ? <Input value={draft.gstin} readOnly disabled /> : renderValue(draft.gstin || "—")}
                 </div>
               </div>
               <div>
-                <p className={fieldLabelClassName}>Address</p>
+                <p className={fieldLabelClassName}>Brand</p>
                 <div className="mt-2">
                   {isEditing ? (
-                    <Input value={draft.address} onChange={(event) => updateField("address", event.target.value)} />
+                    <Input value={draft.companyName} onChange={(event) => updateField("companyName", event.target.value)} />
                   ) : (
-                    renderValue(draft.address)
+                    renderValue(draft.companyName)
                   )}
-                </div>
-              </div>
-              <div>
-                <p className={fieldLabelClassName}>GSTIN</p>
-                <div className="mt-2">
-                  {isEditing ? <Input value={draft.gstin} readOnly disabled /> : renderValue(draft.gstin)}
                 </div>
               </div>
               <div>
@@ -239,7 +294,23 @@ export function CompanyPreviewDialog({
                   {isEditing ? (
                     <Input value={draft.ieCode} onChange={(event) => updateField("ieCode", event.target.value)} />
                   ) : (
-                    renderValue(draft.ieCode)
+                    renderValue(draft.ieCode || "—")
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className={fieldLabelClassName}>Incorporation Date</p>
+                <div className="mt-2">
+                  {isEditing ? <Input type="date" value={draft.incorporationDate} readOnly disabled /> : renderValue(draft.incorporationDate || "—")}
+                </div>
+              </div>
+              <div>
+                <p className={fieldLabelClassName}>Address</p>
+                <div className="mt-2">
+                  {isEditing ? (
+                    <Input value={draft.address} onChange={(event) => updateField("address", event.target.value)} />
+                  ) : (
+                    renderValue(draft.address || "—")
                   )}
                 </div>
               </div>
@@ -248,63 +319,24 @@ export function CompanyPreviewDialog({
 
           <div
             className={cn(
-              "flex shrink-0 flex-col overflow-hidden border-t border-border transition-[width,padding] duration-300 ease-out lg:min-h-0 lg:h-full lg:border-l lg:border-t-0",
+              "flex shrink-0 flex-col overflow-hidden transition-[width,padding] duration-300 ease-out lg:min-h-0 lg:h-full",
               isHistoryOpen
-                ? "w-full px-4 py-4 sm:px-6 sm:py-6 lg:w-[20rem] xl:w-[21rem]"
-                : "w-full items-center justify-center px-4 py-3 sm:px-6 lg:w-[4.5rem] lg:px-2 lg:py-6",
+                ? "w-full border-t border-border px-4 py-4 sm:px-6 sm:py-6 lg:w-[20rem] lg:border-l lg:border-t-0 xl:w-[21rem]"
+                : "w-0 px-0 py-0",
             )}
           >
-            <Button
-              type="button"
-              variant="ghost"
-              size={isHistoryOpen ? undefined : "icon"}
-              className={cn(
-                "mb-0 shrink-0 transition-all duration-300 ease-out",
-                isHistoryOpen
-                  ? "mb-3 inline-flex !h-7 w-auto flex-none self-end items-center justify-center !gap-1.5 rounded-full bg-muted !px-2.5 !py-1 text-xs font-medium opacity-100 shadow-none hover:bg-muted/80 sm:mb-4"
-                  : "h-auto w-full flex-row justify-center gap-2 rounded-xl border border-border bg-muted/20 px-3 py-3 opacity-100 lg:flex-col lg:px-2 lg:py-4",
-              )}
-              onClick={() => setIsHistoryOpen((previous) => !previous)}
-            >
-              {isHistoryOpen ? (
-                <>
-                  Hide
-                  <ChevronRight className="h-4 w-4" />
-                </>
-              ) : (
-                <>
-                  <ChevronLeft className="h-4 w-4" />
-                  <span className="text-[11px] font-medium uppercase tracking-[0.08em] lg:[writing-mode:vertical-rl] lg:rotate-180">
-                    Approval History
-                  </span>
-                </>
-              )}
-            </Button>
-
-            {isHistoryOpen && onToggleActive && draft.status !== "Pending" && (
-              <div className="mb-6 rounded-xl border border-border bg-muted/20 p-4 transition-all duration-300 ease-out">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">Company Status</p>
-                    <p className="mt-2 text-[14px] font-medium text-foreground">
-                      <span className={cn(isActive ? "text-success" : "text-destructive")}>
-                        {isActive ? "Approved" : "Inactive"}
-                      </span>
-                    </p>
-                  </div>
-                  <Switch
-                    checked={isActive}
-                    onCheckedChange={(checked) => {
-                      if (checked === isActive) return;
-                      onToggleActive(draft.id, checked);
-                      setDraft((previous) =>
-                        previous ? { ...previous, status: checked ? "Approved" : "Inactive" } : previous,
-                      );
-                    }}
-                  />
-                </div>
-              </div>
-            )}
+            {isHistoryOpen ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="mb-3 inline-flex !h-7 w-auto flex-none self-end items-center justify-center !gap-1.5 rounded-full bg-muted !px-2.5 !py-1 text-xs font-medium opacity-100 shadow-none hover:bg-muted/80 sm:mb-4"
+                onClick={() => setIsHistoryOpen(false)}
+                aria-label="Hide history"
+              >
+                <span>Hide</span>
+                <History className="h-4 w-4" />
+              </Button>
+            ) : null}
 
             {isHistoryOpen ? (
               <div className="min-h-0 flex-1 overflow-y-auto pr-0 transition-all duration-300 ease-out lg:pr-2">

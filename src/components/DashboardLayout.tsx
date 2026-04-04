@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 import { useAppContext } from "@/contexts/AppContext";
-import { Building2, LayoutDashboard, List, Settings, LogOut, Menu, Bell, UserPlus, ShieldCheck, User, ScrollText, Activity, MapPin, Pencil } from "lucide-react";
+import { Building2, LayoutDashboard, List, Settings, LogOut, Menu, Bell, UserPlus, ShieldCheck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -17,17 +17,11 @@ const navItems = [
 ];
 
 export default function DashboardLayout() {
-  const { setIsAuthenticated, groups, users } = useAppContext();
+  const { setIsAuthenticated, groups, users, currentUser } = useAppContext();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const currentUser = {
-    name: "Arham Mehta",
-    email: "arham@adminportal.com",
-    role: "Super Admin",
-    location: "Mumbai",
-  };
 
   // Derived notification data
   const pendingCompanies = groups.flatMap(g => g.subsidiaries).filter(s => s.status === "Pending");
@@ -38,7 +32,7 @@ export default function DashboardLayout() {
     try {
       await logout();
     } catch {
-      // Keep local state in sync even if the backend cookie is already gone.
+    
     } finally {
       setIsAuthenticated(false);
       navigate("/login");
@@ -221,8 +215,7 @@ export default function DashboardLayout() {
                   className="relative flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground transition-colors hover:opacity-90"
                   aria-label="Open profile details"
                 >
-                  {currentUser.name.charAt(0)}
-                  <span className="absolute bottom-0.5 right-0.5 h-2.5 w-2.5 rounded-full border border-background bg-emerald-500" />
+                  {(currentUser?.name || currentUser?.email || "U").charAt(0).toUpperCase()}
                 </button>
               </PopoverTrigger>
               <PopoverContent
@@ -231,31 +224,23 @@ export default function DashboardLayout() {
               >
                 <div className="border-b border-border bg-white px-4 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">
-                      {currentUser.name
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">
+                      {(currentUser?.name || currentUser?.email || "User")
                         .split(" ")
                         .map((part) => part[0])
                         .join("")
                         .slice(0, 2)
                         .toUpperCase()}
-                      <span className="absolute bottom-1 right-0.5 h-2.5 w-2.5 rounded-full border border-[#262626] bg-emerald-500" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="truncate text-[1.05rem] font-semibold leading-5 text-foreground">{currentUser.name}</p>
-                        <button
-                          type="button"
-                          aria-label="Edit profile details"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-white text-muted-foreground transition hover:bg-muted/40 hover:text-foreground"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                      </div>
-                      <p className="truncate pt-0.5 text-sm text-muted-foreground">{currentUser.email}</p>
-                      <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                        <ShieldCheck className="h-3 w-3" />
-                        {currentUser.role}
-                      </div>
+                      <p className="truncate text-[1.05rem] font-semibold leading-5 text-foreground">{currentUser?.name || "User"}</p>
+                      <p className="truncate pt-0.5 text-sm text-muted-foreground">{currentUser?.email || "No email available"}</p>
+                      {currentUser?.role && (
+                        <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                          <ShieldCheck className="h-3 w-3" />
+                          {currentUser.role}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -263,14 +248,21 @@ export default function DashboardLayout() {
                 <div className="grid grid-cols-2 gap-3 bg-muted/20 p-4">
                   {[
                     { label: "My profile", icon: User, tone: "text-blue-700 bg-blue-50 border-blue-100" },
-                    { label: "Audit log", icon: ScrollText, tone: "text-lime-700 bg-lime-50 border-lime-100" },
-                    { label: "Activity", icon: Activity, tone: "text-amber-700 bg-amber-50 border-amber-100" },
                     { label: "Settings", icon: Settings, tone: "text-zinc-700 bg-zinc-100 border-zinc-200" },
                   ].map((item) => (
                     <button
                       key={item.label}
                       type="button"
                       className="rounded-2xl border border-border bg-white px-3 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                      onClick={() => {
+                        if (item.label === "My profile") {
+                          navigate("/profile");
+                          return;
+                        }
+                        if (item.label === "Settings") {
+                          navigate("/settings");
+                        }
+                      }}
                     >
                       <span className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl border ${item.tone}`}>
                         <item.icon className="h-4 w-4" />
@@ -278,16 +270,6 @@ export default function DashboardLayout() {
                       <p className="text-sm font-semibold text-foreground">{item.label}</p>
                     </button>
                   ))}
-                </div>
-
-                <div className="border-t border-border">
-                  <div className="flex flex-col gap-1 px-4 py-3 text-sm text-foreground transition hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>Session info</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">Active · {currentUser.location}</span>
-                  </div>
                 </div>
 
                 <div className="border-t border-border bg-white px-4 py-3">
@@ -300,7 +282,7 @@ export default function DashboardLayout() {
                   >
                     <span className="flex items-center gap-3 text-red-400">
                       <LogOut className="h-4 w-4" />
-                      <span className="font-medium">Sign out</span>
+                      <span className="font-medium">Log out</span>
                     </span>
                     <span className="text-xs text-red-300/80">End session</span>
                   </button>

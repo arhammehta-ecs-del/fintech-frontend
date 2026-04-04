@@ -51,31 +51,6 @@ The app runs on:
 http://localhost:8080
 ```
 
-## Available Scripts
-
-```bash
-npm run dev
-```
-
-Starts the development server.
-
-```bash
-npm run build
-```
-
-Builds the app for production.
-
-```bash
-npm run test
-```
-
-Runs the test suite.
-
-```bash
-npm run lint
-```
-
-Runs ESLint checks.
 
 ## Project Structure
 
@@ -85,8 +60,4 @@ Runs ESLint checks.
 - `src/contexts/` - shared app state
 - `src/lib/` - API and utility helpers
 
-## Notes
 
-- Make sure the backend is running on the same URL configured in `VITE_API_BASE_URL`
-- Do not commit `.env` if it contains environment-specific values
-- Use a `.env.example` file for shared setup instructions when needed
