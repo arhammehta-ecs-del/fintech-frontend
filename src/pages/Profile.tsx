@@ -1,11 +1,9 @@
 import { useMemo } from "react";
-import { Pencil, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { useAppContext } from "@/contexts/AppContext";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { toast } from "@/hooks/use-toast";
 
 const fieldLabelClassName = "text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground";
 const fieldValueClassName = "mt-1 text-base font-semibold text-foreground";
@@ -16,24 +14,6 @@ function ProfileField({ label, value }: { label: string; value: string }) {
       <p className={fieldLabelClassName}>{label}</p>
       <p className={fieldValueClassName}>{value || "—"}</p>
     </div>
-  );
-}
-
-function EditCardButton() {
-  return (
-    <Button
-      variant="outline"
-      className="h-9 gap-2 rounded-xl border-border bg-white px-3"
-      onClick={() =>
-        toast({
-          title: "Currently not available",
-          description: "Editing profile details is currently not available.",
-        })
-      }
-    >
-      <Pencil className="h-4 w-4" />
-      Edit
-    </Button>
   );
 }
 
@@ -75,13 +55,12 @@ export default function Profile() {
       </Card>
 
       <Card className="rounded-3xl border-border bg-white shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-5 pb-3">
+        <CardHeader className="p-5 pb-3">
           <CardTitle className="text-lg">Personal Info</CardTitle>
-          <EditCardButton />
         </CardHeader>
         <CardContent className="space-y-4 p-5 pt-0">
           <Separator />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <ProfileField label="Name" value={currentUser?.name || ""} />
             <ProfileField label="Email" value={currentUser?.email || ""} />
             <ProfileField label="Phone" value={currentUser?.phone || ""} />
@@ -90,13 +69,12 @@ export default function Profile() {
       </Card>
 
       <Card className="rounded-3xl border-border bg-white shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-5 pb-3">
+        <CardHeader className="p-5 pb-3">
           <CardTitle className="text-lg">Company Info</CardTitle>
-          <EditCardButton />
         </CardHeader>
         <CardContent className="space-y-4 p-5 pt-0">
           <Separator />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <ProfileField label="Company" value={currentUser?.company || ""} />
             <ProfileField label="Brand" value={currentUser?.brand || ""} />
             <ProfileField label="Company Code" value={currentUser?.companyCode || ""} />
@@ -105,13 +83,12 @@ export default function Profile() {
       </Card>
 
       <Card className="rounded-3xl border-border bg-white shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-5 pb-3">
+        <CardHeader className="p-5 pb-3">
           <CardTitle className="text-lg">Group Info</CardTitle>
-          <EditCardButton />
         </CardHeader>
         <CardContent className="space-y-4 p-5 pt-0">
           <Separator />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <ProfileField label="Group Name" value={currentUser?.groupName || ""} />
             <ProfileField label="Group Code" value={currentUser?.groupCode || ""} />
           </div>

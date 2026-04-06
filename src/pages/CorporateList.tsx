@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { format, parseISO } from "date-fns";
 import { useLocation, useNavigate } from "react-router-dom";
 import { CompanyStatus, GroupCompany, Company } from "@/contexts/AppContext";
 import { CompanyPreviewDialog, type ApprovalEvent } from "@/components/CompanyPreviewDialog";
@@ -25,6 +26,26 @@ const approvalStatusLabel: Record<CompanyStatus, string> = {
   Inactive: "Inactive",
 };
 
+const formatDisplayDate = (value: string) => {
+  if (!value) return "No date";
+
+  try {
+    return format(parseISO(value), "dd/MMM/yyyy");
+  } catch {
+    return value;
+  }
+};
+
+const formatGroupDisplayDate = (value: string) => {
+  if (!value) return "";
+
+  try {
+    return format(parseISO(value), "dd/MMM/yyyy");
+  } catch {
+    return value;
+  }
+};
+
 type AuditEntry = {
   lastUpdatedAt: string;
   approvedBy: string;
@@ -32,7 +53,7 @@ type AuditEntry = {
   approvalHistory: ApprovalEvent[];
 };
 
-type VisibleColumn = "groupName" | "code" | "createdDate" | "status" | "manage";
+type VisibleColumn = "groupName" | "companyName" | "code" | "createdDate" | "status" | "manage";
 
 type DragPayload =
   | { type: "group"; groupId: string }
@@ -105,6 +126,9 @@ function StandaloneCompanyRow({
           </button>
         </td>
         {visibleColumns.has("groupName") && (
+          <td className="px-4 py-3 text-sm text-muted-foreground">Independent</td>
+        )}
+        {visibleColumns.has("companyName") && (
           <td className="px-4 py-3 text-sm font-medium text-foreground">
             <span
               className="text-primary hover:underline cursor-pointer"
@@ -120,7 +144,7 @@ function StandaloneCompanyRow({
           <td className="px-4 py-3 text-sm text-muted-foreground">{company.legalName}</td>
         )}
         {visibleColumns.has("createdDate") && (
-          <td className="px-4 py-3 text-sm text-muted-foreground">{company.incorporationDate}</td>
+          <td className="px-4 py-3 text-sm text-muted-foreground">{formatDisplayDate(company.incorporationDate)}</td>
         )}
         {visibleColumns.has("manage") && (
           <td className="px-4 py-3">
@@ -198,12 +222,15 @@ function SortableSubsidiaryRow({
         </button>
       </td>
       {visibleColumns.has("groupName") && (
-        <td className="px-4 py-3 text-sm pl-1">
-          <span
-            className="text-primary hover:underline cursor-pointer font-medium"
-            onClick={(event) => {
-              event.stopPropagation();
-              onManage(sub);
+        <td className="px-4 py-3 text-sm text-muted-foreground"></td>
+      )}
+      {visibleColumns.has("companyName") && (
+        <td className="px-4 py-3 text-sm">
+            <span
+              className="text-primary hover:underline cursor-pointer font-medium"
+              onClick={(event) => {
+                event.stopPropagation();
+                onManage(sub);
             }}
           >
             {sub.companyName}
@@ -214,7 +241,7 @@ function SortableSubsidiaryRow({
         <td className="px-4 py-3 text-sm text-muted-foreground">{sub.legalName}</td>
       )}
       {visibleColumns.has("createdDate") && (
-        <td className="px-4 py-3 text-sm text-muted-foreground">{sub.incorporationDate}</td>
+        <td className="px-4 py-3 text-sm text-muted-foreground">{formatDisplayDate(sub.incorporationDate)}</td>
       )}
       {visibleColumns.has("manage") && (
         <td className="px-4 py-3">
@@ -303,13 +330,18 @@ function SortableGroupBody({
           </div>
         </td>
         {visibleColumns.has("groupName") && (
-          <td className="px-4 py-3 text-sm font-medium text-foreground">{group.groupName}</td>
+          <td className="px-4 py-3 text-sm font-medium text-foreground">
+            {group.groupName} ({group.subsidiaries.length})
+          </td>
+        )}
+        {visibleColumns.has("companyName") && (
+          <td className="px-4 py-3 text-sm text-muted-foreground"></td>
         )}
         {visibleColumns.has("code") && (
           <td className="px-4 py-3 text-sm text-muted-foreground"></td>
         )}
         {visibleColumns.has("createdDate") && (
-          <td className="px-4 py-3 text-sm text-muted-foreground">{group.createdDate}</td>
+          <td className="px-4 py-3 text-sm text-muted-foreground">{formatGroupDisplayDate(group.createdDate)}</td>
         )}
         {visibleColumns.has("manage") && <td className="px-4 py-3 text-sm text-muted-foreground"></td>}
         {showStatusColumn && visibleColumns.has("status") && <td className="px-4 py-3 text-sm text-muted-foreground">Group</td>}
@@ -350,7 +382,7 @@ export default function CorporateList() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [defaultEditing, setDefaultEditing] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Set<VisibleColumn>>(
-    new Set(["groupName", "code", "createdDate", "manage", "status"]),
+    new Set(["groupName", "companyName", "code", "createdDate", "manage", "status"]),
   );
   const [dragState, setDragState] = useState<DragPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -668,7 +700,8 @@ export default function CorporateList() {
               <div className="space-y-3">
                 <p className="text-sm font-medium text-foreground">View Columns</p>
                 {[
-                  { id: "groupName", label: hasGroupedCompanies ? "Group Name" : "Company Name" },
+                  { id: "groupName", label: "Group Name" },
+                  { id: "companyName", label: "Company Name" },
                   { id: "code", label: "Code / Legal Name" },
                   { id: "createdDate", label: "Incorporation Date" },
                   { id: "manage", label: "Manage" },
@@ -722,7 +755,9 @@ export default function CorporateList() {
                     onClick={() => toggle(row.group.id)}
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground">{row.group.groupName}</p>
+                      <p className="text-sm font-semibold text-foreground">
+                        {row.group.groupName} ({row.group.subsidiaries.length})
+                      </p>
                     </div>
                     {expanded.has(row.group.id) ? (
                       <ChevronDown className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
@@ -753,7 +788,7 @@ export default function CorporateList() {
                           </div>
                           <div className="flex items-center justify-between gap-3">
                             {visibleColumns.has("createdDate") ? (
-                              <p className="text-xs text-muted-foreground">{sub.incorporationDate || "No date"}</p>
+                              <p className="text-xs text-muted-foreground">{formatDisplayDate(sub.incorporationDate)}</p>
                             ) : (
                               <span />
                             )}
@@ -771,6 +806,9 @@ export default function CorporateList() {
                   <div className="flex flex-col gap-3 px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
+                        {visibleColumns.has("groupName") ? (
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Independent</p>
+                        ) : null}
                         <button
                           type="button"
                           className="text-left text-sm font-semibold text-primary hover:underline"
@@ -788,7 +826,7 @@ export default function CorporateList() {
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       {visibleColumns.has("createdDate") ? (
-                        <p className="text-xs text-muted-foreground">{row.company.incorporationDate || "No date"}</p>
+                        <p className="text-xs text-muted-foreground">{formatDisplayDate(row.company.incorporationDate)}</p>
                       ) : (
                         <span />
                       )}
@@ -810,7 +848,12 @@ export default function CorporateList() {
                     <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider w-16"></th>
                     {visibleColumns.has("groupName") && (
                       <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        {hasGroupedCompanies ? "Group Name" : "Company Name"}
+                        Group Name
+                      </th>
+                    )}
+                    {visibleColumns.has("companyName") && (
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Company Name
                       </th>
                     )}
                     {visibleColumns.has("code") && (
