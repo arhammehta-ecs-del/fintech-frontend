@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppContext } from "@/contexts/AppContext";
-import { CompanyPreviewDialog, type ApprovalEvent } from "@/components/CompanyPreviewDialog";
+import { CompanyPreviewDialog, } from "@/components/CompanyPreviewDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, XCircle, Clock } from "lucide-react";
 
-type AuditEntry = {
-  approvalHistory: ApprovalEvent[];
-};
+
+
+// type AuditEntry = {
+//   approvalHistory: ApprovalEvent[];
+// };
 
 const approvalStatusLabel = {
   Approved: "Approved",
@@ -35,10 +37,10 @@ export default function Dashboard() {
   const selectedCompany = groups.flatMap((g) => g.subsidiaries).find((company) => company.id === selectedCompanyId) ?? null;
   const selectedGroupName = groups.find((group) => group.subsidiaries.some((company) => company.id === selectedCompanyId))?.groupName ?? "";
   const selectedGroupCode = groups.find((group) => group.subsidiaries.some((company) => company.id === selectedCompanyId))?.code ?? "";
-  const selectedCompanyAudit = useMemo(
-    () => (selectedCompany ? ({ approvalHistory: [] } satisfies AuditEntry) : undefined),
-    [selectedCompany],
-  );
+  // const selectedCompanyAudit = useMemo(
+  //   () => (selectedCompany ? ({ approvalHistory: [] } satisfies AuditEntry) : undefined),
+  //   [selectedCompany],
+  // );
 
   const handleOpenPreview = (companyId: string) => {
     setSelectedCompanyId(companyId);
@@ -165,9 +167,9 @@ export default function Dashboard() {
         onOpenChange={setIsPreviewOpen}
         onSave={handleSaveCompany}
         onToggleActive={handleToggleCompanyActive}
-        approvalHistory={selectedCompanyAudit?.approvalHistory ?? []}
+        // approvalHistory={selectedCompanyAudit?.approvalHistory ?? []}
         approvalStatusLabel={selectedCompany ? approvalStatusLabel[selectedCompany.status] : undefined}
-        onAuditEvent={() => {}}
+        // onAuditEvent={() => {}}
       />
     </div>
   );

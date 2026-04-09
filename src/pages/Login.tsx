@@ -2,6 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppContext } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,6 +21,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showForceLoginDialog, setShowForceLoginDialog] = useState(false);
   const { setIsAuthenticated, setCurrentUser } = useAppContext();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -28,29 +36,66 @@ export default function Login() {
     return Object.keys(e).length === 0;
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
+  const getLoginErrorMessage = (error: unknown) => {
+    if (!(error instanceof Error)) {
+      return "Unable to sign in right now. Please try again.";
+    }
 
+    const match = error.message.match(/Request failed:\s*(\d{3})/);
+    const statusCode = match ? Number(match[1]) : null;
+
+    switch (statusCode) {
+      case 400:
+      case 401:
+        return "Please check your email and password and try again.";
+      case 403:
+        return "Your account does not have access to sign in here.";
+      case 429:
+        return "Too many login attempts. Please wait a moment and try again.";
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        return "Server is unavailable right now. Please try again shortly.";
+      default:
+        return "Unable to sign in right now. Please try again.";
+    }
+  };
+
+  const submitLogin = async (action = false) => {
     try {
       setIsSubmitting(true);
-      const response = await login(email, password);
+      const response = await login(email, password, action);
       setIsAuthenticated(true);
       setCurrentUser(response.user);
+      setShowForceLoginDialog(false);
       toast({ title: "Welcome back!", description: "You have been logged in." });
       navigate("/");
     } catch (error) {
-      const description = error instanceof Error ? error.message : "Login failed";
+      const statusMatch = error instanceof Error ? error.message.match(/Request failed:\s*(\d{3})/) : null;
+      const statusCode = statusMatch ? Number(statusMatch[1]) : null;
+
+      if (statusCode === 409 && !action) {
+        setShowForceLoginDialog(true);
+        return;
+      }
+
       setIsAuthenticated(false);
       setCurrentUser(null);
       toast({
         title: "Login failed",
-        description,
+        description: getLoginErrorMessage(error),
         variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+    await submitLogin(false);
   };
 
   return (
@@ -81,6 +126,25 @@ export default function Login() {
           </form>
         </CardContent>
       </Card>
+
+      <Dialog open={showForceLoginDialog} onOpenChange={setShowForceLoginDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>User already logged in</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This user is already logged in. Do you want to force login and continue?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowForceLoginDialog(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={() => void submitLogin(true)} disabled={isSubmitting}>
+              {isSubmitting ? "Signing in..." : "Force Login"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

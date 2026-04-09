@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { format, parseISO } from "date-fns";
 import { useLocation, useNavigate } from "react-router-dom";
 import { CompanyStatus, GroupCompany, Company } from "@/contexts/AppContext";
-import { CompanyPreviewDialog, type ApprovalEvent } from "@/components/CompanyPreviewDialog";
+import { CompanyPreviewDialog } from "@/components/CompanyPreviewDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -50,7 +50,7 @@ type AuditEntry = {
   lastUpdatedAt: string;
   approvedBy: string;
   approvedAt: string;
-  approvalHistory: ApprovalEvent[];
+  // approvalHistory: ApprovalEvent[];
 };
 
 type VisibleColumn = "groupName" | "companyName" | "code" | "createdDate" | "status" | "manage";
@@ -397,7 +397,7 @@ export default function CorporateList() {
         setIsLoading(true);
         setError(null);
         const nextGroups = await getAllCompanies();
-        if (!ignore) {
+        if (!ignore) {    
           setGroups(nextGroups);
           setExpanded(new Set(nextGroups.map((group) => group.id)));
         }
@@ -454,9 +454,9 @@ export default function CorporateList() {
     [groups, selectedCompany],
   );
 
-  const selectedCompanyAudit = selectedCompany
-    ? { lastUpdatedAt: "", approvedBy: "", approvedAt: "", approvalHistory: [] as ApprovalEvent[] }
-    : undefined;
+  // const selectedCompanyAudit = selectedCompany
+  //   ? { lastUpdatedAt: "", approvedBy: "", approvedAt: "", approvalHistory: [] as ApprovalEvent[] }
+  //   : undefined;
 
   const filtered = useMemo(() => {
     const result = groups
@@ -505,10 +505,6 @@ export default function CorporateList() {
           ? group.subsidiaries.map((company) => ({ type: "company" as const, company, groupId: group.id }))
           : [{ type: "group" as const, group } as const],
       ),
-    [filtered],
-  );
-  const hasGroupedCompanies = useMemo(
-    () => filtered.some((group) => !isUngroupedGroup(group)),
     [filtered],
   );
 
@@ -637,13 +633,8 @@ export default function CorporateList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Corporate List</h1>
-        </div>
-        <Button onClick={() => navigate("/onboarding")} className="gap-2 self-start sm:self-auto">
-          <Plus className="h-4 w-4" /> Onboard new corporate
-        </Button>
+      <div>
+        <h1 className="text-2xl font-semibold text-foreground">Corporate List</h1>
       </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -925,10 +916,10 @@ export default function CorporateList() {
         onOpenChange={setIsPreviewOpen}
         onSave={handleSaveCompany}
         onToggleActive={handleToggleCompanyActive}
-        approvalHistory={selectedCompanyAudit?.approvalHistory ?? []}
+        // approvalHistory={selectedCompanyAudit?.approvalHistory ?? []}
         approvalStatusLabel={selectedCompany ? approvalStatusLabel[selectedCompany.status] : undefined}
         defaultEditing={defaultEditing}
-        onAuditEvent={() => {}}
+        // onAuditEvent={() => {}}
       />
     </div>
   );

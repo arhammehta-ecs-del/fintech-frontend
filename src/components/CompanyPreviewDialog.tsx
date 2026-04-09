@@ -13,11 +13,11 @@ import { Company } from "@/contexts/AppContext";
 import { Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export interface ApprovalEvent {
-  name: string;
-  action: string;
-  at: string;
-}
+// export interface ApprovalEvent {
+//   name: string;
+//   action: string;
+//   at: string;
+// }
 
 interface CompanyPreviewDialogProps {
   company: Company | null;
@@ -28,10 +28,10 @@ interface CompanyPreviewDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (company: Company) => void;
   onToggleActive?: (companyId: string, isActive: boolean) => void;
-  approvalHistory?: ApprovalEvent[];
+  // approvalHistory?: ApprovalEvent[];
   approvalStatusLabel?: string;
   defaultEditing?: boolean;
-  onAuditEvent?: (event: ApprovalEvent) => void;
+  // onAuditEvent?: (event: ApprovalEvent) => void;
 }
 
 const statusColors = {
@@ -66,10 +66,10 @@ export function CompanyPreviewDialog({
   onOpenChange,
   onSave,
   onToggleActive,
-  approvalHistory,
+  // approvalHistory,
   approvalStatusLabel = "Approved",
   defaultEditing = false,
-  onAuditEvent,
+  // onAuditEvent,
 }: CompanyPreviewDialogProps) {
   const [draft, setDraft] = useState<Company | null>(company);
 

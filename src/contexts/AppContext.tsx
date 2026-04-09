@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { getAllCompanies, getAuthStatus } from "@/lib/api";
+import { getAllCompanies } from "@/lib/api";
 
 export type CompanyStatus = "Pending" | "Approved" | "Inactive";
 
@@ -37,7 +37,10 @@ export interface GroupCompany {
 export interface OrgNode {
   id: string;
   name: string;
+  companyId?: string;
   parentId: string | null;
+  nodeType: string;
+  nodePath: string;
   disabled?: boolean;
   children: OrgNode[];
 }
@@ -90,43 +93,54 @@ const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isAuthLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [groups, setGroups] = useState<GroupCompany[]>([]);
   const [orgStructure, setOrgStructure] = useState<OrgNode | null>(null);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [companyOrgs, setCompanyOrgs] = useState<Record<string, OrgNode>>({});
 
+  // Frontend auth-status restore is intentionally disabled.
+  // We only trust the explicit login response to set auth state.
+  // useEffect(() => {
+  //   let cancelled = false;
+  //
+  //   const restoreSession = async () => {
+  //     try {
+  //       const auth = await getAuthStatus();
+  //       if (!cancelled) {
+  //         setIsAuthenticated(true);
+  //         setCurrentUser(auth.user);
+  //       }
+  //     } catch {
+  //       if (!cancelled) {
+  //         setIsAuthenticated(false);
+  //         setCurrentUser(null);
+  //       }
+  //     } finally {
+  //       if (!cancelled) {
+  //         setIsAuthLoading(false);
+  //       }
+  //     }
+  //   };
+  //
+  //   void restoreSession();
+  //
+  //   return () => {
+  //     cancelled = true;
+  //   };
+  // }, []);
+
   useEffect(() => {
-    let cancelled = false;
+    if (isAuthLoading) return;
 
-    const restoreSession = async () => {
-      try {
-        const auth = await getAuthStatus();
-        if (!cancelled) {
-          setIsAuthenticated(true);
-          setCurrentUser(auth.user);
-        }
-      } catch {
-        if (!cancelled) {
-          setIsAuthenticated(false);
-          setCurrentUser(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsAuthLoading(false);
-        }
-      }
-    };
+    if (!isAuthenticated) {
+      setGroups([]);
+      setOrgStructure(null);
+      setCompanyOrgs({});
+      return;
+    }
 
-    void restoreSession();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
 
     const loadCompanies = async () => {
@@ -147,7 +161,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isAuthenticated, isAuthLoading]);
 
   return (
     <AppContext.Provider value={{ isAuthenticated, isAuthLoading, setIsAuthenticated, currentUser, setCurrentUser, groups, setGroups, orgStructure, setOrgStructure, users, setUsers, companyOrgs, setCompanyOrgs }}>

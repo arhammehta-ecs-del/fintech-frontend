@@ -1,43 +1,115 @@
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 import { useAppContext } from "@/contexts/AppContext";
-import { Building2, LayoutDashboard, List, Settings, LogOut, Menu, Bell, UserPlus, ShieldCheck, User } from "lucide-react";
+import { Building2, LayoutDashboard, List, Settings, LogOut, Menu, Bell, UserPlus, ShieldCheck, User, Layers3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { logout } from "@/lib/api";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/" },
   { label: "Corporate List", icon: List, path: "/corporates" },
+  { label: "Saas Organisation", icon: Layers3, path: "/saas-organisation" },
   { label: "Settings", icon: Settings, path: "/settings" },
 ];
 
+const TOTAL_TIME = 15 * 60 * 1000;
+const WARNING_TIME = 40 * 1000;
+const WARNING_SECONDS = WARNING_TIME / 1000;
+
 export default function DashboardLayout() {
-  const { setIsAuthenticated, groups, users, currentUser } = useAppContext();
+  const { setIsAuthenticated, setCurrentUser, setGroups, groups, users, currentUser } = useAppContext();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
+  const [countdown, setCountdown] = useState(WARNING_SECONDS);
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isSaasOrganisationPage = location.pathname.startsWith("/saas-organisation");
 
   // Derived notification data
   const pendingCompanies = groups.flatMap(g => g.subsidiaries).filter(s => s.status === "Pending");
   const pendingMembers = users.filter(u => u.status === "Pending");
   const totalNotifications = pendingCompanies.length + pendingMembers.length;
 
-  const handleLogout = async () => {
+  const clearTimers = useCallback(() => {
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    inactivityTimerRef.current = null;
+    warningTimerRef.current = null;
+    countdownTimerRef.current = null;
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    clearTimers();
     try {
       await logout();
     } catch {
     
     } finally {
+      setShowWarning(false);
       setIsAuthenticated(false);
+      setCurrentUser(null);
+      setGroups([]);
       navigate("/login");
     }
-  };
+  }, [clearTimers, navigate, setCurrentUser, setGroups, setIsAuthenticated]);
+
+  const openWarning = useCallback(() => {
+    setShowWarning(true);
+    setCountdown(WARNING_SECONDS);
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    countdownTimerRef.current = setInterval(() => {
+      setCountdown((current) => {
+        if (current <= 1) {
+          if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+          countdownTimerRef.current = null;
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+  }, []);
+
+  const resetTimer = useCallback(() => {
+    clearTimers();
+    setShowWarning(false);
+    setCountdown(WARNING_SECONDS);
+
+    warningTimerRef.current = setTimeout(openWarning, TOTAL_TIME - WARNING_TIME);
+    inactivityTimerRef.current = setTimeout(() => {
+      void handleLogout();
+    }, TOTAL_TIME);
+  }, [clearTimers, handleLogout, openWarning]);
+
+  useEffect(() => {
+    const events: Array<keyof WindowEventMap> = ["mousemove", "mousedown", "keydown", "scroll"];
+    const onActivity = () => resetTimer();
+
+    events.forEach((eventName) => window.addEventListener(eventName, onActivity, { passive: true }));
+    resetTimer();
+
+    return () => {
+      events.forEach((eventName) => window.removeEventListener(eventName, onActivity));
+      clearTimers();
+    };
+  }, [clearTimers, resetTimer]);
 
   const navContent = (compact = false, onNavigate?: () => void) => (
     <>
@@ -292,12 +364,41 @@ export default function DashboardLayout() {
             </div>
           </header>
           <main className="flex-1 overflow-auto">
-            <div className="mx-auto w-full max-w-[1600px] p-4 pb-8 sm:p-5 lg:p-6 xl:p-8">
+            <div
+              className={cn(
+                isSaasOrganisationPage
+                  ? "w-full"
+                  : "mx-auto w-full max-w-[1600px] p-4 pb-8 sm:p-5 lg:p-6 xl:p-8"
+              )}
+            >
               <Outlet />
             </div>
           </main>
         </div>
       </div>
+      <Dialog open={showWarning}>
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-md"
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Session expiring soon</DialogTitle>
+            <DialogDescription>
+              You will be logged out in {countdown} seconds due to inactivity.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => void handleLogout()}>
+              Logout now
+            </Button>
+            <Button onClick={resetTimer}>
+              Stay signed in
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

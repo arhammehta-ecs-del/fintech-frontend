@@ -9,7 +9,9 @@ import CorporateList from "@/pages/CorporateList";
 import OnboardingWizard from "@/pages/OnboardingWizard";
 import CompanySettings from "@/pages/CompanySettings";
 import Profile from "@/pages/Profile";
-import NotFound from "@/pages/NotFound";
+import SaasOrganisation from "@/pages/SaasOrganisation";
+
+
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isAuthLoading } = useAppContext();
@@ -24,12 +26,13 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route element={<AuthGate><DashboardLayout /></AuthGate>}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/saas-organisation" element={<SaasOrganisation />} />
         <Route path="/corporates" element={<CorporateList />} />
         <Route path="/onboarding" element={<OnboardingWizard />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/settings" element={<CompanySettings />} />
       </Route>
-      <Route path="*" element={<NotFound />} />
+      
     </Routes>
   );
 }

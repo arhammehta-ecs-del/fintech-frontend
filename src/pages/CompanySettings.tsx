@@ -1,35 +1,14 @@
 import { useState } from "react";
-import { useAppContext, OrgNode } from "@/contexts/AppContext";
+import { useAppContext } from "@/contexts/AppContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronRight, FolderTree, Eye, Edit } from "lucide-react";
-
-function OrgTreeNode({ node }: { node: OrgNode }) {
-  const [expanded, setExpanded] = useState(true);
-
-  return (
-    <div className="ml-4">
-      <div className="flex items-center gap-2 py-1.5">
-        {node.children.length > 0 ? (
-          <button onClick={() => setExpanded(!expanded)} className="text-muted-foreground hover:text-foreground">
-            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          </button>
-        ) : <span className="w-3.5" />}
-        <FolderTree className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-sm font-medium text-foreground">{node.name}</span>
-      </div>
-      {expanded && node.children.map(child => (
-        <OrgTreeNode key={child.id} node={child} />
-      ))}
-    </div>
-  );
-}
+import { Eye, Edit } from "lucide-react";
 
 export default function CompanySettings() {
-  const { orgStructure, users } = useAppContext();
+  const { users } = useAppContext();
   const [search, setSearch] = useState("");
 
   const filteredUsers = users.filter(u =>
@@ -55,14 +34,12 @@ export default function CompanySettings() {
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="text-base">Organization Tree</CardTitle>
-              <CardDescription>Showing fetched organization details only</CardDescription>
+              <CardDescription>Organization structure is available from the SaaS Organisation page.</CardDescription>
             </CardHeader>
             <CardContent>
-              {orgStructure ? (
-                <OrgTreeNode node={orgStructure} />
-              ) : (
-                <p className="text-sm text-muted-foreground">No organization structure is being fetched yet.</p>
-              )}
+              <p className="text-sm text-muted-foreground">
+                This page no longer fetches or renders org data. Open the `Saas Organisation` tab from the sidebar to load the logged-in user&apos;s organization structure.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

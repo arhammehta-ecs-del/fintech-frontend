@@ -1,11 +1,12 @@
-import type { Company, CompanyStatus, GroupCompany } from "@/contexts/AppContext";
+import type { Company, CompanyStatus, GroupCompany, OrgNode } from "@/contexts/AppContext";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 
 type RawCompanyRecord = Record<string, unknown>;
 type RawUserRecord = Record<string, unknown>;
 
-const COMPANY_LIST_PATH = "/api/v1/admin/companies";
+const COMPANY_LIST_PATH = "/api/v1/admin/companies/all";
+const COMPANY_ORG_PATH = "/api/v1/company-settings/org";
 const LOGIN_PATH = "/api/v1/auth/login";
 const LOGOUT_PATH = "/api/v1/auth/logout";
 const AUTH_STATUS_PATH = "/api/v1/auth/status";
@@ -33,6 +34,20 @@ const getRecordArray = (record: RawCompanyRecord, keys: string[]) => {
     }
   }
   return [] as RawCompanyRecord[];
+};
+
+const getNullableString = (record: RawCompanyRecord, keys: string[]) => {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed) return trimmed;
+    }
+    if (value === null) {
+      return null;
+    }
+  }
+  return null;
 };
 
 const toStatus = (value: string): CompanyStatus => {
@@ -174,10 +189,10 @@ const mapUser = (record: RawUserRecord) => ({
   groupCode: toUpperValue(getString(record, ["groupCode", "group_code"], "")),
 });
 
-export async function login(email: string, password: string) {
+export async function login(email: string, password: string, action = false) {
   const payload = await apiFetch<{ message: string; user: RawUserRecord }>(LOGIN_PATH, {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, action: action ? "1" : "0", }),
   });
 
   return {
@@ -228,4 +243,67 @@ export async function getAllCompanies(): Promise<GroupCompany[]> {
   }
 
   return Array.from(grouped.values());
+}
+
+type RawOrgRecord = Record<string, unknown>;
+
+type OrgApiResponse = {
+  success?: boolean;
+  data?: RawOrgRecord[];
+};
+
+const mapOrgNode = (record: RawOrgRecord): OrgNode => ({
+  id: getString(record, ["id"], crypto.randomUUID()),
+  companyId: getNullableString(record, ["company_id", "companyId"]) ?? undefined,
+  name: getString(record, ["node_name", "nodeName"], "Untitled Node"),
+  nodeType: getString(record, ["node_type", "nodeType"], "NODE"),
+  nodePath: getString(record, ["node_path", "nodePath"], ""),
+  parentId: getNullableString(record, ["parent_id", "parentId"]),
+  children: [],
+});
+
+const buildOrgTree = (items: RawOrgRecord[]): OrgNode | null => {
+  if (!items.length) return null;
+
+  const nodes = items.map(mapOrgNode);
+  // Decode the flat payload with a hash map so parent/child links can be resolved in O(1).
+  const nodeHashMap = new Map(nodes.map((node) => [node.id, node] as const));
+  const rootNodes: OrgNode[] = [];
+
+  for (const node of nodes) {
+    if (node.parentId) {
+      const parent = nodeHashMap.get(node.parentId);
+      if (parent) {
+        parent.children.push(node);
+        continue;
+      }
+    }
+
+    rootNodes.push(node);
+  }
+
+  const sortNodes = (branch: OrgNode[]) => {
+    branch.sort((left, right) => {
+      const leftDepth = left.nodePath.split(".").length;
+      const rightDepth = right.nodePath.split(".").length;
+      if (leftDepth !== rightDepth) return leftDepth - rightDepth;
+      return left.name.localeCompare(right.name);
+    });
+
+    branch.forEach((node) => sortNodes(node.children));
+  };
+
+  sortNodes(rootNodes);
+  return rootNodes[0] ?? null;
+};
+
+export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNode | null> {
+  const payload = await apiFetch<OrgApiResponse>(COMPANY_ORG_PATH, {
+    method: "POST",
+    body: JSON.stringify({
+      companyCode: companyCode.trim().toUpperCase(),
+    }),
+  });
+
+  return buildOrgTree(Array.isArray(payload.data) ? payload.data : []);
 }
