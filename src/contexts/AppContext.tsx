@@ -38,7 +38,6 @@ export interface OrgNode {
   id: string;
   name: string;
   companyId?: string;
-  parentId: string | null;
   nodeType: string;
   nodePath: string;
   disabled?: boolean;
@@ -85,51 +84,77 @@ interface AppContextType {
   setOrgStructure: React.Dispatch<React.SetStateAction<OrgNode | null>>;
   users: AppUser[];
   setUsers: React.Dispatch<React.SetStateAction<AppUser[]>>;
-  companyOrgs: Record<string, OrgNode>;
-  setCompanyOrgs: React.Dispatch<React.SetStateAction<Record<string, OrgNode>>>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
+const CURRENT_USER_STORAGE_KEY = "app.currentUser";
+
+function readStoredCurrentUser(): CurrentUser | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(CURRENT_USER_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as CurrentUser;
+  } catch {
+    return null;
+  }
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAuthLoading] = useState(false);
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => readStoredCurrentUser());
   const [groups, setGroups] = useState<GroupCompany[]>([]);
   const [orgStructure, setOrgStructure] = useState<OrgNode | null>(null);
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [companyOrgs, setCompanyOrgs] = useState<Record<string, OrgNode>>({});
 
-  // Frontend auth-status restore is intentionally disabled.
-  // We only trust the explicit login response to set auth state.
-  // useEffect(() => {
-  //   let cancelled = false;
-  //
-  //   const restoreSession = async () => {
-  //     try {
-  //       const auth = await getAuthStatus();
-  //       if (!cancelled) {
-  //         setIsAuthenticated(true);
-  //         setCurrentUser(auth.user);
-  //       }
-  //     } catch {
-  //       if (!cancelled) {
-  //         setIsAuthenticated(false);
-  //         setCurrentUser(null);
-  //       }
-  //     } finally {
-  //       if (!cancelled) {
-  //         setIsAuthLoading(false);
-  //       }
-  //     }
-  //   };
-  //
-  //   void restoreSession();
-  //
-  //   return () => {
-  //     cancelled = true;
-  //   };
-  // }, []);
+  useEffect(() => {
+    if (isAuthLoading) return;
+
+    try {
+      if (!currentUser) {
+        window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+        return;
+      }
+
+      window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(currentUser));
+    } catch {
+      // Ignore storage errors so auth state still works in-memory.
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const restoreSession = async () => {
+      try {
+        const companyGroups = await getAllCompanies();
+
+        if (cancelled) return;
+
+        setIsAuthenticated(true);
+        setGroups(companyGroups);
+      } catch {
+        if (!cancelled) {
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+          setGroups([]);
+          setOrgStructure(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAuthLoading(false);
+        }
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (isAuthLoading) return;
@@ -137,7 +162,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!isAuthenticated) {
       setGroups([]);
       setOrgStructure(null);
-      setCompanyOrgs({});
       return;
     }
 
@@ -164,7 +188,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, isAuthLoading]);
 
   return (
-    <AppContext.Provider value={{ isAuthenticated, isAuthLoading, setIsAuthenticated, currentUser, setCurrentUser, groups, setGroups, orgStructure, setOrgStructure, users, setUsers, companyOrgs, setCompanyOrgs }}>
+    <AppContext.Provider value={{ isAuthenticated, isAuthLoading, setIsAuthenticated, currentUser, setCurrentUser, groups, setGroups, orgStructure, setOrgStructure, users, setUsers }}>
       {children}
     </AppContext.Provider>
   );

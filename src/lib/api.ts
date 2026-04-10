@@ -1,4 +1,5 @@
 import type { Company, CompanyStatus, GroupCompany, OrgNode } from "@/contexts/AppContext";
+import { v7 as uuidv7 } from "uuid";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 
@@ -10,6 +11,8 @@ const COMPANY_ORG_PATH = "/api/v1/company-settings/org";
 const LOGIN_PATH = "/api/v1/auth/login";
 const LOGOUT_PATH = "/api/v1/auth/logout";
 const AUTH_STATUS_PATH = "/api/v1/auth/status";
+
+const generateTrackId = () => uuidv7();
 
 const getString = (record: RawCompanyRecord, keys: string[], fallback = "") => {
   for (const key of keys) {
@@ -166,6 +169,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      "track-id": generateTrackId(),
       ...(options.headers || {}),
     },
   });
@@ -252,41 +256,90 @@ type OrgApiResponse = {
   data?: RawOrgRecord[];
 };
 
-const mapOrgNode = (record: RawOrgRecord): OrgNode => ({
-  id: getString(record, ["id"], crypto.randomUUID()),
-  companyId: getNullableString(record, ["company_id", "companyId"]) ?? undefined,
-  name: getString(record, ["node_name", "nodeName"], "Untitled Node"),
-  nodeType: getString(record, ["node_type", "nodeType"], "NODE"),
-  nodePath: getString(record, ["node_path", "nodePath"], ""),
-  parentId: getNullableString(record, ["parent_id", "parentId"]),
-  children: [],
-});
+const mapOrgNode = (record: RawOrgRecord): OrgNode => {
+  const nodePath = getString(record, ["node_path", "nodePath"], "");
+
+  return {
+    id: getString(record, ["id"], nodePath || crypto.randomUUID()),
+    companyId: getNullableString(record, ["company_id", "companyId"]) ?? undefined,
+    name: getString(record, ["node_name", "nodeName"], "Untitled Node"),
+    nodeType: getString(record, ["node_type", "nodeType"], "NODE"),
+    nodePath,
+    children: [],
+  };
+};
 
 const buildOrgTree = (items: RawOrgRecord[]): OrgNode | null => {
   if (!items.length) return null;
 
   const nodes = items.map(mapOrgNode);
-  // Decode the flat payload with a hash map so parent/child links can be resolved in O(1).
-  const nodeHashMap = new Map(nodes.map((node) => [node.id, node] as const));
+  const getDerivedParentPath = (nodePath: string) => {
+    const segments = nodePath
+      .split(".")
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+
+    if (segments.length <= 1) return null;
+    return segments.slice(0, -1).join(".");
+  };
+
+  // Decode the flat payload with a path map so parent/child links can be resolved from nodePath alone.
+  const nodePathMap = new Map(
+    nodes
+      .filter((node) => node.nodePath)
+      .map((node) => [node.nodePath, node] as const),
+  );
   const rootNodes: OrgNode[] = [];
 
   for (const node of nodes) {
-    if (node.parentId) {
-      const parent = nodeHashMap.get(node.parentId);
-      if (parent) {
-        parent.children.push(node);
-        continue;
-      }
+    const parent = node.nodePath ? nodePathMap.get(getDerivedParentPath(node.nodePath) ?? "") : null;
+
+    if (parent) {
+      parent.children.push(node);
+      continue;
     }
 
     rootNodes.push(node);
   }
 
+  const parseNodePath = (nodePath: string) =>
+    nodePath
+      .split(".")
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+
+  const compareNodePath = (leftPath: string, rightPath: string) => {
+    const leftSegments = parseNodePath(leftPath);
+    const rightSegments = parseNodePath(rightPath);
+    const maxLength = Math.max(leftSegments.length, rightSegments.length);
+
+    for (let index = 0; index < maxLength; index += 1) {
+      const leftSegment = leftSegments[index];
+      const rightSegment = rightSegments[index];
+
+      if (leftSegment === undefined) return -1;
+      if (rightSegment === undefined) return 1;
+
+      if (leftSegment !== rightSegment) {
+        const leftAsNumber = Number(leftSegment);
+        const rightAsNumber = Number(rightSegment);
+        const bothNumeric = !Number.isNaN(leftAsNumber) && !Number.isNaN(rightAsNumber);
+
+        if (bothNumeric) {
+          return leftAsNumber - rightAsNumber;
+        }
+
+        return leftSegment.localeCompare(rightSegment, undefined, { numeric: true, sensitivity: "base" });
+      }
+    }
+
+    return 0;
+  };
+
   const sortNodes = (branch: OrgNode[]) => {
     branch.sort((left, right) => {
-      const leftDepth = left.nodePath.split(".").length;
-      const rightDepth = right.nodePath.split(".").length;
-      if (leftDepth !== rightDepth) return leftDepth - rightDepth;
+      const pathComparison = compareNodePath(left.nodePath, right.nodePath);
+      if (pathComparison !== 0) return pathComparison;
       return left.name.localeCompare(right.name);
     });
 
@@ -294,7 +347,7 @@ const buildOrgTree = (items: RawOrgRecord[]): OrgNode | null => {
   };
 
   sortNodes(rootNodes);
-  return rootNodes[0] ?? null;
+  return rootNodes.find((node) => node.nodeType.trim().toUpperCase() === "ROOT") ?? rootNodes[0] ?? null;
 };
 
 export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNode | null> {

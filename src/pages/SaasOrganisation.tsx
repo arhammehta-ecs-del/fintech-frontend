@@ -1,108 +1,472 @@
-import { useEffect, useState } from "react";
-import { Building2, ChevronDown, ChevronRight, GitBranch, RefreshCw, Waypoints } from "lucide-react";
+import { startTransition, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { BriefcaseBusiness, Building2, CodeXml, Database, Megaphone, ReceiptText, SendHorizonal, WalletCards } from "lucide-react";
 import DepartmentSidebar, { type DepartmentSidebarDepartment } from "@/components/DepartmentSidebar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppContext, type OrgNode } from "@/contexts/AppContext";
 import { getCompanyOrgStructure } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-function nodeAccent(nodeType: string) {
-  const normalizedType = nodeType.trim().toUpperCase();
+const BRANCH_PALETTES = [
+  {
+    accentSteps: ["bg-orange-500", "bg-orange-300", "bg-orange-200", "bg-orange-100"],
+    strongAccent: "bg-orange-500",
+    softAccent: "bg-orange-300",
+    hoverBorder: "hover:border-orange-200",
+    activeBorder: "border-orange-300 shadow-[0_10px_24px_rgba(15,23,42,0.08)]",
+  },
+  {
+    accentSteps: ["bg-sky-500", "bg-sky-300", "bg-sky-200", "bg-sky-100"],
+    strongAccent: "bg-sky-500",
+    softAccent: "bg-sky-300",
+    hoverBorder: "hover:border-sky-200",
+    activeBorder: "border-sky-300 shadow-[0_10px_24px_rgba(15,23,42,0.08)]",
+  },
+  {
+    accentSteps: ["bg-emerald-500", "bg-emerald-300", "bg-emerald-200", "bg-emerald-100"],
+    strongAccent: "bg-emerald-500",
+    softAccent: "bg-emerald-300",
+    hoverBorder: "hover:border-emerald-200",
+    activeBorder: "border-emerald-300 shadow-[0_10px_24px_rgba(15,23,42,0.08)]",
+  },
+  {
+    accentSteps: ["bg-rose-500", "bg-rose-300", "bg-rose-200", "bg-rose-100"],
+    strongAccent: "bg-rose-500",
+    softAccent: "bg-rose-300",
+    hoverBorder: "hover:border-rose-200",
+    activeBorder: "border-rose-300 shadow-[0_10px_24px_rgba(15,23,42,0.08)]",
+  },
+  {
+    accentSteps: ["bg-amber-500", "bg-amber-300", "bg-amber-200", "bg-amber-100"],
+    strongAccent: "bg-amber-500",
+    softAccent: "bg-amber-300",
+    hoverBorder: "hover:border-amber-200",
+    activeBorder: "border-amber-300 shadow-[0_10px_24px_rgba(15,23,42,0.08)]",
+  },
+  {
+    accentSteps: ["bg-cyan-500", "bg-cyan-300", "bg-cyan-200", "bg-cyan-100"],
+    strongAccent: "bg-cyan-500",
+    softAccent: "bg-cyan-300",
+    hoverBorder: "hover:border-cyan-200",
+    activeBorder: "border-cyan-300 shadow-[0_10px_24px_rgba(15,23,42,0.08)]",
+  },
+] as const;
 
-  if (normalizedType === "ROOT") return "border-slate-300 bg-slate-100 text-slate-900";
-  if (normalizedType === "DIVISION") return "border-blue-200 bg-blue-50 text-blue-950";
-  if (normalizedType === "LOCATION") return "border-amber-200 bg-amber-50 text-amber-950";
-  if (normalizedType === "DEPARTMENT") return "border-emerald-200 bg-emerald-50 text-emerald-950";
-  return "border-slate-200 bg-white text-slate-900";
+function flattenOrg(node: OrgNode | null): OrgNode[] {
+  if (!node) return [];
+
+  return [node, ...node.children.flatMap((child) => flattenOrg(child))];
 }
 
-function OrgTreeNode({
+function findNode(root: OrgNode | null, targetId: string): OrgNode | null {
+  if (!root) return null;
+  if (root.id === targetId) return root;
+
+  for (const child of root.children) {
+    const match = findNode(child, targetId);
+    if (match) return match;
+  }
+
+  return null;
+}
+
+function findParent(root: OrgNode | null, targetId: string): OrgNode | null {
+  if (!root) return null;
+
+  for (const child of root.children) {
+    if (child.id === targetId) return root;
+    const match = findParent(child, targetId);
+    if (match) return match;
+  }
+
+  return null;
+}
+
+function getNodeTheme(nodeType: string) {
+  const normalized = nodeType.trim().toUpperCase();
+
+  if (normalized === "DIVISION") {
+    return {
+      accent: "border-l-[5px] border-l-sky-400",
+      ring: "border-sky-300 shadow-[0_0_0_4px_rgba(96,165,250,0.08)]",
+      icon: CodeXml,
+      iconColor: "text-slate-500",
+    };
+  }
+
+  if (normalized === "LOCATION") {
+    return {
+      accent: "border-l-[5px] border-l-emerald-400",
+      ring: "border-emerald-300 shadow-[0_0_0_4px_rgba(52,211,153,0.08)]",
+      icon: WalletCards,
+      iconColor: "text-slate-500",
+    };
+  }
+
+  if (normalized === "ROOT") {
+    return {
+      accent: "border border-slate-200",
+      ring: "border-slate-200 shadow-[0_8px_24px_rgba(15,23,42,0.06)]",
+      icon: Building2,
+      iconColor: "text-slate-500",
+    };
+  }
+
+  if (normalized === "DEPARTMENT") {
+    return {
+      accent: "border-l-[5px] border-l-amber-400",
+      ring: "border-amber-200 shadow-[0_0_0_4px_rgba(251,191,36,0.08)]",
+      icon: BriefcaseBusiness,
+      iconColor: "text-slate-500",
+    };
+  }
+
+  return {
+    accent: "border-l-[5px] border-l-slate-300",
+    ring: "border-slate-200 shadow-[0_8px_24px_rgba(15,23,42,0.04)]",
+    icon: BriefcaseBusiness,
+    iconColor: "text-slate-500",
+  };
+}
+
+function getNodeIcon(node: OrgNode) {
+  const normalized = node.name.trim().toUpperCase();
+
+  if (normalized === "RJ FINTECH") return Building2;
+  if (normalized === "TECHNOLOGY") return CodeXml;
+  if (normalized === "MARKETING") return Megaphone;
+  if (normalized === "FINANCE") return WalletCards;
+  if (normalized === "FRONTEND") return BriefcaseBusiness;
+  if (normalized === "BACKEND") return CodeXml;
+  if (normalized === "DB") return Database;
+  if (normalized === "CONTENT") return BriefcaseBusiness;
+  if (normalized === "GROWTH") return SendHorizonal;
+  if (normalized === "ACCOUNTS" || normalized === "AUDIT") return ReceiptText;
+  return getNodeTheme(node.nodeType).icon;
+}
+
+function getNodeAccentBackground(branchIndex: number | null, branchDepth: number, isRoot: boolean) {
+  if (isRoot || branchIndex === null) {
+    return "bg-slate-400";
+  }
+
+  const palette = BRANCH_PALETTES[branchIndex % BRANCH_PALETTES.length];
+  return palette.accentSteps[Math.min(branchDepth, palette.accentSteps.length - 1)];
+}
+
+function getBranchAppearance(branchIndex: number | null, branchDepth: number, isRoot: boolean) {
+  if (isRoot || branchIndex === null) {
+    return {
+      accentClass: "bg-slate-200",
+      hoverBorderClass: "hover:border-slate-300",
+      defaultSurfaceClass: "border border-slate-200 bg-white shadow-[0_6px_18px_rgba(15,23,42,0.05)]",
+      activeBorderClass: "border-slate-300 shadow-[0_10px_24px_rgba(15,23,42,0.08)]",
+    };
+  }
+
+  const palette = BRANCH_PALETTES[branchIndex % BRANCH_PALETTES.length];
+  const isPrimaryBranchNode = branchDepth === 0;
+
+  return {
+    accentClass: isPrimaryBranchNode ? palette.strongAccent : palette.softAccent,
+    hoverBorderClass: palette.hoverBorder,
+    defaultSurfaceClass: "border border-slate-200 bg-white shadow-[0_6px_18px_rgba(15,23,42,0.05)]",
+    activeBorderClass: palette.activeBorder,
+  };
+}
+
+function OrgCard({
   node,
-  depth = 0,
-  selectedId,
+  branchIndex,
+  branchDepth,
+  active = false,
+  compact = false,
   onSelect,
 }: {
   node: OrgNode;
-  depth?: number;
-  selectedId?: string;
+  branchIndex: number | null;
+  branchDepth: number;
+  active?: boolean;
+  compact?: boolean;
   onSelect: (node: OrgNode) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
-  const hasChildren = node.children.length > 0;
-  const isSelected = node.id === selectedId;
-
-  useEffect(() => {
-    if (isSelected) {
-      setExpanded(true);
-    }
-  }, [isSelected]);
+  const theme = getNodeTheme(node.nodeType);
+  const Icon = getNodeIcon(node);
+  const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
+  const appearance = getBranchAppearance(branchIndex, branchDepth, isRoot);
+  const accentBackgroundClass = getNodeAccentBackground(branchIndex, branchDepth, isRoot);
 
   return (
-    <div className="relative">
-      <div className="flex items-start gap-3">
-        <div className="flex flex-col items-center">
-          {hasChildren ? (
-            <button
-              type="button"
-              onClick={() => setExpanded((current) => !current)}
-              className="mt-3 rounded-full border border-slate-200 bg-white p-1 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-              aria-label={expanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
-            >
-              {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            </button>
-          ) : (
-            <span className="mt-3 h-6 w-6 rounded-full border border-dashed border-slate-200 bg-white" />
-          )}
-          {hasChildren && expanded ? <div className="mt-1 w-px flex-1 bg-slate-200" /> : null}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => onSelect(node)}
+    <button
+      type="button"
+      onClick={() => onSelect(node)}
+      className={cn(
+        "relative flex items-center gap-2.5 overflow-hidden rounded-[18px] px-4 text-left text-slate-900 transition hover:-translate-y-0.5",
+        isRoot ? "min-h-[48px] min-w-[108px] rounded-2xl px-3 py-2.5" : compact ? "min-h-[58px] min-w-[160px] py-3" : "min-h-[62px] min-w-[168px] py-3.5",
+        appearance.hoverBorderClass,
+        active ? appearance.activeBorderClass : appearance.defaultSurfaceClass,
+      )}
+    >
+      {!isRoot ? (
+        <span
           className={cn(
-            "w-full rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
-            nodeAccent(node.nodeType),
-            isSelected && "ring-2 ring-offset-2 ring-slate-300",
+            "absolute left-0 top-[10%] h-[80%] w-[4px] rounded-full",
+            accentBackgroundClass,
           )}
-          style={{ marginLeft: `${depth * 4}px` }}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{node.name}</p>
-              <p className="mt-1 text-xs font-medium uppercase tracking-[0.08em] opacity-75">{node.nodeType}</p>
-            </div>
-            <div className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-              {node.children.length} child{node.children.length === 1 ? "" : "ren"}
-            </div>
-          </div>
-          <p className="mt-3 break-all text-xs text-slate-500">{node.nodePath || "No path available"}</p>
-        </button>
+          aria-hidden="true"
+        />
+      ) : null}
+      <div className={cn("flex items-center justify-center rounded-full bg-white/75", isRoot ? "h-5 w-5" : "h-7 w-7")}>
+        <Icon className={cn(isRoot ? "h-3 w-3" : "h-3.5 w-3.5", theme.iconColor)} />
       </div>
+      <div className="min-w-0">
+        <p className={cn("truncate font-semibold", isRoot ? "text-[11px]" : compact ? "text-[13px]" : "text-[14px]")}>{node.name}</p>
+        {!compact && !isRoot ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</p> : null}
+      </div>
+    </button>
+  );
+}
 
-      {hasChildren && expanded ? (
-        <div className="ml-5 mt-3 space-y-3 border-l border-dashed border-slate-200 pl-5">
-          {node.children.map((child) => (
-            <OrgTreeNode key={child.id} node={child} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} />
+const HORIZONTAL_GAP = 24;
+const VERTICAL_GAP = 60;
+const CANVAS_PADDING_X = 40;
+const CANVAS_PADDING_Y = 40;
+const LEVEL_STEP = 122;
+const LEAF_SLOT_WIDTH = 184;
+
+type PositionedNode = {
+  node: OrgNode;
+  depth: number;
+  branchIndex: number | null;
+  branchDepth: number;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  children: PositionedNode[];
+};
+
+type LayoutNode = {
+  node: OrgNode;
+  depth: number;
+  width: number;
+  height: number;
+  subtreeWidth: number;
+  nodeLeft: number;
+  children: Array<{
+    subtreeLeft: number;
+    layout: LayoutNode;
+  }>;
+};
+
+function getNodeBoxSize(node: OrgNode) {
+  const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
+  const isLeaf = node.children.length === 0 && !isRoot;
+
+  if (isRoot) return { width: 108, height: 48 };
+  if (isLeaf) return { width: 160, height: 58 };
+  return { width: 168, height: 62 };
+}
+
+function getSemanticDepth(nodeType: string) {
+  const normalized = nodeType.trim().toUpperCase();
+
+  if (normalized === "ROOT") return 0;
+  if (normalized === "DIVISION") return 1;
+  if (normalized === "LOCATION") return 2;
+  if (normalized === "DEPARTMENT") return 3;
+  return 4;
+}
+
+function buildTreeLayout(node: OrgNode, depth = 0): LayoutNode {
+  const { width, height } = getNodeBoxSize(node);
+  const childLayouts = node.children.map((child) => {
+    const semanticDepth = getSemanticDepth(child.nodeType);
+    const nextDepth = Math.max(depth + 1, semanticDepth);
+    return buildTreeLayout(child, nextDepth);
+  });
+  const childrenWidth =
+    childLayouts.length > 0
+      ? childLayouts.reduce((total, child) => total + child.subtreeWidth, 0) + HORIZONTAL_GAP * (childLayouts.length - 1)
+      : 0;
+  const leafDrivenWidth = childLayouts.length === 0 ? Math.max(width, LEAF_SLOT_WIDTH) : childrenWidth;
+  const subtreeWidth = Math.max(width, leafDrivenWidth);
+  const nodeLeft = (subtreeWidth - width) / 2;
+  const centeredChildrenWidth =
+    childLayouts.reduce((total, child) => total + child.subtreeWidth, 0) + HORIZONTAL_GAP * Math.max(childLayouts.length - 1, 0);
+  let cursorX = (subtreeWidth - centeredChildrenWidth) / 2;
+
+  const children = childLayouts.map((layout) => {
+    const child = {
+      subtreeLeft: cursorX,
+      layout,
+    };
+    cursorX += layout.subtreeWidth + HORIZONTAL_GAP;
+    return child;
+  });
+
+  return {
+    node,
+    depth,
+    width,
+    height,
+    subtreeWidth,
+    nodeLeft,
+    children,
+  };
+}
+
+function collectAbsoluteNodes(
+  layout: LayoutNode,
+  topLevelBranchIndexMap: Map<string, number>,
+  subtreeOriginX = 0,
+  inheritedBranchIndex: number | null = null,
+  inheritedBranchDepth = 0,
+): PositionedNode[] {
+  const x = subtreeOriginX + layout.nodeLeft;
+  const y = layout.depth * LEVEL_STEP;
+  const isRoot = layout.node.nodeType.trim().toUpperCase() === "ROOT";
+  const branchIndex = isRoot ? null : layout.depth === 1 ? (topLevelBranchIndexMap.get(layout.node.id) ?? null) : inheritedBranchIndex;
+  const branchDepth = isRoot ? 0 : layout.depth <= 1 ? 0 : inheritedBranchDepth + 1;
+  const absoluteChildren = layout.children.flatMap((child) =>
+    collectAbsoluteNodes(child.layout, topLevelBranchIndexMap, subtreeOriginX + child.subtreeLeft, branchIndex, branchDepth),
+  );
+  const childIds = new Set(layout.children.map((child) => child.layout.node.id));
+  const directChildren = absoluteChildren.filter((child) => childIds.has(child.node.id));
+
+  const absoluteNode: PositionedNode = {
+    node: layout.node,
+    depth: layout.depth,
+    branchIndex,
+    branchDepth,
+    width: layout.width,
+    height: layout.height,
+    x,
+    y,
+    children: directChildren,
+  };
+
+  return [
+    absoluteNode,
+    ...absoluteChildren,
+  ];
+}
+
+function OrgTreeCanvas({
+  root,
+  selectedId,
+  onSelect,
+  scrollContainerRef,
+  onCanvasWidthChange,
+}: {
+  root: OrgNode;
+  selectedId?: string;
+  onSelect: (node: OrgNode) => void;
+  scrollContainerRef?: RefObject<HTMLDivElement | null>;
+  onCanvasWidthChange?: (width: number) => void;
+}) {
+  const layout = buildTreeLayout(root);
+  const topLevelBranchIndexMap = new Map(root.children.map((child, index) => [child.id, index] as const));
+  const positionedNodes = collectAbsoluteNodes(layout, topLevelBranchIndexMap);
+  const maxRight = positionedNodes.reduce((maximum, node) => Math.max(maximum, node.x + node.width), 0);
+  const maxBottom = positionedNodes.reduce((maximum, node) => Math.max(maximum, node.y + node.height), 0);
+  const minDiagramWidth = 920;
+  const contentWidth = maxRight;
+  const diagramWidth = Math.max(contentWidth + CANVAS_PADDING_X * 2, minDiagramWidth);
+  const canvasWidth = diagramWidth;
+  const canvasHeight = maxBottom + CANVAS_PADDING_Y * 2 + 24;
+  const offsetX = (diagramWidth - (contentWidth + CANVAS_PADDING_X * 2)) / 2;
+
+  useEffect(() => {
+    onCanvasWidthChange?.(Math.max(canvasWidth, 980));
+  }, [canvasWidth, onCanvasWidthChange]);
+
+  return (
+    <div
+      ref={scrollContainerRef}
+      className="relative w-full overflow-x-auto overflow-y-hidden bg-transparent [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      <div className="flex w-full justify-center">
+        <div
+          className="relative"
+          style={{
+            width: `${Math.max(canvasWidth, 980)}px`,
+            height: `${canvasHeight}px`,
+          }}
+        >
+          <svg
+            className="absolute inset-0"
+            width={canvasWidth}
+            height={canvasHeight}
+            viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+            aria-hidden="true"
+          >
+            {positionedNodes.flatMap((item) => {
+              if (item.children.length === 0) return [];
+
+              const parentCenterX = offsetX + CANVAS_PADDING_X + item.x + item.width / 2;
+              const parentBottomY = CANVAS_PADDING_Y + item.y + item.height;
+              const childTopY = CANVAS_PADDING_Y + item.children[0].y;
+              const junctionY = parentBottomY + VERTICAL_GAP / 2;
+              const childCenters = item.children.map((child) => offsetX + CANVAS_PADDING_X + child.x + child.width / 2);
+              const leftMostChild = Math.min(...childCenters);
+              const rightMostChild = Math.max(...childCenters);
+
+              return [
+                <line key={`${item.node.id}-stem`} x1={parentCenterX} y1={parentBottomY} x2={parentCenterX} y2={junctionY} stroke="#d8e0ec" strokeWidth="1.5" />,
+                <line key={`${item.node.id}-branch`} x1={leftMostChild} y1={junctionY} x2={rightMostChild} y2={junctionY} stroke="#d8e0ec" strokeWidth="1.5" />,
+                ...item.children.map((child) => {
+                  const childCenterX = offsetX + CANVAS_PADDING_X + child.x + child.width / 2;
+                  return (
+                    <line
+                      key={`${item.node.id}-${child.node.id}`}
+                      x1={childCenterX}
+                      y1={junctionY}
+                      x2={childCenterX}
+                      y2={childTopY}
+                      stroke="#d8e0ec"
+                      strokeWidth="1.5"
+                    />
+                  );
+                }),
+              ];
+            })}
+          </svg>
+
+          {positionedNodes.map((item) => (
+            <div
+              key={item.node.id}
+              className="absolute"
+              style={{
+                left: `${offsetX + CANVAS_PADDING_X + item.x}px`,
+                top: `${CANVAS_PADDING_Y + item.y}px`,
+              }}
+            >
+              <OrgCard
+                node={item.node}
+                branchIndex={item.branchIndex}
+                branchDepth={item.branchDepth}
+                compact={item.node.children.length === 0 && item.node.nodeType.trim().toUpperCase() !== "ROOT"}
+                active={selectedId === item.node.id}
+                onSelect={onSelect}
+              />
+            </div>
           ))}
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }
 
 export default function SaasOrganisation() {
-  const {
-    currentUser,
-    orgStructure,
-    setOrgStructure,
-    companyOrgs,
-    setCompanyOrgs,
-  } = useAppContext();
+  const { currentUser, orgStructure, setOrgStructure } = useAppContext();
   const [selectedDepartment, setSelectedDepartment] = useState<DepartmentSidebarDepartment | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [orgLoading, setOrgLoading] = useState(false);
   const [orgError, setOrgError] = useState("");
+  const [canvasWidth, setCanvasWidth] = useState(0);
+  const treeScrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomScrollRef = useRef<HTMLDivElement | null>(null);
+  const graphContentRef = useRef<HTMLDivElement | null>(null);
+  const syncSourceRef = useRef<"tree" | "bottom" | null>(null);
 
   const loadOrgForCompanyCode = async (companyCode: string) => {
     setOrgLoading(true);
@@ -111,12 +475,6 @@ export default function SaasOrganisation() {
     try {
       const structure = await getCompanyOrgStructure(companyCode);
       setOrgStructure(structure);
-      if (structure) {
-        setCompanyOrgs((prev) => ({
-          ...prev,
-          [companyCode]: structure,
-        }));
-      }
     } catch {
       setOrgStructure(null);
       setOrgError("Unable to fetch organization structure.");
@@ -133,13 +491,6 @@ export default function SaasOrganisation() {
       return;
     }
 
-    const cachedOrg = companyOrgs[companyCode];
-    if (cachedOrg) {
-      setOrgStructure(cachedOrg);
-      setOrgError("");
-      return;
-    }
-
     let cancelled = false;
 
     const loadOrgStructure = async () => {
@@ -151,12 +502,6 @@ export default function SaasOrganisation() {
         if (cancelled) return;
 
         setOrgStructure(structure);
-        if (structure) {
-          setCompanyOrgs((prev) => ({
-            ...prev,
-            [companyCode]: structure,
-          }));
-        }
       } catch {
         if (!cancelled) {
           setOrgStructure(null);
@@ -174,31 +519,66 @@ export default function SaasOrganisation() {
     return () => {
       cancelled = true;
     };
-  }, [companyOrgs, currentUser?.companyCode, setCompanyOrgs, setOrgStructure]);
+  }, [currentUser?.companyCode, setOrgStructure]);
 
   useEffect(() => {
     if (!orgStructure) {
-      setSelectedDepartment(null);
-      setSidebarOpen(false);
+      startTransition(() => {
+        setSelectedDepartment(null);
+        setSidebarOpen(false);
+      });
+      return;
+    }
+  }, [orgStructure]);
+
+  useEffect(() => {
+    const treeElement = treeScrollRef.current;
+    const bottomElement = bottomScrollRef.current;
+    if (!treeElement || !bottomElement) return;
+
+    const syncFromTree = () => {
+      if (syncSourceRef.current === "bottom") return;
+      syncSourceRef.current = "tree";
+      bottomElement.scrollLeft = treeElement.scrollLeft;
+      window.requestAnimationFrame(() => {
+        if (syncSourceRef.current === "tree") syncSourceRef.current = null;
+      });
+    };
+
+    const syncFromBottom = () => {
+      if (syncSourceRef.current === "tree") return;
+      syncSourceRef.current = "bottom";
+      treeElement.scrollLeft = bottomElement.scrollLeft;
+      window.requestAnimationFrame(() => {
+        if (syncSourceRef.current === "bottom") syncSourceRef.current = null;
+      });
+    };
+
+    treeElement.addEventListener("scroll", syncFromTree);
+    bottomElement.addEventListener("scroll", syncFromBottom);
+
+    return () => {
+      treeElement.removeEventListener("scroll", syncFromTree);
+      bottomElement.removeEventListener("scroll", syncFromBottom);
+    };
+  }, [canvasWidth, sidebarOpen]);
+
+  const allNodes = useMemo(() => flattenOrg(orgStructure), [orgStructure]);
+  const departmentCount = Math.max(allNodes.length - 1, 0);
+  const companyName = currentUser?.company || currentUser?.brand || orgStructure?.name || "RJ Fintech";
+
+  const handleDepartmentClick = (node: OrgNode) => {
+    if (selectedDepartment?.id === node.id && sidebarOpen) {
+      startTransition(() => {
+        setSelectedDepartment(null);
+        setSidebarOpen(false);
+      });
       return;
     }
 
-    setSelectedDepartment({
-      id: orgStructure.id,
-      name: orgStructure.name,
-      parentId: orgStructure.parentId,
-      nodeType: orgStructure.nodeType,
-      nodePath: orgStructure.nodePath,
-      companyId: orgStructure.companyId,
-      childCount: orgStructure.children.length,
-      breadcrumbs: [orgStructure.name],
-    });
-  }, [orgStructure]);
-
-  const userCompanyCode = currentUser?.companyCode?.trim().toUpperCase() ?? "";
-
-  const handleDepartmentClick = (node: OrgNode) => {
     const breadcrumbs: string[] = [];
+    const parentNode = findParent(orgStructure, node.id);
+    const currentNode = findNode(orgStructure, node.id);
 
     const collectTrail = (branch: OrgNode | null, targetId: string): boolean => {
       if (!branch) return false;
@@ -215,107 +595,120 @@ export default function SaasOrganisation() {
     };
 
     collectTrail(orgStructure, node.id);
-    setSelectedDepartment({
-      id: node.id,
-      name: node.name,
-      parentId: node.parentId,
-      nodeType: node.nodeType,
-      nodePath: node.nodePath,
-      companyId: node.companyId,
-      childCount: node.children.length,
-      breadcrumbs,
+      startTransition(() => {
+        setSelectedDepartment({
+          id: node.id,
+          name: node.name,
+          parentId: parentNode?.id ?? null,
+          nodeType: node.nodeType,
+          nodePath: node.nodePath,
+          companyId: node.companyId,
+        childCount: node.children.length,
+        breadcrumbs,
+        parentName: parentNode?.name ?? null,
+        children: (currentNode?.children ?? []).map((child) => ({
+          id: child.id,
+          name: child.name,
+          nodeType: child.nodeType,
+          childCount: child.children.length,
+        })),
+        siblings: (parentNode?.children ?? [])
+          .filter((child) => child.id !== node.id)
+          .map((child) => ({
+            id: child.id,
+            name: child.name,
+            nodeType: child.nodeType,
+            childCount: child.children.length,
+          })),
+      });
+      setSidebarOpen(true);
     });
-    setSidebarOpen(true);
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-56px)] items-stretch">
+    <div className="flex min-h-[calc(100vh-56px)] items-stretch bg-[#fcfcfd]">
       <div
         className={cn(
           "flex w-full items-stretch overflow-hidden lg:grid",
-          sidebarOpen ? "lg:grid-cols-[minmax(0,1fr)_360px]" : "lg:grid-cols-[minmax(0,1fr)_0px]",
+          sidebarOpen ? "lg:grid-cols-[minmax(0,3fr)_minmax(320px,1fr)]" : "lg:grid-cols-[minmax(0,1fr)_0px]",
         )}
         style={{ transition: "grid-template-columns 500ms cubic-bezier(0.22, 1, 0.36, 1)" }}
       >
-        <div className="min-w-0 pr-0 lg:pr-8">
-          <div className="space-y-6 px-6 py-8 sm:px-8 sm:py-10">
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-900">Organisation Structure</h1>
-              <p className="mt-1 text-sm text-slate-500">Live organization hierarchy fetched by company code.</p>
+        <section className="relative min-w-0 border-r border-slate-200/80">
+          <div className="px-9 pt-10">
+            <div className="mb-8">
+              <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-slate-900">Organisation Structure</h1>
+              <p className="mt-1 text-[13px] text-slate-400">
+                {companyName} · {departmentCount} departments
+              </p>
             </div>
 
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base">Fetch Organization</CardTitle>
-                <CardDescription>When this page opens, it calls `POST /api/v1/company-settings/org` using the logged-in user&apos;s company code.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">Company Code</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">{userCompanyCode || "—"}</p>
-                  </div>
-                  <Button onClick={() => void loadOrgForCompanyCode(userCompanyCode)} disabled={!userCompanyCode || orgLoading} className="gap-2">
-                    {orgLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Waypoints className="h-4 w-4" />}
-                    {orgLoading ? "Fetching..." : "Refresh Org"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
             {orgError ? (
-              <Card className="border-destructive/20 bg-destructive/5 shadow-sm">
-                <CardContent className="py-6 text-sm text-destructive">{orgError}</CardContent>
-              </Card>
-            ) : null}
-
-            {!orgLoading && !orgStructure && !orgError ? (
-              <Card className="border-dashed border-slate-200 shadow-sm">
-                <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
-                  <div className="rounded-2xl bg-slate-100 p-4 text-slate-500">
-                    <Building2 className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">No org structure loaded</p>
-                    <p className="mt-1 text-sm text-slate-500">Enter a company code above to fetch and build the organization tree.</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : null}
-
-            {orgStructure ? (
-              <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle className="text-base">{orgStructure.name}</CardTitle>
-                    <CardDescription>{orgStructure.nodePath || "Root node"}</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-                    <GitBranch className="h-3.5 w-3.5" />
-                    {orgStructure.nodeType}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <OrgTreeNode
-                      node={orgStructure}
-                      selectedId={selectedDepartment?.id}
-                      onSelect={handleDepartmentClick}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="mb-8 rounded-[20px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+                {orgError}
+              </div>
             ) : null}
           </div>
-        </div>
+
+          <div
+            ref={graphContentRef}
+            className={cn("relative px-9 transition-[padding] duration-500", sidebarOpen ? "pb-20" : "pb-10")}
+            style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
+          >
+            {orgStructure ? (
+              <OrgTreeCanvas
+                root={orgStructure}
+                selectedId={selectedDepartment?.id}
+                onSelect={handleDepartmentClick}
+                scrollContainerRef={treeScrollRef}
+                onCanvasWidthChange={setCanvasWidth}
+              />
+            ) : (
+              <div className="flex min-h-[520px] items-center justify-center text-center">
+                <div>
+                  <Building2 className="mx-auto h-10 w-10 text-slate-300" />
+                  <p className="mt-4 text-base font-medium text-slate-700">
+                    {orgLoading ? "Loading organisation structure..." : "No organisation structure available"}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-400">Once org data is available, the hierarchy will render here.</p>
+                </div>
+              </div>
+            )}
+          </div>
+          {orgStructure ? (
+            <div
+              className={cn(
+                "absolute bottom-0 left-9 right-9 z-10 border-t border-slate-200/80 bg-[#fcfcfd]/95 py-3 backdrop-blur transition-[opacity,transform] duration-500",
+                sidebarOpen ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0",
+              )}
+              style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
+            >
+              <div ref={bottomScrollRef} className="w-full overflow-x-auto overflow-y-hidden">
+                <div style={{ width: `${canvasWidth || 1}px`, height: "1px" }} />
+              </div>
+            </div>
+          ) : null}
+        </section>
 
         <div
           className={cn(
-            "hidden overflow-hidden border-l border-slate-200 bg-white lg:block",
-            sidebarOpen ? "w-[360px]" : "w-0",
+            "hidden overflow-hidden bg-white transition-[width,opacity] duration-500 lg:block",
+            sidebarOpen ? "w-full min-w-[320px] opacity-100" : "w-0 opacity-0",
           )}
+          style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
         >
-          <DepartmentSidebar open={sidebarOpen} onOpenChange={setSidebarOpen} department={selectedDepartment} />
+          <DepartmentSidebar
+            open={sidebarOpen}
+            onOpenChange={(open) => {
+              startTransition(() => {
+                setSidebarOpen(open);
+                if (!open) {
+                  setSelectedDepartment(null);
+                }
+              });
+            }}
+            department={selectedDepartment}
+          />
         </div>
       </div>
     </div>
