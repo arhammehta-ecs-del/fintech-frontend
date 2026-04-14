@@ -1,6 +1,7 @@
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 import { useAppContext } from "@/contexts/AppContext";
-import { Building2, LayoutDashboard, List, Settings, LogOut, Menu, Bell, UserPlus, ShieldCheck, User, Layers3 } from "lucide-react";
+import { Building2, LayoutDashboard, List, Settings, LogOut, Menu, Bell, UserPlus, ShieldCheck, User } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -18,12 +19,33 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const navItems = [
+type NavItem = {
+  label: string;
+  icon: LucideIcon;
+  path: string;
+  children?: Array<{
+    label: string;
+    path: string;
+    tab: string;
+  }>;
+};
+
+const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/" },
   { label: "Corporate List", icon: List, path: "/corporates" },
-  { label: "Saas Organisation", icon: Layers3, path: "/saas-organisation" },
-  { label: "Settings", icon: Settings, path: "/settings" },
 ];
+
+const settingsNavItem: NavItem = {
+  label: "Company Settings",
+  icon: Settings,
+  path: "/settings",
+  children: [
+    { label: "Org Structure", path: "/settings?tab=org", tab: "org" },
+    { label: "User Management", path: "/settings?tab=users", tab: "users" },
+    { label: "Roles", path: "/settings?tab=roles", tab: "roles" },
+    { label: "Workflows", path: "/settings?tab=workflows", tab: "workflows" },
+  ],
+};
 
 const TOTAL_TIME = 15 * 60 * 1000;
 const WARNING_TIME = 40 * 1000;
@@ -61,7 +83,7 @@ export default function DashboardLayout() {
     try {
       await logout();
     } catch {
-    
+      // Continue local logout even if the server session cleanup fails.
     } finally {
       setShowWarning(false);
       setIsAuthenticated(false);
@@ -111,48 +133,79 @@ export default function DashboardLayout() {
     };
   }, [clearTimers, resetTimer]);
 
-  const navContent = (compact = false, onNavigate?: () => void) => (
-    <>
-      <div className={cn("h-14 flex items-center gap-2 border-b border-border", compact ? "px-4" : "px-4 xl:px-5")}>
-        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
-          <Building2 className="h-4 w-4 text-primary-foreground" />
+  const navContent = (compact = false, onNavigate?: () => void) => {
+    const currentSettingsTab = new URLSearchParams(location.search).get("tab") || "org";
+
+    const renderNavItem = (item: NavItem) => {
+      const active = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
+
+      return (
+        <div key={item.path}>
+          <Link
+            to={item.path}
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              active ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+            )}
+          >
+            <item.icon className="h-4 w-4 flex-shrink-0" />
+            {!compact && <span>{item.label}</span>}
+          </Link>
+          {!compact && active && item.children && (
+            <div className="ml-7 mt-1 space-y-1 pl-2">
+              {item.children.map((child) => {
+                const childActive = currentSettingsTab === child.tab;
+                return (
+                  <Link
+                    key={child.path}
+                    to={child.path}
+                    onClick={onNavigate}
+                    className={cn(
+                      "block rounded-md px-3 py-1.5 text-sm transition-colors",
+                      childActive
+                        ? "bg-accent/70 font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                    )}
+                  >
+                    {child.label}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
-        {!compact && <span className="font-semibold text-foreground text-sm">Admin Portal</span>}
-      </div>
-      <nav className="flex-1 p-2 space-y-1">
-        {navItems.map((item) => {
-          const active = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={onNavigate}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                active ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-              )}
-            >
-              <item.icon className="h-4 w-4 flex-shrink-0" />
-              {!compact && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="p-2 border-t border-border">
-        <button
-          onClick={(event) => {
-            event.stopPropagation();
-            onNavigate?.();
-            void handleLogout();
-          }}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-        >
-          <LogOut className="h-4 w-4 flex-shrink-0" />
-          {!compact && <span>Logout</span>}
-        </button>
-      </div>
-    </>
-  );
+      );
+    };
+
+    return (
+      <>
+        <div className={cn("h-14 flex items-center gap-2 border-b border-border", compact ? "px-4" : "px-4 xl:px-5")}>
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+            <Building2 className="h-4 w-4 text-primary-foreground" />
+          </div>
+          {!compact && <span className="font-semibold text-foreground text-sm">Admin Portal</span>}
+        </div>
+        <nav className="flex-1 p-2 space-y-1">
+          {navItems.map((item) => renderNavItem(item))}
+        </nav>
+        <div className="space-y-1 border-t border-border p-2">
+          {renderNavItem(settingsNavItem)}
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              onNavigate?.();
+              void handleLogout();
+            }}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+          >
+            <LogOut className="h-4 w-4 flex-shrink-0" />
+            {!compact && <span>Logout</span>}
+          </button>
+        </div>
+      </>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background xl:bg-muted/20">
@@ -160,7 +213,7 @@ export default function DashboardLayout() {
         <aside
           onClick={() => setCollapsed((c) => !c)}
           className={cn(
-            "hidden border-r border-border bg-[linear-gradient(180deg,hsl(var(--sidebar-background))_0%,hsl(220_35%_96%)_55%,hsl(228_55%_94%)_100%)] transition-all duration-200 md:flex md:flex-col",
+            "sticky top-0 hidden h-screen shrink-0 overflow-y-auto border-r border-border bg-[linear-gradient(180deg,hsl(var(--sidebar-background))_0%,hsl(220_35%_96%)_55%,hsl(228_55%_94%)_100%)] transition-all duration-200 md:flex md:flex-col",
             collapsed ? "md:w-14" : "md:w-52 xl:w-60",
           )}
         >
@@ -320,7 +373,7 @@ export default function DashboardLayout() {
                 <div className="grid grid-cols-2 gap-3 bg-muted/20 p-4">
                   {[
                     { label: "My profile", icon: User, tone: "text-blue-700 bg-blue-50 border-blue-100" },
-                    { label: "Settings", icon: Settings, tone: "text-zinc-700 bg-zinc-100 border-zinc-200" },
+                    { label: "Company Settings", icon: Settings, tone: "text-zinc-700 bg-zinc-100 border-zinc-200" },
                   ].map((item) => (
                     <button
                       key={item.label}
@@ -331,7 +384,7 @@ export default function DashboardLayout() {
                           navigate("/profile");
                           return;
                         }
-                        if (item.label === "Settings") {
+                        if (item.label === "Company Settings") {
                           navigate("/settings");
                         }
                       }}

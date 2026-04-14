@@ -1,5 +1,5 @@
 import { startTransition, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { BriefcaseBusiness, Building2, CodeXml, Database, Megaphone, ReceiptText, SendHorizonal, WalletCards } from "lucide-react";
+import { Briefcase, Building2, Layers3, MapPin, Boxes } from "lucide-react";
 import DepartmentSidebar, { type DepartmentSidebarDepartment } from "@/components/DepartmentSidebar";
 import { useAppContext, type OrgNode } from "@/contexts/AppContext";
 import { getCompanyOrgStructure } from "@/lib/api";
@@ -87,7 +87,7 @@ function getNodeTheme(nodeType: string) {
     return {
       accent: "border-l-[5px] border-l-sky-400",
       ring: "border-sky-300 shadow-[0_0_0_4px_rgba(96,165,250,0.08)]",
-      icon: CodeXml,
+      icon: Layers3,
       iconColor: "text-slate-500",
     };
   }
@@ -96,7 +96,7 @@ function getNodeTheme(nodeType: string) {
     return {
       accent: "border-l-[5px] border-l-emerald-400",
       ring: "border-emerald-300 shadow-[0_0_0_4px_rgba(52,211,153,0.08)]",
-      icon: WalletCards,
+      icon: MapPin,
       iconColor: "text-slate-500",
     };
   }
@@ -114,7 +114,7 @@ function getNodeTheme(nodeType: string) {
     return {
       accent: "border-l-[5px] border-l-amber-400",
       ring: "border-amber-200 shadow-[0_0_0_4px_rgba(251,191,36,0.08)]",
-      icon: BriefcaseBusiness,
+      icon: Briefcase,
       iconColor: "text-slate-500",
     };
   }
@@ -122,25 +122,18 @@ function getNodeTheme(nodeType: string) {
   return {
     accent: "border-l-[5px] border-l-slate-300",
     ring: "border-slate-200 shadow-[0_8px_24px_rgba(15,23,42,0.04)]",
-    icon: BriefcaseBusiness,
+    icon: Boxes,
     iconColor: "text-slate-500",
   };
 }
 
 function getNodeIcon(node: OrgNode) {
-  const normalized = node.name.trim().toUpperCase();
-
-  if (normalized === "RJ FINTECH") return Building2;
-  if (normalized === "TECHNOLOGY") return CodeXml;
-  if (normalized === "MARKETING") return Megaphone;
-  if (normalized === "FINANCE") return WalletCards;
-  if (normalized === "FRONTEND") return BriefcaseBusiness;
-  if (normalized === "BACKEND") return CodeXml;
-  if (normalized === "DB") return Database;
-  if (normalized === "CONTENT") return BriefcaseBusiness;
-  if (normalized === "GROWTH") return SendHorizonal;
-  if (normalized === "ACCOUNTS" || normalized === "AUDIT") return ReceiptText;
-  return getNodeTheme(node.nodeType).icon;
+  const normalizedType = node.nodeType.trim().toUpperCase();
+  if (normalizedType === "ROOT") return Building2;
+  if (normalizedType === "DIVISION") return Layers3;
+  if (normalizedType === "LOCATION") return MapPin;
+  if (normalizedType === "DEPARTMENT") return Briefcase;
+  return Boxes;
 }
 
 function getNodeAccentBackground(branchIndex: number | null, branchDepth: number, isRoot: boolean) {
@@ -219,7 +212,7 @@ function OrgCard({
       </div>
       <div className="min-w-0">
         <p className={cn("truncate font-semibold", isRoot ? "text-[11px]" : compact ? "text-[13px]" : "text-[14px]")}>{node.name}</p>
-        {!compact && !isRoot ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</p> : null}
+        {!isRoot ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</p> : null}
       </div>
     </button>
   );
@@ -231,6 +224,10 @@ const CANVAS_PADDING_X = 40;
 const CANVAS_PADDING_Y = 40;
 const LEVEL_STEP = 122;
 const LEAF_SLOT_WIDTH = 184;
+const VIEWPORT_EDGE_PADDING = 96;
+const MIN_ZOOM = 0.75;
+const MAX_ZOOM = 1.4;
+const ZOOM_STEP = 0.1;
 
 type PositionedNode = {
   node: OrgNode;
@@ -266,8 +263,18 @@ function getNodeBoxSize(node: OrgNode) {
   return { width: 168, height: 62 };
 }
 
-function getSemanticDepth(nodeType: string) {
-  const normalized = nodeType.trim().toUpperCase();
+function getSemanticDepth(node: OrgNode) {
+  const normalized = node.nodeType.trim().toUpperCase();
+  const segments = node.nodePath
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const rootIndex = segments.findIndex((segment) => segment.toUpperCase() === "ROOT");
+  const pathDepth = rootIndex >= 0 ? segments.length - rootIndex - 1 : -1;
+
+  if (pathDepth >= 0) {
+    return pathDepth;
+  }
 
   if (normalized === "ROOT") return 0;
   if (normalized === "DIVISION") return 1;
@@ -278,11 +285,7 @@ function getSemanticDepth(nodeType: string) {
 
 function buildTreeLayout(node: OrgNode, depth = 0): LayoutNode {
   const { width, height } = getNodeBoxSize(node);
-  const childLayouts = node.children.map((child) => {
-    const semanticDepth = getSemanticDepth(child.nodeType);
-    const nextDepth = Math.max(depth + 1, semanticDepth);
-    return buildTreeLayout(child, nextDepth);
-  });
+  const childLayouts = node.children.map((child) => buildTreeLayout(child, depth + 1));
   const childrenWidth =
     childLayouts.length > 0
       ? childLayouts.reduce((total, child) => total + child.subtreeWidth, 0) + HORIZONTAL_GAP * (childLayouts.length - 1)
@@ -356,12 +359,14 @@ function OrgTreeCanvas({
   onSelect,
   scrollContainerRef,
   onCanvasWidthChange,
+  zoom = 1,
 }: {
   root: OrgNode;
   selectedId?: string;
   onSelect: (node: OrgNode) => void;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
   onCanvasWidthChange?: (width: number) => void;
+  zoom?: number;
 }) {
   const layout = buildTreeLayout(root);
   const topLevelBranchIndexMap = new Map(root.children.map((child, index) => [child.id, index] as const));
@@ -374,22 +379,35 @@ function OrgTreeCanvas({
   const canvasWidth = diagramWidth;
   const canvasHeight = maxBottom + CANVAS_PADDING_Y * 2 + 24;
   const offsetX = (diagramWidth - (contentWidth + CANVAS_PADDING_X * 2)) / 2;
+  const renderedCanvasWidth = Math.max(canvasWidth, 980);
+  const scaledCanvasWidth = renderedCanvasWidth * zoom;
+  const scaledCanvasHeight = canvasHeight * zoom;
+  const outerCanvasWidth = scaledCanvasWidth + VIEWPORT_EDGE_PADDING * 2;
 
   useEffect(() => {
-    onCanvasWidthChange?.(Math.max(canvasWidth, 980));
-  }, [canvasWidth, onCanvasWidthChange]);
+    onCanvasWidthChange?.(outerCanvasWidth);
+  }, [onCanvasWidthChange, outerCanvasWidth]);
 
   return (
     <div
       ref={scrollContainerRef}
       className="relative w-full overflow-x-auto overflow-y-hidden bg-transparent [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      <div className="flex w-full justify-center">
+      <div
+        className="relative mx-auto"
+        style={{
+          width: `${outerCanvasWidth}px`,
+          height: `${scaledCanvasHeight}px`,
+        }}
+      >
         <div
-          className="relative"
+          className="absolute left-0 top-0 origin-top"
           style={{
-            width: `${Math.max(canvasWidth, 980)}px`,
+            width: `${renderedCanvasWidth}px`,
             height: `${canvasHeight}px`,
+            transformOrigin: "top left",
+            left: `${VIEWPORT_EDGE_PADDING}px`,
+            transform: `scale(${zoom})`,
           }}
         >
           <svg
@@ -456,13 +474,16 @@ function OrgTreeCanvas({
   );
 }
 
-export default function SaasOrganisation() {
+export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const { currentUser, orgStructure, setOrgStructure } = useAppContext();
   const [selectedDepartment, setSelectedDepartment] = useState<DepartmentSidebarDepartment | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [orgLoading, setOrgLoading] = useState(false);
   const [orgError, setOrgError] = useState("");
   const [canvasWidth, setCanvasWidth] = useState(0);
+  const [bottomScrollContentWidth, setBottomScrollContentWidth] = useState(0);
+  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const treeScrollRef = useRef<HTMLDivElement | null>(null);
   const bottomScrollRef = useRef<HTMLDivElement | null>(null);
   const graphContentRef = useRef<HTMLDivElement | null>(null);
@@ -533,13 +554,46 @@ export default function SaasOrganisation() {
 
   useEffect(() => {
     const treeElement = treeScrollRef.current;
+    if (!treeElement) return;
+
+    const updateOverflowState = () => {
+      const treeScrollableDistance = Math.max(treeElement.scrollWidth - treeElement.clientWidth, 0);
+      setHasHorizontalOverflow(treeScrollableDistance > 1);
+      setBottomScrollContentWidth(treeElement.clientWidth + treeScrollableDistance);
+    };
+    updateOverflowState();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateOverflowState();
+    });
+    resizeObserver.observe(treeElement);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [canvasWidth, sidebarOpen, zoom]);
+
+  useEffect(() => {
+    const treeElement = treeScrollRef.current;
     const bottomElement = bottomScrollRef.current;
-    if (!treeElement || !bottomElement) return;
+    if (!treeElement || !bottomElement || !hasHorizontalOverflow) return;
+
+    const centerScroll = () => {
+      const treeMaxScrollLeft = Math.max(treeElement.scrollWidth - treeElement.clientWidth, 0);
+      const bottomMaxScrollLeft = Math.max(bottomElement.scrollWidth - bottomElement.clientWidth, 0);
+      const centeredTreeScrollLeft = treeMaxScrollLeft / 2;
+      treeElement.scrollLeft = centeredTreeScrollLeft;
+      bottomElement.scrollLeft = treeMaxScrollLeft === 0 ? 0 : (centeredTreeScrollLeft / treeMaxScrollLeft) * bottomMaxScrollLeft;
+    };
+    window.requestAnimationFrame(centerScroll);
 
     const syncFromTree = () => {
       if (syncSourceRef.current === "bottom") return;
       syncSourceRef.current = "tree";
-      bottomElement.scrollLeft = treeElement.scrollLeft;
+      const treeMaxScrollLeft = Math.max(treeElement.scrollWidth - treeElement.clientWidth, 0);
+      const bottomMaxScrollLeft = Math.max(bottomElement.scrollWidth - bottomElement.clientWidth, 0);
+      const progress = treeMaxScrollLeft === 0 ? 0 : treeElement.scrollLeft / treeMaxScrollLeft;
+      bottomElement.scrollLeft = progress * bottomMaxScrollLeft;
       window.requestAnimationFrame(() => {
         if (syncSourceRef.current === "tree") syncSourceRef.current = null;
       });
@@ -548,7 +602,10 @@ export default function SaasOrganisation() {
     const syncFromBottom = () => {
       if (syncSourceRef.current === "tree") return;
       syncSourceRef.current = "bottom";
-      treeElement.scrollLeft = bottomElement.scrollLeft;
+      const treeMaxScrollLeft = Math.max(treeElement.scrollWidth - treeElement.clientWidth, 0);
+      const bottomMaxScrollLeft = Math.max(bottomElement.scrollWidth - bottomElement.clientWidth, 0);
+      const progress = bottomMaxScrollLeft === 0 ? 0 : bottomElement.scrollLeft / bottomMaxScrollLeft;
+      treeElement.scrollLeft = progress * treeMaxScrollLeft;
       window.requestAnimationFrame(() => {
         if (syncSourceRef.current === "bottom") syncSourceRef.current = null;
       });
@@ -561,11 +618,13 @@ export default function SaasOrganisation() {
       treeElement.removeEventListener("scroll", syncFromTree);
       bottomElement.removeEventListener("scroll", syncFromBottom);
     };
-  }, [canvasWidth, sidebarOpen]);
+  }, [canvasWidth, hasHorizontalOverflow, sidebarOpen, zoom]);
 
   const allNodes = useMemo(() => flattenOrg(orgStructure), [orgStructure]);
   const departmentCount = Math.max(allNodes.length - 1, 0);
   const companyName = currentUser?.company || currentUser?.brand || orgStructure?.name || "RJ Fintech";
+  const canZoomOut = zoom > MIN_ZOOM;
+  const canZoomIn = zoom < MAX_ZOOM;
 
   const handleDepartmentClick = (node: OrgNode) => {
     if (selectedDepartment?.id === node.id && sidebarOpen) {
@@ -626,76 +685,113 @@ export default function SaasOrganisation() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-56px)] items-stretch bg-[#fcfcfd]">
-      <div
-        className={cn(
-          "flex w-full items-stretch overflow-hidden lg:grid",
-          sidebarOpen ? "lg:grid-cols-[minmax(0,3fr)_minmax(320px,1fr)]" : "lg:grid-cols-[minmax(0,1fr)_0px]",
-        )}
-        style={{ transition: "grid-template-columns 500ms cubic-bezier(0.22, 1, 0.36, 1)" }}
-      >
-        <section className="relative min-w-0 border-r border-slate-200/80">
-          <div className="px-9 pt-10">
-            <div className="mb-8">
-              <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-slate-900">Organisation Structure</h1>
-              <p className="mt-1 text-[13px] text-slate-400">
-                {companyName} · {departmentCount} departments
-              </p>
-            </div>
-
-            {orgError ? (
-              <div className="mb-8 rounded-[20px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
-                {orgError}
-              </div>
-            ) : null}
-          </div>
-
+    <div
+      className={cn(
+        "flex overflow-hidden bg-[#fcfcfd]",
+        embedded ? "h-[calc(100vh-220px)] min-h-[640px] rounded-lg border border-slate-200" : "h-[calc(100vh-56px)]",
+      )}
+    >
+      <div className={cn("relative flex w-full items-stretch overflow-hidden", hasHorizontalOverflow ? "pb-12" : "pb-0")}>
+        <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden border-r border-slate-200/80">
           <div
-            ref={graphContentRef}
-            className={cn("relative px-9 transition-[padding] duration-500", sidebarOpen ? "pb-20" : "pb-10")}
-            style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
-          >
-            {orgStructure ? (
-              <OrgTreeCanvas
-                root={orgStructure}
-                selectedId={selectedDepartment?.id}
-                onSelect={handleDepartmentClick}
-                scrollContainerRef={treeScrollRef}
-                onCanvasWidthChange={setCanvasWidth}
-              />
-            ) : (
-              <div className="flex min-h-[520px] items-center justify-center text-center">
-                <div>
-                  <Building2 className="mx-auto h-10 w-10 text-slate-300" />
-                  <p className="mt-4 text-base font-medium text-slate-700">
-                    {orgLoading ? "Loading organisation structure..." : "No organisation structure available"}
-                  </p>
-                  <p className="mt-2 text-sm text-slate-400">Once org data is available, the hierarchy will render here.</p>
-                </div>
-              </div>
+            className={cn(
+              "min-h-0 flex-1 overflow-x-hidden",
+              embedded ? (zoom > 1 ? "overflow-y-auto" : "overflow-y-hidden") : "overflow-y-auto",
             )}
-          </div>
-          {orgStructure ? (
-            <div
-              className={cn(
-                "absolute bottom-0 left-9 right-9 z-10 border-t border-slate-200/80 bg-[#fcfcfd]/95 py-3 backdrop-blur transition-[opacity,transform] duration-500",
-                sidebarOpen ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0",
-              )}
-              style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
-            >
-              <div ref={bottomScrollRef} className="w-full overflow-x-auto overflow-y-hidden">
-                <div style={{ width: `${canvasWidth || 1}px`, height: "1px" }} />
+          >
+            <div className={cn("px-9", embedded ? "pt-[10px]" : "pt-10")}>
+              <div className="mb-4">
+                <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-slate-900">Organisation Structure</h1>
+                <p className="mt-1 text-[13px] text-slate-400">
+                  {companyName} · {departmentCount} departments
+                </p>
               </div>
+
+              {orgError ? (
+                <div className="mb-8 rounded-[20px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+                  {orgError}
+                </div>
+              ) : null}
             </div>
-          ) : null}
+
+            <div
+              ref={graphContentRef}
+              className="relative px-9 pb-10"
+            >
+              {orgStructure ? (
+                <div className="absolute right-9 top-1 z-10 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setZoom((current) => Math.max(MIN_ZOOM, Number((current - ZOOM_STEP).toFixed(2))))}
+                    disabled={!canZoomOut}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-base font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Zoom out organisation structure"
+                  >
+                    -
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setZoom((current) => Math.min(MAX_ZOOM, Number((current + ZOOM_STEP).toFixed(2))))}
+                    disabled={!canZoomIn}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-base font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Zoom in organisation structure"
+                  >
+                    +
+                  </button>
+                </div>
+              ) : null}
+              {orgStructure ? (
+                <OrgTreeCanvas
+                  root={orgStructure}
+                  selectedId={selectedDepartment?.id}
+                  onSelect={handleDepartmentClick}
+                  scrollContainerRef={treeScrollRef}
+                  onCanvasWidthChange={setCanvasWidth}
+                  zoom={zoom}
+                />
+              ) : (
+                <div className="flex min-h-[520px] items-center justify-center text-center">
+                  <div>
+                    <Building2 className="mx-auto h-10 w-10 text-slate-300" />
+                    <p className="mt-4 text-base font-medium text-slate-700">
+                      {orgLoading ? "Loading organisation structure..." : "No organisation structure available"}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-400">Once org data is available, the hierarchy will render here.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <div
+            className={cn(
+              "absolute inset-y-0 right-0 z-20 w-full max-w-[360px] overflow-hidden bg-white shadow-[-18px_0_32px_rgba(15,23,42,0.08)] transition-[transform,opacity] duration-500 lg:hidden",
+              sidebarOpen ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-full opacity-0",
+            )}
+            style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
+            aria-hidden={!sidebarOpen}
+          >
+            <DepartmentSidebar
+              open={sidebarOpen}
+              onOpenChange={(open) => {
+                startTransition(() => {
+                  setSidebarOpen(open);
+                  if (!open) {
+                    setSelectedDepartment(null);
+                  }
+                });
+              }}
+              department={selectedDepartment}
+            />
+          </div>
         </section>
 
         <div
           className={cn(
-            "hidden overflow-hidden bg-white transition-[width,opacity] duration-500 lg:block",
-            sidebarOpen ? "w-full min-w-[320px] opacity-100" : "w-0 opacity-0",
+            "hidden shrink-0 overflow-hidden border-l border-slate-200 bg-white transition-[width,opacity] duration-500 lg:block",
+            sidebarOpen ? "w-[360px] opacity-100" : "w-0 opacity-0",
           )}
           style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
+          aria-hidden={!sidebarOpen}
         >
           <DepartmentSidebar
             open={sidebarOpen}
@@ -710,7 +806,28 @@ export default function SaasOrganisation() {
             department={selectedDepartment}
           />
         </div>
+
+        {orgStructure && hasHorizontalOverflow ? (
+          <div
+            className={cn(
+              "absolute bottom-0 left-0 right-0 z-30 border-t border-slate-200/80 bg-[#fcfcfd]/95 px-6 py-3 backdrop-blur",
+              sidebarOpen ? "lg:right-[360px]" : "lg:right-0",
+            )}
+          >
+            <div
+              ref={bottomScrollRef}
+              className="w-full overflow-x-auto overflow-y-hidden"
+            >
+              <div style={{ width: `${bottomScrollContentWidth || canvasWidth || 1}px`, height: "1px" }} />
+            </div>
+          </div>
+        ) : null}
+
       </div>
     </div>
   );
+}
+
+export default function SaasOrganisation() {
+  return <OrgStructureView />;
 }

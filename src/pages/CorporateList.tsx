@@ -9,8 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, GripVertical, Plus, Search, Settings2, Building2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Eye, GripVertical, Pencil, Plus, Search, Settings2, Building2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAllCompanies } from "@/lib/api";
 
@@ -30,7 +29,7 @@ const formatDisplayDate = (value: string) => {
   if (!value) return "No date";
 
   try {
-    return format(parseISO(value), "dd/MMM/yyyy");
+    return format(parseISO(value), "dd MMM yyyy");
   } catch {
     return value;
   }
@@ -40,7 +39,7 @@ const formatGroupDisplayDate = (value: string) => {
   if (!value) return "";
 
   try {
-    return format(parseISO(value), "dd/MMM/yyyy");
+    return format(parseISO(value), "dd MMM yyyy");
   } catch {
     return value;
   }
@@ -54,10 +53,26 @@ type AuditEntry = {
 };
 
 type VisibleColumn = "groupName" | "companyName" | "code" | "createdDate" | "status" | "manage";
+type ViewMode = "all" | "grouped" | "independent";
 
 type DragPayload =
   | { type: "group"; groupId: string }
   | { type: "subsidiary"; groupId: string; companyId: string };
+
+type FlatCompanyRow = {
+  type: "company";
+  company: Company;
+  groupId: string;
+  groupName: string;
+  isIndependent: boolean;
+};
+
+type GroupRow = {
+  type: "group";
+  group: GroupCompany;
+};
+
+type DisplayRow = FlatCompanyRow | GroupRow;
 
 const reorderItems = <T,>(items: T[], fromIndex: number, toIndex: number) => {
   const next = [...items];
@@ -69,9 +84,39 @@ const reorderItems = <T,>(items: T[], fromIndex: number, toIndex: number) => {
 const isUngroupedGroup = (group: GroupCompany) =>
   group.id.trim().toLowerCase() === "ungrouped" || group.groupName.trim().toLowerCase() === "ungrouped";
 
+const getSortableTimestamp = (value: string) => {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const sortCompaniesLifo = (companies: Company[]) =>
+  [...companies].sort(
+    (left, right) => getSortableTimestamp(right.incorporationDate) - getSortableTimestamp(left.incorporationDate),
+  );
+
+const sortGroupsLifo = (inputGroups: GroupCompany[]) =>
+  [...inputGroups]
+    .map((group) => ({
+      ...group,
+      subsidiaries: sortCompaniesLifo(group.subsidiaries),
+    }))
+    .sort((left, right) => {
+      const rightLatest = Math.max(
+        getSortableTimestamp(right.createdDate),
+        ...right.subsidiaries.map((company) => getSortableTimestamp(company.incorporationDate)),
+      );
+      const leftLatest = Math.max(
+        getSortableTimestamp(left.createdDate),
+        ...left.subsidiaries.map((company) => getSortableTimestamp(company.incorporationDate)),
+      );
+      return rightLatest - leftLatest;
+    });
+
 function StandaloneCompanyRow({
   company,
   groupId,
+  groupLabel,
   visibleColumns,
   showStatusColumn,
   onManage,
@@ -83,6 +128,7 @@ function StandaloneCompanyRow({
 }: {
   company: Company;
   groupId: string;
+  groupLabel: string;
   visibleColumns: Set<VisibleColumn>;
   showStatusColumn: boolean;
   onManage: (company: Company, editing?: boolean) => void;
@@ -106,7 +152,7 @@ function StandaloneCompanyRow({
     <tbody>
       <tr
         className={cn(
-          "border-b border-border hover:bg-muted/30 transition-colors",
+          "border-b border-border transition-colors hover:bg-slate-50",
           isDragging && "opacity-50",
           isDropTarget && "bg-primary/5",
         )}
@@ -126,7 +172,7 @@ function StandaloneCompanyRow({
           </button>
         </td>
         {visibleColumns.has("groupName") && (
-          <td className="px-4 py-3 text-sm text-muted-foreground">Independent</td>
+          <td className="px-4 py-3 text-sm text-muted-foreground">{groupLabel}</td>
         )}
         {visibleColumns.has("companyName") && (
           <td className="px-4 py-3 text-sm font-medium text-foreground">
@@ -148,9 +194,20 @@ function StandaloneCompanyRow({
         )}
         {visibleColumns.has("manage") && (
           <td className="px-4 py-3">
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => onManage(company)}>
-              Manage
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800" onClick={() => onManage(company)}>
+                <Eye className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                type="button"
+                className="h-8 w-8 cursor-default text-slate-400 hover:bg-transparent hover:text-slate-400"
+                aria-label={`Edit ${company.companyName}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </div>
           </td>
         )}
         {showStatusColumn && visibleColumns.has("status") && (
@@ -201,7 +258,7 @@ function SortableSubsidiaryRow({
   return (
     <tr
       className={cn(
-        "border-b border-border bg-muted/20 hover:bg-muted/40 transition-colors",
+        "border-b border-border bg-muted/20 transition-colors hover:bg-slate-50",
         isDragging && "opacity-50",
         isDropTarget && "bg-primary/5",
       )}
@@ -245,17 +302,31 @@ function SortableSubsidiaryRow({
       )}
       {visibleColumns.has("manage") && (
         <td className="px-4 py-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs"
-            onClick={(event) => {
-              event.stopPropagation();
-              onManage(sub);
-            }}
-          >
-            Manage
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+              onClick={(event) => {
+                event.stopPropagation();
+                onManage(sub);
+              }}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              type="button"
+              className="h-8 w-8 cursor-default text-slate-400 hover:bg-transparent hover:text-slate-400"
+              aria-label={`Edit ${sub.companyName}`}
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </div>
         </td>
       )}
       {showStatusColumn && visibleColumns.has("status") && (
@@ -301,7 +372,7 @@ function SortableGroupBody({
     <tbody>
       <tr
         className={cn(
-          "border-b border-border hover:bg-muted/30 cursor-pointer transition-colors",
+          "border-b border-border cursor-pointer transition-colors hover:bg-slate-50",
           isDragging && "opacity-50",
           isDropTarget && "bg-primary/5",
         )}
@@ -387,6 +458,7 @@ export default function CorporateList() {
   const [dragState, setDragState] = useState<DragPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("all");
   const shouldShowStatusColumn = statusFilter !== "Approved";
 
   useEffect(() => {
@@ -420,19 +492,6 @@ export default function CorporateList() {
     };
   }, []);
 
-  const approvedCount = useMemo(
-    () => groups.reduce((acc, group) => acc + group.subsidiaries.filter((company) => company.status === "Approved").length, 0),
-    [groups],
-  );
-  const pendingCount = useMemo(
-    () => groups.reduce((acc, group) => acc + group.subsidiaries.filter((company) => company.status === "Pending").length, 0),
-    [groups],
-  );
-  const inactiveCount = useMemo(
-    () => groups.reduce((acc, group) => acc + group.subsidiaries.filter((company) => company.status === "Inactive").length, 0),
-    [groups],
-  );
-
   const selectedGroupName = useMemo(
     () => {
       const parentGroup = groups.find((group) => group.subsidiaries.some((company) => company.id === selectedCompany?.id));
@@ -458,8 +517,8 @@ export default function CorporateList() {
   //   ? { lastUpdatedAt: "", approvedBy: "", approvedAt: "", approvalHistory: [] as ApprovalEvent[] }
   //   : undefined;
 
-  const filtered = useMemo(() => {
-    const result = groups
+  const filteredGroups = useMemo(() => {
+    const result = sortGroupsLifo(groups)
       .map((g) => ({
         ...g,
         subsidiaries: g.subsidiaries.filter((s) => s.status === statusFilter),
@@ -498,15 +557,54 @@ export default function CorporateList() {
       .filter((group) => group.subsidiaries.length > 0);
   }, [appliedSearch, groups, statusFilter]);
 
-  const displayRows = useMemo(
+  const groupedDisplayRows = useMemo<DisplayRow[]>(
     () =>
-      filtered.flatMap((group) =>
-        isUngroupedGroup(group)
-          ? group.subsidiaries.map((company) => ({ type: "company" as const, company, groupId: group.id }))
-          : [{ type: "group" as const, group } as const],
-      ),
-    [filtered],
+      filteredGroups
+        .filter((group) => !isUngroupedGroup(group))
+        .map((group) => ({ type: "group", group })),
+    [filteredGroups],
   );
+
+  const independentDisplayRows = useMemo<DisplayRow[]>(
+    () =>
+      filteredGroups
+        .filter((group) => isUngroupedGroup(group))
+        .flatMap((group) =>
+          sortCompaniesLifo(group.subsidiaries).map((company) => ({
+            type: "company",
+            company,
+            groupId: group.id,
+            groupName: "Independent",
+            isIndependent: true,
+          })),
+        ),
+    [filteredGroups],
+  );
+
+  const allDisplayRows = useMemo<DisplayRow[]>(
+    () =>
+      filteredGroups
+        .flatMap((group) =>
+          sortCompaniesLifo(group.subsidiaries).map((company) => ({
+            type: "company",
+            company,
+            groupId: group.id,
+            groupName: isUngroupedGroup(group) ? "Independent" : group.groupName,
+            isIndependent: isUngroupedGroup(group),
+          })),
+        )
+        .sort(
+          (left, right) =>
+            getSortableTimestamp(right.company.incorporationDate) - getSortableTimestamp(left.company.incorporationDate),
+        ),
+    [filteredGroups],
+  );
+
+  const displayRows = useMemo<DisplayRow[]>(() => {
+    if (viewMode === "grouped") return groupedDisplayRows;
+    if (viewMode === "independent") return independentDisplayRows;
+    return allDisplayRows;
+  }, [allDisplayRows, groupedDisplayRows, independentDisplayRows, viewMode]);
 
   const handleSearchSubmit = () => {
     setAppliedSearch(searchInput);
@@ -633,8 +731,13 @@ export default function CorporateList() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Corporate List</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Corporate List</h1>
+        </div>
+        <Button onClick={() => navigate("/onboarding")} className="gap-2 self-start sm:self-auto">
+          <Plus className="h-4 w-4" /> New Onboarding
+        </Button>
       </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -670,16 +773,27 @@ export default function CorporateList() {
         </div>
 
         <div className="flex w-full flex-wrap items-center gap-2 self-start sm:w-auto sm:self-end">
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as CompanyStatus)}>
-            <SelectTrigger className="h-9 w-full bg-white sm:w-[150px]">
-              <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="Approved">{`Approved (${approvedCount})`}</SelectItem>
-              <SelectItem value="Pending">{`Pending (${pendingCount})`}</SelectItem>
-              {inactiveCount > 0 && <SelectItem value="Inactive">{`Inactive (${inactiveCount})`}</SelectItem>}
-            </SelectContent>
-          </Select>
+          <div className="inline-flex rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+            {[
+              { id: "all", label: "All" },
+              { id: "grouped", label: "Groups" },
+              { id: "independent", label: "Independent" },
+            ].map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setViewMode(option.id as ViewMode)}
+                className={cn(
+                  "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                  viewMode === option.id
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-slate-50 hover:text-foreground",
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
 
           <Popover>
             <PopoverTrigger asChild>
@@ -729,7 +843,13 @@ export default function CorporateList() {
         <Card className="flex flex-col items-center justify-center py-16 text-center shadow-sm">
           <Building2 className="h-12 w-12 text-muted-foreground/40 mb-4" />
           <h3 className="text-lg font-medium text-foreground">No companies found</h3>
-          <p className="text-muted-foreground text-sm mt-1 mb-4">Get started by onboarding a new corporate client</p>
+          <p className="text-muted-foreground text-sm mt-1 mb-4">
+            {viewMode === "grouped"
+              ? "No grouped companies match the current filters."
+              : viewMode === "independent"
+                ? "No independent companies match the current filters."
+                : "Get started by onboarding a new corporate client"}
+          </p>
           <Button onClick={() => navigate("/onboarding")} className="gap-2">
             <Plus className="h-4 w-4" /> New Onboarding
           </Button>
@@ -783,9 +903,25 @@ export default function CorporateList() {
                             ) : (
                               <span />
                             )}
-                            <Button variant="ghost" size="sm" className="h-8 px-0 text-xs" onClick={() => openModal(sub)}>
-                              Manage
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+                                onClick={() => openModal(sub)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                className="h-8 w-8 cursor-default text-slate-400 hover:bg-transparent hover:text-slate-400"
+                                aria-label={`Edit ${sub.companyName}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -798,7 +934,7 @@ export default function CorporateList() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         {visibleColumns.has("groupName") ? (
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Independent</p>
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">{row.groupName}</p>
                         ) : null}
                         <button
                           type="button"
@@ -821,9 +957,25 @@ export default function CorporateList() {
                       ) : (
                         <span />
                       )}
-                      <Button variant="ghost" size="sm" className="h-8 px-0 text-xs" onClick={() => openModal(row.company)}>
-                        Manage
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+                          onClick={() => openModal(row.company)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          type="button"
+                          className="h-8 w-8 cursor-default text-slate-400 hover:bg-transparent hover:text-slate-400"
+                          aria-label={`Edit ${row.company.companyName}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </Card>
@@ -890,6 +1042,7 @@ export default function CorporateList() {
                       key={row.company.id}
                       company={row.company}
                       groupId={row.groupId}
+                      groupLabel={row.groupName}
                       visibleColumns={visibleColumns}
                       showStatusColumn={shouldShowStatusColumn}
                       onManage={openModal}

@@ -141,6 +141,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setCurrentUser(null);
           setGroups([]);
           setOrgStructure(null);
+          setUsers([]);
         }
       } finally {
         if (!cancelled) {
@@ -156,36 +157,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (isAuthLoading) return;
 
-    if (!isAuthenticated) {
-      setGroups([]);
-      setOrgStructure(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadCompanies = async () => {
-      try {
-        const companyGroups = await getAllCompanies();
-        if (!cancelled) {
-          setGroups(companyGroups);
-        }
-      } catch {
-        if (!cancelled) {
-          setGroups([]);
-        }
-      }
-    };
-
-    void loadCompanies();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, isAuthLoading]);
 
   return (
     <AppContext.Provider value={{ isAuthenticated, isAuthLoading, setIsAuthenticated, currentUser, setCurrentUser, groups, setGroups, orgStructure, setOrgStructure, users, setUsers }}>

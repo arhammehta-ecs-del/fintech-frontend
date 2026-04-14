@@ -1,4 +1,4 @@
-import type { Company, CompanyStatus, GroupCompany, OrgNode } from "@/contexts/AppContext";
+import type { AppUser, Company, CompanyStatus, GroupCompany, OrgNode } from "@/contexts/AppContext";
 import { v7 as uuidv7 } from "uuid";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -8,9 +8,9 @@ type RawUserRecord = Record<string, unknown>;
 
 const COMPANY_LIST_PATH = "/api/v1/admin/companies/all";
 const COMPANY_ORG_PATH = "/api/v1/company-settings/org";
+const COMPANY_USERS_PATH = "/api/v1/company-settings/all-users";
 const LOGIN_PATH = "/api/v1/auth/login";
 const LOGOUT_PATH = "/api/v1/auth/logout";
-const AUTH_STATUS_PATH = "/api/v1/auth/status";
 
 const generateTrackId = () => uuidv7();
 
@@ -205,15 +205,6 @@ export async function login(email: string, password: string, action = false) {
   };
 }
 
-export async function getAuthStatus() {
-  const payload = await apiFetch<{ message: string; user: RawUserRecord }>(AUTH_STATUS_PATH);
-
-  return {
-    message: payload.message,
-    user: mapUser(payload.user),
-  };
-}
-
 export async function logout() {
   return apiFetch<{ message: string }>(LOGOUT_PATH, {
     method: "POST",
@@ -280,6 +271,13 @@ const buildOrgTree = (items: RawOrgRecord[]): OrgNode | null => {
       .filter(Boolean);
 
     if (segments.length <= 1) return null;
+
+    // When payload omits parent IDs, first-level nodes are usually emitted as
+    // COMPANY.DIVISION while root is COMPANY.ROOT.
+    if (segments.length === 2 && segments[1].toUpperCase() !== "ROOT") {
+      return `${segments[0]}.ROOT`;
+    }
+
     return segments.slice(0, -1).join(".");
   };
 
@@ -359,4 +357,336 @@ export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNo
   });
 
   return buildOrgTree(Array.isArray(payload.data) ? payload.data : []);
+}
+
+type CompanyUsersPayload = {
+  activeUsers?: RawUserRecord[];
+  inactiveUsers?: RawUserRecord[];
+};
+
+type CompanyUsersResponse = {
+  success?: boolean;
+  data?: CompanyUsersPayload;
+};
+
+export type RoleCapabilitySet = {
+  view: boolean;
+  modify: boolean;
+  approve: boolean;
+  initiate: boolean;
+};
+
+export type CompanyRole = {
+  role_code: string;
+  role_name: string;
+  category: string;
+  sub_category: string;
+  permission_level: string;
+  capabilities: RoleCapabilitySet;
+  is_active: boolean;
+};
+
+type CompanyRolesResponse = {
+  success: boolean;
+  data: CompanyRole[];
+};
+
+const MOCK_COMPANY_ROLES_RESPONSE: CompanyRolesResponse = {
+  success: true,
+  data: [
+    { role_code: "ACCOUNTS_VIEWER", role_name: "Accounts Viewer", category: "TRANSACTIONAL", sub_category: "ACCOUNTS", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
+    { role_code: "ACCOUNTS_USER", role_name: "Accounts User", category: "TRANSACTIONAL", sub_category: "ACCOUNTS", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
+    { role_code: "ACCOUNTS_MGR", role_name: "Accounts Manager", category: "TRANSACTIONAL", sub_category: "ACCOUNTS", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
+    { role_code: "PAYMENTS_VIEWER", role_name: "Payments Viewer", category: "TRANSACTIONAL", sub_category: "PAYMENTS", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
+    { role_code: "PAYMENTS_USER", role_name: "Payments User", category: "TRANSACTIONAL", sub_category: "PAYMENTS", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
+    { role_code: "PAYMENTS_MGR", role_name: "Payments Manager", category: "TRANSACTIONAL", sub_category: "PAYMENTS", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
+    { role_code: "PURCHASE_VIEWER", role_name: "Purchase Viewer", category: "TRANSACTIONAL", sub_category: "PURCHASE", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
+    { role_code: "PURCHASE_USER", role_name: "Purchase User", category: "TRANSACTIONAL", sub_category: "PURCHASE", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
+    { role_code: "PURCHASE_MGR", role_name: "Purchase Manager", category: "TRANSACTIONAL", sub_category: "PURCHASE", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
+    { role_code: "FINOPS_VIEWER", role_name: "Fin Ops Viewer", category: "OPERATIONAL", sub_category: "FIN_OPS", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
+    { role_code: "FINOPS_USER", role_name: "Fin Ops User", category: "OPERATIONAL", sub_category: "FIN_OPS", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
+    { role_code: "FINOPS_MGR", role_name: "Fin Ops Manager", category: "OPERATIONAL", sub_category: "FIN_OPS", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
+    { role_code: "MASTER_VIEWER", role_name: "Master Viewer", category: "OPERATIONAL", sub_category: "MASTER", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
+    { role_code: "MASTER_USER", role_name: "Master User", category: "OPERATIONAL", sub_category: "MASTER", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
+    { role_code: "MASTER_MGR", role_name: "Master Manager", category: "OPERATIONAL", sub_category: "MASTER", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
+    { role_code: "SYS_ADMIN_VIEWER", role_name: "System Admin Viewer", category: "SYSTEM_ACCESS", sub_category: "ADMIN", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
+    { role_code: "SYS_ADMIN_USER", role_name: "System Admin User", category: "SYSTEM_ACCESS", sub_category: "ADMIN", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
+    { role_code: "SYS_ADMIN_MGR", role_name: "System Admin Manager", category: "SYSTEM_ACCESS", sub_category: "ADMIN", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
+    { role_code: "ORG_STR_VIEWER", role_name: "Org Structure Viewer", category: "SYSTEM_ACCESS", sub_category: "ORG_STR", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
+    { role_code: "ORG_STR_USER", role_name: "Org Structure User", category: "SYSTEM_ACCESS", sub_category: "ORG_STR", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
+    { role_code: "ORG_STR_MGR", role_name: "Org Structure Manager", category: "SYSTEM_ACCESS", sub_category: "ORG_STR", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
+    { role_code: "USER_ACC_VIEWER", role_name: "User Access Viewer", category: "SYSTEM_ACCESS", sub_category: "USER_ACC", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
+    { role_code: "USER_ACC_USER", role_name: "User Access User", category: "SYSTEM_ACCESS", sub_category: "USER_ACC", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
+    { role_code: "USER_ACC_MGR", role_name: "User Access Manager", category: "SYSTEM_ACCESS", sub_category: "USER_ACC", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
+    { role_code: "WORK_FLOW_VIEWER", role_name: "Workflow Viewer", category: "SYSTEM_ACCESS", sub_category: "WORK_FLOW", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
+    { role_code: "WORK_FLOW_USER", role_name: "Workflow User", category: "SYSTEM_ACCESS", sub_category: "WORK_FLOW", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
+    { role_code: "WORK_FLOW_MGR", role_name: "Workflow Manager", category: "SYSTEM_ACCESS", sub_category: "WORK_FLOW", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
+  ],
+};
+
+const MOCK_COMPANY_USERS: AppUser[] = [
+  {
+    id: "mock-user-1",
+    name: "Anjali Desai",
+    email: "anjali.d@tatasteel.com",
+    role: "Signatory",
+    designation: "VP Finance",
+    department: "Finance",
+    phone: "+91 91234 56783",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-2",
+    name: "Bob Smith",
+    email: "bob@acme.com",
+    role: "Manager",
+    designation: "HR Manager",
+    department: "Human Resources",
+    phone: "+91 98765 43211",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-3",
+    name: "Carol Davis",
+    email: "carol@acme.com",
+    role: "User",
+    designation: "Developer",
+    department: "Engineering",
+    phone: "+91 98765 43212",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-4",
+    name: "Deepika Padukone",
+    email: "deepika.p@tatasteel.com",
+    role: "Manager",
+    designation: "Brand Ambassador",
+    department: "Marketing",
+    phone: "+91 90000 00009",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-5",
+    name: "Example User 10",
+    email: "example10@tatasteel.com",
+    role: "User",
+    designation: "Staff",
+    department: "Quality Assurance",
+    phone: "+91 90000 00009",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-6",
+    name: "Pending Member",
+    email: "pending.member@tatasteel.com",
+    role: "User",
+    designation: "Analyst",
+    department: "Finance",
+    phone: "+91 90000 00111",
+    companyId: "MOCK",
+    status: "Pending",
+  },
+  {
+    id: "mock-user-7",
+    name: "Inactive Member",
+    email: "inactive.member@tatasteel.com",
+    role: "Viewer",
+    designation: "Coordinator",
+    department: "Operations",
+    phone: "+91 90000 00222",
+    companyId: "MOCK",
+    status: "Inactive",
+  },
+  {
+    id: "mock-user-8",
+    name: "Rahul Mehta",
+    email: "rahul.mehta@tatasteel.com",
+    role: "User",
+    designation: "Operations Analyst",
+    department: "Operations",
+    phone: "+91 90000 00301",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-9",
+    name: "Sneha Kapoor",
+    email: "sneha.kapoor@tatasteel.com",
+    role: "Manager",
+    designation: "Regional Manager",
+    department: "Sales",
+    phone: "+91 90000 00302",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-10",
+    name: "Vikram Nair",
+    email: "vikram.nair@tatasteel.com",
+    role: "User",
+    designation: "Procurement Specialist",
+    department: "Procurement",
+    phone: "+91 90000 00303",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-11",
+    name: "Pooja Iyer",
+    email: "pooja.iyer@tatasteel.com",
+    role: "Signatory",
+    designation: "Senior Finance Lead",
+    department: "Finance",
+    phone: "+91 90000 00304",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-12",
+    name: "Aman Verma",
+    email: "aman.verma@tatasteel.com",
+    role: "Viewer",
+    designation: "Audit Coordinator",
+    department: "Compliance",
+    phone: "+91 90000 00305",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-13",
+    name: "Kavya Reddy",
+    email: "kavya.reddy@tatasteel.com",
+    role: "User",
+    designation: "HR Executive",
+    department: "Human Resources",
+    phone: "+91 90000 00306",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-14",
+    name: "Nitin Arora",
+    email: "nitin.arora@tatasteel.com",
+    role: "Manager",
+    designation: "Engineering Manager",
+    department: "Engineering",
+    phone: "+91 90000 00307",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-15",
+    name: "Shreya Bansal",
+    email: "shreya.bansal@tatasteel.com",
+    role: "User",
+    designation: "Data Associate",
+    department: "Data",
+    phone: "+91 90000 00308",
+    companyId: "MOCK",
+    status: "Active",
+  },
+  {
+    id: "mock-user-16",
+    name: "Onboarding Candidate",
+    email: "candidate.onboard@tatasteel.com",
+    role: "User",
+    designation: "Trainee",
+    department: "Finance",
+    phone: "+91 90000 00309",
+    companyId: "MOCK",
+    status: "Pending",
+  },
+  {
+    id: "mock-user-17",
+    name: "Former Employee",
+    email: "former.employee@tatasteel.com",
+    role: "Viewer",
+    designation: "Support Associate",
+    department: "Support",
+    phone: "+91 90000 00310",
+    companyId: "MOCK",
+    status: "Inactive",
+  },
+];
+
+const getDepartmentFromAccessDetails = (record: RawUserRecord) => {
+  const accessDetails = record.accessDetails;
+  if (!Array.isArray(accessDetails)) return "";
+
+  const entries = accessDetails.filter(
+    (item): item is RawUserRecord => typeof item === "object" && item !== null,
+  );
+  if (entries.length === 0) return "";
+
+  const primaryEntry = entries.find(
+    (entry) =>
+      typeof entry.accessType === "string" &&
+      entry.accessType.trim().toUpperCase() === "PRIMARY",
+  );
+  const selectedEntry = primaryEntry ?? entries[0];
+
+  return typeof selectedEntry.nodeName === "string" ? selectedEntry.nodeName : "";
+};
+
+const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUser => ({
+  id: typeof record.employeeId === "string" ? record.employeeId : "",
+  name: typeof record.name === "string" ? record.name : "",
+  email: typeof record.email === "string" ? record.email : "",
+  role: typeof record.designation === "string" ? record.designation : "",
+  designation: typeof record.designation === "string" ? record.designation : "",
+  department: getDepartmentFromAccessDetails(record),
+  phone: typeof record.phone === "string" ? record.phone : "",
+  companyId: typeof record.companyId === "string" ? record.companyId : undefined,
+  onboardingDate: typeof record.onboardingDate === "string" ? record.onboardingDate : undefined,
+  employeeId: typeof record.employeeId === "string" ? record.employeeId : undefined,
+  manager:
+    record.manager && typeof record.manager === "object"
+      ? {
+          name:
+            typeof (record.manager as RawUserRecord).name === "string"
+              ? ((record.manager as RawUserRecord).name as string)
+              : "",
+          email:
+            typeof (record.manager as RawUserRecord).email === "string"
+              ? ((record.manager as RawUserRecord).email as string)
+              : "",
+        }
+      : undefined,
+  status,
+});
+
+export async function getCompanyUsers(companyCode: string): Promise<AppUser[]> {
+  const payload = await apiFetch<CompanyUsersResponse>(COMPANY_USERS_PATH, {
+    method: "POST",
+    body: JSON.stringify({
+      companyCode: companyCode.trim().toUpperCase(),
+    }),
+  });
+
+  const activeUsers = Array.isArray(payload.data?.activeUsers)
+    ? payload.data.activeUsers.map((record) => mapCompanyUser(record, "Active"))
+    : [];
+  const inactiveUsers = Array.isArray(payload.data?.inactiveUsers)
+    ? payload.data.inactiveUsers.map((record) => mapCompanyUser(record, "Inactive"))
+    : [];
+
+  return [...activeUsers, ...inactiveUsers];
+}
+
+export async function getCompanyUsersMock(companyCode = "MOCK"): Promise<AppUser[]> {
+  await new Promise((resolve) => window.setTimeout(resolve, 250));
+  return MOCK_COMPANY_USERS.map((user) => ({
+    ...user,
+    companyId: companyCode,
+  }));
+}
+
+export async function getCompanyRolesMock(): Promise<CompanyRole[]> {
+  await new Promise((resolve) => window.setTimeout(resolve, 350));
+  return MOCK_COMPANY_ROLES_RESPONSE.data;
 }

@@ -73,12 +73,11 @@ function Avatar({ initials, large = false }: { initials: string; large?: boolean
   return (
     <div
       className={cn(
-        "relative flex items-center justify-center rounded-full bg-[#f4efe6] font-medium text-[#7a6f61]",
+        "flex items-center justify-center rounded-full bg-[#f4efe6] font-medium text-[#7a6f61]",
         large ? "h-12 w-12 text-xl" : "h-10 w-10 text-lg",
       )}
     >
       <span>{initials}</span>
-      <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-400" />
     </div>
   );
 }
@@ -124,6 +123,72 @@ function UserRow({ user }: { user: TeamMember }) {
   );
 }
 
+function DepartmentSidebarContent({
+  department,
+  breadcrumbs,
+  roster,
+  onClose,
+}: {
+  department: DepartmentSidebarDepartment | null;
+  breadcrumbs: string[];
+  roster: DepartmentRoster | null;
+  onClose: () => void;
+}) {
+  const showBreadcrumbs = breadcrumbs.length > 1 || breadcrumbs[0] !== (department?.name ?? "Organisation");
+
+  return (
+    <div className="flex h-full min-h-full w-full flex-col">
+      <div className="flex shrink-0 items-start justify-between border-b border-black/10 px-6 py-8 lg:py-10">
+        <div className="min-w-0">
+          {showBreadcrumbs ? (
+            <div className="flex items-center gap-1.5 text-[11px] text-[#9a988f]">
+              {breadcrumbs.map((crumb, index) => (
+                <div key={`${crumb}-${index}`} className="flex min-w-0 items-center gap-1.5">
+                  {index > 0 ? <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#c8c6bc]" /> : null}
+                  <span className="truncate">{crumb}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <h2 className="mt-3 text-[24px] font-medium leading-none tracking-[-0.03em] text-[#1b1b1b] lg:text-[28px]">
+            {department?.name ?? "Organisation"}
+          </h2>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+          aria-label="Close department sidebar"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      {department && roster ? (
+        <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6">
+          <LeadCard roster={roster.lead} />
+
+          {roster.groups.map((group) => (
+            <section key={group.label} className="mt-8">
+              <p className="mb-2 text-[11px] font-medium tracking-[0.18em] text-[#a29f96]">{group.label}</p>
+              <div className="space-y-1">
+                {group.users.map((user) => (
+                  <UserRow key={`${group.label}-${user.name}`} user={user} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-400">
+          Select a node to inspect the organisation panel.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DepartmentSidebar({
   open,
   onOpenChange,
@@ -139,59 +204,18 @@ export function DepartmentSidebar({
   return (
     <aside
       className={cn(
-        "hidden h-full min-w-0 self-stretch overflow-hidden border-l border-slate-200 bg-white transition-[opacity,transform] duration-500 lg:block",
+        "h-full min-w-0 self-stretch overflow-hidden border-l border-slate-200 bg-white transition-[opacity,transform] duration-500",
         open ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-8 opacity-0",
       )}
       style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
       aria-hidden={!open}
     >
-      <div className="flex h-full min-h-full w-full flex-col">
-        <div className="flex shrink-0 items-start justify-between border-b border-black/10 px-6 py-10">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[11px] text-[#9a988f]">
-              {breadcrumbs.map((crumb, index) => (
-                <div key={`${crumb}-${index}`} className="flex min-w-0 items-center gap-1.5">
-                  {index > 0 ? <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#c8c6bc]" /> : null}
-                  <span className="truncate">{crumb}</span>
-                </div>
-              ))}
-            </div>
-            <h2 className="mt-3 text-[28px] font-medium leading-none tracking-[-0.03em] text-[#1b1b1b]">
-              {department?.name ?? "Organisation"}
-            </h2>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-            aria-label="Close department sidebar"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {department && roster ? (
-          <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6">
-            <LeadCard roster={roster.lead} />
-
-            {roster.groups.map((group) => (
-              <section key={group.label} className="mt-8">
-                <p className="mb-2 text-[11px] font-medium tracking-[0.18em] text-[#a29f96]">{group.label}</p>
-                <div className="space-y-1">
-                  {group.users.map((user) => (
-                    <UserRow key={`${group.label}-${user.name}`} user={user} />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        ) : (
-          <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-400">
-            Select a node to inspect the organisation panel.
-          </div>
-        )}
-      </div>
+      <DepartmentSidebarContent
+        department={department}
+        breadcrumbs={breadcrumbs}
+        roster={roster}
+        onClose={() => onOpenChange(false)}
+      />
     </aside>
   );
 }

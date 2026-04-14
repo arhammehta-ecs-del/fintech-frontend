@@ -51,7 +51,7 @@ const formatDisplayDate = (value: string) => {
   if (!value) return "—";
 
   try {
-    return format(parseISO(value), "dd/MMM/yyyy");
+    return format(parseISO(value), "dd MMM yyyy");
   } catch {
     return value;
   }
