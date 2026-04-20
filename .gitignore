@@ -1,5 +1,31 @@
+# ========================
+# Dependencies
+# ========================
+node_modules/
+.npm/
+
+# ========================
+# Build Output
+# ========================
+dist/
+dist-ssr/
+build/
+
+# ========================
+# Environment Files
+# ========================
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.test
+*.local
+
+# ========================
 # Logs
-logs
+# ========================
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,19 +33,47 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# ========================
+# TypeScript
+# ========================
+*.tsbuildinfo
 
-# Editor directories and files
+# ========================
+# Vite
+# ========================
+.vite/
+
+# ========================
+# Testing
+# ========================
+coverage/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# ========================
+# Mac System Files
+# ========================
+.DS_Store
+**/.DS_Store
+.AppleDouble
+.LSOverride
+
+# ========================
+# Editor
+# ========================
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.env
+
+# ========================
+# Misc
+# ========================
+*.pem
+.cache/

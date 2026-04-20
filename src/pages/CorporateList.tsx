@@ -3,6 +3,7 @@ import { format, parseISO } from "date-fns";
 import { useLocation, useNavigate } from "react-router-dom";
 import { CompanyStatus, GroupCompany, Company } from "@/contexts/AppContext";
 import { CompanyPreviewDialog } from "@/components/CompanyPreviewDialog";
+import { OnboardingWizardContent } from "@/pages/OnboardingWizard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -152,7 +153,7 @@ function StandaloneCompanyRow({
     <tbody>
       <tr
         className={cn(
-          "border-b border-border transition-colors hover:bg-slate-50",
+          "border-b border-border transition-colors hover:bg-sky-50/70",
           isDragging && "opacity-50",
           isDropTarget && "bg-primary/5",
         )}
@@ -258,7 +259,7 @@ function SortableSubsidiaryRow({
   return (
     <tr
       className={cn(
-        "border-b border-border bg-muted/20 transition-colors hover:bg-slate-50",
+        "border-b border-border bg-muted/20 transition-colors hover:bg-sky-50/70",
         isDragging && "opacity-50",
         isDropTarget && "bg-primary/5",
       )}
@@ -372,7 +373,7 @@ function SortableGroupBody({
     <tbody>
       <tr
         className={cn(
-          "border-b border-border cursor-pointer transition-colors hover:bg-slate-50",
+          "border-b border-border cursor-pointer transition-colors hover:bg-sky-50/70",
           isDragging && "opacity-50",
           isDropTarget && "bg-primary/5",
         )}
@@ -451,6 +452,7 @@ export default function CorporateList() {
   const [statusFilter, setStatusFilter] = useState<CompanyStatus>(location.state?.statusFilter || "Approved");
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [defaultEditing, setDefaultEditing] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Set<VisibleColumn>>(
     new Set(["groupName", "companyName", "code", "createdDate", "manage", "status"]),
@@ -571,7 +573,7 @@ export default function CorporateList() {
         .filter((group) => isUngroupedGroup(group))
         .flatMap((group) =>
           sortCompaniesLifo(group.subsidiaries).map((company) => ({
-            type: "company",
+            type: "company" as const,
             company,
             groupId: group.id,
             groupName: "Independent",
@@ -586,7 +588,7 @@ export default function CorporateList() {
       filteredGroups
         .flatMap((group) =>
           sortCompaniesLifo(group.subsidiaries).map((company) => ({
-            type: "company",
+            type: "company" as const,
             company,
             groupId: group.id,
             groupName: isUngroupedGroup(group) ? "Independent" : group.groupName,
@@ -731,12 +733,10 @@ export default function CorporateList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Corporate List</h1>
-        </div>
-        <Button onClick={() => navigate("/onboarding")} className="gap-2 self-start sm:self-auto">
-          <Plus className="h-4 w-4" /> New Onboarding
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-foreground">Corporate List</h1>
+        <Button onClick={() => setIsOnboardingOpen(true)} className="gap-2">
+          <Plus className="h-4 w-4" /> Add New Company
         </Button>
       </div>
 
@@ -773,7 +773,7 @@ export default function CorporateList() {
         </div>
 
         <div className="flex w-full flex-wrap items-center gap-2 self-start sm:w-auto sm:self-end">
-          <div className="inline-flex rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+          <div className="inline-flex rounded-lg border border-border bg-muted/30 p-1">
             {[
               { id: "all", label: "All" },
               { id: "grouped", label: "Groups" },
@@ -784,10 +784,8 @@ export default function CorporateList() {
                 type="button"
                 onClick={() => setViewMode(option.id as ViewMode)}
                 className={cn(
-                  "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-                  viewMode === option.id
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-slate-50 hover:text-foreground",
+                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  viewMode === option.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {option.label}
@@ -850,7 +848,7 @@ export default function CorporateList() {
                 ? "No independent companies match the current filters."
                 : "Get started by onboarding a new corporate client"}
           </p>
-          <Button onClick={() => navigate("/onboarding")} className="gap-2">
+          <Button onClick={() => setIsOnboardingOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" /> New Onboarding
           </Button>
         </Card>
@@ -983,7 +981,7 @@ export default function CorporateList() {
             )}
           </div>
 
-          <Card className="hidden overflow-hidden shadow-sm md:block">
+          <Card className="hidden overflow-hidden border-slate-200/80 shadow-[0_10px_30px_rgba(15,23,42,0.08)] md:block">
             <div className="overflow-x-auto">
               <table className="min-w-[760px] w-full">
                 <thead>
@@ -1074,6 +1072,7 @@ export default function CorporateList() {
         defaultEditing={defaultEditing}
         // onAuditEvent={() => {}}
       />
+      <OnboardingWizardContent embedded open={isOnboardingOpen} onOpenChange={setIsOnboardingOpen} />
     </div>
   );
 }

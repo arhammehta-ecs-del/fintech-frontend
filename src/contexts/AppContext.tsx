@@ -4,7 +4,7 @@ import { getAllCompanies } from "@/lib/api";
 export type CompanyStatus = "Pending" | "Approved" | "Inactive";
 
 export interface Signatory {
-  id: string;
+  
   fullName: string;
   designation: string;
   email: string;
@@ -44,7 +44,6 @@ export interface OrgNode {
   children: OrgNode[];
 }
 
-export type CompanyOrgMap = Record<string, OrgNode>;
 
 export interface AppUser {
   id: string;
@@ -55,10 +54,16 @@ export interface AppUser {
   department: string;
   phone?: string;
   companyId?: string;
+  onboardingDate?: string;
+  employeeId?: string;
+  manager?: {
+    name: string;
+    email: string;
+  };
   status?: "Active" | "Inactive" | "Pending";
 }
 
-export interface CurrentUser {
+ interface CurrentUser {
   id: string;
   name: string;
   email: string;
@@ -87,6 +92,8 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | null>(null);
+
+//comment over here
 const CURRENT_USER_STORAGE_KEY = "app.currentUser";
 
 function readStoredCurrentUser(): CurrentUser | null {
@@ -104,61 +111,64 @@ function readStoredCurrentUser(): CurrentUser | null {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  // comment this is enough
+  // const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => readStoredCurrentUser());
   const [groups, setGroups] = useState<GroupCompany[]>([]);
   const [orgStructure, setOrgStructure] = useState<OrgNode | null>(null);
   const [users, setUsers] = useState<AppUser[]>([]);
 
+  //comment over herrr
   useEffect(() => {
     if (isAuthLoading) return;
-
+  
     try {
       if (!currentUser) {
         window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
         return;
       }
-
+  
       window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(currentUser));
     } catch {
       // Ignore storage errors so auth state still works in-memory.
     }
-  }, [currentUser]);
+  }, [currentUser, isAuthLoading]);
+  
 
-  useEffect(() => {
-    let cancelled = false;
 
-    const restoreSession = async () => {
-      try {
-        const companyGroups = await getAllCompanies();
+useEffect(() => {
+  let cancelled = false;
 
-        if (cancelled) return;
+  const restoreSession = async () => {
+    try {
+      const companyGroups = await getAllCompanies();
 
-        setIsAuthenticated(true);
-        setGroups(companyGroups);
-      } catch {
-        if (!cancelled) {
-          setIsAuthenticated(false);
-          setCurrentUser(null);
-          setGroups([]);
-          setOrgStructure(null);
-          setUsers([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsAuthLoading(false);
-        }
+      if (cancelled) return;
+
+      setIsAuthenticated(true);
+      setGroups(companyGroups);
+    } catch {
+      if (!cancelled) {
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+        setGroups([]);
+        setOrgStructure(null);
       }
-    };
+    } finally {
+      if (!cancelled) {
+        setIsAuthLoading(false);
+      }
+    }
+  };
 
-    void restoreSession();
+  void restoreSession();
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  return () => {
+    cancelled = true;
+  };
+}, []);
 
-
-
+  
   return (
     <AppContext.Provider value={{ isAuthenticated, isAuthLoading, setIsAuthenticated, currentUser, setCurrentUser, groups, setGroups, orgStructure, setOrgStructure, users, setUsers }}>
       {children}

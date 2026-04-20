@@ -28,8 +28,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAppContext, type AppUser } from "@/contexts/AppContext";
+import { NewMemberOnboardingDialog, type NewMemberOnboardingFormData } from "@/components/NewMemberOnboardingDialog";
+import { UserManagePreview } from "@/components/UserManagePreview";
 import { useToast } from "@/hooks/use-toast";
-import { getCompanyUsers } from "@/lib/api";
+import { createUserOnboarding, getCompanyUsers, type UserOnboardingPayload } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
   ArrowUpDown,
@@ -64,6 +66,100 @@ const memberBadgeStyles = {
   Inactive: "bg-slate-200 text-slate-700 border-slate-300",
 } as const;
 
+const PERMISSION_ACTIONS = ["manager", "user", "viewer"] as const;
+
+const ROLE_CATEGORY_MAP = {
+  transactional: "TRANSACTIONAL",
+  operational: "OPERATIONAL",
+  systemAccess: "SYSTEM_ACCESS",
+} as const;
+
+const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
+  purchaseOrder: "Purchase",
+  payment: "Payments",
+  invoice: "Invoice",
+  master: "Master",
+  orgStructure: "Org Structure",
+  userManagement: "User Access",
+  workflow: "Workflow",
+};
+
+const ACTION_LABEL_MAP: Record<(typeof PERMISSION_ACTIONS)[number], string> = {
+  manager: "Manager",
+  user: "User",
+  viewer: "Viewer",
+};
+
+const TRANSACTIONAL_PRIORITY_ORDER = ["payment", "purchaseOrder", "invoice"] as const;
+
+const buildUserOnboardingPayload = (formData: NewMemberOnboardingFormData): UserOnboardingPayload => {
+  const selectedNodeEntries =
+    formData.nodeSelections.length > 0
+      ? formData.nodeSelections
+      : [
+          {
+            nodeId: "",
+            nodeName: "",
+            nodePath: "",
+            permissions: formData.permissions,
+          },
+        ];
+
+  const selectedTransactionalSubCategories = Array.from(
+    new Set(
+      selectedNodeEntries.flatMap((nodeEntry) => {
+        return Object.entries(nodeEntry.permissions.transactional)
+          .filter(([, rights]) => Object.values(rights).some(Boolean))
+          .map(([subCategory]) => subCategory);
+      }),
+    ),
+  );
+
+  const resolvedTransactionalPrimary =
+    (formData.transactionalPrimary && selectedTransactionalSubCategories.includes(formData.transactionalPrimary)
+      ? formData.transactionalPrimary
+      : TRANSACTIONAL_PRIORITY_ORDER.find((subCategory) => selectedTransactionalSubCategories.includes(subCategory))) ?? null;
+
+  const mappedPermissions = selectedNodeEntries.flatMap((nodeEntry) => {
+    return Object.entries(nodeEntry.permissions).flatMap(([category, items]) => {
+      return Object.entries(items).flatMap(([subCategory, rights]) => {
+        const selectedActions = PERMISSION_ACTIONS.filter((action) => rights[action]);
+        if (selectedActions.length === 0) return [];
+
+        const isTransactional = category === "transactional";
+        const accessType: "primary" | "secondary" | undefined = isTransactional
+          ? resolvedTransactionalPrimary === subCategory
+            ? "primary"
+            : "secondary"
+          : undefined;
+
+        const roleBase = SUBCATEGORY_LABEL_MAP[subCategory] ?? subCategory;
+
+        return selectedActions.map((action) => ({
+          roleCategory: ROLE_CATEGORY_MAP[category as keyof typeof ROLE_CATEGORY_MAP],
+          roleName: `${roleBase} ${ACTION_LABEL_MAP[action]}`,
+          nodeName: nodeEntry.nodeName,
+          nodePath: nodeEntry.nodePath,
+          ...(isTransactional ? { accessType } : {}),
+        }));
+      });
+    });
+  });
+
+  return {
+    basicDetails: {
+      name: formData.basic.name.trim(),
+      email: formData.basic.email.trim(),
+      phone: formData.basic.phone.trim(),
+      onboardingDate: formData.basic.onboardingDate.trim(),
+      designation: formData.basic.designation.trim(),
+      employeeId: formData.basic.employeeId.trim(),
+      reportingManager: formData.basic.reportingManager.trim(),
+    },
+    permissions: mappedPermissions,
+  };
+};
+
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -97,14 +193,6 @@ export default function UserManagement() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [viewingMember, setViewingMember] = useState<AppUser | null>(null);
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
-  const [newMember, setNewMember] = useState({
-    name: "",
-    email: "",
-    role: "User",
-    designation: "",
-    department: "",
-    phone: "",
-  });
 
   const loadUsers = useCallback(
     async (showRefreshToast = false) => {
@@ -214,39 +302,51 @@ export default function UserManagement() {
     setUsers((previous) => previous.map((user) => (ids.has(user.id) ? { ...user, status } : user)));
   };
 
-// function to add new member currently not worked out 👇🏻
+  const handleAddMember = async (memberData: NewMemberOnboardingFormData) => {
+    if (!memberData.basic.name.trim() || !memberData.basic.email.trim()) return;
 
-  const handleAddMember = () => {
-    if (!newMember.name.trim() || !newMember.email.trim()) return;
+    const payload = buildUserOnboardingPayload(memberData);
 
-    const member: AppUser = {
+    try {
+      const response = await createUserOnboarding(payload);
+
+      const member: AppUser = {
       id: crypto.randomUUID(),
-      name: newMember.name.trim(),
-      email: newMember.email.trim(),
-      role: newMember.role,
-      designation: newMember.designation.trim(),
-      department: newMember.department.trim(),
-      phone: newMember.phone.trim(),
+      name: memberData.basic.name.trim(),
+      email: memberData.basic.email.trim(),
+      role: "User",
+      designation: memberData.basic.designation.trim(),
+      department: "",
+      phone: memberData.basic.phone.trim(),
+      onboardingDate: memberData.basic.onboardingDate || undefined,
+      employeeId: memberData.basic.employeeId.trim() || undefined,
+      manager: memberData.basic.reportingManager.trim()
+        ? {
+            name: memberData.basic.reportingManager.trim(),
+            email: "",
+          }
+        : undefined,
       companyId: currentUser?.companyCode,
       status: "Pending",
-    };
+      };
 
-    setUsers((previous) => [member, ...previous]);
-    setNewMember({
-      name: "",
-      email: "",
-      role: "User",
-      designation: "",
-      department: "",
-      phone: "",
-    });
-    setAddDialogOpen(false);
-    setStatusTab("pending");
+      setUsers((previous) => [member, ...previous]);
+      setAddDialogOpen(false);
+      setStatusTab("pending");
 
-    toast({
-      title: "Member added",
-      description: `${member.name} was created as a pending member request.`,
-    });
+      toast({
+        title: "Member added",
+        description: response.message || `${member.name} was created as a pending member request.`,
+      });
+    } catch (error) {
+      const description = error instanceof Error ? error.message : "Unable to submit member onboarding.";
+      toast({
+        title: "Submission failed",
+        description,
+        variant: "destructive",
+      });
+      throw error;
+    }
   };
 
   const handleSaveEdit = () => {
@@ -482,7 +582,7 @@ export default function UserManagement() {
                       <td className="px-4 py-4 font-mono text-sm text-slate-600">{maskContactNumber(member.phone)}</td>
                       <td className="px-4 py-4">
                         <div className="flex items-center justify-center gap-3">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => setViewingMember(member)}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-[rgb(53,83,233)] hover:text-[rgb(53,83,233)]" onClick={() => setViewingMember(member)}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingMember(member)}>
@@ -567,121 +667,12 @@ export default function UserManagement() {
         </CardContent>
       </Card>
 
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle>Add New Member</DialogTitle>
-            <DialogDescription>Create a new member request for this company.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="member-name">Full Name</Label>
-              <Input id="member-name" value={newMember.name} onChange={(event) => setNewMember((previous) => ({ ...previous, name: event.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="member-email">Email</Label>
-              <Input id="member-email" type="email" value={newMember.email} onChange={(event) => setNewMember((previous) => ({ ...previous, email: event.target.value }))} />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Role</Label>
-                <Select value={newMember.role} onValueChange={(value) => setNewMember((previous) => ({ ...previous, role: value }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Admin">Admin</SelectItem>
-                    <SelectItem value="Manager">Manager</SelectItem>
-                    <SelectItem value="User">User</SelectItem>
-                    <SelectItem value="Signatory">Signatory</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="member-phone">Phone</Label>
-                <Input id="member-phone" value={newMember.phone} onChange={(event) => setNewMember((previous) => ({ ...previous, phone: event.target.value }))} />
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="member-designation">Designation</Label>
-                <Input id="member-designation" value={newMember.designation} onChange={(event) => setNewMember((previous) => ({ ...previous, designation: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="member-department">Department</Label>
-                <Input id="member-department" value={newMember.department} onChange={(event) => setNewMember((previous) => ({ ...previous, department: event.target.value }))} />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddMember} disabled={!newMember.name.trim() || !newMember.email.trim()}>
-              Add Member
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <NewMemberOnboardingDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onSubmit={handleAddMember} />
 
       <Dialog open={Boolean(viewingMember)} onOpenChange={(open) => !open && setViewingMember(null)}>
-        <DialogContent className="sm:max-w-[460px]">
+        <DialogContent className="h-[92vh] w-[96vw] max-w-[1200px] overflow-y-auto p-0">
           {viewingMember ? (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-3">
-                  <Avatar className="h-12 w-12 border border-sky-100 bg-sky-50">
-                    <AvatarFallback className="bg-sky-50 text-sky-700">{getInitials(viewingMember.name)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div>{viewingMember.name}</div>
-                    <Badge variant="outline" className={cn("mt-1 text-xs", memberBadgeStyles[viewingMember.status ?? "Active"])}>
-                      {viewingMember.status ?? "Active"}
-                    </Badge>
-                  </div>
-                </DialogTitle>
-                <DialogDescription>View member profile details.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-2 text-sm">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Email</p>
-                  <p className="mt-1 text-slate-900">{viewingMember.email}</p>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Designation</p>
-                    <p className="mt-1 text-slate-900">{viewingMember.designation || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Department</p>
-                    <p className="mt-1 text-slate-900">{viewingMember.department || "General"}</p>
-                  </div>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Designation</p>
-                    <p className="mt-1 text-slate-900">{viewingMember.designation || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Phone</p>
-                    <p className="mt-1 font-mono text-slate-900">{viewingMember.phone || "—"}</p>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setViewingMember(null)}>
-                  Close
-                </Button>
-                <Button
-                  onClick={() => {
-                    setEditingMember(viewingMember);
-                    setViewingMember(null);
-                  }}
-                >
-                  Edit Member
-                </Button>
-              </DialogFooter>
-            </>
+            <UserManagePreview />
           ) : null}
         </DialogContent>
       </Dialog>

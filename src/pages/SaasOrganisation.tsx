@@ -1,8 +1,9 @@
 import { startTransition, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { Briefcase, Building2, Layers3, MapPin, Boxes } from "lucide-react";
+import { Briefcase, Building2, Layers3, MapPin, Boxes, Plus } from "lucide-react";
 import DepartmentSidebar, { type DepartmentSidebarDepartment } from "@/components/DepartmentSidebar";
+import NewNodePopup from "@/components/NewNodePopup";
 import { useAppContext, type OrgNode } from "@/contexts/AppContext";
-import { getCompanyOrgStructure } from "@/lib/api";
+import { getCompanyOrgStructure, createNewOrgNode } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const BRANCH_PALETTES = [
@@ -78,6 +79,20 @@ function findParent(root: OrgNode | null, targetId: string): OrgNode | null {
   }
 
   return null;
+}
+
+function insertNodeUnderParent(root: OrgNode, parentId: string, newNode: OrgNode): OrgNode {
+  if (root.id === parentId) {
+    return {
+      ...root,
+      children: [...root.children, newNode],
+    };
+  }
+
+  return {
+    ...root,
+    children: root.children.map((child) => insertNodeUnderParent(child, parentId, newNode)),
+  };
 }
 
 function getNodeTheme(nodeType: string) {
@@ -166,6 +181,58 @@ function getBranchAppearance(branchIndex: number | null, branchDepth: number, is
   };
 }
 
+function getPlusButtonAccentClass(accentBackgroundClass: string) {
+  switch (accentBackgroundClass) {
+    case "bg-orange-500":
+    case "bg-orange-300":
+    case "bg-orange-200":
+    case "bg-orange-100":
+      return "hover:border-orange-300 hover:text-orange-500";
+    case "bg-sky-500":
+    case "bg-sky-300":
+    case "bg-sky-200":
+    case "bg-sky-100":
+      return "hover:border-sky-300 hover:text-sky-500";
+    case "bg-emerald-500":
+    case "bg-emerald-300":
+    case "bg-emerald-200":
+    case "bg-emerald-100":
+      return "hover:border-emerald-300 hover:text-emerald-500";
+    case "bg-rose-500":
+    case "bg-rose-300":
+    case "bg-rose-200":
+    case "bg-rose-100":
+      return "hover:border-rose-300 hover:text-rose-500";
+    case "bg-amber-500":
+    case "bg-amber-300":
+    case "bg-amber-200":
+    case "bg-amber-100":
+      return "hover:border-amber-300 hover:text-amber-500";
+    case "bg-cyan-500":
+    case "bg-cyan-300":
+    case "bg-cyan-200":
+    case "bg-cyan-100":
+      return "hover:border-cyan-300 hover:text-cyan-500";
+    default:
+      return "hover:border-slate-300 hover:text-slate-600";
+  }
+}
+
+function getNodeAncestors(node: OrgNode | null): string[] {
+  if (!node) return [];
+
+  const pathSegments = node.nodePath
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment && segment.toUpperCase() !== "ROOT");
+
+  if (pathSegments.length > 0) {
+    return pathSegments;
+  }
+
+  return [node.name].filter(Boolean);
+}
+
 function OrgCard({
   node,
   branchIndex,
@@ -173,6 +240,7 @@ function OrgCard({
   active = false,
   compact = false,
   onSelect,
+  onCreateNode,
 }: {
   node: OrgNode;
   branchIndex: number | null;
@@ -180,41 +248,61 @@ function OrgCard({
   active?: boolean;
   compact?: boolean;
   onSelect: (node: OrgNode) => void;
+  onCreateNode: (node: OrgNode) => void;
 }) {
   const theme = getNodeTheme(node.nodeType);
   const Icon = getNodeIcon(node);
   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
   const appearance = getBranchAppearance(branchIndex, branchDepth, isRoot);
   const accentBackgroundClass = getNodeAccentBackground(branchIndex, branchDepth, isRoot);
+  const plusButtonAccentClass = getPlusButtonAccentClass(accentBackgroundClass);
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(node)}
-      className={cn(
-        "relative flex items-center gap-2.5 overflow-hidden rounded-[18px] px-4 text-left text-slate-900 transition hover:-translate-y-0.5",
-        isRoot ? "min-h-[48px] min-w-[108px] rounded-2xl px-3 py-2.5" : compact ? "min-h-[58px] min-w-[160px] py-3" : "min-h-[62px] min-w-[168px] py-3.5",
-        appearance.hoverBorderClass,
-        active ? appearance.activeBorderClass : appearance.defaultSurfaceClass,
-      )}
-    >
-      {!isRoot ? (
-        <span
-          className={cn(
-            "absolute left-0 top-[10%] h-[80%] w-[4px] rounded-full",
-            accentBackgroundClass,
-          )}
-          aria-hidden="true"
-        />
-      ) : null}
-      <div className={cn("flex items-center justify-center rounded-full bg-white/75", isRoot ? "h-5 w-5" : "h-7 w-7")}>
-        <Icon className={cn(isRoot ? "h-3 w-3" : "h-3.5 w-3.5", theme.iconColor)} />
-      </div>
-      <div className="min-w-0">
-        <p className={cn("truncate font-semibold", isRoot ? "text-[11px]" : compact ? "text-[13px]" : "text-[14px]")}>{node.name}</p>
-        {!isRoot ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</p> : null}
-      </div>
-    </button>
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={() => onSelect(node)}
+        className={cn(
+          "relative flex items-center gap-2.5 overflow-hidden rounded-[18px] px-4 text-left text-slate-900 transition hover:-translate-y-0.5",
+          isRoot ? "min-h-[48px] min-w-[108px] rounded-2xl px-3 py-2.5" : compact ? "min-h-[58px] min-w-[160px] py-3" : "min-h-[62px] min-w-[168px] py-3.5",
+          appearance.hoverBorderClass,
+          active ? appearance.activeBorderClass : appearance.defaultSurfaceClass,
+        )}
+      >
+        {!isRoot ? (
+          <span
+            className={cn(
+              "absolute left-0 top-[10%] h-[80%] w-[4px] rounded-full",
+              accentBackgroundClass,
+            )}
+            aria-hidden="true"
+          />
+        ) : null}
+        <div className={cn("flex items-center justify-center rounded-full bg-white/75", isRoot ? "h-5 w-5" : "h-7 w-7")}>
+          <Icon className={cn(isRoot ? "h-3 w-3" : "h-3.5 w-3.5", theme.iconColor)} />
+        </div>
+        <div className="min-w-0">
+          <p className={cn("truncate font-semibold", isRoot ? "text-[11px]" : compact ? "text-[13px]" : "text-[14px]")}>{node.name}</p>
+          {!isRoot ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</p> : null}
+        </div>
+      </button>
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onCreateNode(node);
+        }}
+        className={cn(
+          "absolute right-0 top-0 z-20 flex h-8 w-8 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 opacity-0 shadow-[0_6px_14px_rgba(15,23,42,0.16)] transition group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25",
+          plusButtonAccentClass,
+        )}
+        aria-label={`Add child node under ${node.name}`}
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+    </div>
   );
 }
 
@@ -357,6 +445,7 @@ function OrgTreeCanvas({
   root,
   selectedId,
   onSelect,
+  onCreateNode,
   scrollContainerRef,
   onCanvasWidthChange,
   zoom = 1,
@@ -364,6 +453,7 @@ function OrgTreeCanvas({
   root: OrgNode;
   selectedId?: string;
   onSelect: (node: OrgNode) => void;
+  onCreateNode: (node: OrgNode) => void;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
   onCanvasWidthChange?: (width: number) => void;
   zoom?: number;
@@ -465,6 +555,7 @@ function OrgTreeCanvas({
                 compact={item.node.children.length === 0 && item.node.nodeType.trim().toUpperCase() !== "ROOT"}
                 active={selectedId === item.node.id}
                 onSelect={onSelect}
+                onCreateNode={onCreateNode}
               />
             </div>
           ))}
@@ -484,6 +575,8 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [bottomScrollContentWidth, setBottomScrollContentWidth] = useState(0);
   const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [isNewNodePopupOpen, setIsNewNodePopupOpen] = useState(false);
+  const [newNodeParent, setNewNodeParent] = useState<OrgNode | null>(null);
   const treeScrollRef = useRef<HTMLDivElement | null>(null);
   const bottomScrollRef = useRef<HTMLDivElement | null>(null);
   const graphContentRef = useRef<HTMLDivElement | null>(null);
@@ -621,10 +714,42 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   }, [canvasWidth, hasHorizontalOverflow, sidebarOpen, zoom]);
 
   const allNodes = useMemo(() => flattenOrg(orgStructure), [orgStructure]);
-  const departmentCount = Math.max(allNodes.length - 1, 0);
+  const nodeCount = Math.max(allNodes.length - 1, 0);
   const companyName = currentUser?.company || currentUser?.brand || orgStructure?.name || "RJ Fintech";
   const canZoomOut = zoom > MIN_ZOOM;
   const canZoomIn = zoom < MAX_ZOOM;
+
+  const handleOpenNewNodePopup = (node: OrgNode) => {
+    setNewNodeParent(node);
+    setIsNewNodePopupOpen(true);
+  };
+
+  const handleCreateNode = async (name: string, nodeType: "DIVISION" | "LOCATION" | "DEPARTMENT") => {
+    if (!newNodeParent || !currentUser?.companyCode) return;
+
+    // Call backend API to create node
+    try {
+      await createNewOrgNode({
+        companyCode: currentUser.companyCode.trim().toUpperCase(),
+        newNodeName: name,
+        nodeType,
+        parentNode: {
+          nodeName: newNodeParent.name,
+          nodeType: newNodeParent.nodeType,
+          nodePath: newNodeParent.nodePath,
+        },
+      });
+      // Optionally, reload org structure here
+      // await loadOrgForCompanyCode(currentUser.companyCode);
+    } catch (err) {
+      // Optionally, show error to user
+      // eslint-disable-next-line no-console
+      console.error("Failed to create node", err);
+    }
+
+    setIsNewNodePopupOpen(false);
+    setNewNodeParent(null);
+  };
 
   const handleDepartmentClick = (node: OrgNode) => {
     if (selectedDepartment?.id === node.id && sidebarOpen) {
@@ -703,7 +828,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
               <div className="mb-4">
                 <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-slate-900">Organisation Structure</h1>
                 <p className="mt-1 text-[13px] text-slate-400">
-                  {companyName} · {departmentCount} departments
+                  {companyName} · {nodeCount} nodes
                 </p>
               </div>
 
@@ -745,6 +870,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                   root={orgStructure}
                   selectedId={selectedDepartment?.id}
                   onSelect={handleDepartmentClick}
+                  onCreateNode={handleOpenNewNodePopup}
                   scrollContainerRef={treeScrollRef}
                   onCanvasWidthChange={setCanvasWidth}
                   zoom={zoom}
@@ -824,6 +950,16 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         ) : null}
 
       </div>
+
+      <NewNodePopup
+        open={isNewNodePopupOpen}
+        ancestors={getNodeAncestors(newNodeParent)}
+        onOpenChange={(open) => {
+          setIsNewNodePopupOpen(open);
+          if (!open) setNewNodeParent(null);
+        }}
+        onConfirm={handleCreateNode}
+      />
     </div>
   );
 }

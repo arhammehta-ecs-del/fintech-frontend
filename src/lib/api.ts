@@ -1,19 +1,176 @@
-import type { AppUser, Company, CompanyStatus, GroupCompany, OrgNode } from "@/contexts/AppContext";
+import type { AppUser, Company, GroupCompany, OrgNode } from "@/contexts/AppContext";
 import { v7 as uuidv7 } from "uuid";
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+type CreateOrgNodePayload = {
+  companyCode: string;
+  newNodeName: string;
+  nodeType: string;
+  parentNode: {
+    nodeName: string;
+    nodeType: string;
+    nodePath: string;
+  };
+};
+
+type CreateOrgNodeResponse = {
+  message: string;
+  code?: number;
+  data?: unknown;
+};
+
+export type OnboardingPayload = {
+  group: {
+    name: string;
+    groupCode: string;
+    remarks?: string;
+  };
+  company: {
+    companyCode: string;
+    name: string;
+    gst: string;
+    brand: string;
+    ieCode: string;
+    incorporationDate: string;
+    address: string;
+  };
+  signatories: Array<{
+    name: string;
+    email: string;
+    phone: string;
+    designation: string;
+    employeeId: string;
+  }>;
+};
+
+type OnboardingResponse = {
+  message: string;
+  code?: number;
+  data?: {
+    companyId?: string;
+    groupId?: string;
+    status?: string;
+  };
+};
+
+
+
+type UserOnboardingPermission = {
+  roleCategory: "TRANSACTIONAL" | "OPERATIONAL" | "SYSTEM_ACCESS";
+  roleName: string;
+  nodeName: string;
+  nodePath: string;
+  accessType?: "primary" | "secondary";
+};
+
+export type UserOnboardingPayload = {
+  basicDetails: {
+    name: string;
+    email: string;
+    phone: string;
+    onboardingDate: string;
+    designation: string;
+    employeeId: string;
+    reportingManager: string;
+  };
+  permissions: UserOnboardingPermission[];
+};
+
+type UserOnboardingResponse = {
+  message: string;
+  code?: number;
+  data?: {
+    userId?: string;
+    status?: string;
+  };
+};
+
+type RoleCapabilitySet = {
+  view: boolean;
+  modify: boolean;
+  approve: boolean;
+  initiate: boolean;
+};
+
+type CompanyRole = {
+  role_code: string;
+  role_name: string;
+  category: string;
+  sub_category: string;
+  permission_level: string;
+  capabilities: RoleCapabilitySet;
+  is_active: boolean;
+};
 
 type RawCompanyRecord = Record<string, unknown>;
 type RawUserRecord = Record<string, unknown>;
+type RawOrgRecord = Record<string, unknown>;
 
-const COMPANY_LIST_PATH = "/api/v1/admin/companies/all";
-const COMPANY_ORG_PATH = "/api/v1/company-settings/org";
-const COMPANY_USERS_PATH = "/api/v1/company-settings/all-users";
+type RawCompanyListItem = {
+  companyCode?: string | null;
+  name?: string | null;
+  gst?: string | null;
+  brand?: string | null;
+  iecode?: string | null;
+  registeredAt?: string | null;
+  address?: string | null;
+};
+
+type RawCompanyGroup = {
+  groupName?: string | null;
+  groupCode?: string | null;
+  companies?: RawCompanyListItem[] | null;
+};
+
+type RawLoginUser = {
+  id?: string | null;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  company?: string | null;
+  brand?: string | null;
+  companyCode?: string | null;
+  groupName?: string | null;
+  groupCode?: string | null;
+};
+
+type CompanyListApiResponse = {
+  message?: string;
+  code?: number;
+  data?: RawCompanyGroup[];
+};
+
+type OrgApiResponse = {
+  success?: boolean;
+  data?: RawOrgRecord[];
+};
+
+type CompanyUsersPayload = {
+  activeUsers?: RawUserRecord[];
+  inactiveUsers?: RawUserRecord[];
+};
+
+type CompanyUsersResponse = {
+  success?: boolean;
+  data?: CompanyUsersPayload;
+};
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "");
+
 const LOGIN_PATH = "/api/v1/auth/login";
 const LOGOUT_PATH = "/api/v1/auth/logout";
+const COMPANY_LIST_PATH = "/api/v1/admin/companies/all";
+const COMPANY_CREATE_PATH = "/api/v1/admin/companies";
+const COMPANY_ORG_PATH = "/api/v1/company-settings/org";
+const NEW_NODE_PATH = "/api/v1/company-settings/new-node";
+const COMPANY_USERS_PATH = "/api/v1/company-settings/all-users";
+const NEW_USER_ONBOARD_PATH = "/api/v1/admin/users/onboard";
 
+// Creates a unique id for each API request and sends it as `track-id`.
+// Impact: helps backend teams trace and debug requests from this file.
 const generateTrackId = () => uuidv7();
 
+// Checks many possible keys and returns the first non-empty string.
+// Impact: handles backend field-name differences without breaking UI mapping.
 const getString = (record: RawCompanyRecord, keys: string[], fallback = "") => {
   for (const key of keys) {
     const value = record[key];
@@ -24,21 +181,12 @@ const getString = (record: RawCompanyRecord, keys: string[], fallback = "") => {
   return fallback;
 };
 
+// Converts text to uppercase.
+// Impact: keeps company and group codes in one consistent format.
 const toUpperValue = (value: string) => value.toUpperCase();
 
-const toRecord = (value: unknown): RawCompanyRecord | null =>
-  typeof value === "object" && value !== null ? (value as RawCompanyRecord) : null;
-
-const getRecordArray = (record: RawCompanyRecord, keys: string[]) => {
-  for (const key of keys) {
-    const value = record[key];
-    if (Array.isArray(value)) {
-      return value.filter((item): item is RawCompanyRecord => typeof item === "object" && item !== null);
-    }
-  }
-  return [] as RawCompanyRecord[];
-};
-
+// Returns a trimmed string if present, keeps explicit null, else returns null.
+// Impact: keeps nullable fields like `companyId` correct in mapped data.
 const getNullableString = (record: RawCompanyRecord, keys: string[]) => {
   for (const key of keys) {
     const value = record[key];
@@ -53,125 +201,49 @@ const getNullableString = (record: RawCompanyRecord, keys: string[]) => {
   return null;
 };
 
-const toStatus = (value: string): CompanyStatus => {
-  const normalized = value.toLowerCase();
-  if (normalized === "pending") return "Pending";
-  if (normalized === "inactive" || normalized === "rejected") return "Inactive";
-  return "Approved";
-};
+// Returns a clean string value, else empty string.
+// Impact: keeps mapper code readable without heavy fallback chains.
+const getPacketString = (value: string | null | undefined) => (typeof value === "string" ? value.trim() : "");
 
-const ensureArray = (payload: unknown): RawCompanyRecord[] => {
-  if (Array.isArray(payload)) {
-    return payload.filter((item): item is RawCompanyRecord => typeof item === "object" && item !== null);
-  }
-
-  if (payload && typeof payload === "object") {
-    const record = payload as Record<string, unknown>;
-    const nested = record.data ?? record.items ?? record.results ?? record.companies;
-    if (Array.isArray(nested)) {
-      return nested.filter((item): item is RawCompanyRecord => typeof item === "object" && item !== null);
-    }
-  }
-
-  return [];
-};
-
-const normalizeCompanyRecords = (items: RawCompanyRecord[]) =>
-  items.flatMap((item) => {
-    const nestedCompanies = getRecordArray(item, ["companies", "companydetails", "comapnydetails", "subsidiaries"]);
-    if (nestedCompanies.length === 0) {
-      return [item];
-    }
-
-    const groupRecord = toRecord(item.groupdetails) ?? toRecord(item.group) ?? {};
-    const groupCode = getString(item, ["groupCode", "group_code", "groupcode"], getString(groupRecord, ["groupCode", "group_code", "groupcode", "code"], ""));
-    const groupName = getString(item, ["groupName", "group_name", "groupname"], getString(groupRecord, ["groupName", "group_name", "groupname", "name"], ""));
-    const groupId =
-      getString(item, ["groupId", "group_id"], getString(groupRecord, ["id"], "")) ||
-      groupCode ||
-      groupName ||
-      "ungrouped";
-    const groupCreatedDate = getString(
-      item,
-      ["groupCreatedDate", "group_created_date"],
-      getString(groupRecord, ["createdDate", "created_date"], ""),
-    );
-
-    return nestedCompanies.map((company) => ({
-      ...company,
-      groupId,
-      groupCode,
-      groupName,
-      groupCreatedDate,
-    }));
-  });
-
-const mapCompany = (record: RawCompanyRecord): {
-  groupId: string;
-  groupName: string;
-  groupCode: string;
-  groupCreatedDate: string;
-  company: Company;
-} => {
-  const groupRecord =
-    (record.group && typeof record.group === "object" && record.group !== null
-      ? (record.group as RawCompanyRecord)
-      : null) ??
-    (record.groupdetails && typeof record.groupdetails === "object" && record.groupdetails !== null
-      ? (record.groupdetails as RawCompanyRecord)
-      : {});
-
-  const companyName = getString(record, ["companyName", "company_name", "brand", "companyBrand"], "Untitled Company");
-  const companyId = getString(record, ["id", "companyId", "company_id"], companyName.toLowerCase().replace(/\s+/g, "-"));
-  const groupCode = toUpperValue(
-    getString(record, ["groupCode", "group_code", "groupcode"], getString(groupRecord, ["groupCode", "group_code", "groupcode", "code"], "")),
-  );
-  const groupName = getString(
-    record,
-    ["groupName", "group_name", "groupname"],
-    getString(groupRecord, ["groupName", "group_name", "groupname", "name"], ""),
-  );
-  const groupId =
-    getString(record, ["groupId", "group_id"], getString(groupRecord, ["id"], "")) ||
-    groupCode ||
-    groupName ||
-    "ungrouped";
+// Maps one company item into the `Company` shape.
+// Impact: used by `getAllCompanies` before data reaches context/pages.
+const mapCompany = (company: RawCompanyListItem): Company => {
+  const legalName = getPacketString(company.name) || "Untitled Company";
+  const companyName = getPacketString(company.brand) || legalName;
+  const companyCode = toUpperValue(getPacketString(company.companyCode));
 
   return {
-    groupId,
-    groupName,
-    groupCode,
-    groupCreatedDate: getString(
-      record,
-      ["groupCreatedDate", "group_created_date"],
-      getString(groupRecord, ["createdDate", "created_date"], ""),
-    ),
-    company: {
-      id: companyId,
-      brand: getString(record, ["brand", "companyBrand", "company_brand"], companyName),
-      companyCode: toUpperValue(getString(record, ["companyCode", "company_code", "companycode"], "")),
-      companyName,
-      legalName: getString(record, ["legalName", "legal_name", "name"], companyName),
-      incorporationDate: getString(record, ["registeredAt", "incorporationDate", "incorporation_date"], ""),
-      address: getString(record, ["address", "registeredAddress", "registered_address"], ""),
-      gstin: getString(record, ["gstin", "GSTIN", "gst"], ""),
-      ieCode: getString(record, ["ieCode", "ie_code", "iecode"], ""),
-      status: toStatus(getString(record, ["status"], "Approved")),
-      signatories: [],
-    },
+    id: companyCode || companyName.toLowerCase().replace(/\s+/g, "-"),
+    brand: companyName,
+    companyCode,
+    companyName,
+    legalName,
+    incorporationDate: getPacketString(company.registeredAt),
+    address: getPacketString(company.address),
+    gstin: getPacketString(company.gst),
+    ieCode: getPacketString(company.iecode),
+    status: "Approved",
+    signatories: [],
   };
 };
 
+// Shared fetch wrapper: adds base URL, cookies, `track-id`, and correct headers.
+// Impact: every exported API function in this file uses this.
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
+  const headers = new Headers(options.headers ?? {});
+  headers.set("track-id", generateTrackId());
+
+  if (options.body instanceof FormData) {
+    headers.delete("Content-Type");
+  } else if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   const response = await fetch(url, {
     ...options,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      "track-id": generateTrackId(),
-      ...(options.headers || {}),
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -181,22 +253,27 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   return response.json() as Promise<T>;
 }
 
-const mapUser = (record: RawUserRecord) => ({
-  id: getString(record, ["id"], ""),
-  name: getString(record, ["name"], "User"),
-  email: getString(record, ["email"], ""),
-  phone: getString(record, ["phone", "mobile", "phoneNumber", "phone_number"], ""),
-  company: getString(record, ["company", "companyName", "company_name"], ""),
-  brand: getString(record, ["brand", "companyBrand", "company_brand"], ""),
-  companyCode: toUpperValue(getString(record, ["companyCode", "company_code"], "")),
-  groupName: getString(record, ["groupName", "group_name"], ""),
-  groupCode: toUpperValue(getString(record, ["groupCode", "group_code"], "")),
+// Maps login user data into the frontend user shape.
+// Impact: used inside `login` before saving or using auth data.
+const mapUser = (record: RawLoginUser) => ({
+  id: getPacketString(record.id),
+  name: getPacketString(record.name),
+  email: getPacketString(record.email),
+  phone: getPacketString(record.phone),
+  company: getPacketString(record.company),
+  brand: getPacketString(record.brand),
+  companyCode: toUpperValue(getPacketString(record.companyCode)),
+  groupName: getPacketString(record.groupName),
+  groupCode: toUpperValue(getPacketString(record.groupCode)),
 });
 
+// Calls login API and returns normalized user data.
+// Impact files:
+// - src/pages/Login.tsx (primary login submit flow)
 export async function login(email: string, password: string, action = false) {
-  const payload = await apiFetch<{ message: string; user: RawUserRecord }>(LOGIN_PATH, {
+  const payload = await apiFetch<{ message: string; user: RawLoginUser }>(LOGIN_PATH, {
     method: "POST",
-    body: JSON.stringify({ email, password, action: action ? "1" : "0", }),
+    body: JSON.stringify({ email, password, action: action ? "1" : "0" }),
   });
 
   return {
@@ -205,65 +282,113 @@ export async function login(email: string, password: string, action = false) {
   };
 }
 
+// Calls logout API to end the current session.
+// Impact files:
+// - src/components/DashboardLayout.tsx (logout action in app shell)
 export async function logout() {
   return apiFetch<{ message: string }>(LOGOUT_PATH, {
     method: "POST",
   });
 }
 
+// Fetches all companies, cleans response shape, and returns grouped data for UI.
+// Impact files:
+// - src/contexts/AppContext.tsx (session restore + initial company load)
+// - src/pages/Login.tsx (post-login company fetch)
+// - src/pages/CorporateList.tsx (corporate list data source)
 export async function getAllCompanies(): Promise<GroupCompany[]> {
-  const payload = await apiFetch<unknown>(COMPANY_LIST_PATH, {
+  const payload = await apiFetch<CompanyListApiResponse>(COMPANY_LIST_PATH, {
     method: "POST",
     body: JSON.stringify({
       type: "A",
     }),
   });
-  const items = normalizeCompanyRecords(ensureArray(payload));
-  const grouped = new Map<string, GroupCompany>();
-  for (const item of items) {
-    const mapped = mapCompany(item);
+  const groups = payload.data;
 
-    if (!grouped.has(mapped.groupId)) {
-      grouped.set(mapped.groupId, {
-        id: mapped.groupId,
-        groupName: mapped.groupName,
-        code: mapped.groupCode,
-        createdDate: mapped.groupCreatedDate,
-        remarks: "",
-        subsidiaries: [],
-      });
-    }
+  return groups.map((group, index) => {
+    const rawGroupName = getPacketString(group.groupName);
+    const groupCode = toUpperValue(getPacketString(group.groupCode));
+    const isIndependentGroup = !rawGroupName && !groupCode;
+    const groupName = isIndependentGroup ? "ungrouped" : rawGroupName;
+    const groupId = isIndependentGroup ? `ungrouped-${index + 1}` : groupCode || rawGroupName;
+    const subsidiaries = Array.isArray(group.companies) ? group.companies.map(mapCompany) : [];
 
-    grouped.get(mapped.groupId)?.subsidiaries.push(mapped.company);
-  }
-
-  return Array.from(grouped.values());
+    return {
+      id: groupId,
+      groupName,
+      code: groupCode,
+      createdDate: "",
+      remarks: "",
+      subsidiaries,
+    };
+  });
 }
 
-type RawOrgRecord = Record<string, unknown>;
+// Creates company onboarding request.
+// If file is present, sends multipart; otherwise sends JSON.
+// Impact files:
+// - src/pages/OnboardingWizard.tsx (company onboarding submit)
+export async function createCompanyOnboarding(payload: OnboardingPayload, file?: File | null) {
+  if (file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("payload", JSON.stringify(payload));
 
-type OrgApiResponse = {
-  success?: boolean;
-  data?: RawOrgRecord[];
-};
+    return apiFetch<OnboardingResponse>(COMPANY_CREATE_PATH, {
+      method: "POST",
+      body: formData,
+    });
+  }
 
+  return apiFetch<OnboardingResponse>(COMPANY_CREATE_PATH, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// Creates a new org node under the selected parent node.
+// Impact files:
+// - src/pages/SaasOrganisation.tsx (add-node flow in org editor)
+export async function createNewOrgNode(payload: CreateOrgNodePayload) {
+  return apiFetch<CreateOrgNodeResponse>(NEW_NODE_PATH, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// Sends user onboarding payload to create a new company user.
+// Impact files:
+// - src/pages/UserManagement.tsx (member onboarding submit)
+export async function createUserOnboarding(payload: UserOnboardingPayload) {
+  return apiFetch<UserOnboardingResponse>(NEW_USER_ONBOARD_PATH, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// Converts one raw org node into the `OrgNode` shape used by UI tree components.
+// Impact: used by `buildOrgTree` before rendering org structure screens.
 const mapOrgNode = (record: RawOrgRecord): OrgNode => {
-  const nodePath = getString(record, ["node_path", "nodePath"], "");
+  const nodePath = getString(record, ["nodePath"], "");
 
   return {
     id: getString(record, ["id"], nodePath || crypto.randomUUID()),
-    companyId: getNullableString(record, ["company_id", "companyId"]) ?? undefined,
-    name: getString(record, ["node_name", "nodeName"], "Untitled Node"),
-    nodeType: getString(record, ["node_type", "nodeType"], "NODE"),
+    companyId: getNullableString(record, ["companyId"]) ?? undefined,
+    name: getString(record, ["nodeName"], "Untitled Node"),
+    nodeType: getString(record, ["nodeType"], "NODE"),
     nodePath,
     children: [],
   };
 };
 
+// Builds a nested org tree from flat node list using parent path logic.
+// Impact: output is used by `getCompanyOrgStructure` for org management UI.
 const buildOrgTree = (items: RawOrgRecord[]): OrgNode | null => {
   if (!items.length) return null;
 
   const nodes = items.map(mapOrgNode);
+
+  // Finds parent from dot path when backend does not send parent id directly.
   const getDerivedParentPath = (nodePath: string) => {
     const segments = nodePath
       .split(".")
@@ -272,8 +397,6 @@ const buildOrgTree = (items: RawOrgRecord[]): OrgNode | null => {
 
     if (segments.length <= 1) return null;
 
-    // When payload omits parent IDs, first-level nodes are usually emitted as
-    // COMPANY.DIVISION while root is COMPANY.ROOT.
     if (segments.length === 2 && segments[1].toUpperCase() !== "ROOT") {
       return `${segments[0]}.ROOT`;
     }
@@ -281,7 +404,6 @@ const buildOrgTree = (items: RawOrgRecord[]): OrgNode | null => {
     return segments.slice(0, -1).join(".");
   };
 
-  // Decode the flat payload with a path map so parent/child links can be resolved from nodePath alone.
   const nodePathMap = new Map(
     nodes
       .filter((node) => node.nodePath)
@@ -300,12 +422,14 @@ const buildOrgTree = (items: RawOrgRecord[]): OrgNode | null => {
     rootNodes.push(node);
   }
 
+  // Breaks dot path into parts for consistent comparisons.
   const parseNodePath = (nodePath: string) =>
     nodePath
       .split(".")
       .map((segment) => segment.trim())
       .filter(Boolean);
 
+  // Compares paths in human order, so `...2` comes before `...10`.
   const compareNodePath = (leftPath: string, rightPath: string) => {
     const leftSegments = parseNodePath(leftPath);
     const rightSegments = parseNodePath(rightPath);
@@ -334,6 +458,7 @@ const buildOrgTree = (items: RawOrgRecord[]): OrgNode | null => {
     return 0;
   };
 
+  // Sorts all branches so tree order stays stable across renders.
   const sortNodes = (branch: OrgNode[]) => {
     branch.sort((left, right) => {
       const pathComparison = compareNodePath(left.nodePath, right.nodePath);
@@ -348,6 +473,9 @@ const buildOrgTree = (items: RawOrgRecord[]): OrgNode | null => {
   return rootNodes.find((node) => node.nodeType.trim().toUpperCase() === "ROOT") ?? rootNodes[0] ?? null;
 };
 
+// Fetches company org structure and converts flat API data into sorted tree.
+// Impact files:
+// - src/pages/SaasOrganisation.tsx (org tree load + refresh after updates)
 export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNode | null> {
   const payload = await apiFetch<OrgApiResponse>(COMPANY_ORG_PATH, {
     method: "POST",
@@ -359,261 +487,9 @@ export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNo
   return buildOrgTree(Array.isArray(payload.data) ? payload.data : []);
 }
 
-type CompanyUsersPayload = {
-  activeUsers?: RawUserRecord[];
-  inactiveUsers?: RawUserRecord[];
-};
-
-type CompanyUsersResponse = {
-  success?: boolean;
-  data?: CompanyUsersPayload;
-};
-
-export type RoleCapabilitySet = {
-  view: boolean;
-  modify: boolean;
-  approve: boolean;
-  initiate: boolean;
-};
-
-export type CompanyRole = {
-  role_code: string;
-  role_name: string;
-  category: string;
-  sub_category: string;
-  permission_level: string;
-  capabilities: RoleCapabilitySet;
-  is_active: boolean;
-};
-
-type CompanyRolesResponse = {
-  success: boolean;
-  data: CompanyRole[];
-};
-
-const MOCK_COMPANY_ROLES_RESPONSE: CompanyRolesResponse = {
-  success: true,
-  data: [
-    { role_code: "ACCOUNTS_VIEWER", role_name: "Accounts Viewer", category: "TRANSACTIONAL", sub_category: "ACCOUNTS", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
-    { role_code: "ACCOUNTS_USER", role_name: "Accounts User", category: "TRANSACTIONAL", sub_category: "ACCOUNTS", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
-    { role_code: "ACCOUNTS_MGR", role_name: "Accounts Manager", category: "TRANSACTIONAL", sub_category: "ACCOUNTS", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
-    { role_code: "PAYMENTS_VIEWER", role_name: "Payments Viewer", category: "TRANSACTIONAL", sub_category: "PAYMENTS", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
-    { role_code: "PAYMENTS_USER", role_name: "Payments User", category: "TRANSACTIONAL", sub_category: "PAYMENTS", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
-    { role_code: "PAYMENTS_MGR", role_name: "Payments Manager", category: "TRANSACTIONAL", sub_category: "PAYMENTS", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
-    { role_code: "PURCHASE_VIEWER", role_name: "Purchase Viewer", category: "TRANSACTIONAL", sub_category: "PURCHASE", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
-    { role_code: "PURCHASE_USER", role_name: "Purchase User", category: "TRANSACTIONAL", sub_category: "PURCHASE", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
-    { role_code: "PURCHASE_MGR", role_name: "Purchase Manager", category: "TRANSACTIONAL", sub_category: "PURCHASE", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
-    { role_code: "FINOPS_VIEWER", role_name: "Fin Ops Viewer", category: "OPERATIONAL", sub_category: "FIN_OPS", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
-    { role_code: "FINOPS_USER", role_name: "Fin Ops User", category: "OPERATIONAL", sub_category: "FIN_OPS", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
-    { role_code: "FINOPS_MGR", role_name: "Fin Ops Manager", category: "OPERATIONAL", sub_category: "FIN_OPS", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
-    { role_code: "MASTER_VIEWER", role_name: "Master Viewer", category: "OPERATIONAL", sub_category: "MASTER", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
-    { role_code: "MASTER_USER", role_name: "Master User", category: "OPERATIONAL", sub_category: "MASTER", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
-    { role_code: "MASTER_MGR", role_name: "Master Manager", category: "OPERATIONAL", sub_category: "MASTER", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
-    { role_code: "SYS_ADMIN_VIEWER", role_name: "System Admin Viewer", category: "SYSTEM_ACCESS", sub_category: "ADMIN", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
-    { role_code: "SYS_ADMIN_USER", role_name: "System Admin User", category: "SYSTEM_ACCESS", sub_category: "ADMIN", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
-    { role_code: "SYS_ADMIN_MGR", role_name: "System Admin Manager", category: "SYSTEM_ACCESS", sub_category: "ADMIN", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
-    { role_code: "ORG_STR_VIEWER", role_name: "Org Structure Viewer", category: "SYSTEM_ACCESS", sub_category: "ORG_STR", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
-    { role_code: "ORG_STR_USER", role_name: "Org Structure User", category: "SYSTEM_ACCESS", sub_category: "ORG_STR", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
-    { role_code: "ORG_STR_MGR", role_name: "Org Structure Manager", category: "SYSTEM_ACCESS", sub_category: "ORG_STR", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
-    { role_code: "USER_ACC_VIEWER", role_name: "User Access Viewer", category: "SYSTEM_ACCESS", sub_category: "USER_ACC", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
-    { role_code: "USER_ACC_USER", role_name: "User Access User", category: "SYSTEM_ACCESS", sub_category: "USER_ACC", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
-    { role_code: "USER_ACC_MGR", role_name: "User Access Manager", category: "SYSTEM_ACCESS", sub_category: "USER_ACC", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
-    { role_code: "WORK_FLOW_VIEWER", role_name: "Workflow Viewer", category: "SYSTEM_ACCESS", sub_category: "WORK_FLOW", permission_level: "VIEWER", capabilities: { view: true, modify: false, approve: false, initiate: false }, is_active: true },
-    { role_code: "WORK_FLOW_USER", role_name: "Workflow User", category: "SYSTEM_ACCESS", sub_category: "WORK_FLOW", permission_level: "USER", capabilities: { view: true, modify: true, approve: false, initiate: true }, is_active: true },
-    { role_code: "WORK_FLOW_MGR", role_name: "Workflow Manager", category: "SYSTEM_ACCESS", sub_category: "WORK_FLOW", permission_level: "MANAGER", capabilities: { view: true, modify: false, approve: true, initiate: false }, is_active: true },
-  ],
-};
-
-const MOCK_COMPANY_USERS: AppUser[] = [
-  {
-    id: "mock-user-1",
-    name: "Anjali Desai",
-    email: "anjali.d@tatasteel.com",
-    role: "Signatory",
-    designation: "VP Finance",
-    department: "Finance",
-    phone: "+91 91234 56783",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-2",
-    name: "Bob Smith",
-    email: "bob@acme.com",
-    role: "Manager",
-    designation: "HR Manager",
-    department: "Human Resources",
-    phone: "+91 98765 43211",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-3",
-    name: "Carol Davis",
-    email: "carol@acme.com",
-    role: "User",
-    designation: "Developer",
-    department: "Engineering",
-    phone: "+91 98765 43212",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-4",
-    name: "Deepika Padukone",
-    email: "deepika.p@tatasteel.com",
-    role: "Manager",
-    designation: "Brand Ambassador",
-    department: "Marketing",
-    phone: "+91 90000 00009",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-5",
-    name: "Example User 10",
-    email: "example10@tatasteel.com",
-    role: "User",
-    designation: "Staff",
-    department: "Quality Assurance",
-    phone: "+91 90000 00009",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-6",
-    name: "Pending Member",
-    email: "pending.member@tatasteel.com",
-    role: "User",
-    designation: "Analyst",
-    department: "Finance",
-    phone: "+91 90000 00111",
-    companyId: "MOCK",
-    status: "Pending",
-  },
-  {
-    id: "mock-user-7",
-    name: "Inactive Member",
-    email: "inactive.member@tatasteel.com",
-    role: "Viewer",
-    designation: "Coordinator",
-    department: "Operations",
-    phone: "+91 90000 00222",
-    companyId: "MOCK",
-    status: "Inactive",
-  },
-  {
-    id: "mock-user-8",
-    name: "Rahul Mehta",
-    email: "rahul.mehta@tatasteel.com",
-    role: "User",
-    designation: "Operations Analyst",
-    department: "Operations",
-    phone: "+91 90000 00301",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-9",
-    name: "Sneha Kapoor",
-    email: "sneha.kapoor@tatasteel.com",
-    role: "Manager",
-    designation: "Regional Manager",
-    department: "Sales",
-    phone: "+91 90000 00302",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-10",
-    name: "Vikram Nair",
-    email: "vikram.nair@tatasteel.com",
-    role: "User",
-    designation: "Procurement Specialist",
-    department: "Procurement",
-    phone: "+91 90000 00303",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-11",
-    name: "Pooja Iyer",
-    email: "pooja.iyer@tatasteel.com",
-    role: "Signatory",
-    designation: "Senior Finance Lead",
-    department: "Finance",
-    phone: "+91 90000 00304",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-12",
-    name: "Aman Verma",
-    email: "aman.verma@tatasteel.com",
-    role: "Viewer",
-    designation: "Audit Coordinator",
-    department: "Compliance",
-    phone: "+91 90000 00305",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-13",
-    name: "Kavya Reddy",
-    email: "kavya.reddy@tatasteel.com",
-    role: "User",
-    designation: "HR Executive",
-    department: "Human Resources",
-    phone: "+91 90000 00306",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-14",
-    name: "Nitin Arora",
-    email: "nitin.arora@tatasteel.com",
-    role: "Manager",
-    designation: "Engineering Manager",
-    department: "Engineering",
-    phone: "+91 90000 00307",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-15",
-    name: "Shreya Bansal",
-    email: "shreya.bansal@tatasteel.com",
-    role: "User",
-    designation: "Data Associate",
-    department: "Data",
-    phone: "+91 90000 00308",
-    companyId: "MOCK",
-    status: "Active",
-  },
-  {
-    id: "mock-user-16",
-    name: "Onboarding Candidate",
-    email: "candidate.onboard@tatasteel.com",
-    role: "User",
-    designation: "Trainee",
-    department: "Finance",
-    phone: "+91 90000 00309",
-    companyId: "MOCK",
-    status: "Pending",
-  },
-  {
-    id: "mock-user-17",
-    name: "Former Employee",
-    email: "former.employee@tatasteel.com",
-    role: "Viewer",
-    designation: "Support Associate",
-    department: "Support",
-    phone: "+91 90000 00310",
-    companyId: "MOCK",
-    status: "Inactive",
-  },
-];
-
+// Gets department name from access details.
+// Uses PRIMARY entry first, else first available entry.
+// Impact: used by `mapCompanyUser` to fill `department`.
 const getDepartmentFromAccessDetails = (record: RawUserRecord) => {
   const accessDetails = record.accessDetails;
   if (!Array.isArray(accessDetails)) return "";
@@ -633,6 +509,9 @@ const getDepartmentFromAccessDetails = (record: RawUserRecord) => {
   return typeof selectedEntry.nodeName === "string" ? selectedEntry.nodeName : "";
 };
 
+// Maps raw company-user payload into `AppUser`.
+// Also maps manager details and status safely.
+// Impact: used by `getCompanyUsers` before data reaches user tables/forms.
 const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUser => ({
   id: typeof record.employeeId === "string" ? record.employeeId : "",
   name: typeof record.name === "string" ? record.name : "",
@@ -660,6 +539,10 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   status,
 });
 
+// Fetches active and inactive users for a company.
+// Normalizes both lists and returns one combined list.
+// Impact files:
+// - src/pages/UserManagement.tsx (members list load and refresh)
 export async function getCompanyUsers(companyCode: string): Promise<AppUser[]> {
   const payload = await apiFetch<CompanyUsersResponse>(COMPANY_USERS_PATH, {
     method: "POST",
@@ -676,17 +559,4 @@ export async function getCompanyUsers(companyCode: string): Promise<AppUser[]> {
     : [];
 
   return [...activeUsers, ...inactiveUsers];
-}
-
-export async function getCompanyUsersMock(companyCode = "MOCK"): Promise<AppUser[]> {
-  await new Promise((resolve) => window.setTimeout(resolve, 250));
-  return MOCK_COMPANY_USERS.map((user) => ({
-    ...user,
-    companyId: companyCode,
-  }));
-}
-
-export async function getCompanyRolesMock(): Promise<CompanyRole[]> {
-  await new Promise((resolve) => window.setTimeout(resolve, 350));
-  return MOCK_COMPANY_ROLES_RESPONSE.data;
 }

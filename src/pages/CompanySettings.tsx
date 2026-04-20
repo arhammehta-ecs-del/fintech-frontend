@@ -1,6 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
+import { RolesAllocationPanel } from "@/components/RolesAllocationPanel";
 import { OrgStructureView } from "@/pages/SaasOrganisation";
 import UserManagement from "@/pages/UserManagement";
 
@@ -39,8 +40,8 @@ export default function CompanySettings() {
 
         <TabsContent value="roles">
           <Card className="shadow-sm">
-            <CardContent className="py-10">
-              <p className="text-sm text-muted-foreground">Role details are not being fetched yet.</p>
+            <CardContent className="py-6">
+              <RolesAllocationPanel />
             </CardContent>
           </Card>
         </TabsContent>

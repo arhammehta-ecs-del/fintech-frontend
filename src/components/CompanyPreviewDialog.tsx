@@ -1,15 +1,8 @@
-import { useEffect, useState } from "react";
-import { format, parseISO } from "date-fns";
+import { format, isValid, parse } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Company } from "@/contexts/AppContext";
+import { Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle,} from "@/components/ui/dialog";
+import type { Company } from "@/contexts/AppContext";
 import { Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +12,10 @@ import { cn } from "@/lib/utils";
 //   at: string;
 // }
 
+// Internal helper types
+type ApprovalStatusLabel = "Approved" | "Pending" | "Inactive" | "Rejected";
+
+// Public props
 interface CompanyPreviewDialogProps {
   company: Company | null;
   companyCode?: string;
@@ -29,57 +26,46 @@ interface CompanyPreviewDialogProps {
   onSave: (company: Company) => void;
   onToggleActive?: (companyId: string, isActive: boolean) => void;
   // approvalHistory?: ApprovalEvent[];
-  approvalStatusLabel?: string;
+  approvalStatusLabel?: ApprovalStatusLabel;
   defaultEditing?: boolean;
   // onAuditEvent?: (event: ApprovalEvent) => void;
 }
 
+// Shared constants and helpers
 const statusColors = {
   Approved: "bg-success/10 text-success border-success/20",
   Pending: "bg-warning/10 text-warning border-warning/20",
   Inactive: "bg-destructive/10 text-destructive border-destructive/20",
   Rejected: "bg-destructive/10 text-destructive border-destructive/20",
-} as const;
+} as const satisfies Record<ApprovalStatusLabel, string>;
 
 const fieldLabelClassName = "text-[11px] uppercase tracking-[0.06em] text-muted-foreground";
 const fieldValueClassName = "text-[14px] font-medium text-foreground";
 const sectionHeadingClassName = "text-[15px] font-medium text-foreground";
+const displayValue = (value?: string | null) => (value && value.trim() ? value : "—");
 
-const renderValue = (value: string) => <p className={fieldValueClassName}>{value}</p>;
-
-const formatDisplayDate = (value: string) => {
+const formatDisplayDate = (value?: string) => {
   if (!value) return "—";
-
-  try {
-    return format(parseISO(value), "dd MMM yyyy");
-  } catch {
-    return value;
-  }
+  const parsedDate = parse(value, "dd/MM/yyyy", new Date());
+  return isValid(parsedDate) ? format(parsedDate, "dd MMM yyyy") : "Invalid date";
 };
 
 export function CompanyPreviewDialog({
   company,
-  companyCode = "",
+  companyCode,
   groupName,
-  groupCode = "",
+  groupCode,
   open,
   onOpenChange,
-  onSave,
-  onToggleActive,
+  // onSave,
+  // onToggleActive,
   // approvalHistory,
   approvalStatusLabel = "Approved",
-  defaultEditing = false,
+  // defaultEditing = false,
   // onAuditEvent,
 }: CompanyPreviewDialogProps) {
-  const [draft, setDraft] = useState<Company | null>(company);
-
-  useEffect(() => {
-    setDraft(company);
-  }, [company]);
-
-  if (!draft) return null;
-  const headerCompanyName = company?.companyName ?? draft.companyName;
-  const headerBrand = company?.brand ?? draft.brand;
+  if (!company) return null;
+  const headerCompanyName = company.companyName;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -95,16 +81,14 @@ export function CompanyPreviewDialog({
               </div>
               <div>
                 <DialogTitle className="text-xl">
-                  {headerBrand && headerBrand !== headerCompanyName
-                    ? `${headerCompanyName} = ${headerBrand}`
-                    : headerCompanyName}
+                  {headerCompanyName}
                 </DialogTitle>
                 {groupName ? <p className="mt-1 text-sm text-muted-foreground">{groupName}</p> : null}
               </div>
             </div>
             <Badge
               variant="outline"
-              className={cn("text-xs", statusColors[approvalStatusLabel as keyof typeof statusColors] ?? statusColors.Approved)}
+              className={cn("text-xs", statusColors[approvalStatusLabel])}
             >
               {approvalStatusLabel}
             </Badge>
@@ -125,7 +109,7 @@ export function CompanyPreviewDialog({
                 <div>
                   <p className={fieldLabelClassName}>Group Code</p>
                   <div className="mt-2">
-                    {renderValue(groupCode)}
+                    <p className={fieldValueClassName}>{displayValue(groupCode)}</p>
                   </div>
                 </div>
               ) : null}
@@ -133,50 +117,50 @@ export function CompanyPreviewDialog({
                 <div>
                   <p className={fieldLabelClassName}>Group Name</p>
                   <div className="mt-2">
-                    {renderValue(groupName)}
+                    <p className={fieldValueClassName}>{displayValue(groupName)}</p>
                   </div>
                 </div>
               ) : null}
               <div>
                 <p className={fieldLabelClassName}>Company Code</p>
                 <div className="mt-2">
-                  {renderValue(companyCode || "—")}
+                  <p className={fieldValueClassName}>{displayValue(companyCode)}</p>
                 </div>
               </div>
               <div>
-                <p className={fieldLabelClassName}>Name</p>
+                <p className={fieldLabelClassName}>Legal Name</p>
                 <div className="mt-2">
-                  {renderValue(draft.legalName)}
+                  <p className={fieldValueClassName}>{displayValue(company.legalName)}</p>
                 </div>
               </div>
               <div>
                 <p className={fieldLabelClassName}>GST No</p>
                 <div className="mt-2">
-                  {renderValue(draft.gstin || "—")}
+                  <p className={fieldValueClassName}>{displayValue(company.gstin)}</p>
                 </div>
               </div>
               <div>
-                <p className={fieldLabelClassName}>Brand</p>
+                <p className={fieldLabelClassName}>Company Name</p>
                 <div className="mt-2">
-                  {renderValue(draft.companyName)}
+                  <p className={fieldValueClassName}>{displayValue(company.companyName)}</p>
                 </div>
               </div>
               <div>
                 <p className={fieldLabelClassName}>IE Code</p>
                 <div className="mt-2">
-                  {renderValue(draft.ieCode || "—")}
+                  <p className={fieldValueClassName}>{displayValue(company.ieCode)}</p>
                 </div>
               </div>
               <div>
                 <p className={fieldLabelClassName}>Incorporation Date</p>
                 <div className="mt-2">
-                  {renderValue(formatDisplayDate(draft.incorporationDate))}
+                  <p className={fieldValueClassName}>{formatDisplayDate(company.incorporationDate)}</p>
                 </div>
               </div>
               <div>
                 <p className={fieldLabelClassName}>Address</p>
                 <div className="mt-2">
-                  {renderValue(draft.address || "—")}
+                  <p className={fieldValueClassName}>{displayValue(company.address)}</p>
                 </div>
               </div>
             </div>

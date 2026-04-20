@@ -10,24 +10,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { logout } from "@/lib/api";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog,DialogContent,DialogDescription,DialogFooter,DialogHeader,DialogTitle,} from "@/components/ui/dialog";
 
 type NavItem = {
   label: string;
   icon: LucideIcon;
   path: string;
-  children?: Array<{
-    label: string;
-    path: string;
-    tab: string;
-  }>;
+ 
 };
 
 const navItems: NavItem[] = [
@@ -39,12 +28,6 @@ const settingsNavItem: NavItem = {
   label: "Company Settings",
   icon: Settings,
   path: "/settings",
-  children: [
-    { label: "Org Structure", path: "/settings?tab=org", tab: "org" },
-    { label: "User Management", path: "/settings?tab=users", tab: "users" },
-    { label: "Roles", path: "/settings?tab=roles", tab: "roles" },
-    { label: "Workflows", path: "/settings?tab=workflows", tab: "workflows" },
-  ],
 };
 
 const TOTAL_TIME = 15 * 60 * 1000;
@@ -134,8 +117,6 @@ export default function DashboardLayout() {
   }, [clearTimers, resetTimer]);
 
   const navContent = (compact = false, onNavigate?: () => void) => {
-    const currentSettingsTab = new URLSearchParams(location.search).get("tab") || "org";
-
     const renderNavItem = (item: NavItem) => {
       const active = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
 
@@ -152,28 +133,6 @@ export default function DashboardLayout() {
             <item.icon className="h-4 w-4 flex-shrink-0" />
             {!compact && <span>{item.label}</span>}
           </Link>
-          {!compact && active && item.children && (
-            <div className="ml-7 mt-1 space-y-1 pl-2">
-              {item.children.map((child) => {
-                const childActive = currentSettingsTab === child.tab;
-                return (
-                  <Link
-                    key={child.path}
-                    to={child.path}
-                    onClick={onNavigate}
-                    className={cn(
-                      "block rounded-md px-3 py-1.5 text-sm transition-colors",
-                      childActive
-                        ? "bg-accent/70 font-medium text-foreground"
-                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                    )}
-                  >
-                    {child.label}
-                  </Link>
-                );
-              })}
-            </div>
-          )}
         </div>
       );
     };
@@ -306,8 +265,8 @@ export default function DashboardLayout() {
                                 onClick={() =>
                                   navigate("/corporates", {
                                     state: {
-                                      statusFilter: member.status === "Inactive" ? "Inactive" : "All",
-                                    },
+                                    statusFilter: "Pending",
+                                     },
                                   })
                                 }
                                 className="w-full flex items-start text-left gap-3 px-2 py-2 hover:bg-muted/50 rounded-md transition-colors"
