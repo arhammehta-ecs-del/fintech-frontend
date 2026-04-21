@@ -27,17 +27,17 @@ import { cn } from "@/lib/utils";
 
 const steps = ["Group Company", "Company Details", "New Signatory", "Preview & Submit"];
 
-const normalizeCodeNamePart = (value: string, fallback: string) => {
-  const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return (normalized || fallback).slice(0, 8).padEnd(8, "X");
-};
+// const normalizeCodeNamePart = (value: string, fallback: string) => {
+//   const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+//   return (normalized || fallback).slice(0, 8).padEnd(8, "X");
+// };
 
-const formatCodeDatePart = (date: Date) => {
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = String(date.getFullYear());
-  return `${day}${month}${year}`;
-};
+// const formatCodeDatePart = (date: Date) => {
+//   const day = String(date.getDate()).padStart(2, "0");
+//   const month = String(date.getMonth() + 1).padStart(2, "0");
+//   const year = String(date.getFullYear());
+//   return `${day}${month}${year}`;
+// };
 
 const formatDisplayDate = (value: string) => {
   if (!value) return "-";
@@ -98,11 +98,11 @@ export function OnboardingWizardContent({
 
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [onboardingDate] = useState(() => new Date());
+  // const [onboardingDate] = useState(() => new Date());
   const todayDateInputValue = useMemo(() => getTodayDateInputValue(), []);
   const [groupSelectionMode, setGroupSelectionMode] = useState<GroupSelectionMode>("new");
   const [selectedGroupId, setSelectedGroupId] = useState("");
-  const [selectedExistingCompanyId, setSelectedExistingCompanyId] = useState("");
+  // const [selectedExistingCompanyId, setSelectedExistingCompanyId] = useState("");
   const [groupName, setGroupName] = useState("");
   const [remarks, setRemarks] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -126,8 +126,8 @@ export function OnboardingWizardContent({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const selectedGroupData = groups.find((group) => group.id === selectedGroupId);
-  const selectedExistingCompany =
-    selectedGroupData?.subsidiaries.find((company) => company.id === selectedExistingCompanyId) ?? null;
+  // const selectedExistingCompany =
+  //   selectedGroupData?.subsidiaries.find((company) => company.id === selectedExistingCompanyId) ?? null;
   const isExistingGroup = groupSelectionMode === "existing";
 
   const existingSignatories: SignatoryWithId[] = useMemo(
@@ -155,7 +155,7 @@ export function OnboardingWizardContent({
   const handleGroupModeChange = (value: GroupSelectionMode) => {
     setGroupSelectionMode(value);
     setSelectedGroupId("");
-    setSelectedExistingCompanyId("");
+    // setSelectedExistingCompanyId("");
     setLinkedSigIds(new Set());
     setEditingSignatoryIds(new Set());
     setSignatories([]);
@@ -169,7 +169,7 @@ export function OnboardingWizardContent({
 
   const handleGroupSelection = (value: string) => {
     setSelectedGroupId(value);
-    setSelectedExistingCompanyId("");
+    // setSelectedExistingCompanyId("");
     setLinkedSigIds(new Set());
     setEditingSignatoryIds(new Set());
     setSignatories([]);
@@ -796,12 +796,12 @@ export function OnboardingWizardContent({
                         <span className="font-medium tracking-wide text-slate-500">Group Name:</span>{" "}
                         <span className="font-semibold text-slate-900">{payloadPreview.group.name || "-"}</span>
                       </p>
-                      {/* {payloadPreview.group.groupCode ? (
+                      {payloadPreview.group.groupCode ? (
                         <p>
                           <span className="font-medium tracking-wide text-slate-500">Group Code:</span>{" "}
                           <span className="font-semibold text-slate-900">{payloadPreview.group.groupCode}</span>
                         </p>
-                      ) : null} */}
+                      ) : null}
                       {payloadPreview.group.remarks ? (
                         <p>
                           <span className="font-medium tracking-wide text-slate-500">Remarks:</span>{" "}

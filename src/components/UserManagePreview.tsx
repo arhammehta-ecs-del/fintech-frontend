@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
     ShieldCheck, 
     Database, 
@@ -19,21 +19,12 @@ import {
     Calendar,
     IdCard,
     UserCheck,
-    ChevronRight,
     Maximize2,
     Minimize2,
-    Eye,
-    Info,
-    Lock,
     ArrowRightLeft,
     Sparkles,
-    Bot,
-    Loader2,
     X,
-    MessageSquareShare,
-    Check
 } from 'lucide-react';
-const apiKey = ""; // Environment provides this at runtime
 
 export function UserManagePreview() {
   const [activeTab, setActiveTab] = useState('basic'); 
@@ -41,10 +32,9 @@ export function UserManagePreview() {
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
   
   // AI States
-  const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState(null);
   const [showAiModal, setShowAiModal] = useState(false);
-
+  
   // User Data
   const userData = {
     name: "Alice Johnson",
@@ -56,56 +46,6 @@ export function UserManagePreview() {
     employeeId: "EMP-001",
     reportingManager: "Sarah Jenkins",
     reportingManagerEmail: "s.jenkins@acmeglobal.com"
-  };
-
-  const callGemini = async (prompt, systemPrompt = "You are an expert HR and Security System AI.") => {
-    setAiLoading(true);
-    let retryCount = 0;
-    const maxRetries = 5;
-
-    const executeRequest = async () => {
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] }
-          })
-          });
-
-        if (!response.ok) throw new Error('API request failed');
-        const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text;
-      } catch (error) {
-        if (retryCount < maxRetries) {
-          retryCount++;
-          const delay = Math.pow(2, retryCount) * 1000;
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return executeRequest();
-        }
-        throw error;
-      }
-    };
-
-    try {
-      const result = await executeRequest();
-      setAiResult(result);
-      setShowAiModal(true);
-    } catch (error) {
-      setAiResult("Sorry, I encountered an error while processing your request. Please try again later.");
-      setShowAiModal(true);
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
-  const handleAuditPermissions = () => {
-    const prompt = `Analyze the access for ${userData.name}, a ${userData.designation} in the ${userData.department} department. 
-    Current Primary Access: PO Management (Approve/Manage/View). 
-    Secondary Access: Payments (View only).
-    Identify SoD risks. Tone: Fintech SaaS professional.`;
-    callGemini(prompt, "You are a Cyber Security and Access Governance Expert for Fintech SaaS.");
   };
 
   const toggleSection = (id) => {
@@ -346,5 +286,3 @@ export function UserManagePreview() {
     </div>
   );
 }
-
-export default UserManagePreview;

@@ -6,6 +6,31 @@ import { useAppContext, type OrgNode } from "@/contexts/AppContext";
 import { getCompanyOrgStructure, createNewOrgNode } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+type PositionedNode = {
+  node: OrgNode;
+  depth: number;
+  branchIndex: number | null;
+  branchDepth: number;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  children: PositionedNode[];
+};
+
+type LayoutNode = {
+  node: OrgNode;
+  depth: number;
+  width: number;
+  height: number;
+  subtreeWidth: number;
+  nodeLeft: number;
+  children: Array<{
+    subtreeLeft: number;
+    layout: LayoutNode;
+  }>;
+};
+
 const BRANCH_PALETTES = [
   {
     accentSteps: ["bg-orange-500", "bg-orange-300", "bg-orange-200", "bg-orange-100"],
@@ -233,6 +258,7 @@ function getNodeAncestors(node: OrgNode | null): string[] {
   return [node.name].filter(Boolean);
 }
 
+// Internal UI component for rendering one organisation card.
 function OrgCard({
   node,
   branchIndex,
@@ -316,31 +342,6 @@ const VIEWPORT_EDGE_PADDING = 96;
 const MIN_ZOOM = 0.75;
 const MAX_ZOOM = 1.4;
 const ZOOM_STEP = 0.1;
-
-type PositionedNode = {
-  node: OrgNode;
-  depth: number;
-  branchIndex: number | null;
-  branchDepth: number;
-  width: number;
-  height: number;
-  x: number;
-  y: number;
-  children: PositionedNode[];
-};
-
-type LayoutNode = {
-  node: OrgNode;
-  depth: number;
-  width: number;
-  height: number;
-  subtreeWidth: number;
-  nodeLeft: number;
-  children: Array<{
-    subtreeLeft: number;
-    layout: LayoutNode;
-  }>;
-};
 
 function getNodeBoxSize(node: OrgNode) {
   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
@@ -581,6 +582,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const bottomScrollRef = useRef<HTMLDivElement | null>(null);
   const graphContentRef = useRef<HTMLDivElement | null>(null);
   const syncSourceRef = useRef<"tree" | "bottom" | null>(null);
+  const companyCode = currentUser?.companyCode?.trim().toUpperCase() ?? "";
 
   const loadOrgForCompanyCode = async (companyCode: string) => {
     setOrgLoading(true);
@@ -598,7 +600,6 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   };
 
   useEffect(() => {
-    const companyCode = currentUser?.companyCode?.trim().toUpperCase() ?? "";
     if (!companyCode) {
       setOrgStructure(null);
       setOrgError("No company code found for the logged-in user.");
@@ -633,7 +634,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.companyCode, setOrgStructure]);
+  }, [companyCode, setOrgStructure]);
 
   useEffect(() => {
     if (!orgStructure) {
@@ -725,12 +726,11 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   };
 
   const handleCreateNode = async (name: string, nodeType: "DIVISION" | "LOCATION" | "DEPARTMENT") => {
-    if (!newNodeParent || !currentUser?.companyCode) return;
+    if (!newNodeParent || !companyCode) return;
 
-    // Call backend API to create node
     try {
       await createNewOrgNode({
-        companyCode: currentUser.companyCode.trim().toUpperCase(),
+        companyCode,
         newNodeName: name,
         nodeType,
         parentNode: {
@@ -739,10 +739,8 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
           nodePath: newNodeParent.nodePath,
         },
       });
-      // Optionally, reload org structure here
-      // await loadOrgForCompanyCode(currentUser.companyCode);
+      await loadOrgForCompanyCode(companyCode);
     } catch (err) {
-      // Optionally, show error to user
       // eslint-disable-next-line no-console
       console.error("Failed to create node", err);
     }

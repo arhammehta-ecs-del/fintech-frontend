@@ -1,13 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -24,7 +18,7 @@ type NewNodePopupProps = {
 
 const NEW_NODE_TYPES: NewNodeType[] = ["DIVISION", "LOCATION", "DEPARTMENT"];
 
-export function formatBreadcrumb(ancestors: string[], newNodeLabel = "New Node") {
+ function formatBreadcrumb(ancestors: string[], newNodeLabel = "New Node") {
   const normalizedAncestors = ancestors.map((ancestor) => ancestor.trim()).filter(Boolean);
   const nextNodeLabel = newNodeLabel.trim() || "New Node";
 
@@ -40,7 +34,7 @@ export function formatBreadcrumb(ancestors: string[], newNodeLabel = "New Node")
   ];
 }
 
-export function NewNodePopup({ open, ancestors, onOpenChange, onConfirm }: NewNodePopupProps) {
+ function NewNodePopup({ open, ancestors, onOpenChange, onConfirm }: NewNodePopupProps) {
   const [name, setName] = useState("");
   const [nodeType, setNodeType] = useState<NewNodeType>("DEPARTMENT");
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -134,7 +128,7 @@ export function NewNodePopup({ open, ancestors, onOpenChange, onConfirm }: NewNo
             <Label htmlFor="node-type" className="text-[15px] font-medium text-slate-900">
               Node Type ({NEW_NODE_TYPES.length})
             </Label>
-            <Select value={nodeType} onValueChange={(val) => setNodeType(val as NewNodeType)}>
+                 <Select value={nodeType} onValueChange={(val) => setNodeType(val as NewNodeType)}>
               <SelectTrigger id="node-type" className="h-12 rounded-xl border-slate-200 px-4 text-[15px] shadow-sm">
                 <SelectValue placeholder="Select node type">
                   {nodeType.charAt(0) + nodeType.slice(1).toLowerCase()}

@@ -51,8 +51,8 @@ type OnboardingResponse = {
     status?: string;
   };
 };
-
-
+//not used currently but will be used in future for user onboarding flow
+type UserOnboardingPermissionAction = "manager" | "user" | "viewer";
 
 type UserOnboardingPermission = {
   roleCategory: "TRANSACTIONAL" | "OPERATIONAL" | "SYSTEM_ACCESS";
@@ -84,6 +84,7 @@ type UserOnboardingResponse = {
   };
 };
 
+//not used currently but will be used in future for user onboarding flow
 type RoleCapabilitySet = {
   view: boolean;
   modify: boolean;
@@ -91,6 +92,7 @@ type RoleCapabilitySet = {
   initiate: boolean;
 };
 
+//not used currently but will be used in future for user onboarding flow
 type CompanyRole = {
   role_code: string;
   role_name: string;
@@ -208,16 +210,15 @@ const getPacketString = (value: string | null | undefined) => (typeof value === 
 // Maps one company item into the `Company` shape.
 // Impact: used by `getAllCompanies` before data reaches context/pages.
 const mapCompany = (company: RawCompanyListItem): Company => {
-  const legalName = getPacketString(company.name) || "Untitled Company";
-  const companyName = getPacketString(company.brand) || legalName;
+  const companyName = getPacketString(company.name) || "Untitled Company";
   const companyCode = toUpperValue(getPacketString(company.companyCode));
 
   return {
     id: companyCode || companyName.toLowerCase().replace(/\s+/g, "-"),
-    brand: companyName,
+    brand: getPacketString(company.brand) || companyName,
     companyCode,
     companyName,
-    legalName,
+    legalName: companyName,
     incorporationDate: getPacketString(company.registeredAt),
     address: getPacketString(company.address),
     gstin: getPacketString(company.gst),

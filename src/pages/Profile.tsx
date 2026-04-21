@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { ShieldCheck } from "lucide-react";
 import { useAppContext } from "@/contexts/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +7,11 @@ import { Separator } from "@/components/ui/separator";
 const fieldLabelClassName = "text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground";
 const fieldValueClassName = "mt-1 text-base font-semibold text-foreground";
 
-function ProfileField({ label, value }: { label: string; value: string }) {
+function ProfileField({ label, value }: { label: string; value?: string | null }) {
   return (
     <div>
       <p className={fieldLabelClassName}>{label}</p>
-      <p className={fieldValueClassName}>{value || "—"}</p>
+      <p className={fieldValueClassName}>{value?.trim() || "—"}</p>
     </div>
   );
 }
@@ -20,15 +19,14 @@ function ProfileField({ label, value }: { label: string; value: string }) {
 export default function Profile() {
   const { currentUser } = useAppContext();
 
-  const initials = useMemo(() => {
-    const base = currentUser?.name || currentUser?.email || "User";
-    return base
-      .split(" ")
-      .map((part) => part[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase();
-  }, [currentUser]);
+const base = currentUser?.name || currentUser?.email || "User";
+const initials = base
+  .split(" ")
+  .map((part) => part[0])
+  .join("")
+  .slice(0, 2)
+  .toUpperCase();
+
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -62,8 +60,8 @@ export default function Profile() {
           <Separator />
           <div className="grid gap-4 md:grid-cols-3">
             <ProfileField label="Name" value={currentUser?.name || ""} />
-            <ProfileField label="Email" value={currentUser?.email || ""} />
-            <ProfileField label="Phone" value={currentUser?.phone || ""} />
+            <ProfileField label="Email" value={currentUser?.email} />
+            <ProfileField label="Phone" value={currentUser?.phone} />
           </div>
         </CardContent>
       </Card>
@@ -75,9 +73,9 @@ export default function Profile() {
         <CardContent className="space-y-4 p-5 pt-0">
           <Separator />
           <div className="grid gap-4 md:grid-cols-3">
-            <ProfileField label="Company" value={currentUser?.company || ""} />
-            <ProfileField label="Brand" value={currentUser?.brand || ""} />
-            <ProfileField label="Company Code" value={currentUser?.companyCode || ""} />
+            <ProfileField label="Company" value={currentUser?.company} />
+            <ProfileField label="Brand" value={currentUser?.brand} />
+            <ProfileField label="Company Code" value={currentUser?.companyCode} />
           </div>
         </CardContent>
       </Card>
@@ -89,8 +87,8 @@ export default function Profile() {
         <CardContent className="space-y-4 p-5 pt-0">
           <Separator />
           <div className="grid gap-4 md:grid-cols-3">
-            <ProfileField label="Group Name" value={currentUser?.groupName || ""} />
-            <ProfileField label="Group Code" value={currentUser?.groupCode || ""} />
+            <ProfileField label="Group Name" value={currentUser?.groupName} />
+            <ProfileField label="Group Code" value={currentUser?.groupCode} />
           </div>
         </CardContent>
       </Card>

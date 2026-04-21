@@ -112,8 +112,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   // comment this is enough
-  // const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => readStoredCurrentUser());
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  // const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => readStoredCurrentUser());
   const [groups, setGroups] = useState<GroupCompany[]>([]);
   const [orgStructure, setOrgStructure] = useState<OrgNode | null>(null);
   const [users, setUsers] = useState<AppUser[]>([]);

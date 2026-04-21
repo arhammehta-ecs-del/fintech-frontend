@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type DragEvent } from "react";
-import { format, parseISO } from "date-fns";
-import { useLocation, useNavigate } from "react-router-dom";
+import { format, isValid, parseISO } from "date-fns";
+import { useLocation } from "react-router-dom";
 import { CompanyStatus, GroupCompany, Company } from "@/contexts/AppContext";
 import { CompanyPreviewDialog } from "@/components/CompanyPreviewDialog";
 import { OnboardingWizardContent } from "@/pages/OnboardingWizard";
@@ -14,6 +14,7 @@ import { ChevronDown, ChevronRight, Eye, GripVertical, Pencil, Plus, Search, Set
 import { cn } from "@/lib/utils";
 import { getAllCompanies } from "@/lib/api";
 
+// Shared constants
 const statusColors: Record<CompanyStatus, string> = {
   Approved: "bg-success/10 text-success border-success/20",
   Pending: "bg-warning/10 text-warning border-warning/20",
@@ -26,31 +27,12 @@ const approvalStatusLabel: Record<CompanyStatus, string> = {
   Inactive: "Inactive",
 };
 
-const formatDisplayDate = (value: string) => {
-  if (!value) return "No date";
+// Helper functions
+const formatDisplayDate = (value: string, emptyFallback = "") => {
+  if (!value) return emptyFallback;
 
-  try {
-    return format(parseISO(value), "dd MMM yyyy");
-  } catch {
-    return value;
-  }
-};
-
-const formatGroupDisplayDate = (value: string) => {
-  if (!value) return "";
-
-  try {
-    return format(parseISO(value), "dd MMM yyyy");
-  } catch {
-    return value;
-  }
-};
-
-type AuditEntry = {
-  lastUpdatedAt: string;
-  approvedBy: string;
-  approvedAt: string;
-  // approvalHistory: ApprovalEvent[];
+  const parsedDate = parseISO(value);
+  return isValid(parsedDate) ? format(parsedDate, "dd MMM yyyy") : value;
 };
 
 type VisibleColumn = "groupName" | "companyName" | "code" | "createdDate" | "status" | "manage";
@@ -114,6 +96,7 @@ const sortGroupsLifo = (inputGroups: GroupCompany[]) =>
       return rightLatest - leftLatest;
     });
 
+// Small internal components
 function StandaloneCompanyRow({
   company,
   groupId,
@@ -284,11 +267,11 @@ function SortableSubsidiaryRow({
       )}
       {visibleColumns.has("companyName") && (
         <td className="px-4 py-3 text-sm">
-            <span
-              className="text-primary hover:underline cursor-pointer font-medium"
-              onClick={(event) => {
-                event.stopPropagation();
-                onManage(sub);
+          <span
+            className="cursor-pointer font-medium text-primary hover:underline"
+            onClick={(event) => {
+              event.stopPropagation();
+              onManage(sub);
             }}
           >
             {sub.companyName}
@@ -413,7 +396,7 @@ function SortableGroupBody({
           <td className="px-4 py-3 text-sm text-muted-foreground"></td>
         )}
         {visibleColumns.has("createdDate") && (
-          <td className="px-4 py-3 text-sm text-muted-foreground">{formatGroupDisplayDate(group.createdDate)}</td>
+          <td className="px-4 py-3 text-sm text-muted-foreground">{formatDisplayDate(group.createdDate)}</td>
         )}
         {visibleColumns.has("manage") && <td className="px-4 py-3 text-sm text-muted-foreground"></td>}
         {showStatusColumn && visibleColumns.has("status") && <td className="px-4 py-3 text-sm text-muted-foreground">Group</td>}
@@ -442,18 +425,17 @@ function SortableGroupBody({
   );
 }
 
+// Exported component
 export default function CorporateList() {
-  const navigate = useNavigate();
   const location = useLocation();
   const [groups, setGroups] = useState<GroupCompany[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<CompanyStatus>(location.state?.statusFilter || "Approved");
+  const [statusFilter] = useState<CompanyStatus>(location.state?.statusFilter || "Approved");
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
-  const [defaultEditing, setDefaultEditing] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Set<VisibleColumn>>(
     new Set(["groupName", "companyName", "code", "createdDate", "manage", "status"]),
   );
@@ -471,7 +453,7 @@ export default function CorporateList() {
         setIsLoading(true);
         setError(null);
         const nextGroups = await getAllCompanies();
-        if (!ignore) {    
+        if (!ignore) {
           setGroups(nextGroups);
           setExpanded(new Set(nextGroups.map((group) => group.id)));
         }
@@ -494,30 +476,26 @@ export default function CorporateList() {
     };
   }, []);
 
-  const selectedGroupName = useMemo(
-    () => {
-      const parentGroup = groups.find((group) => group.subsidiaries.some((company) => company.id === selectedCompany?.id));
-      if (!parentGroup || isUngroupedGroup(parentGroup)) {
-        return "";
-      }
-      return parentGroup.groupName;
-    },
+  const selectedParentGroup = useMemo(
+    () =>
+      groups.find((group) => group.subsidiaries.some((company) => company.id === selectedCompany?.id)) ?? null,
     [groups, selectedCompany],
   );
-  const selectedGroupCode = useMemo(
-    () => {
-      const parentGroup = groups.find((group) => group.subsidiaries.some((company) => company.id === selectedCompany?.id));
-      if (!parentGroup || isUngroupedGroup(parentGroup)) {
-        return "";
-      }
-      return parentGroup.code;
-    },
-    [groups, selectedCompany],
-  );
+  const selectedGroupInfo = useMemo(() => {
+    if (!selectedParentGroup || isUngroupedGroup(selectedParentGroup)) {
+      return {
+        name: "",
+        code: "",
+      };
+    }
 
-  // const selectedCompanyAudit = selectedCompany
-  //   ? { lastUpdatedAt: "", approvedBy: "", approvedAt: "", approvalHistory: [] as ApprovalEvent[] }
-  //   : undefined;
+    return {
+      name: selectedParentGroup.groupName,
+      code: selectedParentGroup.code,
+    };
+  }, [selectedParentGroup]);
+  const selectedGroupName = selectedGroupInfo.name;
+  const selectedGroupCode = selectedGroupInfo.code;
 
   const filteredGroups = useMemo(() => {
     const result = sortGroupsLifo(groups)
@@ -625,9 +603,8 @@ export default function CorporateList() {
     });
   };
 
-  const openModal = (company: Company, editing = false) => {
+  const openModal = (company: Company) => {
     setSelectedCompany(company);
-    setDefaultEditing(editing);
     setIsPreviewOpen(true);
   };
 
@@ -1067,10 +1044,7 @@ export default function CorporateList() {
         onOpenChange={setIsPreviewOpen}
         onSave={handleSaveCompany}
         onToggleActive={handleToggleCompanyActive}
-        // approvalHistory={selectedCompanyAudit?.approvalHistory ?? []}
-        approvalStatusLabel={selectedCompany ? approvalStatusLabel[selectedCompany.status] : undefined}
-        defaultEditing={defaultEditing}
-        // onAuditEvent={() => {}}
+        // approvalStatusLabel={selectedCompany ? approvalStatusLabel[selectedCompany.status] : undefined}
       />
       <OnboardingWizardContent embedded open={isOnboardingOpen} onOpenChange={setIsOnboardingOpen} />
     </div>

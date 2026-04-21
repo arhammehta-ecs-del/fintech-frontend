@@ -1,18 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Briefcase,
-  Building2,
-  Calendar,
-  Check,ChevronRight,Expand,IdCard,
-  Mail,
-  Minimize2,
-  Phone,
-  ShieldCheck,
-  User,
-  Users,
-  X,
-} from "lucide-react";
-
+import { Briefcase, Building2, Calendar, Check, ChevronRight, Expand, IdCard, Mail, Minimize2, Phone, ShieldCheck, User, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useAppContext, type OrgNode } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
 
+// Constants
 const steps = ["Basic Details", "Select Node", "Access Rights", "Review and Submit"];
 
 const permissionStructure = {
@@ -49,11 +37,7 @@ const permissionStructure = {
 
 const transactionalItems: TransactionalPermissionItem[] = ["payment", "purchaseOrder", "invoice"];
 
-type PermissionAction = "manager" | "user" | "viewer";
-type PermissionCategory = keyof typeof permissionStructure;
-type PermissionBucket = Record<PermissionAction, boolean>;
-type TransactionalPermissionItem = "purchaseOrder" | "payment" | "invoice";
-
+// Exported/shared types
 export type NewMemberPermissions = {
   transactional: {
     purchaseOrder: PermissionBucket;
@@ -90,12 +74,19 @@ export type NewMemberOnboardingFormData = {
   transactionalPrimary: TransactionalPermissionItem | null;
 };
 
+// Internal helper types
+type PermissionAction = "manager" | "user" | "viewer";
+type PermissionCategory = keyof typeof permissionStructure;
+type PermissionBucket = Record<PermissionAction, boolean>;
+type TransactionalPermissionItem = "purchaseOrder" | "payment" | "invoice";
+
 type NewMemberOnboardingDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit?: (data: NewMemberOnboardingFormData) => void | Promise<void>;
 };
 
+// Pure helper functions
 const createInitialFormData = (): NewMemberOnboardingFormData => ({
   basic: {
     name: "",
@@ -175,7 +166,7 @@ const formatDateLabel = (value: string) => {
   }
 
   const isoDate = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(isoDate.getTime())) return value;
+  if (Number.isNaN(isoDate.getTime())) return "-";
 
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
@@ -220,6 +211,7 @@ const isDateInFuture = (dateString: string): boolean => {
   return date > today;
 };
 
+// Internal helper types
 type ValidationErrors = Record<string, string>;
 
 const validateStep = (step: number, formData: NewMemberOnboardingFormData): ValidationErrors => {
@@ -241,6 +233,7 @@ const validateStep = (step: number, formData: NewMemberOnboardingFormData): Vali
   return errors;
 };
 
+// Small internal components
 function InputGroup({
   label,
   icon,
@@ -252,7 +245,7 @@ function InputGroup({
   maxLength,
   inputMode,
   error,
-  
+  required = false,
 }: {
   label: string;
   icon: React.ReactNode;
@@ -264,7 +257,7 @@ function InputGroup({
   maxLength?: number;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   error?: string;
-  
+  required?: boolean;
 }) {
   return (
     <div className="group space-y-1">
@@ -476,6 +469,7 @@ function PermissionRow<C extends PermissionCategory>({
   );
 }
 
+// Exported component
 export function NewMemberOnboardingDialog({ open, onOpenChange, onSubmit }: NewMemberOnboardingDialogProps) {
   const { orgStructure } = useAppContext();
   const [step, setStep] = useState(1);
@@ -508,7 +502,7 @@ export function NewMemberOnboardingDialog({ open, onOpenChange, onSubmit }: NewM
     [orgStructure, selectedNodeIds],
   );
 
-  const reviewNodes = useMemo(() => selectedNodes, [selectedNodes]);
+  // const reviewNodes = useMemo(() => selectedNodes, [selectedNodes]);
 
   useEffect(() => {
     if (step !== 4 || !isReviewAccessExpanded || !expandedAccessNodeId) return;
@@ -652,18 +646,18 @@ export function NewMemberOnboardingDialog({ open, onOpenChange, onSubmit }: NewM
     dateInput.click();
   };
 
-  const activePermissionCount = useMemo(
-    () =>
-      Object.values(nodePermissions).reduce((nodeCount, permissions) => {
-        return (
-          nodeCount +
-          Object.values(permissions).reduce((count, category) => {
-            return count + Object.values(category).reduce((categoryCount, item) => categoryCount + Object.values(item).filter(Boolean).length, 0);
-          }, 0)
-        );
-      }, 0),
-    [nodePermissions],
-  );
+  // const activePermissionCount = useMemo(
+  //   () =>
+  //     Object.values(nodePermissions).reduce((nodeCount, permissions) => {
+  //       return (
+  //         nodeCount +
+  //         Object.values(permissions).reduce((count, category) => {
+  //           return count + Object.values(category).reduce((categoryCount, item) => categoryCount + Object.values(item).filter(Boolean).length, 0);
+  //         }, 0)
+  //       );
+  //     }, 0),
+  //   [nodePermissions],
+  // );
 
   const handlePrimaryAction = async () => {
     if (step === 1 || step === 2 || step === 3) {
@@ -1185,7 +1179,7 @@ export function NewMemberOnboardingDialog({ open, onOpenChange, onSubmit }: NewM
                         )}
                       >
                         {isReviewAccessExpanded ? (
-                          reviewNodes.map((node, index) => {
+                          selectedNodes.map((node, index) => {
                           const permissions = nodePermissions[node.id];
                           if (!permissions) return null;
 

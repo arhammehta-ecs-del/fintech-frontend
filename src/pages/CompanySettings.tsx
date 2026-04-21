@@ -10,7 +10,7 @@ const settingsTabClassName =
 
 export default function CompanySettings() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") || "org";
+  const activeTab = searchParams.get("tab") ?? "org";
 
   return (
     <div className="space-y-6">

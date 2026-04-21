@@ -309,34 +309,13 @@ export default function UserManagement() {
 
     try {
       const response = await createUserOnboarding(payload);
-
-      const member: AppUser = {
-      id: crypto.randomUUID(),
-      name: memberData.basic.name.trim(),
-      email: memberData.basic.email.trim(),
-      role: "User",
-      designation: memberData.basic.designation.trim(),
-      department: "",
-      phone: memberData.basic.phone.trim(),
-      onboardingDate: memberData.basic.onboardingDate || undefined,
-      employeeId: memberData.basic.employeeId.trim() || undefined,
-      manager: memberData.basic.reportingManager.trim()
-        ? {
-            name: memberData.basic.reportingManager.trim(),
-            email: "",
-          }
-        : undefined,
-      companyId: currentUser?.companyCode,
-      status: "Pending",
-      };
-
-      setUsers((previous) => [member, ...previous]);
       setAddDialogOpen(false);
       setStatusTab("pending");
+      await loadUsers(true);
 
       toast({
         title: "Member added",
-        description: response.message || `${member.name} was created as a pending member request.`,
+        description: response.message || `${memberData.basic.name.trim()} was created as a pending member request.`,
       });
     } catch (error) {
       const description = error instanceof Error ? error.message : "Unable to submit member onboarding.";
