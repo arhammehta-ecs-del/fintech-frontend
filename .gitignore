@@ -76,4 +76,4 @@ playwright/.cache/
 # Misc
 # ========================
 *.pem
-.cache/
+.cache/src.zip
