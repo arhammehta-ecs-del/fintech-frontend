@@ -1,30 +1,5 @@
 import React, { useState } from 'react';
-import { 
-    ShieldCheck, 
-    Database, 
-    ChevronDown,
-    CreditCard,
-    FileText,
-    Workflow,
-    Users,
-    GitBranch,
-    Edit2,
-    Building2,
-    Globe,
-    Settings2,
-    Box,
-    MoreHorizontal,
-    Mail,
-    Phone,
-    Calendar,
-    IdCard,
-    UserCheck,
-    Maximize2,
-    Minimize2,
-    ArrowRightLeft,
-    Sparkles,
-    X,
-} from 'lucide-react';
+import { ShieldCheck, Database, ChevronDown, CreditCard, FileText, Workflow, Users, GitBranch, Edit2, Building2, Globe, Settings2, Box, MoreHorizontal, Mail, Phone, Calendar, IdCard, UserCheck, Maximize2, Minimize2, ArrowRightLeft, Sparkles, X } from "lucide-react";
 
 export function UserManagePreview() {
   const [activeTab, setActiveTab] = useState('basic'); 

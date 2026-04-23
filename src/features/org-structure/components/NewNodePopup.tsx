@@ -4,9 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import type { NewNodeType } from "@/features/org-structure/types";
 import { cn } from "@/lib/utils";
 
-type NewNodeType = "DIVISION" | "LOCATION" | "DEPARTMENT";
 const NEW_NODE_NAME_MAX_LENGTH = 50;
 
 type NewNodePopupProps = {
@@ -18,7 +18,7 @@ type NewNodePopupProps = {
 
 const NEW_NODE_TYPES: NewNodeType[] = ["DIVISION", "LOCATION", "DEPARTMENT"];
 
- function formatBreadcrumb(ancestors: string[], newNodeLabel = "New Node") {
+function formatBreadcrumb(ancestors: string[], newNodeLabel = "New Node") {
   const normalizedAncestors = ancestors.map((ancestor) => ancestor.trim()).filter(Boolean);
   const nextNodeLabel = newNodeLabel.trim() || "New Node";
 
@@ -34,7 +34,7 @@ const NEW_NODE_TYPES: NewNodeType[] = ["DIVISION", "LOCATION", "DEPARTMENT"];
   ];
 }
 
- function NewNodePopup({ open, ancestors, onOpenChange, onConfirm }: NewNodePopupProps) {
+export function NewNodePopup({ open, ancestors, onOpenChange, onConfirm }: NewNodePopupProps) {
   const [name, setName] = useState("");
   const [nodeType, setNodeType] = useState<NewNodeType>("DEPARTMENT");
   const inputRef = useRef<HTMLInputElement | null>(null);

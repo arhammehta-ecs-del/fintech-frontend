@@ -1,9 +1,9 @@
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { RolesAllocationPanel } from "@/components/RolesAllocationPanel";
-import { OrgStructureView } from "@/pages/SaasOrganisation";
-import UserManagement from "@/pages/UserManagement";
+import { RolesAllocationPanel } from "@/components/shared/RolesAllocationPanel";
+import { OrgStructureView } from "@/features/org-structure";
+import { UserManagementView } from "@/features/user-management";
 
 const settingsTabClassName =
   "rounded-full px-4 py-2 text-sm font-medium transition-all hover:bg-slate-100 hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm";
@@ -35,7 +35,7 @@ export default function CompanySettings() {
         </TabsContent>
 
         <TabsContent value="users">
-          <UserManagement />
+          <UserManagementView />
         </TabsContent>
 
         <TabsContent value="roles">

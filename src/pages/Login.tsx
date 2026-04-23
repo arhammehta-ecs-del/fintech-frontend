@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Building2 } from "lucide-react";
-import { getAllCompanies, login } from "@/lib/api";
+import { login } from "@/services/auth.service";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -22,7 +22,7 @@ export default function Login() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForceLoginDialog, setShowForceLoginDialog] = useState(false);
-  const { setIsAuthenticated, setCurrentUser, setGroups } = useAppContext();
+  const { setIsAuthenticated, setCurrentUser } = useAppContext();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -66,10 +66,8 @@ export default function Login() {
     try {
       setIsSubmitting(true);
       const response = await login(email, password, action);
-      const companyGroups = await getAllCompanies();
       setIsAuthenticated(true);
       setCurrentUser(response.user);
-      setGroups(companyGroups);
       setShowForceLoginDialog(false);
       toast({ title: "Welcome back!", description: "You have been logged in." });
       navigate("/");
@@ -84,7 +82,6 @@ export default function Login() {
 
       setIsAuthenticated(false);
       setCurrentUser(null);
-      setGroups([]);
       toast({
         title: "Login failed",
         description: getLoginErrorMessage(error),

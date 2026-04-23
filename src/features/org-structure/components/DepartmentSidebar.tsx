@@ -1,19 +1,8 @@
 import { ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { DepartmentSidebarDepartment } from "@/features/org-structure/types";
 
-export type DepartmentSidebarDepartment = {
-  id: string;
-  name: string;
-  parentId?: string | null;
-  nodeType?: string;
-  nodePath?: string;
-  companyId?: string;
-  childCount?: number;
-  breadcrumbs?: string[];
-  parentName?: string | null;
-  children?: Array<{ id: string; name: string; nodeType?: string; childCount?: number }>;
-  siblings?: Array<{ id: string; name: string; nodeType?: string; childCount?: number }>;
-};
+export type { DepartmentSidebarDepartment };
 
 type TeamMember = {
   initials: string;

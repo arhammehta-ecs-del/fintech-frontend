@@ -2,7 +2,7 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider, useAppContext } from "@/contexts/AppContext";
-import DashboardLayout from "@/components/DashboardLayout";
+import { DashboardLayout } from "@/features/layout";
 import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import CorporateList from "@/pages/CorporateList";
@@ -12,19 +12,21 @@ import Profile from "@/pages/Profile";
 import SaasOrganisation from "@/pages/SaasOrganisation";
 
 
-
-function AuthGate({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isAuthLoading } = useAppContext();
-  if (isAuthLoading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  return <>{children}</>;
-}
-
 function AppRoutes() {
+  const { isAuthenticated, isAuthLoading } = useAppContext();
+
+  if (isAuthLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        Validating session...
+      </div>
+    );
+  }
+
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route element={<AuthGate><DashboardLayout /></AuthGate>}>
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} />
+      <Route element={isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" replace />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/saas-organisation" element={<SaasOrganisation />} />
         <Route path="/corporates" element={<CorporateList />} />

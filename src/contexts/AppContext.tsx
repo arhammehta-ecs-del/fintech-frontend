@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { getAllCompanies } from "@/lib/api";
+import { getCurrentUser } from "@/services/auth.service";
 
 export type CompanyStatus = "Pending" | "Approved" | "Inactive";
 
@@ -63,8 +63,7 @@ export interface AppUser {
   status?: "Active" | "Inactive" | "Pending";
 }
 
- interface CurrentUser {
-  id: string;
+interface CurrentUser {
   name: string;
   email: string;
   phone?: string;
@@ -83,8 +82,6 @@ interface AppContextType {
   setIsAuthenticated: (v: boolean) => void;
   currentUser: CurrentUser | null;
   setCurrentUser: React.Dispatch<React.SetStateAction<CurrentUser | null>>;
-  groups: GroupCompany[];
-  setGroups: React.Dispatch<React.SetStateAction<GroupCompany[]>>;
   orgStructure: OrgNode | null;
   setOrgStructure: React.Dispatch<React.SetStateAction<OrgNode | null>>;
   users: AppUser[];
@@ -93,84 +90,55 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
-//comment over here
-const CURRENT_USER_STORAGE_KEY = "app.currentUser";
-
-function readStoredCurrentUser(): CurrentUser | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.localStorage.getItem(CURRENT_USER_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as CurrentUser;
-  } catch {
-    return null;
-  }
-}
-
 export function AppProvider({ children }: { children: ReactNode }) {
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  // comment this is enough
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  // const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => readStoredCurrentUser());
-  const [groups, setGroups] = useState<GroupCompany[]>([]);
   const [orgStructure, setOrgStructure] = useState<OrgNode | null>(null);
   const [users, setUsers] = useState<AppUser[]>([]);
 
-  //comment over herrr
   useEffect(() => {
-    if (isAuthLoading) return;
-  
-    try {
-      if (!currentUser) {
-        window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-        return;
-      }
-  
-      window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(currentUser));
-    } catch {
-      // Ignore storage errors so auth state still works in-memory.
-    }
-  }, [currentUser, isAuthLoading]);
-  
+    let isActive = true;
 
+    const validateSession = async () => {
+      try {
+        const response = await getCurrentUser();
+        if (!isActive) return;
+        setCurrentUser(response.user);
+        setIsAuthenticated(true);
+      } catch (error) {
+        if (!isActive) return;
+        const statusMatch = error instanceof Error ? error.message.match(/Request failed:\s*(\d{3})/) : null;
+        const statusCode = statusMatch ? Number(statusMatch[1]) : null;
 
-useEffect(() => {
-  let cancelled = false;
+        if (statusCode === 404 || statusCode === 405) {
+          // Auth bootstrap endpoint is unavailable in this backend.
+          // Fall back to page-wise API auth checks instead of forcing logout.
+          setCurrentUser(null);
+          setIsAuthenticated(true);
+          return;
+        }
 
-  const restoreSession = async () => {
-    try {
-      const companyGroups = await getAllCompanies();
-
-      if (cancelled) return;
-
-      setIsAuthenticated(true);
-      setGroups(companyGroups);
-    } catch {
-      if (!cancelled) {
-        setIsAuthenticated(false);
         setCurrentUser(null);
-        setGroups([]);
+        setIsAuthenticated(false);
         setOrgStructure(null);
+        setUsers([]);
+      } finally {
+        if (isActive) {
+          setIsAuthLoading(false);
+        }
       }
-    } finally {
-      if (!cancelled) {
-        setIsAuthLoading(false);
-      }
-    }
-  };
+    };
 
-  void restoreSession();
+    void validateSession();
 
-  return () => {
-    cancelled = true;
-  };
-}, []);
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
-  
   return (
-    <AppContext.Provider value={{ isAuthenticated, isAuthLoading, setIsAuthenticated, currentUser, setCurrentUser, groups, setGroups, orgStructure, setOrgStructure, users, setUsers }}>
+    <AppContext.Provider value={{ isAuthenticated, isAuthLoading, setIsAuthenticated, currentUser, setCurrentUser, orgStructure, setOrgStructure, users, setUsers }}>
       {children}
     </AppContext.Provider>
   );

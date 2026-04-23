@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAppContext, type Company, type CompanyStatus, type GroupCompany } from "@/contexts/AppContext";
-import { CompanyPreviewDialog, } from "@/components/CompanyPreviewDialog";
+import { type Company, type CompanyStatus, type GroupCompany } from "@/contexts/AppContext";
+import { CompanyPreviewDialog, } from "@/components/shared/CompanyPreviewDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, XCircle, Clock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { getAllCompanies } from "@/services/company.service";
 
 // Exported/shared types
 type CompanyUpdate = Company;
@@ -115,10 +116,40 @@ const updateCompanyStatusInGroups = (
 
 // Exported functions
 export default function Dashboard() {
-  const { groups, setGroups } = useAppContext();
+  const [groups, setGroups] = useState<GroupCompany[]>([]);
   const navigate = useNavigate();
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [selectedCompanyId, setSelectedCompanyLocalId] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadCompanies() {
+      try {
+        const companyGroups = await getAllCompanies();
+        if (!ignore) {
+          setGroups(companyGroups);
+        }
+      } catch (error) {
+        if (!ignore) {
+          const statusMatch = error instanceof Error ? error.message.match(/Request failed:\s*(\d{3})/) : null;
+          const statusCode = statusMatch ? Number(statusMatch[1]) : null;
+          if (statusCode === 401 || statusCode === 403) {
+            navigate("/login", { replace: true });
+            return;
+          }
+          setGroups([]);
+        }
+      }
+    }
+
+    void loadCompanies();
+
+    return () => {
+      ignore = true;
+    };
+  }, [navigate]);
+
   const totalCompanies = countCompanies(groups);
   const pending = countByStatus(groups, "Pending");
   const inactive = countByStatus(groups, "Inactive");
@@ -134,7 +165,7 @@ export default function Dashboard() {
   );
 
   const handleOpenPreview = (companyId: string) => {
-    setSelectedCompanyId(companyId);
+    setSelectedCompanyLocalId(companyId);
     setIsPreviewOpen(true);
   };
 
