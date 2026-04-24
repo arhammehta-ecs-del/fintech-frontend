@@ -1,6 +1,5 @@
 import type { UserOnboardingPayload } from "@/services/user.service";
 import type { OrgNode } from "@/contexts/AppContext";
-import { TRANSACTIONAL_PERMISSION_ITEMS } from "@/features/user-management/constants";
 import type {
   NewMemberOnboardingFormData,
   NewMemberPermissions,
@@ -15,14 +14,24 @@ const ROLE_CATEGORY_MAP = {
   systemAccess: "SYSTEM_ACCESS",
 } as const;
 
-const SUBCATEGORY_ROLE_CODE_PREFIX: Record<string, string> = {
+const ROLE_SUBCATEGORY_MAP: Record<string, string> = {
   purchaseOrder: "PURCHASE_ORDER",
-  payment: "PAYMENTS",
+  payment: "ACCOUNTS",
   invoice: "INVOICE",
-  master: "MASTER",
+  master: "FINOPS",
   orgStructure: "ORG_STRUCTURE",
   userManagement: "USER_MANAGEMENT",
   workflow: "TRACK_WORKFLOW",
+};
+
+const ROLE_NAME_BASE_MAP: Record<string, string> = {
+  purchaseOrder: "Purchase Order",
+  payment: "Accounts",
+  invoice: "Invoice",
+  master: "Fin Ops",
+  orgStructure: "Org Structure",
+  userManagement: "User Management",
+  workflow: "Track Workflow",
 };
 
 export const buildUserOnboardingPayload = (formData: NewMemberOnboardingFormData): UserOnboardingPayload => {
@@ -34,53 +43,51 @@ export const buildUserOnboardingPayload = (formData: NewMemberOnboardingFormData
             nodeId: "",
             nodeName: "",
             nodePath: "",
-            permissions: formData.permissions,
+            permissions: {
+              primary: createInitialPermissions(),
+              secondary: formData.permissions,
+            },
           },
         ];
 
-  const selectedTransactionalSubCategories = Array.from(
-    new Set(
-      selectedNodeEntries.flatMap((nodeEntry) =>
-        Object.entries(nodeEntry.permissions.transactional)
-          .filter(([, rights]) => Object.values(rights).some(Boolean))
-          .map(([subCategory]) => subCategory),
-      ),
-    ),
-  );
-
-  const resolvedTransactionalPrimary =
-    (formData.transactionalPrimary && selectedTransactionalSubCategories.includes(formData.transactionalPrimary)
-      ? formData.transactionalPrimary
-      : TRANSACTIONAL_PERMISSION_ITEMS.find((subCategory) => selectedTransactionalSubCategories.includes(subCategory))) ?? null;
-
   const mappedPermissions = selectedNodeEntries.flatMap((nodeEntry) =>
-    Object.entries(nodeEntry.permissions).flatMap(([category, items]) =>
-      Object.entries(items).flatMap(([subCategory, rights]) => {
-        const selectedActions = PERMISSION_ACTIONS.filter((action) => rights[action]);
-        if (selectedActions.length === 0) return [];
+    (Object.entries(nodeEntry.permissions) as Array<
+      [keyof typeof nodeEntry.permissions, NewMemberPermissions]
+    >).flatMap(([bucketKey, bucketPermissions]) =>
+      Object.entries(bucketPermissions).flatMap(([category, items]) =>
+        Object.entries(items).flatMap(([subCategory, rights]) => {
+          const selectedActions = PERMISSION_ACTIONS.filter((action) => rights[action]);
+          if (selectedActions.length === 0) return [];
 
-        const isTransactional = category === "transactional";
-        const accessType: "primary" | "secondary" | undefined = isTransactional
-          ? resolvedTransactionalPrimary === subCategory
-            ? "primary"
-            : "secondary"
-          : undefined;
+          const isTransactional = category === "transactional";
+          const accessType: "PRIMARY" | "SECONDARY" | undefined = isTransactional
+            ? bucketKey === "primary"
+              ? "PRIMARY"
+              : "SECONDARY"
+            : undefined;
 
-        const roleCodeBase =
-          SUBCATEGORY_ROLE_CODE_PREFIX[subCategory] ??
-          subCategory
-            .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
-            .replace(/\s+/g, "_")
-            .toUpperCase();
+          const roleSubCategory =
+            ROLE_SUBCATEGORY_MAP[subCategory] ??
+            subCategory
+              .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+              .replace(/\s+/g, "_")
+              .toUpperCase();
+          const roleNameBase = ROLE_NAME_BASE_MAP[subCategory] ?? subCategory;
 
-        return selectedActions.map((action) => ({
-          roleCategory: ROLE_CATEGORY_MAP[category as keyof typeof ROLE_CATEGORY_MAP],
-          role_code: `${roleCodeBase}_${action.toUpperCase()}`,
-          nodeName: nodeEntry.nodeName,
-          nodePath: nodeEntry.nodePath,
-          ...(isTransactional ? { accessType } : {}),
-        }));
-      }),
+          return selectedActions.map((action) => {
+            const roleName = `${roleNameBase} ${action[0].toUpperCase()}${action.slice(1)}`;
+
+            return {
+              roleCategory: ROLE_CATEGORY_MAP[category as keyof typeof ROLE_CATEGORY_MAP],
+              roleSubCategory,
+              roleName,
+              nodeName: nodeEntry.nodeName,
+              nodePath: nodeEntry.nodePath,
+              ...(isTransactional ? { accessType } : {}),
+            };
+          });
+        }),
+      ),
     ),
   );
 
@@ -93,7 +100,7 @@ export const buildUserOnboardingPayload = (formData: NewMemberOnboardingFormData
       employeeId: formData.basic.employeeId.trim(),
       reportingManager: formData.basic.reportingManager.trim(),
     },
-    permissions: mappedPermissions,
+    accessDetails: mappedPermissions,
   };
 };
 
@@ -141,7 +148,7 @@ export const createInitialFormData = (): NewMemberOnboardingFormData => ({
   },
   permissions: createInitialPermissions(),
   nodeSelections: [],
-  transactionalPrimary: null,
+  primaryNodeId: null,
 });
 
 export const parseSlashDate = (value: string): Date | null => {

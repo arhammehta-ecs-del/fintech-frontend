@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AppUser } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
-import { createUserOnboarding, getCompanyUsers } from "@/services/user.service";
+import { createUserOnboarding, getCompanyUsers, getFallbackCompanyUsers, updateUserOnboardingAction } from "@/services/user.service";
 import { USER_DEFAULT_PAGE_SIZE, USER_PAGE_SIZE_OPTIONS, USER_SEARCH_DEBOUNCE_MS } from "@/features/user-management/constants";
 import type { MemberStatusTab, NewMemberOnboardingFormData, SortOrder } from "@/features/user-management/types";
 import { buildUserOnboardingPayload } from "@/features/user-management/utils";
@@ -39,10 +39,10 @@ export function useUserManagement() {
           });
         }
       } catch {
-        setUsers([]);
+        setUsers(getFallbackCompanyUsers(companyCode));
         toast({
           title: "Unable to load users",
-          description: "Live user API failed. Please verify backend response and try again.",
+          description: "Live user API failed. Loaded fallback test users for Active, Pending, and Inactive tabs.",
           variant: "destructive",
         });
       } finally {
@@ -178,6 +178,31 @@ export function useUserManagement() {
     });
   };
 
+  const handleUserOnboardingAction = async (member: AppUser, action: "approve" | "reject") => {
+    try {
+      await updateUserOnboardingAction(member.id, action);
+      updateUsersStatus(new Set([member.id]), action === "approve" ? "Active" : "Inactive");
+      toast({
+        title: action === "approve" ? "Member approved" : "Member rejected",
+        description: `${member.name} was moved to ${action === "approve" ? "active" : "inactive"} members.`,
+      });
+    } catch (error) {
+      toast({
+        title: action === "approve" ? "Approval failed" : "Rejection failed",
+        description: error instanceof Error ? error.message : "Unable to update member request.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleApproveMember = (member: AppUser) => {
+    void handleUserOnboardingAction(member, "approve");
+  };
+
+  const handleRejectMember = (member: AppUser) => {
+    void handleUserOnboardingAction(member, "reject");
+  };
+
   const statusHeading =
     statusTab === "pending" ? "Pending Requests" : statusTab === "inactive" ? "Inactive Members" : "Active Members";
 
@@ -215,6 +240,8 @@ export function useUserManagement() {
     paginatedMembers,
     updateUsersStatus,
     handleAddMember,
+    handleApproveMember,
+    handleRejectMember,
     handleSaveEdit,
     removeMember,
     statusHeading,

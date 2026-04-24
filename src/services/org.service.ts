@@ -7,7 +7,6 @@ type CreateOrgNodePayload = {
   nodeType: string;
   parentNode: {
     nodeName: string;
-    nodeType: string;
     nodePath: string;
   };
 };
@@ -22,12 +21,63 @@ type RawCompanyRecord = Record<string, unknown>;
 type RawOrgRecord = Record<string, unknown>;
 
 type OrgApiResponse = {
+  message?: string;
+  code?: number;
   success?: boolean;
   data?: RawOrgRecord[];
 };
 
 const COMPANY_ORG_PATH = "/api/v1/company-settings/org";
 const NEW_NODE_PATH = "/api/v1/company-settings/new-node";
+const USE_MOCK_ORG_STRUCTURE = true;
+
+const MOCK_ORG_RESPONSE: OrgApiResponse = {
+  success: true,
+  data: [
+    {
+      id: "ROOT",
+      companyId: "TEST",
+      nodeName: "Company Root",
+      nodeType: "ROOT",
+      nodePath: "TEST.ROOT",
+    },
+    {
+      id: "TEST-DUMMY-NODE",
+      companyId: "TEST",
+      nodeName: " Test Node",
+      nodeType: "DEPARTMENT",
+      nodePath: "TEST.ROOT.DUMMY_TEST_NODE",
+    },
+    {
+      id: "TEST-DUMMY-FINANCE",
+      companyId: "TEST",
+      nodeName: " Finance Node",
+      nodeType: "DEPARTMENT",
+      nodePath: "TEST.ROOT.DUMMY_FINANCE_NODE",
+    },
+    {
+      id: "TEST-DUMMY-OPS",
+      companyId: "TEST",
+      nodeName: " Operations Node",
+      nodeType: "DEPARTMENT",
+      nodePath: "TEST.ROOT.DUMMY_OPERATIONS_NODE",
+    },
+    {
+      id: "TEST-DUMMY-HR",
+      companyId: "TEST",
+      nodeName: " HR Node",
+      nodeType: "DEPARTMENT",
+      nodePath: "TEST.ROOT.DUMMY_HR_NODE",
+    },
+    {
+      id: "TEST-DUMMY-WORKFLOW",
+      companyId: "TEST",
+      nodeName: " Workflow Node",
+      nodeType: "DEPARTMENT",
+      nodePath: "TEST.ROOT.DUMMY_WORKFLOW_NODE",
+    },
+  ],
+};
 
 const getString = (record: RawCompanyRecord, keys: string[], fallback = "") => {
   for (const key of keys) {
@@ -160,12 +210,14 @@ export async function createNewOrgNode(payload: CreateOrgNodePayload) {
 }
 
 export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNode | null> {
-  const payload = await apiFetch<OrgApiResponse>(COMPANY_ORG_PATH, {
-    method: "POST",
-    body: JSON.stringify({
-      companyCode: companyCode.trim().toUpperCase(),
-    }),
-  });
+  const payload = USE_MOCK_ORG_STRUCTURE
+    ? MOCK_ORG_RESPONSE
+    : await apiFetch<OrgApiResponse>(COMPANY_ORG_PATH, {
+        method: "POST",
+        body: JSON.stringify({
+          companyCode: companyCode.trim().toUpperCase(),
+        }),
+      });
 
   return buildOrgTree(Array.isArray(payload.data) ? payload.data : []);
 }

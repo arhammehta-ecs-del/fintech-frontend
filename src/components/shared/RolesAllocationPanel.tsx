@@ -1,40 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, CreditCard, Database, ShieldCheck, Workflow } from "lucide-react";
+import { CreditCard, Database, ShieldCheck, Workflow } from "lucide-react";
 import { useAppContext } from "@/contexts/AppContext";
 import { getCompanyRoles, type RoleRecord } from "@/services/role.service";
 
 type RoleRow = {
   module: string;
   levels: Record<string, string>;
+  isPrimary: boolean;
 };
 
 type RoleCategory = {
   key: string;
   title: string;
-  description: string;
   icon: typeof CreditCard;
   rows: RoleRow[];
 };
 
-const categoryMeta: Record<string, { title: string; description: string; icon: typeof CreditCard }> = {
-  TRANSACTIONAL: {
-    title: "Transactional Operations",
-    description: "Primary cash flow and procurement lifecycle.",
-    icon: CreditCard,
-  },
-  OPERATIONAL: {
-    title: "Operational Controls",
-    description: "Master data and process operations.",
-    icon: Database,
-  },
-  SYSTEM_ACCESS: {
-    title: "System Access",
-    description: "Platform-level navigation and controls.",
-    icon: Workflow,
-  },
+type RolesAllocationPanelProps = {
+  userName?: string;
+  showUserNote?: boolean;
 };
-
-const preferredLevelOrder = ["ADMIN", "MANAGER", "USER", "VIEWER"];
 
 const formatLabel = (value: string) =>
   value
@@ -42,6 +27,19 @@ const formatLabel = (value: string) =>
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+
+const getCategoryMeta = (categoryKey: string) => {
+  switch (categoryKey) {
+    case "TRANSACTIONAL":
+      return { title: "Transactional", icon: CreditCard };
+    case "OPERATIONAL":
+      return { title: "Operational Controls", icon: Database };
+    case "SYSTEM_ACCESS":
+      return { title: "System Access", icon: Workflow };
+    default:
+      return { title: formatLabel(categoryKey), icon: ShieldCheck };
+  }
+};
 
 const parseRoleCode = (roleCode: string, fallbackLevel: string) => {
   const normalized = roleCode.trim().toUpperCase();
@@ -60,10 +58,24 @@ const parseRoleCode = (roleCode: string, fallbackLevel: string) => {
   return { moduleKey, levelKey };
 };
 
+const getLevelChipClasses = (level: string) => {
+  switch (level.trim().toUpperCase()) {
+    case "MANAGER":
+      return "border-violet-200 bg-violet-50 text-violet-700";
+    case "USER":
+      return "border-sky-200 bg-sky-50 text-sky-700";
+    case "VIEWER":
+      return "border-slate-200 bg-slate-50 text-slate-600";
+    default:
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+};
+
 const buildRolesView = (roles: RoleRecord[]) => {
   const activeRoles = roles.filter((role) => role.isActive);
   const levelSet = new Set<string>();
   const categoryMap = new Map<string, Map<string, Record<string, string>>>();
+  const primaryModules = new Set<string>();
 
   activeRoles.forEach((role) => {
     const categoryKey = role.category.trim().toUpperCase();
@@ -85,48 +97,41 @@ const buildRolesView = (roles: RoleRecord[]) => {
     const row = moduleMap.get(moduleKey);
     if (!row) return;
     row[levelKey] = role.roleCode;
+    if (role.accessType === "PRIMARY") {
+      primaryModules.add(`${categoryKey}::${moduleKey}`);
+    }
   });
 
+  const levelOrder = ["MANAGER", "USER", "VIEWER"];
   const levels = Array.from(levelSet).sort((left, right) => {
-    const leftIndex = preferredLevelOrder.indexOf(left);
-    const rightIndex = preferredLevelOrder.indexOf(right);
+    const leftIndex = levelOrder.indexOf(left);
+    const rightIndex = levelOrder.indexOf(right);
+
     if (leftIndex !== -1 || rightIndex !== -1) {
       return (leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex) - (rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex);
     }
+
     return left.localeCompare(right);
   });
 
-  const categories: RoleCategory[] = Array.from(categoryMap.entries())
-    .map(([categoryKey, modules]) => {
-      const meta = categoryMeta[categoryKey] ?? {
-        title: formatLabel(categoryKey),
-        description: "Role mapping provided by backend.",
-        icon: ShieldCheck,
-      };
+  const categories: RoleCategory[] = Array.from(categoryMap.entries()).map(([categoryKey, modules]) => {
+    const meta = getCategoryMeta(categoryKey);
 
-      const rows = Array.from(modules.entries())
-        .map(([moduleKey, rowLevels]) => ({
-          module: formatLabel(moduleKey),
-          levels: rowLevels,
-        }))
-        .sort((left, right) => left.module.localeCompare(right.module));
+    const rows = Array.from(modules.entries()).map(([moduleKey, rowLevels]) => ({
+      module: formatLabel(moduleKey),
+      levels: rowLevels,
+      isPrimary: primaryModules.has(`${categoryKey}::${moduleKey}`),
+    }));
 
-      return {
-        key: categoryKey,
-        title: meta.title,
-        description: meta.description,
-        icon: meta.icon,
-        rows,
-      };
-    })
-    .sort((left, right) => left.title.localeCompare(right.title));
+    return {
+      key: categoryKey,
+      title: meta.title,
+      icon: meta.icon,
+      rows,
+    };
+  });
 
   return { levels, categories };
-};
-
-type RolesAllocationPanelProps = {
-  userName?: string;
-  showUserNote?: boolean;
 };
 
 export function RolesAllocationPanel({
@@ -176,11 +181,8 @@ export function RolesAllocationPanel({
       <div className="flex items-center justify-between px-2 mb-2">
         <div className="space-y-1">
           <h2 className="text-[16px] font-bold text-slate-800 uppercase tracking-tight">
-            Functional Rights Mapping
+            Access Rights
           </h2>
-          <p className="text-[12px] text-slate-500">
-            Core action guide by departmental access levels.
-          </p>
         </div>
       </div>
 
@@ -213,31 +215,34 @@ export function RolesAllocationPanel({
           key={category.key}
           className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm group"
         >
-          <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50/50 p-4 transition-colors group-hover:bg-slate-50">
+          <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50/70 p-5 transition-colors group-hover:bg-slate-50">
             <div className="rounded-lg border border-slate-100 bg-white p-2 text-blue-500 shadow-sm">
               <category.icon size={16} />
             </div>
-            <div>
-              <h3 className="text-[13px] font-bold uppercase tracking-wider text-slate-800">
+            <div className="space-y-0.5">
+              <h3 className="text-lg font-semibold tracking-tight text-slate-900">
                 {category.title}
               </h3>
-              <p className="text-[11px] font-medium text-slate-400">
-                {category.description}
-              </p>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="min-w-full table-fixed text-sm">
+              <colgroup>
+                <col className="w-[26%]" />
+                {levels.map((level) => (
+                  <col key={`${category.key}-col-${level}`} className="w-[24.666%]" />
+                ))}
+              </colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-white">
-                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-[0.12em] text-slate-500 align-middle">
                     Module
                   </th>
                   {levels.map((level) => (
                     <th
                       key={`${category.key}-${level}`}
-                      className="px-4 py-3 text-center text-xs font-bold uppercase tracking-[0.12em] text-slate-500"
+                      className="px-3 py-3 text-center text-xs font-bold uppercase tracking-[0.12em] text-slate-500 align-middle"
                     >
                       {formatLabel(level)}
                     </th>
@@ -247,15 +252,21 @@ export function RolesAllocationPanel({
               <tbody>
                 {category.rows.map((row) => (
                   <tr key={`${category.key}-${row.module}`} className="border-b border-slate-100 last:border-0">
-                    <td className="px-4 py-3 font-medium text-slate-700">{row.module}</td>
+                    <td className="border-l-2 border-transparent px-3 py-2.5 font-semibold text-slate-800 align-middle">
+                      <span className="inline-flex max-w-full items-center whitespace-nowrap">{row.module}</span>
+                    </td>
                     {levels.map((level) => {
                       const roleCode = row.levels[level];
                       return (
-                        <td key={`${category.key}-${row.module}-${level}`} className="px-4 py-3 text-center">
+                        <td
+                          key={`${category.key}-${row.module}-${level}`}
+                          className="px-3 py-2.5 text-center align-middle"
+                        >
                           {roleCode ? (
-                            <div className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
-                              <Check size={12} />
-                              {roleCode}
+                            <div
+                              className={`inline-flex max-w-full items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${getLevelChipClasses(level)}`}
+                            >
+                              {formatLabel(roleCode)}
                             </div>
                           ) : (
                             <span className="text-slate-300">-</span>

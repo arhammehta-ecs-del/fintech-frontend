@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { Company, CompanyStatus, GroupCompany } from "@/contexts/AppContext";
-import { getAllCompanies } from "@/services/company.service";
+import { getAllCompanies, updateCompanyOnboardingAction } from "@/services/company.service";
 import type { DisplayRow, StatusTab, VisibleColumn } from "@/features/corporate/types";
 import {
   buildAllDisplayRows,
@@ -121,12 +121,19 @@ export function useCorporateList() {
     setSelectedCompany(updatedCompany);
   };
 
-  const handleToggleCompanyActive = (companyId: string, isActive: boolean) => {
+  const handleToggleCompanyActive = async (companyId: string, isActive: boolean) => {
     const existingCompany = groups
       .flatMap((group) => group.subsidiaries)
       .find((company) => company.id === companyId);
     const nextStatus: CompanyStatus = isActive ? "Approved" : "Inactive";
     if (!existingCompany || existingCompany.status === nextStatus) return;
+
+    try {
+      await updateCompanyOnboardingAction(companyId, isActive ? "approve" : "reject");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update company status");
+      return;
+    }
 
     updateSpecificCompany(companyId, (company) => ({
       ...company,

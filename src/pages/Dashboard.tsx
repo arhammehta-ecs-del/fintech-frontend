@@ -121,34 +121,34 @@ export default function Dashboard() {
   const [selectedCompanyId, setSelectedCompanyLocalId] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  useEffect(() => {
-    let ignore = false;
+  // useEffect(() => {
+  //   let ignore = false;
 
-    async function loadCompanies() {
-      try {
-        const companyGroups = await getAllCompanies();
-        if (!ignore) {
-          setGroups(companyGroups);
-        }
-      } catch (error) {
-        if (!ignore) {
-          const statusMatch = error instanceof Error ? error.message.match(/Request failed:\s*(\d{3})/) : null;
-          const statusCode = statusMatch ? Number(statusMatch[1]) : null;
-          if (statusCode === 401 || statusCode === 403) {
-            navigate("/login", { replace: true });
-            return;
-          }
-          setGroups([]);
-        }
-      }
-    }
+  //   async function loadCompanies() {
+  //     try {
+  //       const companyGroups = await getAllCompanies();
+  //       if (!ignore) {
+  //         setGroups(companyGroups);
+  //       }
+  //     } catch (error) {
+  //       if (!ignore) {
+  //         const statusMatch = error instanceof Error ? error.message.match(/Request failed:\s*(\d{3})/) : null;
+  //         const statusCode = statusMatch ? Number(statusMatch[1]) : null;
+  //         if (statusCode === 401 || statusCode === 403) {
+  //           navigate("/login", { replace: true });
+  //           return;
+  //         }
+  //         setGroups([]);
+  //       }
+  //     }
+  //   }
 
-    void loadCompanies();
+  //   void loadCompanies();
 
-    return () => {
-      ignore = true;
-    };
-  }, [navigate]);
+  //   return () => {
+  //     ignore = true;
+  //   };
+  // }, [navigate]);
 
   const totalCompanies = countCompanies(groups);
   const pending = countByStatus(groups, "Pending");

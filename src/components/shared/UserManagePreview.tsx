@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Database, ChevronDown, CreditCard, FileText, Workflow, Users, GitBranch, Edit2, Building2, Globe, Settings2, Box, MoreHorizontal, Mail, Phone, Calendar, IdCard, UserCheck, Maximize2, Minimize2, ArrowRightLeft, Sparkles, X } from "lucide-react";
+import type { AppUser } from "@/contexts/AppContext";
+import { formatDateLabel } from "@/features/user-management/utils";
 
-export function UserManagePreview() {
+export function UserManagePreview({ member }: { member: AppUser }) {
   const [activeTab, setActiveTab] = useState('basic'); 
   const allSections = ['transactional', 'primary', 'secondary', 'operational', 'system'];
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
@@ -10,17 +12,20 @@ export function UserManagePreview() {
   const [aiResult, setAiResult] = useState(null);
   const [showAiModal, setShowAiModal] = useState(false);
   
+  const rawJoiningDate = member.basicDetails?.companyOnboardingDate || member.onboardingDate || "";
+  const formattedJoiningDate = formatDateLabel(rawJoiningDate);
+
   // User Data
   const userData = {
-    name: "Alice Johnson",
-    email: "test1@gmail.com",
-    phone: "+1 (555) 7890",
-    joiningDate: "April 14, 2026",
-    designation: "Operations Lead",
-    department: "Aluminum",
-    employeeId: "EMP-001",
-    reportingManager: "Sarah Jenkins",
-    reportingManagerEmail: "s.jenkins@acmeglobal.com"
+    name: member.basicDetails?.name || member.name || "-",
+    email: member.basicDetails?.email || member.email || "-",
+    phone: member.basicDetails?.phone || member.phone || "-",
+    joiningDate: formattedJoiningDate === "-" && rawJoiningDate ? rawJoiningDate : formattedJoiningDate,
+    designation: member.basicDetails?.designation || member.designation || "-",
+    department: member.department || "-",
+    employeeId: member.basicDetails?.employeeId || member.employeeId || "-",
+    reportingManager: member.basicDetails?.reportingManager || member.manager?.name || "-",
+    reportingManagerEmail: member.manager?.email || member.basicDetails?.reportingManager || ""
   };
 
   const toggleSection = (id) => {
@@ -159,9 +164,21 @@ export function UserManagePreview() {
                 <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{userData.name}</h1>
                 <div className="flex items-center gap-3 mt-1.5">
                   <p className="text-xs text-slate-500 font-semibold">{userData.designation} • {userData.department}</p>
-                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-full text-[9px] font-black uppercase tracking-wider border border-emerald-100 dark:border-emerald-800/50">
-                    <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
-                    Active
+                  <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                    member.status === "Inactive"
+                      ? "bg-rose-50 text-rose-600 border-rose-100"
+                      : member.status === "Pending"
+                        ? "bg-amber-50 text-amber-600 border-amber-100"
+                        : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                  }`}>
+                    <div className={`w-1 h-1 rounded-full ${
+                      member.status === "Inactive"
+                        ? "bg-rose-500"
+                        : member.status === "Pending"
+                          ? "bg-amber-500"
+                          : "bg-emerald-500"
+                    }`} />
+                    {member.status || "Active"}
                   </div>
                 </div>
               </div>
@@ -251,7 +268,7 @@ export function UserManagePreview() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 divide-x divide-slate-100 dark:divide-slate-800">
                     <DetailBit icon={UserCheck} label="Reporting Manager" value={userData.reportingManager} subValue={userData.reportingManagerEmail} />
-                    <DetailBit icon={Building2} label="Current Designation" value={userData.designation} subValue="Operations Department" />
+                    <DetailBit icon={Building2} label="Current Designation" value={userData.designation} subValue={`${userData.department} Department`} />
                 </div>
               </div>
             </div>

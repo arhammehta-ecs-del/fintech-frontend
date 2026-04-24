@@ -35,13 +35,22 @@ type OnboardingResponse = {
   };
 };
 
+type OnboardingAction = "approve" | "reject";
+
+type OnboardingActionResponse = {
+  message?: string;
+  code?: number;
+  success?: boolean;
+  data?: unknown;
+};
+
 type RawCompanyListItem = {
+  id?: string | null;
   companyCode?: string | null;
-  companycode?: string | null;
   name?: string | null;
   gst?: string | null;
   brand?: string | null;
-  iecode?: string | null;
+  ieCode?: string | null;
   registeredAt?: string | null;
   registration?: string | null;
   address?: string | null;
@@ -53,12 +62,11 @@ type RawCompanyGroup = {
   groupName?: string | null;
   groupCode?: string | null;
   companies?: RawCompanyListItem[] | null;
-  groupdetails?: {
-    groupname?: string | null;
-    groupcode?: string | null;
+  groupDetails?: {
+    groupName?: string | null;
+    groupCode?: string | null;
   } | null;
-  comapnydetails?: RawCompanyListItem[] | null;
-  companydetails?: RawCompanyListItem[] | null;
+  companyDetails?: RawCompanyListItem[] | null;
 };
 
 type CompanyListApiResponse = {
@@ -72,8 +80,74 @@ type CompanyListApiResponse = {
   } | null;
 };
 
-const COMPANY_LIST_PATH = "/api/v1/companies/all";
-const COMPANY_CREATE_PATH = "/api/v1/admin/companies";
+const COMPANY_LIST_PATH = "/api/v1/company/groups";
+const COMPANY_CREATE_PATH = "/api/v1/onboarding/company/initiate";
+const COMPANY_ACTION_PATH = "/api/v1/onboarding/company/action";
+const MOCK_COMPANY_LIST_RESPONSE: CompanyListApiResponse = {
+  message: "Companies fetched successfully!",
+  companies: {
+    active: [
+      {
+        groupDetails: {
+          groupCode: "TESTGROUP03042026",
+          groupName: "TEST GROUP",
+        },
+        companyDetails: [
+          {
+            id: "7d6716aa-db50-495f-915f-f91c7ea5e5c2",
+            companyCode: "TECHSOLUTIONS04042026",
+            name: "Tech Solutions Ltd",
+            gst: "GST001",
+            brand: "TechSol",
+            ieCode: "",
+            registration: "",
+            address: "",
+          },
+        ],
+      },
+    ],
+    pending: [
+      {
+        groupDetails: {
+          groupCode: "TESTGROUP03042026",
+          groupName: "TEST GROUP",
+        },
+        companyDetails: [
+          {
+            id: "9c4a21b7-2e6a-47a8-9652-0d2b4de67d11",
+            companyCode: "FINANCEPRO03042026",
+            name: "Finance Pro Inc",
+            gst: "GST002",
+            brand: "FinPro",
+            ieCode: "",
+            registration: "",
+            address: "",
+          },
+        ],
+      },
+    ],
+    inactive: [
+      {
+        groupDetails: {
+          groupCode: "",
+          groupName: "",
+        },
+        companyDetails: [
+          {
+            id: "2c8f671e-5c1d-4679-b6cb-c8b5d44e901a",
+            companyCode: "RETAILMAX03042026",
+            name: "Retail Max",
+            gst: "GST003",
+            brand: "RM",
+            ieCode: "",
+            registration: "",
+            address: "",
+          },
+        ],
+      },
+    ],
+  },
+};
 
 const getPacketString = (value: string | null | undefined) => (typeof value === "string" ? value.trim() : "");
 const toUpperValue = (value: string) => value.toUpperCase();
@@ -92,10 +166,10 @@ const normalizeCompanyStatus = (
 
 const mapCompany = (company: RawCompanyListItem, bucketStatus?: Company["status"] | null): Company => {
   const companyName = getPacketString(company.name) || "Untitled Company";
-  const companyCode = toUpperValue(getPacketString(company.companyCode) || getPacketString(company.companycode));
+  const companyCode = toUpperValue(getPacketString(company.companyCode));
 
   return {
-    id: companyCode || companyName.toLowerCase().replace(/\s+/g, "-"),
+    id: getPacketString(company.id) || companyCode || companyName.toLowerCase().replace(/\s+/g, "-"),
     brand: getPacketString(company.brand) || companyName,
     companyCode,
     companyName,
@@ -103,16 +177,17 @@ const mapCompany = (company: RawCompanyListItem, bucketStatus?: Company["status"
     incorporationDate: getPacketString(company.registeredAt) || getPacketString(company.registration),
     address: getPacketString(company.address),
     gstin: getPacketString(company.gst),
-    ieCode: getPacketString(company.iecode),
+    ieCode: getPacketString(company.ieCode),
     status: normalizeCompanyStatus(company, bucketStatus),
     signatories: [],
   };
 };
 
-const getGroupName = (group: RawCompanyGroup) => getPacketString(group.groupName) || getPacketString(group.groupdetails?.groupname);
-const getGroupCode = (group: RawCompanyGroup) => toUpperValue(getPacketString(group.groupCode) || getPacketString(group.groupdetails?.groupcode));
-const getGroupCompanies = (group: RawCompanyGroup) =>
-  group.companies ?? group.comapnydetails ?? group.companydetails ?? [];
+const getGroupName = (group: RawCompanyGroup) =>
+  getPacketString(group.groupName) || getPacketString(group.groupDetails?.groupName);
+const getGroupCode = (group: RawCompanyGroup) =>
+  toUpperValue(getPacketString(group.groupCode) || getPacketString(group.groupDetails?.groupCode));
+const getGroupCompanies = (group: RawCompanyGroup) => group.companies ?? group.companyDetails ?? [];
 
 const mapGroups = (groups: RawCompanyGroup[], bucketStatus?: Company["status"] | null): GroupCompany[] =>
   groups.map((group, index) => {
@@ -134,12 +209,16 @@ const mapGroups = (groups: RawCompanyGroup[], bucketStatus?: Company["status"] |
   });
 
 export async function getAllCompanies(): Promise<GroupCompany[]> {
+  // Comment this mock payload to go back to the normal backend flow.
+  const payload = MOCK_COMPANY_LIST_RESPONSE;
+  /*
   const payload = await apiFetch<CompanyListApiResponse>(COMPANY_LIST_PATH, {
     method: "POST",
     body: JSON.stringify({
       type: "A",
     }),
   });
+  */
 
   if (payload.companies) {
     const activeGroups = mapGroups(payload.companies.active ?? [], "Approved");
@@ -166,5 +245,20 @@ export async function createCompanyOnboarding(payload: OnboardingPayload, file?:
   return apiFetch<OnboardingResponse>(COMPANY_CREATE_PATH, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function updateCompanyOnboardingAction(
+  id: string,
+  action: OnboardingAction,
+  remark = "this will we build today",
+) {
+  return apiFetch<OnboardingActionResponse>(COMPANY_ACTION_PATH, {
+    method: "POST",
+    body: JSON.stringify({
+      id,
+      action,
+      remark,
+    }),
   });
 }

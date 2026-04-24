@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppContext, type OrgNode } from "@/contexts/AppContext";
-import { TRANSACTIONAL_PERMISSION_ITEMS } from "@/features/user-management/constants";
 import type {
   NewMemberOnboardingFormData,
+  NodePermissionBuckets,
   NewMemberPermissions,
   PermissionAction,
   PermissionCategory,
-  TransactionalPermissionItem,
   ValidationErrors,
 } from "@/features/user-management/types";
 import {
@@ -30,7 +29,8 @@ export function useOnboardingForm({ open, onOpenChange, onSubmit }: UseOnboardin
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [expandedAccessNodeId, setExpandedAccessNodeId] = useState<string | null>(null);
-  const [nodePermissions, setNodePermissions] = useState<Record<string, NewMemberPermissions>>({});
+  const [primaryNodeId, setPrimaryNodeId] = useState<string | null>(null);
+  const [nodePermissions, setNodePermissions] = useState<Record<string, NodePermissionBuckets>>({});
   const [infoNodeId, setInfoNodeId] = useState<string | null>(null);
   const [isReviewAccessExpanded, setIsReviewAccessExpanded] = useState(true);
   const reviewAccessNodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -43,6 +43,7 @@ export function useOnboardingForm({ open, onOpenChange, onSubmit }: UseOnboardin
     setSelectedNodeId(orgStructure?.id ?? null);
     setSelectedNodeIds([]);
     setExpandedAccessNodeId(null);
+    setPrimaryNodeId(null);
     setNodePermissions({});
     setInfoNodeId(null);
     setIsReviewAccessExpanded(true);
@@ -63,19 +64,27 @@ export function useOnboardingForm({ open, onOpenChange, onSubmit }: UseOnboardin
   useEffect(() => {
     if (selectedNodes.length === 0) {
       setExpandedAccessNodeId(null);
+      setPrimaryNodeId(null);
       setNodePermissions({});
       return;
     }
 
     setNodePermissions((current) => {
-      const next: Record<string, NewMemberPermissions> = {};
+      const next: Record<string, NodePermissionBuckets> = {};
 
       for (const node of selectedNodes) {
-        next[node.id] = current[node.id] ?? createInitialPermissions();
+        next[node.id] = current[node.id] ?? {
+          primary: createInitialPermissions(),
+          secondary: createInitialPermissions(),
+        };
       }
 
       return next;
     });
+
+    setPrimaryNodeId((current) =>
+      current && selectedNodes.some((node) => node.id === current) ? current : selectedNodes[0].id,
+    );
 
     setExpandedAccessNodeId((current) =>
       current && selectedNodes.some((node) => node.id === current) ? current : selectedNodes[0].id,
@@ -94,6 +103,7 @@ export function useOnboardingForm({ open, onOpenChange, onSubmit }: UseOnboardin
     setSelectedNodeIds((current) => current.filter((id) => id !== nodeId));
     setSelectedNodeId((current) => (current === nodeId ? orgStructure?.id ?? null : current));
     setExpandedAccessNodeId((current) => (current === nodeId ? null : current));
+    setPrimaryNodeId((current) => (current === nodeId ? null : current));
   };
 
   const handleNodeSelect = (nodeId: string) => {
@@ -104,6 +114,31 @@ export function useOnboardingForm({ open, onOpenChange, onSubmit }: UseOnboardin
         return current.filter((id) => id !== nodeId);
       }
       return [...current, nodeId];
+    });
+  };
+
+  const reorderSelectedNodes = (draggedNodeId: string, targetNodeId: string) => {
+    if (draggedNodeId === targetNodeId) return;
+
+    setSelectedNodeIds((current) => {
+      const fromIndex = current.indexOf(draggedNodeId);
+      const toIndex = current.indexOf(targetNodeId);
+
+      if (fromIndex === -1 || toIndex === -1) return current;
+
+      const next = [...current];
+      next.splice(fromIndex, 1);
+
+      const adjustedTargetIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+      next.splice(adjustedTargetIndex, 0, draggedNodeId);
+
+      const nextPrimaryNodeId = next[0] ?? null;
+      setPrimaryNodeId(nextPrimaryNodeId);
+      setExpandedAccessNodeId((currentExpanded) =>
+        currentExpanded && next.includes(currentExpanded) ? currentExpanded : nextPrimaryNodeId,
+      );
+
+      return next;
     });
   };
 
@@ -122,6 +157,7 @@ export function useOnboardingForm({ open, onOpenChange, onSubmit }: UseOnboardin
 
   const togglePermission = <C extends PermissionCategory>(
     nodeId: string,
+    bucket: keyof NodePermissionBuckets,
     category: C,
     item: keyof NewMemberOnboardingFormData["permissions"][C],
     action: PermissionAction,
@@ -129,48 +165,46 @@ export function useOnboardingForm({ open, onOpenChange, onSubmit }: UseOnboardin
     clearError("accessRights");
 
     setNodePermissions((current) => {
-      const currentPermissions = current[nodeId] ?? createInitialPermissions();
-      const currentItem = currentPermissions[category][item];
-      const nextItem = {
-        ...currentItem,
-        [action]: !currentItem[action],
+      const currentNodePermissions = current[nodeId] ?? {
+        primary: createInitialPermissions(),
+        secondary: createInitialPermissions(),
       };
+      const currentBucketPermissions = currentNodePermissions[bucket];
+      const currentItem = currentBucketPermissions[category][item];
+      const nextValue = !currentItem[action];
+      const nextPrimaryPermissions = createInitialPermissions();
 
-      const nextPermissions = {
-        ...current,
-        [nodeId]: {
-          ...currentPermissions,
-          [category]: {
-            ...currentPermissions[category],
-            [item]: nextItem,
-          },
-        },
-      };
-
-      if (category === "transactional") {
-        const nextTransactionalItem = item as TransactionalPermissionItem;
-        const nextItemHasAnyRight = Object.values(nextItem).some(Boolean);
-
-        setFormData((previous) => {
-          if (nextItemHasAnyRight) {
-            return previous.transactionalPrimary ? previous : { ...previous, transactionalPrimary: nextTransactionalItem };
-          }
-
-          if (previous.transactionalPrimary !== nextTransactionalItem) {
-            return previous;
-          }
-
-          const fallbackPrimary =
-            TRANSACTIONAL_PERMISSION_ITEMS.find((transactionalItem) => {
-              const rights = nextPermissions[nodeId].transactional[transactionalItem];
-              return Object.values(rights).some(Boolean);
-            }) ?? null;
-
-          return { ...previous, transactionalPrimary: fallbackPrimary };
-        });
+      if (bucket === "primary" && nextValue) {
+        nextPrimaryPermissions[category][item][action] = true;
       }
 
-      return nextPermissions;
+      const nextItem =
+        bucket === "primary"
+          ? nextPrimaryPermissions[category][item]
+          : {
+              ...currentItem,
+              [action]: nextValue,
+            };
+
+      return {
+        ...current,
+        [nodeId]: {
+          ...currentNodePermissions,
+          ...(bucket === "primary"
+            ? {
+                primary: nextPrimaryPermissions,
+              }
+            : {
+                secondary: {
+                  ...currentNodePermissions.secondary,
+                  [category]: {
+                    ...currentNodePermissions.secondary[category],
+                    [item]: nextItem,
+                  },
+                },
+              }),
+        },
+      };
     });
   };
 
@@ -189,9 +223,19 @@ export function useOnboardingForm({ open, onOpenChange, onSubmit }: UseOnboardin
           const permissions = nodePermissions[node.id];
           if (!permissions) return true;
 
-          const selectedCount = Object.values(permissions).reduce((categoryTotal, categoryItems) => {
-            return categoryTotal + Object.values(categoryItems).reduce((itemTotal, item) => itemTotal + Object.values(item).filter(Boolean).length, 0);
-          }, 0);
+          const selectedCount = (Object.values(permissions) as NewMemberPermissions[]).reduce(
+            (bucketTotal, bucketPermissions) =>
+              bucketTotal +
+              Object.values(bucketPermissions).reduce((categoryTotal, categoryItems) => {
+                return (
+                  categoryTotal +
+                  Object.values(categoryItems).reduce((itemTotal, permissionItem) => {
+                    return itemTotal + Object.values(permissionItem).filter(Boolean).length;
+                  }, 0)
+                );
+              }, 0),
+            0,
+          );
 
           return selectedCount === 0;
         });
@@ -221,13 +265,17 @@ export function useOnboardingForm({ open, onOpenChange, onSubmit }: UseOnboardin
 
       const payloadFormData: NewMemberOnboardingFormData = {
         ...formData,
-        permissions: firstSelectedNodeId ? (nodePermissions[firstSelectedNodeId] ?? fallbackPermissions) : fallbackPermissions,
+        permissions: firstSelectedNodeId ? (nodePermissions[firstSelectedNodeId]?.secondary ?? fallbackPermissions) : fallbackPermissions,
         nodeSelections: selectedNodes.map((node) => ({
           nodeId: node.id,
           nodeName: node.name,
           nodePath: node.nodePath,
-          permissions: nodePermissions[node.id] ?? fallbackPermissions,
+          permissions: nodePermissions[node.id] ?? {
+            primary: createInitialPermissions(),
+            secondary: fallbackPermissions,
+          },
         })),
+        primaryNodeId,
       };
 
       await onSubmit(payloadFormData);
@@ -246,6 +294,7 @@ export function useOnboardingForm({ open, onOpenChange, onSubmit }: UseOnboardin
     selectedNodeIds,
     selectedNodes,
     expandedAccessNodeId,
+    primaryNodeId,
     nodePermissions,
     infoNodeId,
     isReviewAccessExpanded,
@@ -255,7 +304,9 @@ export function useOnboardingForm({ open, onOpenChange, onSubmit }: UseOnboardin
     removeSelectedNode,
     handleNodeSelect,
     togglePermission,
+    reorderSelectedNodes,
     setExpandedAccessNodeId,
+    setPrimaryNodeId,
     setInfoNodeId,
     setIsReviewAccessExpanded,
     prevStep,

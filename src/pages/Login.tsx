@@ -17,8 +17,8 @@ import { Building2 } from "lucide-react";
 import { login } from "@/services/auth.service";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("admin@globaltech.com");
+  const [password, setPassword] = useState("Admin@123");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForceLoginDialog, setShowForceLoginDialog] = useState(false);

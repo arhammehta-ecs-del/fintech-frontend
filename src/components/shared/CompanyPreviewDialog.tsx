@@ -1,7 +1,8 @@
-import { format, isValid, parse } from "date-fns";
+import { format, isValid, parse, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle,} from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import type { Company } from "@/contexts/AppContext";
 import { Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -46,8 +47,13 @@ const displayValue = (value?: string | null) => (value && value.trim() ? value :
 
 const formatDisplayDate = (value?: string) => {
   if (!value) return "—";
+  const isoDate = parseISO(value);
+  if (isValid(isoDate)) return format(isoDate, "dd MMM yyyy");
+
   const parsedDate = parse(value, "dd/MM/yyyy", new Date());
-  return isValid(parsedDate) ? format(parsedDate, "dd MMM yyyy") : "Invalid date";
+  if (isValid(parsedDate)) return format(parsedDate, "dd MMM yyyy");
+
+  return value;
 };
 
 export function CompanyPreviewDialog({
@@ -58,14 +64,17 @@ export function CompanyPreviewDialog({
   open,
   onOpenChange,
   // onSave,
-  // onToggleActive,
+  onToggleActive,
   // approvalHistory,
-  approvalStatusLabel = "Approved",
+  approvalStatusLabel,
   // defaultEditing = false,
   // onAuditEvent,
 }: CompanyPreviewDialogProps) {
   if (!company) return null;
   const headerCompanyName = company.companyName;
+  const statusLabel = approvalStatusLabel ?? company.status;
+  const isActive = company.status === "Approved";
+  const showActiveToggle = Boolean(onToggleActive) && company.status === "Inactive";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,12 +95,25 @@ export function CompanyPreviewDialog({
                 {groupName ? <p className="mt-1 text-sm text-muted-foreground">{groupName}</p> : null}
               </div>
             </div>
-            <Badge
-              variant="outline"
-              className={cn("text-xs", statusColors[approvalStatusLabel])}
-            >
-              {approvalStatusLabel}
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Badge
+                variant="outline"
+                className={cn("text-xs", statusColors[statusLabel])}
+              >
+                {statusLabel}
+              </Badge>
+              {showActiveToggle ? (
+                <div className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">Inactive</span>
+                  <Switch
+                    checked={isActive}
+                    onCheckedChange={(checked) => onToggleActive?.(company.id, checked)}
+                    aria-label="Toggle company active status"
+                  />
+                  <span className="text-xs font-medium text-muted-foreground">Active</span>
+                </div>
+              ) : null}
+            </div>
           </div>
         </DialogHeader>
 

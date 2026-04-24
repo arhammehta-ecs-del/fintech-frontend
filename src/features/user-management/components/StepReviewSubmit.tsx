@@ -1,16 +1,17 @@
-import type { MutableRefObject } from "react";
-import { ChevronRight, Expand, Minimize2, ShieldCheck } from "lucide-react";
+import { useState, type MutableRefObject } from "react";
+import { ChevronDown, ChevronRight, Expand, Minimize2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { OrgNode } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
 import { NEW_MEMBER_PERMISSION_STRUCTURE } from "@/features/user-management/constants";
-import type { NewMemberOnboardingFormData, NewMemberPermissions, PermissionCategory } from "@/features/user-management/types";
+import type { NewMemberOnboardingFormData, NodePermissionBuckets, NewMemberPermissions, PermissionCategory } from "@/features/user-management/types";
 import { getOrgNodeBadgeTheme, getOrgNodePermissionChipTheme, getOrgNodeTheme } from "@/features/user-management/utils";
 
 type StepReviewSubmitProps = {
   basic: NewMemberOnboardingFormData["basic"];
   selectedNodes: OrgNode[];
-  nodePermissions: Record<string, NewMemberPermissions>;
+  primaryNodeId: string | null;
+  nodePermissions: Record<string, NodePermissionBuckets>;
   expandedAccessNodeId: string | null;
   isReviewAccessExpanded: boolean;
   reviewAccessNodeRefs: MutableRefObject<Record<string, HTMLDivElement | null>>;
@@ -30,6 +31,7 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
 export function StepReviewSubmit({
   basic,
   selectedNodes,
+  primaryNodeId,
   nodePermissions,
   expandedAccessNodeId,
   isReviewAccessExpanded,
@@ -37,6 +39,75 @@ export function StepReviewSubmit({
   onSetExpandedAccessNodeId,
   onSetIsReviewAccessExpanded,
 }: StepReviewSubmitProps) {
+  const [expandedSecondaryNodeIds, setExpandedSecondaryNodeIds] = useState<Record<string, boolean>>({});
+
+  const toggleSecondary = (nodeId: string) => {
+    setExpandedSecondaryNodeIds((current) => ({
+      ...current,
+      [nodeId]: !current[nodeId],
+    }));
+  };
+
+  const getSelectedSections = (permissions: NewMemberPermissions) =>
+    (Object.entries(permissions) as Array<
+      [PermissionCategory, NewMemberOnboardingFormData["permissions"][PermissionCategory]]
+    >)
+      .map(([categoryKey, items]) => {
+        const selectedItems = Object.entries(items)
+          .map(([itemKey, rights]) => ({
+            itemKey,
+            activeRights: Object.entries(rights as Record<string, boolean>)
+              .filter(([, value]) => value)
+              .map(([key]) => key),
+          }))
+          .filter((entry) => entry.activeRights.length > 0);
+
+        return selectedItems.length > 0 ? { categoryKey, selectedItems } : null;
+      })
+      .filter(Boolean) as Array<{
+      categoryKey: PermissionCategory;
+      selectedItems: Array<{ itemKey: string | number | symbol; activeRights: string[] }>;
+    }>;
+
+  const renderPermissionRows = (
+    node: OrgNode,
+    sections: Array<{
+      categoryKey: PermissionCategory;
+      selectedItems: Array<{ itemKey: string | number | symbol; activeRights: string[] }>;
+    }>,
+    bucketPrefix: "primary" | "secondary",
+  ) =>
+    sections.map(({ categoryKey, selectedItems }) => (
+      <div key={`${node.id}-${bucketPrefix}-${categoryKey}`} className="space-y-2.5">
+        <div className="border-b border-slate-200 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-600">
+          {NEW_MEMBER_PERMISSION_STRUCTURE[categoryKey].label}
+        </div>
+        {selectedItems.map(({ itemKey, activeRights }) => (
+          <div key={`${bucketPrefix}-${String(itemKey)}`} className="flex items-start justify-between gap-3 text-sm">
+            <span className="text-slate-600">
+              {String(itemKey)
+                .replace(/([A-Z])/g, " $1")
+                .trim()
+                .replace(/^./, (char) => char.toUpperCase())}
+            </span>
+            <div className="flex flex-wrap justify-end gap-1">
+              {activeRights.map((right) => (
+                <span
+                  key={`${bucketPrefix}-${right}`}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-[11px] font-semibold tracking-[0.04em]",
+                    getOrgNodePermissionChipTheme(node.nodeType),
+                  )}
+                >
+                  {right}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    ));
+
   return (
     <div className="flex h-full min-h-0 flex-col space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="flex items-center gap-2 text-[rgb(53,83,233)]">
@@ -78,25 +149,12 @@ export function StepReviewSubmit({
           >
             {isReviewAccessExpanded ? (
               selectedNodes.map((node, index) => {
-                const permissions = nodePermissions[node.id];
-                if (!permissions) return null;
+                const bucketedPermissions = nodePermissions[node.id];
+                if (!bucketedPermissions) return null;
+                const primarySections = getSelectedSections(bucketedPermissions.primary);
+                const secondarySections = getSelectedSections(bucketedPermissions.secondary);
 
-                const sections = (Object.entries(permissions) as Array<[PermissionCategory, NewMemberOnboardingFormData["permissions"][PermissionCategory]]>)
-                  .map(([categoryKey, items]) => {
-                    const selectedItems = Object.entries(items)
-                      .map(([itemKey, rights]) => ({
-                        itemKey,
-                        activeRights: Object.entries(rights as Record<string, boolean>)
-                          .filter(([, value]) => value)
-                          .map(([key]) => key),
-                      }))
-                      .filter((entry) => entry.activeRights.length > 0);
-
-                    return selectedItems.length > 0 ? { categoryKey, selectedItems } : null;
-                  })
-                  .filter(Boolean) as Array<{ categoryKey: PermissionCategory; selectedItems: Array<{ itemKey: string | number | symbol; activeRights: string[] }> }>;
-
-                if (sections.length === 0) return null;
+                if (primarySections.length === 0 && secondarySections.length === 0) return null;
 
                 return (
                   <div
@@ -120,42 +178,50 @@ export function StepReviewSubmit({
                         {index + 1}
                       </div>
                       <div>
-                        <div className="text-sm font-semibold text-slate-800">{node.name}</div>
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                          <span>{node.name}</span>
+                        </div>
                         <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{node.nodeType}</div>
                       </div>
                     </div>
 
                     <div className="space-y-5">
-                      {sections.map(({ categoryKey, selectedItems }) => (
-                        <div key={`${node.id}-${categoryKey}`} className="space-y-2.5">
-                          <div className="border-b border-slate-200 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-600">
-                            {NEW_MEMBER_PERMISSION_STRUCTURE[categoryKey].label}
-                          </div>
-                          {selectedItems.map(({ itemKey, activeRights }) => (
-                            <div key={String(itemKey)} className="flex items-start justify-between gap-3 text-sm">
-                              <span className="text-slate-600">
-                                {String(itemKey)
-                                  .replace(/([A-Z])/g, " $1")
-                                  .trim()
-                                  .replace(/^./, (char) => char.toUpperCase())}
-                              </span>
-                              <div className="flex flex-wrap justify-end gap-1">
-                                {activeRights.map((right) => (
-                                  <span
-                                    key={right}
-                                    className={cn(
-                                      "rounded-md px-2.5 py-1 text-[11px] font-semibold tracking-[0.04em]",
-                                      getOrgNodePermissionChipTheme(node.nodeType),
-                                    )}
-                                  >
-                                    {right}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
+                      <div className="space-y-3">
+                        <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                          Primary Access
                         </div>
-                      ))}
+                        <div className="space-y-3 rounded-xl border border-slate-200/80 bg-slate-50/40 p-3">
+                          {primarySections.length > 0 ? (
+                            renderPermissionRows(node, primarySections, "primary")
+                          ) : (
+                            <div className="text-sm text-slate-400">No primary access selected.</div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleSecondary(node.id)}
+                          className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-left"
+                        >
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Secondary Access</div>
+                            <div className="text-xs text-slate-500">Collapsed by default for quicker review.</div>
+                          </div>
+                          <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", expandedSecondaryNodeIds[node.id] ? "rotate-180" : "")} />
+                        </button>
+
+                        {expandedSecondaryNodeIds[node.id] ? (
+                          <div className="space-y-3 rounded-xl border border-slate-200/80 bg-white p-3">
+                            {secondarySections.length > 0 ? (
+                              renderPermissionRows(node, secondarySections, "secondary")
+                            ) : (
+                              <div className="text-sm text-slate-400">No secondary access selected.</div>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 );

@@ -28,6 +28,11 @@ export type NewMemberPermissions = {
   };
 };
 
+export type NodePermissionBuckets = {
+  primary: NewMemberPermissions;
+  secondary: NewMemberPermissions;
+};
+
 export type NewMemberOnboardingFormData = {
   basic: {
     name: string;
@@ -42,9 +47,9 @@ export type NewMemberOnboardingFormData = {
     nodeId: string;
     nodeName: string;
     nodePath: string;
-    permissions: NewMemberPermissions;
+    permissions: NodePermissionBuckets;
   }>;
-  transactionalPrimary: TransactionalPermissionItem | null;
+  primaryNodeId: string | null;
 };
 
 export type ValidationErrors = Record<string, string>;

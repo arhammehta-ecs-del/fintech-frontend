@@ -26,6 +26,7 @@ export function NewMemberDialog({ open, onOpenChange, onSubmit }: NewMemberDialo
     selectedNodeId,
     selectedNodes,
     expandedAccessNodeId,
+    primaryNodeId,
     nodePermissions,
     infoNodeId,
     isReviewAccessExpanded,
@@ -35,7 +36,9 @@ export function NewMemberDialog({ open, onOpenChange, onSubmit }: NewMemberDialo
     removeSelectedNode,
     handleNodeSelect,
     togglePermission,
+    reorderSelectedNodes,
     setExpandedAccessNodeId,
+    setPrimaryNodeId,
     setInfoNodeId,
     setIsReviewAccessExpanded,
     prevStep,
@@ -134,9 +137,12 @@ export function NewMemberDialog({ open, onOpenChange, onSubmit }: NewMemberDialo
                   selectedNodes={selectedNodes}
                   errors={errors}
                   expandedAccessNodeId={expandedAccessNodeId}
+                  primaryNodeId={primaryNodeId}
                   infoNodeId={infoNodeId}
                   nodePermissions={nodePermissions}
                   onSetExpandedAccessNodeId={setExpandedAccessNodeId}
+                  onSetPrimaryNodeId={setPrimaryNodeId}
+                  onReorderSelectedNodes={reorderSelectedNodes}
                   onSetInfoNodeId={setInfoNodeId}
                   onTogglePermission={togglePermission}
                 />
@@ -146,6 +152,7 @@ export function NewMemberDialog({ open, onOpenChange, onSubmit }: NewMemberDialo
                 <StepReviewSubmit
                   basic={formData.basic}
                   selectedNodes={selectedNodes}
+                  primaryNodeId={primaryNodeId}
                   nodePermissions={nodePermissions}
                   expandedAccessNodeId={expandedAccessNodeId}
                   isReviewAccessExpanded={isReviewAccessExpanded}

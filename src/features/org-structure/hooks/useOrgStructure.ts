@@ -177,7 +177,6 @@ export function useOrgStructure() {
         nodeType,
         parentNode: {
           nodeName: newNodeParent.name,
-          nodeType: newNodeParent.nodeType,
           nodePath: newNodeParent.nodePath,
         },
       });

@@ -44,7 +44,6 @@ export interface OrgNode {
   children: OrgNode[];
 }
 
-
 export interface AppUser {
   id: string;
   name: string;
@@ -61,9 +60,38 @@ export interface AppUser {
     email: string;
   };
   status?: "Active" | "Inactive" | "Pending";
+  basicDetails?: {
+    name: string;
+    email: string;
+    phone: string;
+    companyOnboardingDate: string;
+    designation: string;
+    employeeId: string;
+    reportingManager: string;
+  };
+  accessDetails?: Array<{
+    roleCategory: "TRANSACTIONAL" | "OPERATIONAL" | "SYSTEM_ACCESS";
+    roleSubCategory: string;
+    roleName: string;
+    nodeName: string;
+    nodePath: string;
+    accessType?: "PRIMARY" | "SECONDARY";
+  }>;
 }
 
-interface CurrentUser {
+export interface CurrentUserCompany {
+  companyName: string;
+  brandName: string;
+  companyCode: string;
+}
+
+export interface CurrentUserGroup {
+  groupName: string;
+  groupCode: string;
+  companies: CurrentUserCompany[];
+}
+
+export interface CurrentUser {
   name: string;
   email: string;
   phone?: string;
@@ -74,6 +102,7 @@ interface CurrentUser {
   groupCode?: string;
   role?: string;
   location?: string;
+  groups: CurrentUserGroup[];
 }
 
 interface AppContextType {

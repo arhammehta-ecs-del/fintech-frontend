@@ -9,6 +9,8 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   const headers = new Headers(options.headers ?? {});
   headers.set("track-id", generateTrackId());
 
+   console.log("document.cookie:", document.cookie);
+   
   if (options.body instanceof FormData) {
     headers.delete("Content-Type");
   } else if (!headers.has("Content-Type")) {

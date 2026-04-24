@@ -36,9 +36,9 @@ export function UserManagementView() {
     setViewingMember,
     editingMember,
     setEditingMember,
-    updateUsersStatus,
-    removeMember,
     handleAddMember,
+    handleApproveMember,
+    handleRejectMember,
     handleSaveEdit,
     statusTab,
     setStatusTab,
@@ -87,9 +87,9 @@ export function UserManagementView() {
               paginatedMembers={paginatedMembers}
               onView={setViewingMember}
               onEdit={setEditingMember}
-              onApprove={(member) => updateUsersStatus(new Set([member.id]), "Active")}
-              onActivate={(member) => updateUsersStatus(new Set([member.id]), "Active")}
-              onRemove={(member) => removeMember(member.id)}
+              onApprove={handleApproveMember}
+              onActivate={handleApproveMember}
+              onRemove={handleRejectMember}
             />
           </div>
 
@@ -109,7 +109,7 @@ export function UserManagementView() {
 
       <Dialog open={Boolean(viewingMember)} onOpenChange={(open) => !open && setViewingMember(null)}>
         <DialogContent className="h-[92vh] w-[96vw] max-w-[1200px] overflow-y-auto p-0">
-          {viewingMember ? <UserManagePreview /> : null}
+          {viewingMember ? <UserManagePreview member={viewingMember} /> : null}
         </DialogContent>
       </Dialog>
 
