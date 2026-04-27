@@ -1,3 +1,4 @@
+import type { RoleRecord } from "@/services/role.service";
 import type { UserOnboardingPayload } from "@/services/user.service";
 import type { OrgNode } from "@/contexts/AppContext";
 import type {
@@ -8,88 +9,51 @@ import type {
 
 const PERMISSION_ACTIONS = ["manager", "user", "viewer"] as const;
 
-const ROLE_CATEGORY_MAP = {
-  transactional: "TRANSACTIONAL",
-  operational: "OPERATIONAL",
-  systemAccess: "SYSTEM_ACCESS",
-} as const;
-
-const ROLE_SUBCATEGORY_MAP: Record<string, string> = {
-  purchaseOrder: "PURCHASE_ORDER",
-  payment: "ACCOUNTS",
-  invoice: "INVOICE",
-  master: "FINOPS",
-  orgStructure: "ORG_STRUCTURE",
-  userManagement: "USER_MANAGEMENT",
-  workflow: "TRACK_WORKFLOW",
-};
-
-const ROLE_NAME_BASE_MAP: Record<string, string> = {
-  purchaseOrder: "Purchase Order",
-  payment: "Accounts",
-  invoice: "Invoice",
-  master: "Fin Ops",
-  orgStructure: "Org Structure",
-  userManagement: "User Management",
-  workflow: "Track Workflow",
-};
-
 export const buildUserOnboardingPayload = (formData: NewMemberOnboardingFormData): UserOnboardingPayload => {
   const selectedNodeEntries =
     formData.nodeSelections.length > 0
       ? formData.nodeSelections
       : [
-          {
-            nodeId: "",
-            nodeName: "",
-            nodePath: "",
-            permissions: {
-              primary: createInitialPermissions(),
-              secondary: formData.permissions,
-            },
+        {
+          nodeId: "",
+          nodeName: "",
+          nodePath: "",
+          permissions: {
+            primary: createInitialPermissions([]),
+            secondary: formData.permissions,
           },
-        ];
+        },
+      ];
 
   const mappedPermissions = selectedNodeEntries.flatMap((nodeEntry) =>
-    (Object.entries(nodeEntry.permissions) as Array<
-      [keyof typeof nodeEntry.permissions, NewMemberPermissions]
-    >).flatMap(([bucketKey, bucketPermissions]) =>
-      Object.entries(bucketPermissions).flatMap(([category, items]) =>
-        Object.entries(items).flatMap(([subCategory, rights]) => {
-          const selectedActions = PERMISSION_ACTIONS.filter((action) => rights[action]);
-          if (selectedActions.length === 0) return [];
+    (Object.entries(nodeEntry.permissions) as Array<[string, NewMemberPermissions]>).flatMap(
+      ([bucketKey, bucketPermissions]) =>
+        Object.entries(bucketPermissions).flatMap(([category, modules]) =>
+          Object.entries(modules).flatMap(([subCategory, rights]) => {
+            const selectedActions = PERMISSION_ACTIONS.filter((action) => rights[action]);
+            const accessType = bucketKey === "primary" ? "PRIMARY" : "SECONDARY";
+            if (selectedActions.length === 0) return [];
 
-          const isTransactional = category === "transactional";
-          const accessType: "PRIMARY" | "SECONDARY" | undefined = isTransactional
-            ? bucketKey === "primary"
-              ? "PRIMARY"
-              : "SECONDARY"
-            : undefined;
+            const roleNameBase = subCategory
+              .split("_")
+              .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+              .join(" ");
 
-          const roleSubCategory =
-            ROLE_SUBCATEGORY_MAP[subCategory] ??
-            subCategory
-              .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
-              .replace(/\s+/g, "_")
-              .toUpperCase();
-          const roleNameBase = ROLE_NAME_BASE_MAP[subCategory] ?? subCategory;
-
-          return selectedActions.map((action) => {
-            const roleName = `${roleNameBase} ${action[0].toUpperCase()}${action.slice(1)}`;
-
-            return {
-              roleCategory: ROLE_CATEGORY_MAP[category as keyof typeof ROLE_CATEGORY_MAP],
-              roleSubCategory,
-              roleName,
+            return selectedActions.map((action) => ({
+              roleCategory: category,
+              roleSubCategory: subCategory,
+              roleName: `${roleNameBase} ${action[0].toUpperCase()}${action.slice(1)}`,
               nodeName: nodeEntry.nodeName,
               nodePath: nodeEntry.nodePath,
-              ...(isTransactional ? { accessType } : {}),
-            };
-          });
-        }),
-      ),
+              accessType,
+            }));
+          }),
+        ),
     ),
   );
+
+  const primary = mappedPermissions.filter((p) => p.accessType === "PRIMARY");
+  const secondary = mappedPermissions.filter((p) => p.accessType === "SECONDARY");
 
   return {
     basicDetails: {
@@ -100,8 +64,26 @@ export const buildUserOnboardingPayload = (formData: NewMemberOnboardingFormData
       employeeId: formData.basic.employeeId.trim(),
       reportingManager: formData.basic.reportingManager.trim(),
     },
-    accessDetails: mappedPermissions,
+    primary,
+    secondary,
   };
+};
+
+/**
+ * Build an empty NewMemberPermissions object from the live roles.
+ * Structure: { [category]: { [subCategory]: { manager: false, user: false, viewer: false } } }
+ */
+export const createInitialPermissions = (roles: RoleRecord[]): NewMemberPermissions => {
+  const permissions: NewMemberPermissions = {};
+
+  for (const role of roles) {
+    const cat = role.category;
+    const sub = role.subCategory;
+    if (!permissions[cat]) permissions[cat] = {};
+    if (!permissions[cat][sub]) permissions[cat][sub] = { manager: false, user: false, viewer: false };
+  }
+
+  return permissions;
 };
 
 export const getInitials = (name: string) =>
@@ -112,41 +94,45 @@ export const getInitials = (name: string) =>
     .slice(0, 2)
     .toUpperCase();
 
+const AVATAR_PALETTES = [
+  { bg: "bg-blue-100", text: "text-blue-700" },
+  { bg: "bg-violet-100", text: "text-violet-700" },
+  { bg: "bg-emerald-100", text: "text-emerald-700" },
+  { bg: "bg-amber-100", text: "text-amber-700" },
+  { bg: "bg-rose-100", text: "text-rose-700" },
+  { bg: "bg-cyan-100", text: "text-cyan-700" },
+  { bg: "bg-fuchsia-100", text: "text-fuchsia-700" },
+  { bg: "bg-teal-100", text: "text-teal-700" },
+  { bg: "bg-orange-100", text: "text-orange-700" },
+  { bg: "bg-indigo-100", text: "text-indigo-700" },
+];
+
+export const getAvatarColor = (seed: string) => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % AVATAR_PALETTES.length;
+  return AVATAR_PALETTES[index];
+};
+
 export const maskContactNumber = (phone?: string) => {
   if (!phone) return "-";
-
   const digits = phone.replace(/\D/g, "");
   if (digits.length <= 4) return digits;
-
   return "*".repeat(digits.length - 4) + digits.slice(-4);
 };
 
-export const createInitialPermissions = (): NewMemberPermissions => ({
-  transactional: {
-    purchaseOrder: { manager: false, user: false, viewer: false },
-    payment: { manager: false, user: false, viewer: false },
-    invoice: { manager: false, user: false, viewer: false },
-  },
-  operational: {
-    master: { manager: false, user: false, viewer: false },
-  },
-  systemAccess: {
-    orgStructure: { manager: false, user: false, viewer: false },
-    userManagement: { manager: false, user: false, viewer: false },
-    workflow: { manager: false, user: false, viewer: false },
-  },
-});
-
 export const createInitialFormData = (): NewMemberOnboardingFormData => ({
   basic: {
-    name: "",
-    email: "",
-    phone: "",
-    designation: "",
-    employeeId: "",
-    reportingManager: "",
+    name: "avm",
+    email: "arhammehta26@gmail.com",
+    phone: "1234567889",
+    designation: "ceo",
+    employeeId: "EMP-10294",
+    reportingManager: "aamm@gmail.com",
   },
-  permissions: createInitialPermissions(),
+  permissions: createInitialPermissions([]),
   nodeSelections: [],
   primaryNodeId: null,
 });

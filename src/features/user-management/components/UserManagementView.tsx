@@ -9,6 +9,7 @@ import UserPagination from "@/features/user-management/components/UserPagination
 import UserTable from "@/features/user-management/components/UserTable";
 import { useUserManagement } from "@/features/user-management/hooks/useUserManagement";
 import { UserManagePreview } from "@/components/shared/UserManagePreview";
+import { RemarkDialog } from "@/components/shared/RemarkDialog";
 
 export function UserManagementView() {
   const {
@@ -43,6 +44,10 @@ export function UserManagementView() {
     statusTab,
     setStatusTab,
     statusHeading,
+    remarkDialogOpen,
+    setRemarkDialogOpen,
+    pendingAction,
+    processUserOnboardingAction,
   } = useUserManagement();
 
   return (
@@ -122,6 +127,16 @@ export function UserManagementView() {
           />
         ) : null}
       </Dialog>
+
+      <RemarkDialog
+        open={remarkDialogOpen}
+        onOpenChange={setRemarkDialogOpen}
+        onConfirm={processUserOnboardingAction}
+        title={pendingAction?.action === "approve" ? "Approve Member" : "Reject Member"}
+        description={`Are you sure you want to ${pendingAction?.action} ${pendingAction?.member.name}? Please provide a remark.`}
+        confirmLabel={pendingAction?.action === "approve" ? "Approve" : "Reject"}
+        confirmVariant={pendingAction?.action === "approve" ? "success" : "destructive"}
+      />
     </div>
   );
 }

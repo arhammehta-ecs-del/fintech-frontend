@@ -6,12 +6,12 @@ export const countOrgNodes = (root: OrgNode | null): number => {
   return 1 + root.children.reduce((acc, child) => acc + countOrgNodes(child), 0);
 };
 
-export const HORIZONTAL_GAP = 24;
-export const VERTICAL_GAP = 60;
-export const CANVAS_PADDING_X = 40;
-export const CANVAS_PADDING_Y = 40;
-export const LEVEL_STEP = 122;
-export const LEAF_SLOT_WIDTH = 184;
+export const HORIZONTAL_GAP = 40;
+export const VERTICAL_GAP = 80;
+export const CANVAS_PADDING_X = 60;
+export const CANVAS_PADDING_Y = 60;
+export const LEVEL_STEP = 140;
+export const LEAF_SLOT_WIDTH = 220;
 export const VIEWPORT_EDGE_PADDING = 96;
 
 export const getNodeBoxSize = (node: OrgNode) => {

@@ -2,7 +2,7 @@ import type { AppUser } from "@/contexts/AppContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown, Check, Edit, Eye, Users, X } from "lucide-react";
-import { maskContactNumber, getInitials } from "@/features/user-management/utils";
+import { maskContactNumber, getInitials, getAvatarColor } from "@/features/user-management/utils";
 
 type UserTableProps = {
   isLoading: boolean;
@@ -61,16 +61,23 @@ export default function UserTable({
       </thead>
       <tbody>
         {paginatedMembers.map((member) => (
-          <tr key={member.id} className="border-b border-slate-200 transition hover:bg-slate-50/80">
+          <tr key={member.email} className="border-b border-slate-200 transition hover:bg-slate-50/80">
             <td className="pl-7 pr-4 py-4">
               <button
                 type="button"
                 onClick={() => onView(member)}
                 className="flex items-center gap-3 text-left"
               >
-                <Avatar className="h-10 w-10 border border-sky-100 bg-sky-50">
-                  <AvatarFallback className="bg-sky-50 text-sky-700">{getInitials(member.name)}</AvatarFallback>
-                </Avatar>
+                {(() => {
+                  const avatar = getAvatarColor(member.name || member.email || member.id);
+                  return (
+                    <Avatar className={`h-10 w-10 ${avatar.bg}`}>
+                      <AvatarFallback className={`${avatar.bg} ${avatar.text} font-semibold`}>
+                        {getInitials(member.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  );
+                })()}
                 <div>
                   <div className="text-sm font-medium text-slate-900">{member.name}</div>
                   <div className="text-sm text-slate-500">{member.email || "No email"}</div>

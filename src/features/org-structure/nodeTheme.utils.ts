@@ -112,6 +112,24 @@ export const getNodeAccentBackground = (branchIndex: number | null, branchDepth:
   return palette.accentSteps[Math.min(branchDepth, palette.accentSteps.length - 1)];
 };
 
+export const getNodeAccentBorderLeft = (branchIndex: number | null, branchDepth: number, isRoot: boolean) => {
+  if (isRoot || branchIndex === null) {
+    return "border-l-slate-400";
+  }
+
+  const palettes = [
+    ["border-l-orange-500", "border-l-orange-300", "border-l-orange-200", "border-l-orange-100"],
+    ["border-l-sky-500", "border-l-sky-300", "border-l-sky-200", "border-l-sky-100"],
+    ["border-l-emerald-500", "border-l-emerald-300", "border-l-emerald-200", "border-l-emerald-100"],
+    ["border-l-rose-500", "border-l-rose-300", "border-l-rose-200", "border-l-rose-100"],
+    ["border-l-amber-500", "border-l-amber-300", "border-l-amber-200", "border-l-amber-100"],
+    ["border-l-cyan-500", "border-l-cyan-300", "border-l-cyan-200", "border-l-cyan-100"],
+  ];
+  
+  const palette = palettes[branchIndex % palettes.length];
+  return palette[Math.min(branchDepth, palette.length - 1)];
+};
+
 export const getBranchAppearance = (branchIndex: number | null, branchDepth: number, isRoot: boolean) => {
   if (isRoot || branchIndex === null) {
     return {

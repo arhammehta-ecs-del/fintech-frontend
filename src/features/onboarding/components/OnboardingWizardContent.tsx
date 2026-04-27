@@ -95,7 +95,17 @@ export function OnboardingWizardContent({
   } = useOnboardingWizard({ embedded, open, onOpenChange });
 
   const content = (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (step < onboardingSteps.length - 1) {
+          next();
+        } else {
+          handleSubmit();
+        }
+      }}
+      className="mx-auto max-w-5xl space-y-6"
+    >
       <div>
         <h1 className="text-2xl font-semibold text-foreground">New Onboarding</h1>
         <p className="mt-1 text-sm text-muted-foreground">Complete the steps below to onboard a new company</p>
@@ -185,15 +195,15 @@ export function OnboardingWizardContent({
       </Card>
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button variant="outline" className="w-full sm:w-auto" onClick={step === 0 ? () => navigate(-1) : prev} disabled={isSubmitting}>
+        <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={step === 0 ? () => navigate(-1) : prev} disabled={isSubmitting}>
           {step === 0 ? "Cancel" : "Back"}
         </Button>
         {step < onboardingSteps.length - 1 ? (
-          <Button className="w-full sm:w-auto" onClick={next}>
+          <Button type="submit" className="w-full sm:w-auto">
             Continue
           </Button>
         ) : (
-          <Button className="w-full sm:w-auto" onClick={handleSubmit} disabled={isSubmitting}>
+          <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting}>
             {isSubmitting ? "Submitting..." : "Submit"}
           </Button>
         )}
@@ -208,8 +218,9 @@ export function OnboardingWizardContent({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>No</AlertDialogCancel>
+            <AlertDialogCancel type="button">No</AlertDialogCancel>
             <AlertDialogAction
+              type="button"
               onClick={() => {
                 if (signatoryToRemove) {
                   removeSignatory(signatoryToRemove.id);
@@ -255,7 +266,7 @@ export function OnboardingWizardContent({
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </form>
   );
 
   if (!embedded) {

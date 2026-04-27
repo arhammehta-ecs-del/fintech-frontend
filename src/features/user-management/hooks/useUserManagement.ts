@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AppUser } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
-import { createUserOnboarding, getCompanyUsers, getFallbackCompanyUsers, updateUserOnboardingAction } from "@/services/user.service";
+import { createUserOnboarding, getCompanyUsers, updateUserOnboardingAction } from "@/services/user.service";
 import { USER_DEFAULT_PAGE_SIZE, USER_PAGE_SIZE_OPTIONS, USER_SEARCH_DEBOUNCE_MS } from "@/features/user-management/constants";
 import type { MemberStatusTab, NewMemberOnboardingFormData, SortOrder } from "@/features/user-management/types";
 import { buildUserOnboardingPayload } from "@/features/user-management/utils";
@@ -22,6 +22,8 @@ export function useUserManagement() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [viewingMember, setViewingMember] = useState<AppUser | null>(null);
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
+  const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ member: AppUser; action: "approve" | "reject" } | null>(null);
 
   const loadUsers = useCallback(
     async (showRefreshToast = false) => {
@@ -35,17 +37,17 @@ export function useUserManagement() {
         if (showRefreshToast) {
           toast({
             title: "Users refreshed",
-            description: "The member list was updated from the latest company data.",
-          });
-        }
-      } catch {
-        setUsers(getFallbackCompanyUsers(companyCode));
-        toast({
-          title: "Unable to load users",
-          description: "Live user API failed. Loaded fallback test users for Active, Pending, and Inactive tabs.",
-          variant: "destructive",
+          description: "The member list was updated from the latest company data.",
         });
-      } finally {
+      }
+    } catch {
+      setUsers([]);
+      toast({
+        title: "Unable to load users",
+        description: "Live user API failed. Please try again once the backend is available.",
+        variant: "destructive",
+      });
+    } finally {
         setIsLoading(false);
       }
     },
@@ -178,9 +180,21 @@ export function useUserManagement() {
     });
   };
 
-  const handleUserOnboardingAction = async (member: AppUser, action: "approve" | "reject") => {
+  const handleUserOnboardingAction = (member: AppUser, action: "approve" | "reject") => {
+    if (!member.id) {
+      toast({ title: "Action failed", description: "User ID is missing", variant: "destructive" });
+      return;
+    }
+    setPendingAction({ member, action });
+    setRemarkDialogOpen(true);
+  };
+
+  const processUserOnboardingAction = async (remark: string) => {
+    if (!pendingAction) return;
+    const { member, action } = pendingAction;
+
     try {
-      await updateUserOnboardingAction(member.id, action);
+      await updateUserOnboardingAction(member.id, action, remark);
       updateUsersStatus(new Set([member.id]), action === "approve" ? "Active" : "Inactive");
       toast({
         title: action === "approve" ? "Member approved" : "Member rejected",
@@ -192,6 +206,8 @@ export function useUserManagement() {
         description: error instanceof Error ? error.message : "Unable to update member request.",
         variant: "destructive",
       });
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -244,7 +260,12 @@ export function useUserManagement() {
     handleRejectMember,
     handleSaveEdit,
     removeMember,
+    removeMember,
     statusHeading,
     loadUsers,
+    remarkDialogOpen,
+    setRemarkDialogOpen,
+    pendingAction,
+    processUserOnboardingAction,
   };
 }

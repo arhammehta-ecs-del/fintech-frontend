@@ -3,6 +3,10 @@ import type { OrgNode } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
 import type { ValidationErrors } from "@/features/user-management/types";
 import { getOrgNodeBadgeTheme, getOrgNodeTheme } from "@/features/user-management/utils";
+import {
+  getBranchAppearance,
+  getNodeAccentBackground,
+} from "@/features/org-structure/nodeTheme.utils";
 
 type StepSelectNodeProps = {
   orgStructure: OrgNode | null;
@@ -18,15 +22,20 @@ function OrgNodeTree({
   selectedNodeId,
   onSelect,
   depth = 0,
+  branchIndex = null,
+  branchDepth = 0,
 }: {
   node: OrgNode;
   selectedNodeId: string | null;
   onSelect: (nodeId: string) => void;
   depth?: number;
+  branchIndex?: number | null;
+  branchDepth?: number;
 }) {
   const isSelected = selectedNodeId === node.id;
-  const theme = getOrgNodeTheme(node.nodeType);
   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
+  const appearance = getBranchAppearance(branchIndex, branchDepth, isRoot);
+  const edgeBg = getNodeAccentBackground(branchIndex, branchDepth, isRoot);
 
   return (
     <div className="space-y-2">
@@ -34,28 +43,49 @@ function OrgNodeTree({
         type="button"
         onClick={() => onSelect(node.id)}
         className={cn(
-          "relative flex w-full items-center justify-between overflow-hidden rounded-xl bg-white px-4 py-3 text-left transition-all",
-          theme.card,
-          isSelected ? theme.selected : cn("border-slate-200", theme.hover),
+          "relative flex w-full items-center justify-between overflow-hidden rounded-xl bg-white px-4 py-3 text-left border transition-all",
+          isSelected
+            ? "border-[rgb(53,83,233)] shadow-[0_0_0_3px_rgba(53,83,233,0.08)] bg-[rgb(53,83,233,0.02)]"
+            : cn(appearance.defaultSurfaceClass, appearance.hoverBorderClass)
         )}
         style={{ marginLeft: depth * 16 }}
       >
-        {!isRoot ? <span className={cn("absolute left-0 top-[12%] h-[76%] w-[4px] rounded-r-full", theme.edge)} aria-hidden="true" /> : null}
-        <div className="min-w-0">
+        {!isRoot && (
+          <span
+            className={cn("absolute left-0 top-[12%] h-[76%] w-[4px] rounded-r-full", edgeBg)}
+            aria-hidden="true"
+          />
+        )}
+        <div className="min-w-0 pl-1 flex-1">
           <div className="truncate text-sm font-semibold text-slate-800">{node.name}</div>
           <div className="mt-1 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{node.nodeType}</div>
         </div>
+        {isSelected && (
+          <span className="ml-2 shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-[rgb(53,83,233)] text-white">
+            <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </span>
+        )}
       </button>
-      {node.children.length > 0 ? (
+
+      {node.children.length > 0 && (
         <div className="space-y-2">
-          {node.children.map((child) => (
-            <OrgNodeTree key={child.id} node={child} selectedNodeId={selectedNodeId} onSelect={onSelect} depth={depth + 1} />
+          {node.children.map((child, childIdx) => (
+            <OrgNodeTree
+              key={child.id}
+              node={child}
+              selectedNodeId={selectedNodeId}
+              onSelect={onSelect}
+              depth={depth + 1}
+              branchIndex={isRoot ? childIdx : branchIndex}
+              branchDepth={isRoot ? 0 : branchDepth + 1}
+            />
           ))}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
+
 
 export function StepSelectNode({
   orgStructure,

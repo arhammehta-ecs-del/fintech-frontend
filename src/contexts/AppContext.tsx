@@ -41,11 +41,13 @@ export interface OrgNode {
   nodeType: string;
   nodePath: string;
   disabled?: boolean;
+  status?: "Active" | "Pending" | "Inactive";
   children: OrgNode[];
 }
 
 export interface AppUser {
-  id: string;
+  id?: string;
+  uuid?: string;
   name: string;
   email: string;
   role: string;
@@ -66,7 +68,7 @@ export interface AppUser {
     phone: string;
     companyOnboardingDate: string;
     designation: string;
-    employeeId: string;
+    employeeId?: string;
     reportingManager: string;
   };
   accessDetails?: Array<{

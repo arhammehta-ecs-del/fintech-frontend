@@ -2,7 +2,7 @@ import type { DragEvent } from "react";
 import type { Company, CompanyStatus, GroupCompany } from "@/contexts/AppContext";
 
 export type VisibleColumn = "groupName" | "companyName" | "code" | "createdDate" | "status" | "manage";
-export type StatusTab = "active" | "pending" | "inactive";
+export type ViewMode = "all" | "grouped" | "independent";
 
 export type DragPayload =
   | { type: "group"; groupId: string }
@@ -37,7 +37,6 @@ export type CorporateTableProps = {
   dragState: DragPayload | null;
   onToggleGroup: (id: string) => void;
   onOpenCompany: (company: Company) => void;
-  onToggleActive: (companyId: string, isActive: boolean) => void;
   onDragStart: (payload: DragPayload) => (event: DragEvent<HTMLElement>) => void;
   onDragEnd: () => void;
   onDragOver: (payload: DragPayload) => (event: DragEvent<HTMLTableRowElement>) => void;
@@ -49,21 +48,21 @@ export type CorporateToolbarProps = {
   onSearchInputChange: (value: string) => void;
   onSearchSubmit: () => void;
   onClearSearch: () => void;
-  selectedStatusTab: StatusTab;
-  onStatusTabChange: (tab: StatusTab) => void;
+  viewMode: ViewMode;
+  onViewModeChange: (viewMode: ViewMode) => void;
   visibleColumns: Set<VisibleColumn>;
   onToggleColumn: (column: VisibleColumn, checked: boolean) => void;
   onOpenOnboarding: () => void;
 };
 
-export type CorporateMobileListProps = {
-  displayRows: DisplayRow[];
-  expanded: Set<string>;
-  showStatusColumn: boolean;
-  visibleColumns: Set<VisibleColumn>;
-  onToggleGroup: (id: string) => void;
-  onOpenCompany: (company: Company) => void;
-};
+// export type CorporateMobileListProps = {
+//   displayRows: DisplayRow[];
+//   expanded: Set<string>;
+//   showStatusColumn: boolean;
+//   visibleColumns: Set<VisibleColumn>;
+//   onToggleGroup: (id: string) => void;
+//   onOpenCompany: (company: Company) => void;
+// };
 
 export type CorporateListState = {
   groups: GroupCompany[];
@@ -71,13 +70,13 @@ export type CorporateListState = {
   searchInput: string;
   appliedSearch: string;
   statusFilter: CompanyStatus;
-  selectedStatusTab: StatusTab;
   selectedCompany: Company | null;
   isPreviewOpen: boolean;
   isOnboardingOpen: boolean;
   visibleColumns: Set<VisibleColumn>;
   isLoading: boolean;
   error: string | null;
+  viewMode: ViewMode;
   showStatusColumn: boolean;
   selectedGroupName: string;
   selectedGroupCode: string;

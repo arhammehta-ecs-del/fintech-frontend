@@ -4,16 +4,16 @@ import { apiFetch } from "@/services/client";
 export type OnboardingPayload = {
   group: {
     name: string;
-    groupCode: string;
+    groupCode: string | null;
     remarks?: string;
   };
   company: {
-    companyCode: string;
+    companyCode: string | null;
     name: string;
     gst: string;
     brand: string;
     ieCode: string;
-    incorporationDate: string;
+    registeredAt: string;
     address: string;
   };
   signatories: Array<{
@@ -80,74 +80,9 @@ type CompanyListApiResponse = {
   } | null;
 };
 
-const COMPANY_LIST_PATH = "/api/v1/company/groups";
-const COMPANY_CREATE_PATH = "/api/v1/onboarding/company/initiate";
-const COMPANY_ACTION_PATH = "/api/v1/onboarding/company/action";
-const MOCK_COMPANY_LIST_RESPONSE: CompanyListApiResponse = {
-  message: "Companies fetched successfully!",
-  companies: {
-    active: [
-      {
-        groupDetails: {
-          groupCode: "TESTGROUP03042026",
-          groupName: "TEST GROUP",
-        },
-        companyDetails: [
-          {
-            id: "7d6716aa-db50-495f-915f-f91c7ea5e5c2",
-            companyCode: "TECHSOLUTIONS04042026",
-            name: "Tech Solutions Ltd",
-            gst: "GST001",
-            brand: "TechSol",
-            ieCode: "",
-            registration: "",
-            address: "",
-          },
-        ],
-      },
-    ],
-    pending: [
-      {
-        groupDetails: {
-          groupCode: "TESTGROUP03042026",
-          groupName: "TEST GROUP",
-        },
-        companyDetails: [
-          {
-            id: "9c4a21b7-2e6a-47a8-9652-0d2b4de67d11",
-            companyCode: "FINANCEPRO03042026",
-            name: "Finance Pro Inc",
-            gst: "GST002",
-            brand: "FinPro",
-            ieCode: "",
-            registration: "",
-            address: "",
-          },
-        ],
-      },
-    ],
-    inactive: [
-      {
-        groupDetails: {
-          groupCode: "",
-          groupName: "",
-        },
-        companyDetails: [
-          {
-            id: "2c8f671e-5c1d-4679-b6cb-c8b5d44e901a",
-            companyCode: "RETAILMAX03042026",
-            name: "Retail Max",
-            gst: "GST003",
-            brand: "RM",
-            ieCode: "",
-            registration: "",
-            address: "",
-          },
-        ],
-      },
-    ],
-  },
-};
+const COMPANY_LIST_PATH = "/api/v1/admin/groups";
+const COMPANY_CREATE_PATH = "/api/v1/company-settings/initiate";
+const COMPANY_ACTION_PATH = "/api/v1/company-settings/action";
 
 const getPacketString = (value: string | null | undefined) => (typeof value === "string" ? value.trim() : "");
 const toUpperValue = (value: string) => value.toUpperCase();
@@ -165,15 +100,16 @@ const normalizeCompanyStatus = (
 };
 
 const mapCompany = (company: RawCompanyListItem, bucketStatus?: Company["status"] | null): Company => {
-  const companyName = getPacketString(company.name) || "Untitled Company";
+  const legalName = getPacketString(company.name) || "Untitled Company";
+  const companyName = getPacketString(company.brand) || legalName;
   const companyCode = toUpperValue(getPacketString(company.companyCode));
 
   return {
     id: getPacketString(company.id) || companyCode || companyName.toLowerCase().replace(/\s+/g, "-"),
-    brand: getPacketString(company.brand) || companyName,
+    brand: companyName,
     companyCode,
     companyName,
-    legalName: companyName,
+    legalName,
     incorporationDate: getPacketString(company.registeredAt) || getPacketString(company.registration),
     address: getPacketString(company.address),
     gstin: getPacketString(company.gst),
@@ -209,16 +145,12 @@ const mapGroups = (groups: RawCompanyGroup[], bucketStatus?: Company["status"] |
   });
 
 export async function getAllCompanies(): Promise<GroupCompany[]> {
-  // Comment this mock payload to go back to the normal backend flow.
-  const payload = MOCK_COMPANY_LIST_RESPONSE;
-  /*
   const payload = await apiFetch<CompanyListApiResponse>(COMPANY_LIST_PATH, {
     method: "POST",
     body: JSON.stringify({
       type: "A",
     }),
   });
-  */
 
   if (payload.companies) {
     const activeGroups = mapGroups(payload.companies.active ?? [], "Approved");
@@ -231,10 +163,16 @@ export async function getAllCompanies(): Promise<GroupCompany[]> {
 }
 
 export async function createCompanyOnboarding(payload: OnboardingPayload, file?: File | null) {
+  const finalPayload = {
+    ...payload,
+    group: { ...payload.group, groupCode: null },
+    company: { ...payload.company, companyCode: null },
+  };
+
   if (file) {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("payload", JSON.stringify(payload));
+    formData.append("payload", JSON.stringify(finalPayload));
 
     return apiFetch<OnboardingResponse>(COMPANY_CREATE_PATH, {
       method: "POST",
@@ -244,14 +182,14 @@ export async function createCompanyOnboarding(payload: OnboardingPayload, file?:
 
   return apiFetch<OnboardingResponse>(COMPANY_CREATE_PATH, {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(finalPayload),
   });
 }
 
 export async function updateCompanyOnboardingAction(
   id: string,
   action: OnboardingAction,
-  remark = "this will we build today",
+  remark: string,
 ) {
   return apiFetch<OnboardingActionResponse>(COMPANY_ACTION_PATH, {
     method: "POST",

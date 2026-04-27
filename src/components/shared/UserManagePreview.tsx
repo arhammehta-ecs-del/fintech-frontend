@@ -1,21 +1,184 @@
-import React, { useState } from 'react';
-import { ShieldCheck, Database, ChevronDown, CreditCard, FileText, Workflow, Users, GitBranch, Edit2, Building2, Globe, Settings2, Box, MoreHorizontal, Mail, Phone, Calendar, IdCard, UserCheck, Maximize2, Minimize2, ArrowRightLeft, Sparkles, X } from "lucide-react";
+import React, { useState } from "react";
+import {
+  Building2,
+  Calendar,
+  ChevronRight,
+  Edit2,
+  IdCard,
+  Mail,
+  Maximize2,
+  Minimize2,
+  Phone,
+  ShieldCheck,
+  UserCheck,
+} from "lucide-react";
 import type { AppUser } from "@/contexts/AppContext";
-import { formatDateLabel } from "@/features/user-management/utils";
+import { cn } from "@/lib/utils";
+import {
+  formatDateLabel,
+  getAvatarColor,
+  getInitials,
+} from "@/features/user-management/utils";
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const formatKey = (key: string) =>
+  key.split("_").map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+
+// Group accessDetails by nodeName, then by roleCategory
+type GroupedByNode = Record<string, {
+  nodeName: string;
+  nodeType: string; // derived from nodePath depth or fallback ""
+  categories: Record<string, Array<{ roleSubCategory: string; roleName: string }>>;
+}>;
+
+function groupByNode(items: NonNullable<AppUser["accessDetails"]>): GroupedByNode {
+  const result: GroupedByNode = {};
+  for (const item of items) {
+    const key = (item.nodeName || item.nodePath || "Unknown").trim();
+    if (!result[key]) {
+      result[key] = { nodeName: item.nodeName || item.nodePath || "Unknown", nodeType: "", categories: {} };
+    }
+    const cat = item.roleCategory || "OTHER";
+    if (!result[key].categories[cat]) {
+      result[key].categories[cat] = [];
+    }
+    result[key].categories[cat].push({
+      roleSubCategory: item.roleSubCategory,
+      roleName: item.roleName,
+    });
+  }
+  return result;
+}
+
+const CATEGORY_ORDER = ["TRANSACTIONAL", "OPERATIONAL", "SYSTEM_ACCESS"];
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+function BasicRow({
+  icon: Icon,
+  label,
+  value,
+  sub,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="flex items-start gap-4 px-5 py-4">
+      <div className="mt-0.5 rounded-lg bg-slate-100/60 p-2 text-slate-400">
+        <Icon size={13} />
+      </div>
+      <div className="space-y-0.5">
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
+        <p className="text-sm font-semibold text-slate-800">{value || "—"}</p>
+        {sub && <p className="text-xs text-slate-400">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+// Branch palette — same as OrgCard / StepSelectNode
+const BRANCH_EDGE = ["bg-orange-500", "bg-sky-500", "bg-emerald-500", "bg-rose-500", "bg-amber-500", "bg-cyan-500"];
+const BRANCH_BADGE = [
+  "bg-orange-100 text-orange-700",
+  "bg-sky-100 text-sky-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-rose-100 text-rose-700",
+  "bg-amber-100 text-amber-700",
+  "bg-cyan-100 text-cyan-700",
+];
+const BRANCH_BORDER = [
+  "border-orange-100",
+  "border-sky-100",
+  "border-emerald-100",
+  "border-rose-100",
+  "border-amber-100",
+  "border-cyan-100",
+];
+
+function NodeAccessCard({
+  nodeName,
+  nodeIndex,
+  categories,
+  isPrimary,
+}: {
+  nodeName: string;
+  nodeIndex: number;
+  categories: Record<string, Array<{ roleSubCategory: string; roleName: string }>>;
+  isPrimary: boolean;
+}) {
+  const paletteIdx = nodeIndex % BRANCH_EDGE.length;
+  const edgeCls   = isPrimary ? "bg-blue-500"              : BRANCH_EDGE[paletteIdx];
+  const badgeCls  = isPrimary ? "bg-blue-100 text-blue-700" : BRANCH_BADGE[paletteIdx];
+  const borderCls = isPrimary ? "border-blue-100"           : BRANCH_BORDER[paletteIdx];
+
+  const presentCats = CATEGORY_ORDER.filter((cat) => (categories[cat]?.length ?? 0) > 0);
+
+  return (
+    <div className={cn("relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm", borderCls)}>
+      {/* Left accent edge */}
+      <span className={cn("absolute left-0 top-[10%] h-[80%] w-[4px] rounded-r-full", edgeCls)} />
+
+      {/* Node header */}
+      <div className="mb-3 flex items-center gap-3 pl-1">
+        <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold", badgeCls)}>
+          {nodeIndex + 1}
+        </div>
+        <div className="text-sm font-semibold text-slate-800">{nodeName}</div>
+      </div>
+
+      {/* Permissions by category */}
+      <div className="space-y-3 rounded-xl border border-slate-200/80 bg-slate-50/40 p-3 pl-4">
+        {presentCats.length === 0 ? (
+          <div className="text-xs text-slate-400">No permissions configured.</div>
+        ) : presentCats.map((cat) => {
+          const rows = categories[cat] ?? [];
+          return (
+            <div key={cat} className="space-y-2">
+              <div className="border-b border-slate-200 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-600">
+                {formatKey(cat)}
+              </div>
+              {rows.map((row, i) => {
+                const lower = (row.roleName || "").toLowerCase();
+                const rightLabel = lower.endsWith("manager") ? "Manager"
+                  : lower.endsWith("user") ? "User"
+                  : "Viewer";
+                const dotCls  = lower.endsWith("manager") ? "bg-violet-500"
+                  : lower.endsWith("user") ? "bg-amber-400" : "bg-slate-400";
+                const textCls = lower.endsWith("manager") ? "text-violet-700"
+                  : lower.endsWith("user") ? "text-amber-700" : "text-slate-500";
+                const bgCls   = lower.endsWith("manager") ? "bg-violet-50"
+                  : lower.endsWith("user") ? "bg-amber-50" : "bg-slate-100";
+                return (
+                  <div key={i} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-slate-600">{formatKey(row.roleSubCategory || "")}</span>
+                    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium", bgCls, textCls)}>
+                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotCls)} />
+                      {rightLabel}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
 
 export function UserManagePreview({ member }: { member: AppUser }) {
-  const [activeTab, setActiveTab] = useState('basic'); 
-  const allSections = ['transactional', 'primary', 'secondary', 'operational', 'system'];
-  const [expandedSections, setExpandedSections] = useState<string[]>([]);
-  
-  // AI States
-  const [aiResult, setAiResult] = useState(null);
-  const [showAiModal, setShowAiModal] = useState(false);
-  
+  const [activeTab, setActiveTab] = useState<"basic" | "access">("basic");
+  const [isExpanded, setIsExpanded] = useState(true);
+
   const rawJoiningDate = member.basicDetails?.companyOnboardingDate || member.onboardingDate || "";
   const formattedJoiningDate = formatDateLabel(rawJoiningDate);
 
-  // User Data
   const userData = {
     name: member.basicDetails?.name || member.name || "-",
     email: member.basicDetails?.email || member.email || "-",
@@ -25,256 +188,255 @@ export function UserManagePreview({ member }: { member: AppUser }) {
     department: member.department || "-",
     employeeId: member.basicDetails?.employeeId || member.employeeId || "-",
     reportingManager: member.basicDetails?.reportingManager || member.manager?.name || "-",
-    reportingManagerEmail: member.manager?.email || member.basicDetails?.reportingManager || ""
+    reportingManagerEmail: member.manager?.email || member.basicDetails?.reportingManager || "",
   };
 
-  const toggleSection = (id) => {
-    setExpandedSections(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
-  };
+  const avatar = getAvatarColor(userData.name);
 
-  const toggleAll = () => {
-    setExpandedSections(expandedSections.length > 0 ? [] : allSections);
-  };
+  const accessDetails = member.accessDetails ?? [];
+  const primaryItems = accessDetails.filter((a) => a.accessType === "PRIMARY");
+  const secondaryItems = accessDetails.filter((a) => a.accessType !== "PRIMARY");
 
-  const PermissionStatus = ({ label, isActive }) => (
-    <div className="flex items-center gap-2 min-w-[100px]">
-      <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]' : 'bg-slate-300 dark:bg-slate-600'}`} />
-      <span className={`text-[12px] font-semibold ${isActive ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'}`}>
-        {label}
-      </span>
-    </div>
-  );
+  const primaryByNode = groupByNode(primaryItems);
+  const secondaryByNode = groupByNode(secondaryItems);
 
-  const PermissionRow = ({ icon: Icon, title, description, scopePath = [], permissions, isSecondary = false }) => (
-    <div className={`group flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors ${isSecondary ? 'p-4' : 'p-5'}`}>
-      <div className="flex items-start gap-4 flex-1">
-        <div className={`bg-slate-50 dark:bg-slate-800/50 text-slate-400 rounded-lg group-hover:text-blue-500 transition-colors ${isSecondary ? 'p-1.5' : 'p-2'}`}>
-          <Icon size={isSecondary ? 16 : 18} />
-        </div>
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h4 className={`${isSecondary ? 'text-[12px]' : 'text-[13px]'} font-semibold text-slate-800 dark:text-slate-100`}>{title}</h4>
-            {scopePath.length > 0 && (
-              <span className="inline-flex items-center rounded-full border border-blue-100 bg-blue-50/60 px-1.5 py-0.5 text-[9px] font-medium tracking-[0.08em] text-blue-600">
-                {scopePath.join(' > ')}
-              </span>
-            )}
-          </div>
-          <p className={`${isSecondary ? 'text-[11px]' : 'text-[12px]'} text-slate-500 dark:text-slate-400 max-w-lg leading-relaxed`}>{description}</p>
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-4 mt-4 md:mt-0 items-center justify-end">
-        {['Approve', 'Manage', 'View']
-          .filter(label => permissions.find(p => p.label === label && p.active))
-          .map((label) => (
-            <PermissionStatus key={label} label={label} isActive={true} />
-          ))
-        }
-        <button className="p-1.5 text-slate-300 hover:text-slate-500 transition-colors">
-          <MoreHorizontal size={16} />
-        </button>
-      </div>
-    </div>
-  );
+  const isEmpty = accessDetails.length === 0;
 
-  const SectionCard = ({ id, title, subtitle, icon: Icon, children, isSecondary = false, count = 0, className = '' }) => {
-    const isExpanded = expandedSections.includes(id);
-    return (
-      <div className={`rounded-xl border transition-all duration-200 ${
-        isSecondary 
-        ? 'border-slate-300 border-dashed dark:border-slate-700 bg-white/80 dark:bg-slate-800/40 ml-10 mb-4 shadow-sm/50' 
-        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm mb-3'
-      } ${className}`}>
-        <button 
-          onClick={() => toggleSection(id)}
-          className={`flex items-center justify-between w-full text-left transition-all ${isSecondary ? 'p-3.5' : 'p-4'}`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`rounded-lg ${isSecondary ? 'text-slate-400 p-1' : 'text-blue-500 p-1.5'}`}>
-              <Icon size={16}/>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className={`${isSecondary ? 'text-[13px]' : 'text-[14px]'} font-bold text-slate-800 dark:text-slate-100`}>
-                  {title} {count > 0 && <span className="text-slate-400 font-medium ml-1">({count})</span>}
-                </h3>
-              </div>
-              <p className={`${isSecondary ? 'text-[10px]' : 'text-[11px]'} text-slate-500 font-medium`}>{subtitle}</p>
-            </div>
-          </div>
-          <ChevronDown size={16} className={`text-slate-300 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}/>
-        </button>
-        <div className={`overflow-hidden transition-all duration-200 ease-in-out ${isExpanded ? `max-h-[1000px] border-t border-slate-100 dark:border-slate-800/50 ${isSecondary ? '' : 'pt-3'}` : 'max-h-0'}`}>
-          {children}
-        </div>
-      </div>
-    );
-  };
+  // Status badge
+  const statusCls =
+    member.status === "Inactive" ? "border-rose-100 bg-rose-50 text-rose-600"
+      : member.status === "Pending" ? "border-amber-100 bg-amber-50 text-amber-600"
+        : "border-emerald-100 bg-emerald-50 text-emerald-600";
 
-  const DetailBit = ({ label, value, icon: Icon, subValue = "" }) => (
-    <div className="flex items-start gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-      <div className="mt-1 p-2 bg-slate-100/50 dark:bg-slate-800 rounded-lg text-slate-400">
-        <Icon size={14} />
-      </div>
-      <div className="space-y-0.5">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-100">{value}</p>
-        {subValue && <p className="text-[11px] text-slate-500 font-medium">{subValue}</p>}
-      </div>
-    </div>
-  );
+  const statusDot =
+    member.status === "Inactive" ? "bg-rose-500"
+      : member.status === "Pending" ? "bg-amber-500"
+        : "bg-emerald-500";
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] p-4 md:p-8 font-sans text-slate-900 dark:text-slate-100 selection:bg-blue-500/10">
-      
-      {showAiModal && (
-        <div className="fixed inset-0 bg-slate-900/32 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-xl rounded-[32px] border border-slate-200/90 bg-[#F8FAFC] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 bg-blue-600 flex items-center justify-between text-white">
-              <div className="flex items-center gap-3">
-                <Sparkles size={20} className="animate-pulse" />
-                <h3 className="font-bold text-[15px] uppercase tracking-widest">AI Workspace Insights</h3>
+    <div className="flex h-full flex-col bg-white">
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="border-b border-slate-200 px-6 pt-6 pb-0">
+        {/* Name + avatar row — no EDIT here so it doesn't clash with dialog X */}
+        <div className="flex items-center gap-4 pr-8">
+          <div className={cn("flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-bold", avatar.bg, avatar.text)}>
+            {getInitials(userData.name)}
+          </div>
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-slate-900">{userData.name}</h2>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-slate-500">{userData.designation}</span>
+              {userData.designation !== "-" && userData.department !== "-" && (
+                <span className="text-slate-300">•</span>
+              )}
+              <span className="text-xs font-medium text-slate-500">{userData.department}</span>
+              <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider", statusCls)}>
+                <span className={cn("h-1 w-1 rounded-full", statusDot)} />
+                {member.status || "Active"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs row — EDIT lives here, well away from the dialog X button */}
+        <div className="mt-4 flex items-center gap-6">
+          {(["basic", "access"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                "relative pb-3 text-xs font-black uppercase tracking-widest transition-colors",
+                activeTab === tab ? "text-[rgb(53,83,233)]" : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              {tab === "basic" ? "Basic Details" : "Access Rights"}
+              {activeTab === tab && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[rgb(53,83,233)]" />
+              )}
+            </button>
+          ))}
+
+          <button
+            type="button"
+            className="ml-auto mb-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
+          >
+            <Edit2 size={13} />
+            EDIT
+          </button>
+        </div>
+      </div>
+
+      {/* ── Tab Content ────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto p-6">
+
+        {/* BASIC DETAILS */}
+        {activeTab === "basic" && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">General Information</span>
               </div>
-              <button onClick={() => setShowAiModal(false)} className="hover:bg-white/20 p-1.5 rounded-full transition-colors">
-                <X size={20} />
+              <div className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                <BasicRow icon={Mail} label="Official Email" value={userData.email} />
+                <BasicRow icon={Phone} label="Mobile Number" value={userData.phone} />
+              </div>
+              <div className="grid grid-cols-1 divide-y divide-slate-100 border-t border-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                <BasicRow icon={Calendar} label="Joining Date" value={userData.joiningDate} />
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Reporting Structure</span>
+              </div>
+              <div className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                <BasicRow
+                  icon={UserCheck}
+                  label="Reporting Manager"
+                  value={userData.reportingManager}
+                  sub={userData.reportingManagerEmail !== userData.reportingManager ? userData.reportingManagerEmail : ""}
+                />
+                <BasicRow
+                  icon={Building2}
+                  label="Current Designation"
+                  value={userData.designation}
+                  sub={userData.department !== "-" ? `${userData.department} Department` : ""}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ACCESS RIGHTS */}
+        {activeTab === "access" && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+
+            {/* Toggle button */}
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsExpanded((v) => !v)}
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 shadow-sm transition hover:border-[rgb(53,83,233)] hover:text-[rgb(53,83,233)]"
+                title={isExpanded ? "Collapse" : "Expand"}
+              >
+                {isExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
               </button>
             </div>
-            <div className="p-8 max-h-[60vh] overflow-y-auto">
-              <div className="prose prose-slate dark:prose-invert max-w-none text-[14px] leading-relaxed whitespace-pre-wrap text-slate-700 dark:text-slate-300">
-                {aiResult}
-              </div>
-            </div>
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
-              <button onClick={() => setShowAiModal(false)} className="px-6 py-2.5 text-[11px] font-black text-slate-500 uppercase tracking-widest">Dismiss</button>
-              <button className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20">Apply Suggestions</button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      <div className="max-w-5xl mx-auto space-y-8 rounded-[32px] border border-slate-200/80 bg-[#F8FAFC] p-6 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.22)] md:p-8">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row items-start justify-between border-b border-slate-200 pb-8">
-          <div className="flex items-start gap-6">
-            <div className="w-16 h-16 rounded-[20px] bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 text-lg font-bold shadow-inner border border-white dark:border-slate-700">
-              {userData.name.split(' ').map(n => n[0]).join('')}
-            </div>
-            <div className="space-y-5">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{userData.name}</h1>
-                <div className="flex items-center gap-3 mt-1.5">
-                  <p className="text-xs text-slate-500 font-semibold">{userData.designation} • {userData.department}</p>
-                  <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
-                    member.status === "Inactive"
-                      ? "bg-rose-50 text-rose-600 border-rose-100"
-                      : member.status === "Pending"
-                        ? "bg-amber-50 text-amber-600 border-amber-100"
-                        : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                  }`}>
-                    <div className={`w-1 h-1 rounded-full ${
-                      member.status === "Inactive"
-                        ? "bg-rose-500"
-                        : member.status === "Pending"
-                          ? "bg-amber-500"
-                          : "bg-emerald-500"
-                    }`} />
-                    {member.status || "Active"}
+            {isEmpty ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 py-16 text-center">
+                <ShieldCheck size={28} className="mb-3 text-slate-300" />
+                <p className="text-sm font-semibold text-slate-500">No access rights configured</p>
+                <p className="mt-1 text-xs text-slate-400">Assign roles to this user via the onboarding flow.</p>
+              </div>
+            ) : isExpanded ? (
+              <div className="space-y-6">
+                {/* PRIMARY — expanded */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-blue-500" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Primary Access</span>
                   </div>
+                  {Object.keys(primaryByNode).length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-sm text-slate-400">
+                      No primary access configured.
+                    </div>
+                  ) : (
+                    Object.entries(primaryByNode).map(([key, group], idx) => (
+                      <NodeAccessCard key={key} nodeName={group.nodeName} nodeIndex={idx} categories={group.categories} isPrimary />
+                    ))
+                  )}
                 </div>
-              </div>
-              <div className="flex gap-8">
-                {['basic', 'permissions'].map((tab) => (
-                  <button 
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`text-[12px] font-black uppercase tracking-widest pb-3 transition-all relative ${
-                      activeTab === tab ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
-                    }`}
-                  >
-                    {tab === 'basic' ? 'Basic Details' : 'Access Rights'}
-                    {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="mt-6 md:mt-0 flex gap-2">
-            <button className="px-5 py-2 text-[12px] font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all shadow-sm">
-              <Edit2 size={14} className="inline mr-2" /> EDIT
-            </button>
-          </div>
-        </div>
 
-        {/* Tab Content */}
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-          {activeTab === 'permissions' && (
-            <div className="relative pt-2">
-              <div className="absolute -top-11 right-0 flex items-center gap-2">
-                
-                <button onClick={toggleAll} className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-400 hover:text-blue-600 transition-all shadow-sm group" title={expandedSections.length > 0 ? "Collapse All" : "Expand All"}>
-                  {expandedSections.length > 0 ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-                </button>
+                {/* SECONDARY — expanded */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-slate-400" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
+                  </div>
+                  {Object.keys(secondaryByNode).length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-sm text-slate-400">
+                      No secondary access configured.
+                    </div>
+                  ) : (
+                    Object.entries(secondaryByNode).map(([key, group], idx) => (
+                      <NodeAccessCard key={key} nodeName={group.nodeName} nodeIndex={idx} categories={group.categories} isPrimary={false} />
+                    ))
+                  )}
+                </div>
               </div>
-              <div className="space-y-1">
-                <SectionCard id="transactional" title="Transactional" subtitle="Primary and secondary transaction handling" icon={ArrowRightLeft} count={2}>
-                  <SectionCard id="primary" title="Primary Access" subtitle="Core procurement authority" icon={Building2} isSecondary={true} count={1}>
-                    <PermissionRow isSecondary icon={FileText} title="Purchase (PO)" scopePath={['PO', 'Aluminum']} description="Manage entity-wide procurement and vendor contracts." permissions={[{label: 'Approve', active: true}, {label: 'Manage', active: true}, {label: 'View', active: true}]} />
-                  </SectionCard>
-                  <SectionCard id="secondary" title="Secondary Access" subtitle="Internal support and financial processing" icon={Globe} isSecondary={true} count={2} className="ml-16">
-                    <PermissionRow isSecondary icon={CreditCard} title="Steel" scopePath={['Test Company']} description="Support steel business processes and cross-functional requests." permissions={[{label: 'Approve', active: true}, {label: 'Manage', active: true}, {label: 'View', active: true}]} />
-                    <PermissionRow isSecondary icon={Users} title="HR & Payroll" scopePath={['HR Payroll', 'Pune', 'Strategy']} description="Manage team onboarding and payroll processing." permissions={[{label: 'Approve', active: false}, {label: 'Manage', active: false}, {label: 'View', active: true}]} />
-                  </SectionCard>
-                </SectionCard>
-                <SectionCard id="operational" title="Operations" subtitle="Logistics and system record management" icon={Settings2} count={2}>
-                  <PermissionRow icon={Box} title="Inventory Control" scopePath={['Inventory', 'Warehouse 02', 'Steel']} description="Warehouse stock tracking." permissions={[{label: 'Approve', active: true}, {label: 'Manage', active: true}, {label: 'View', active: true}]} />
-                  <PermissionRow icon={Database} title="Master Data" scopePath={['Master Data', 'Vendors', 'Strategy']} description="Centralized supplier and product catalogs." permissions={[{label: 'Approve', active: false}, {label: 'Manage', active: false}, {label: 'View', active: true}]} />
-                </SectionCard>
-                <SectionCard id="system" title="System Management" subtitle="Administrative tools and routing" icon={Workflow} count={3}>
-                  <PermissionRow icon={Workflow} title="Workflows" scopePath={['Workflows', 'Approvals', 'Strategy']} description="Logical routing for approval chains." permissions={[{label: 'Approve', active: false}, {label: 'Manage', active: false}, {label: 'View', active: true}]} />
-                  <PermissionRow icon={Users} title="User Management" scopePath={['User Management', 'Mumbai', 'Steel']} description="Team access and security credentials." permissions={[{label: 'Approve', active: false}, {label: 'Manage', active: false}, {label: 'View', active: false}]} />
-                  <PermissionRow icon={GitBranch} title="Org Structure" scopePath={['Org Structure', 'Pune', 'Aluminum']} description="Business unit mapping." permissions={[{label: 'Approve', active: false}, {label: 'Manage', active: false}, {label: 'View', active: true}]} />
-                </SectionCard>
-              </div>
-            </div>
-          )}
+            ) : (
+              /* COLLAPSED — matches StepReviewSubmit collapsed style */
+              <div className="space-y-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-3">
 
-          {activeTab === 'basic' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="md:col-span-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden relative">
-                  <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                    <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">General Information</h3>
+                {/* Primary collapsed */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-blue-500" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Primary Access</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-x divide-y sm:divide-y-0 divide-slate-100 dark:divide-slate-800">
-                    <DetailBit icon={Mail} label="Official Email" value={userData.email} />
-                    <DetailBit icon={Phone} label="Mobile Number" value={userData.phone} />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 border-t divide-x divide-slate-100 dark:divide-slate-800">
-                    <DetailBit icon={IdCard} label="Employee ID" value={userData.employeeId} />
-                    <DetailBit icon={Calendar} label="Joining Date" value={userData.joiningDate} />
-                  </div>
+                  {Object.keys(primaryByNode).length === 0 ? (
+                    <div className="text-xs text-slate-400">No primary access configured.</div>
+                  ) : (
+                    Object.entries(primaryByNode).map(([key, group], idx) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setIsExpanded(true)}
+                        className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
+                      >
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+                          {idx + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-xs font-semibold text-slate-700">{group.nodeName}</div>
+                        </div>
+                        <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      </button>
+                    ))
+                  )}
                 </div>
-                <div className="md:col-span-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm p-5 flex flex-col items-center justify-center text-center space-y-3">
-                   <div className="p-2.5 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl text-emerald-500"><ShieldCheck size={20} /></div>
-                   <div className="space-y-0.5">
-                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">System Status</p>
-                     <p className="text-[12px] font-bold text-emerald-600 uppercase tracking-tight">Verified Member</p>
-                   </div>
+
+                {/* Secondary collapsed */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-slate-400" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
+                  </div>
+                  {Object.keys(secondaryByNode).length === 0 ? (
+                    <div className="text-xs text-slate-400">No secondary access configured.</div>
+                  ) : (
+                    Object.entries(secondaryByNode).map(([key, group], idx) => {
+                      const pi = idx % BRANCH_BADGE.length;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setIsExpanded(true)}
+                          className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
+                        >
+                          <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold", BRANCH_BADGE[pi])}>
+                            {idx + 1}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="truncate text-xs font-semibold text-slate-700">{group.nodeName}</div>
+                          </div>
+                          <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
-                <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex items-center justify-between">
-                  <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Reporting Structure</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 divide-x divide-slate-100 dark:divide-slate-800">
-                    <DetailBit icon={UserCheck} label="Reporting Manager" value={userData.reportingManager} subValue={userData.reportingManagerEmail} />
-                    <DetailBit icon={Building2} label="Current Designation" value={userData.designation} subValue={`${userData.department} Department`} />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );
 }
+
+export default UserManagePreview;

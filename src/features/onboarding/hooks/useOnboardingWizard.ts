@@ -165,7 +165,6 @@ export function useOnboardingWizard({ embedded = false, open = true, onOpenChang
       if (!legalName.trim()) nextErrors.legalName = "Required";
       if (!companyName.trim()) nextErrors.companyName = "Required";
       if (!gstin.trim()) nextErrors.gstin = "Required";
-      if (!gstDocumentFile) nextErrors.gstDocument = "Required";
       if (!ieCode.trim()) nextErrors.ieCode = "Required";
       if (!incDate.trim()) nextErrors.incDate = "Required";
       else if (incDate > todayDateInputValue) nextErrors.incDate = "Date cannot be later than today";
@@ -261,7 +260,7 @@ export function useOnboardingWizard({ embedded = false, open = true, onOpenChang
       gst: gstin.trim(),
       brand: companyName.trim(),
       ieCode: ieCode.trim(),
-      incorporationDate: incDate,
+      registeredAt: incDate,
       address: address.trim(),
     },
     signatories: signatories.map((sig) => ({

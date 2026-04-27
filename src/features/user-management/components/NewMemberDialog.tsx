@@ -20,12 +20,13 @@ type NewMemberDialogProps = {
 export function NewMemberDialog({ open, onOpenChange, onSubmit }: NewMemberDialogProps) {
   const {
     orgStructure,
+    roles,
     step,
     formData,
     errors,
     selectedNodeId,
     selectedNodes,
-    expandedAccessNodeId,
+    expandedAccessNodeIds,
     primaryNodeId,
     nodePermissions,
     infoNodeId,
@@ -37,7 +38,7 @@ export function NewMemberDialog({ open, onOpenChange, onSubmit }: NewMemberDialo
     handleNodeSelect,
     togglePermission,
     reorderSelectedNodes,
-    setExpandedAccessNodeId,
+    setExpandedAccessNodeIds,
     setPrimaryNodeId,
     setInfoNodeId,
     setIsReviewAccessExpanded,
@@ -48,7 +49,11 @@ export function NewMemberDialog({ open, onOpenChange, onSubmit }: NewMemberDialo
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[100dvh] w-[100vw] max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[92vh] sm:w-[min(96vw,76rem)] sm:max-w-[76rem] sm:rounded-lg">
-        <div
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handlePrimaryAction();
+          }}
           className={cn(
             "mx-auto flex h-full w-full max-w-6xl flex-col px-6 py-6 sm:px-8 sm:py-8",
             step === 1 ? "space-y-4 sm:space-y-5 sm:py-6" : step === 2 ? "space-y-4 sm:space-y-5 sm:py-6" : "space-y-6",
@@ -135,12 +140,13 @@ export function NewMemberDialog({ open, onOpenChange, onSubmit }: NewMemberDialo
               {step === 3 ? (
                 <StepAccessRights
                   selectedNodes={selectedNodes}
+                  roles={roles}
                   errors={errors}
-                  expandedAccessNodeId={expandedAccessNodeId}
+                  expandedAccessNodeIds={expandedAccessNodeIds}
                   primaryNodeId={primaryNodeId}
                   infoNodeId={infoNodeId}
                   nodePermissions={nodePermissions}
-                  onSetExpandedAccessNodeId={setExpandedAccessNodeId}
+                  onSetExpandedAccessNodeIds={setExpandedAccessNodeIds}
                   onSetPrimaryNodeId={setPrimaryNodeId}
                   onReorderSelectedNodes={reorderSelectedNodes}
                   onSetInfoNodeId={setInfoNodeId}
@@ -154,10 +160,10 @@ export function NewMemberDialog({ open, onOpenChange, onSubmit }: NewMemberDialo
                   selectedNodes={selectedNodes}
                   primaryNodeId={primaryNodeId}
                   nodePermissions={nodePermissions}
-                  expandedAccessNodeId={expandedAccessNodeId}
+                  expandedAccessNodeIds={expandedAccessNodeIds}
                   isReviewAccessExpanded={isReviewAccessExpanded}
                   reviewAccessNodeRefs={reviewAccessNodeRefs}
-                  onSetExpandedAccessNodeId={setExpandedAccessNodeId}
+                  onSetExpandedAccessNodeIds={setExpandedAccessNodeIds}
                   onSetIsReviewAccessExpanded={setIsReviewAccessExpanded}
                 />
               ) : null}
@@ -166,17 +172,17 @@ export function NewMemberDialog({ open, onOpenChange, onSubmit }: NewMemberDialo
 
           <DialogFooter className={cn("border-t border-border bg-background px-0", step === 1 || step === 3 ? "py-3" : "py-4")}>
             <div className="flex w-full flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Button variant="outline" className="w-full sm:w-auto" onClick={step === 1 ? () => onOpenChange(false) : prevStep}>
+              <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={step === 1 ? () => onOpenChange(false) : prevStep}>
                 {step === 1 ? "Cancel" : "Back"}
               </Button>
 
-              <Button className="w-full bg-[rgb(53,83,233)] text-white hover:bg-[rgb(53,83,233)]/90 sm:w-auto" onClick={handlePrimaryAction}>
+              <Button type="submit" className="w-full bg-[rgb(53,83,233)] text-white hover:bg-[rgb(53,83,233)]/90 sm:w-auto">
                 {step === 4 ? (onSubmit ? "Confirm & Create User" : "Close Preview") : "Continue"}
                 {step < 4 ? <ChevronRight className="ml-2 h-4 w-4" /> : null}
               </Button>
             </div>
           </DialogFooter>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

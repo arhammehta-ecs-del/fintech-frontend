@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   getBranchAppearance,
   getNodeAccentBackground,
+  getNodeAccentBorderLeft,
   getNodeIcon,
   getNodeTheme,
   getPlusButtonAccentClass,
@@ -33,6 +34,7 @@ export function OrgCard({
   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
   const appearance = getBranchAppearance(branchIndex, branchDepth, isRoot);
   const accentBackgroundClass = getNodeAccentBackground(branchIndex, branchDepth, isRoot);
+  const accentBorderClass = getNodeAccentBorderLeft(branchIndex, branchDepth, isRoot);
   const plusButtonAccentClass = getPlusButtonAccentClass(accentBackgroundClass);
 
   return (
@@ -45,22 +47,22 @@ export function OrgCard({
           isRoot ? "min-h-[48px] min-w-[108px] rounded-2xl px-3 py-2.5" : compact ? "min-h-[58px] min-w-[160px] py-3" : "min-h-[62px] min-w-[168px] py-3.5",
           appearance.hoverBorderClass,
           active ? appearance.activeBorderClass : appearance.defaultSurfaceClass,
+          !isRoot && `border-l-[4px] ${accentBorderClass}`,
+          node.status === "Pending" && "border-dashed border-amber-300 bg-amber-50/30"
         )}
       >
-        {!isRoot ? (
-          <span
-            className={cn(
-              "absolute left-0 top-[10%] h-[80%] w-[4px] rounded-full",
-              accentBackgroundClass,
-            )}
-            aria-hidden="true"
-          />
-        ) : null}
         <div className={cn("flex items-center justify-center rounded-full bg-white/75", isRoot ? "h-5 w-5" : "h-7 w-7")}>
           <Icon className={cn(isRoot ? "h-3 w-3" : "h-3.5 w-3.5", theme.iconColor)} />
         </div>
         <div className="min-w-0">
-          <p className={cn("truncate font-semibold", isRoot ? "text-[11px]" : compact ? "text-[13px]" : "text-[14px]")}>{node.name}</p>
+          <div className="flex items-center gap-2">
+            <p className={cn("truncate font-semibold", isRoot ? "text-[11px]" : compact ? "text-[13px]" : "text-[14px]")}>{node.name}</p>
+            {node.status === "Pending" && (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-700">
+                Pending
+              </span>
+            )}
+          </div>
           {!isRoot ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</p> : null}
         </div>
       </button>

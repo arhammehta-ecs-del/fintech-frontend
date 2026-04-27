@@ -120,35 +120,44 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [selectedCompanyId, setSelectedCompanyLocalId] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // useEffect(() => {
-  //   let ignore = false;
+  useEffect(() => {
+    let ignore = false;
 
-  //   async function loadCompanies() {
-  //     try {
-  //       const companyGroups = await getAllCompanies();
-  //       if (!ignore) {
-  //         setGroups(companyGroups);
-  //       }
-  //     } catch (error) {
-  //       if (!ignore) {
-  //         const statusMatch = error instanceof Error ? error.message.match(/Request failed:\s*(\d{3})/) : null;
-  //         const statusCode = statusMatch ? Number(statusMatch[1]) : null;
-  //         if (statusCode === 401 || statusCode === 403) {
-  //           navigate("/login", { replace: true });
-  //           return;
-  //         }
-  //         setGroups([]);
-  //       }
-  //     }
-  //   }
+    async function loadCompanies() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const companyGroups = await getAllCompanies();
+        if (!ignore) {
+          setGroups(companyGroups);
+        }
+      } catch (error) {
+        if (!ignore) {
+          const statusMatch = error instanceof Error ? error.message.match(/Request failed:\s*(\d{3})/) : null;
+          const statusCode = statusMatch ? Number(statusMatch[1]) : null;
+          if (statusCode === 401 || statusCode === 403) {
+            navigate("/login", { replace: true });
+            return;
+          }
+          setGroups([]);
+          setError(error instanceof Error ? error.message : "Failed to load dashboard data");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      }
+    }
 
-  //   void loadCompanies();
+    void loadCompanies();
 
-  //   return () => {
-  //     ignore = true;
-  //   };
-  // }, [navigate]);
+    return () => {
+      ignore = true;
+    };
+  }, [navigate]);
 
   const totalCompanies = countCompanies(groups);
   const pending = countByStatus(groups, "Pending");
@@ -180,6 +189,26 @@ export default function Dashboard() {
 
     setGroups((prevGroups) => updateCompanyStatusInGroups(prevGroups, companyId, nextStatus));
   };
+
+  if (isLoading) {
+    return (
+      <Card className="flex flex-col items-center justify-center py-16 text-center shadow-sm">
+        <Building2 className="mb-4 h-12 w-12 animate-pulse text-muted-foreground/40" />
+        <h3 className="text-lg font-medium text-foreground">Loading dashboard</h3>
+        <p className="mt-1 text-sm text-muted-foreground">Fetching the latest company overview.</p>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="flex flex-col items-center justify-center py-16 text-center shadow-sm">
+        <Building2 className="mb-4 h-12 w-12 text-destructive/40" />
+        <h3 className="text-lg font-medium text-foreground">Unable to load dashboard</h3>
+        <p className="mt-1 mb-4 text-sm text-muted-foreground">{error}</p>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">

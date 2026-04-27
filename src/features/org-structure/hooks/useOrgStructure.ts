@@ -22,6 +22,7 @@ export function useOrgStructure() {
   const [zoom, setZoom] = useState(1);
   const [isNewNodePopupOpen, setIsNewNodePopupOpen] = useState(false);
   const [newNodeParent, setNewNodeParent] = useState<OrgNode | null>(null);
+  const [pendingNodeForReview, setPendingNodeForReview] = useState<OrgNode | null>(null);
   const treeScrollRef = useRef<HTMLDivElement | null>(null);
   const bottomScrollRef = useRef<HTMLDivElement | null>(null);
   const graphContentRef = useRef<HTMLDivElement | null>(null);
@@ -190,6 +191,11 @@ export function useOrgStructure() {
   };
 
   const handleDepartmentClick = (node: OrgNode) => {
+    if (node.status === "Pending") {
+      setPendingNodeForReview(node);
+      return;
+    }
+
     if (selectedDepartment?.id === node.id && sidebarOpen) {
       startTransition(() => {
         setSelectedDepartment(null);
@@ -241,6 +247,21 @@ export function useOrgStructure() {
     });
   };
 
+  const handleApproveNode = async (node: OrgNode) => {
+    // In a real app, this would be an API call
+    console.log("APPROVING NODE:", node.name);
+    setPendingNodeForReview(null);
+    // Refreshing org structure to simulate status change
+    await loadOrgForCompanyCode(companyCode);
+  };
+
+  const handleRejectNode = async (node: OrgNode) => {
+    // In a real app, this would be an API call
+    console.log("REJECTING NODE:", node.name);
+    setPendingNodeForReview(null);
+    await loadOrgForCompanyCode(companyCode);
+  };
+
   const zoomOut = () => setZoom((current) => Math.max(MIN_ZOOM, Number((current - ZOOM_STEP).toFixed(2))));
   const zoomIn = () => setZoom((current) => Math.min(MAX_ZOOM, Number((current + ZOOM_STEP).toFixed(2))));
 
@@ -256,6 +277,7 @@ export function useOrgStructure() {
     zoom,
     isNewNodePopupOpen,
     newNodeParent,
+    pendingNodeForReview,
     treeScrollRef,
     bottomScrollRef,
     graphContentRef,
@@ -267,10 +289,13 @@ export function useOrgStructure() {
     setCanvasWidth,
     setIsNewNodePopupOpen,
     setNewNodeParent,
+    setPendingNodeForReview,
     handleOpenNewNodePopup,
     handleCreateNode,
     handleDepartmentClick,
     handleSidebarOpenChange,
+    handleApproveNode,
+    handleRejectNode,
     zoomOut,
     zoomIn,
   };

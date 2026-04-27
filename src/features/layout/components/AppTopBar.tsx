@@ -1,4 +1,4 @@
-import { Bell, Building2, LogOut, Menu, Settings, ShieldCheck, User, UserPlus } from "lucide-react";
+import { Bell, LogOut, Menu, Settings, ShieldCheck, User, UserPlus } from "lucide-react";
 import type { NavigateFunction } from "react-router-dom";
 import type { AppUser } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
@@ -33,9 +33,8 @@ export function AppTopBar({
   navigate,
   onLogout,
 }: AppTopBarProps) {
-  const pendingCompanies: Array<{ id: string; companyName: string }> = [];
   const pendingMembers = users.filter((user) => user.status === "Pending");
-  const totalNotifications = pendingCompanies.length + pendingMembers.length;
+  const totalNotifications = pendingMembers.length;
 
   return (
     <header className="sticky top-0 z-20 flex min-h-14 items-center justify-between gap-3 border-b border-border bg-card px-3 sm:px-4 lg:px-6">
@@ -91,29 +90,6 @@ export function AppTopBar({
                 </div>
               ) : (
                 <div className="flex flex-col">
-                  {pendingCompanies.length > 0 ? (
-                    <div className="px-3 py-2">
-                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">Company Requests</h4>
-                      <div className="space-y-1">
-                        {pendingCompanies.map((company) => (
-                          <button
-                            key={company.id}
-                            onClick={() => navigate("/corporates", { state: { statusFilter: "Pending" } })}
-                            className="w-full flex items-start text-left gap-3 px-2 py-2 hover:bg-muted/50 rounded-md transition-colors"
-                          >
-                            <div className="mt-0.5 bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 p-1.5 rounded-full">
-                              <Building2 className="h-3.5 w-3.5" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-foreground truncate">{company.companyName}</p>
-                              <p className="text-xs text-muted-foreground line-clamp-1">New company onboarding request</p>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-
                   {pendingMembers.length > 0 ? (
                     <div className="px-3 py-2 border-t border-border">
                       <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">Member Requests</h4>

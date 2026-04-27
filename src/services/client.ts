@@ -9,8 +9,6 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   const headers = new Headers(options.headers ?? {});
   headers.set("track-id", generateTrackId());
 
-   console.log("document.cookie:", document.cookie);
-   
   if (options.body instanceof FormData) {
     headers.delete("Content-Type");
   } else if (!headers.has("Content-Type")) {
@@ -22,8 +20,6 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     credentials: "include",
     headers,
   });
-
-  console.log(`API Request: ${options.method ?? "GET"} ${url} - Track ID: ${headers.get("track-id")}`);
 
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);

@@ -6,27 +6,13 @@ export type SortOrder = "asc" | "desc";
 
 export type PermissionAction = "manager" | "user" | "viewer";
 
-export type PermissionCategory = "transactional" | "operational" | "systemAccess";
+export type PermissionCategory = string;
 
 export type PermissionBucket = Record<PermissionAction, boolean>;
 
-export type TransactionalPermissionItem = "purchaseOrder" | "payment" | "invoice";
-
-export type NewMemberPermissions = {
-  transactional: {
-    purchaseOrder: PermissionBucket;
-    payment: PermissionBucket;
-    invoice: PermissionBucket;
-  };
-  operational: {
-    master: PermissionBucket;
-  };
-  systemAccess: {
-    orgStructure: PermissionBucket;
-    userManagement: PermissionBucket;
-    workflow: PermissionBucket;
-  };
-};
+// Dynamic: category key → module key → action bucket
+// e.g. { "TRANSACTIONAL": { "PURCHASE_ORDER": { manager: true, user: false, viewer: false } } }
+export type NewMemberPermissions = Record<string, Record<string, PermissionBucket>>;
 
 export type NodePermissionBuckets = {
   primary: NewMemberPermissions;

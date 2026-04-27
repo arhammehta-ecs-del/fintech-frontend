@@ -8,6 +8,7 @@ import CorporateTable from "@/features/corporate/components/CorporateTable";
 import CorporateToolbar from "@/features/corporate/components/CorporateToolbar";
 import { useCorporateDrag } from "@/features/corporate/hooks/useCorporateDrag";
 import { useCorporateList } from "@/features/corporate/hooks/useCorporateList";
+import { RemarkDialog } from "@/components/shared/RemarkDialog";
 import type { OnboardingWizardRendererProps } from "@/features/corporate/types";
 
 type CorporateListViewProps = {
@@ -41,6 +42,10 @@ export function CorporateListView({ OnboardingWizardRenderer }: CorporateListVie
     handleSaveCompany,
     handleToggleCompanyActive,
     toggleColumn,
+    remarkDialogOpen,
+    setRemarkDialogOpen,
+    pendingAction,
+    processCompanyAction,
   } = useCorporateList();
 
   const { dragState, handleDragStart, handleDragEnd, handleDragOver, handleDrop } = useCorporateDrag(setGroups);
@@ -102,6 +107,16 @@ export function CorporateListView({ OnboardingWizardRenderer }: CorporateListVie
         onToggleActive={handleToggleCompanyActive}
       />
       <OnboardingWizardRenderer embedded open={isOnboardingOpen} onOpenChange={setIsOnboardingOpen} />
+
+      <RemarkDialog
+        open={remarkDialogOpen}
+        onOpenChange={setRemarkDialogOpen}
+        onConfirm={processCompanyAction}
+        title={pendingAction?.isActive ? "Approve Company" : "Reject Company"}
+        description={`Are you sure you want to ${pendingAction?.isActive ? "approve" : "reject"} this company? Please provide a remark.`}
+        confirmLabel={pendingAction?.isActive ? "Approve" : "Reject"}
+        confirmVariant={pendingAction?.isActive ? "success" : "destructive"}
+      />
     </div>
   );
 }

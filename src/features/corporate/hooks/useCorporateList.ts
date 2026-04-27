@@ -31,6 +31,8 @@ export function useCorporateList() {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ companyId: string; isActive: boolean } | null>(null);
   const statusFilter: CompanyStatus =
     selectedStatusTab === "inactive" ? "Inactive" : selectedStatusTab === "pending" ? "Pending" : "Approved";
 
@@ -121,27 +123,30 @@ export function useCorporateList() {
     setSelectedCompany(updatedCompany);
   };
 
-  const handleToggleCompanyActive = async (companyId: string, isActive: boolean) => {
-    const existingCompany = groups
-      .flatMap((group) => group.subsidiaries)
-      .find((company) => company.id === companyId);
+  const handleToggleCompanyActive = (companyId: string, isActive: boolean) => {
+    setPendingAction({ companyId, isActive });
+    setRemarkDialogOpen(true);
+  };
+
+  const processCompanyAction = async (remark: string) => {
+    if (!pendingAction) return;
+    const { companyId, isActive } = pendingAction;
     const nextStatus: CompanyStatus = isActive ? "Approved" : "Inactive";
-    if (!existingCompany || existingCompany.status === nextStatus) return;
 
     try {
-      await updateCompanyOnboardingAction(companyId, isActive ? "approve" : "reject");
+      await updateCompanyOnboardingAction(companyId, isActive ? "approve" : "reject", remark);
+      updateSpecificCompany(companyId, (company) => ({
+        ...company,
+        status: nextStatus,
+      }));
+      setSelectedCompany((previous) =>
+        previous && previous.id === companyId ? { ...previous, status: nextStatus } : previous,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update company status");
-      return;
+    } finally {
+      setPendingAction(null);
     }
-
-    updateSpecificCompany(companyId, (company) => ({
-      ...company,
-      status: nextStatus,
-    }));
-    setSelectedCompany((previous) =>
-      previous && previous.id === companyId ? { ...previous, status: nextStatus } : previous,
-    );
   };
 
   const toggleColumn = (column: VisibleColumn, checked: boolean) => {
@@ -179,7 +184,12 @@ export function useCorporateList() {
     toggleGroup,
     openModal,
     handleSaveCompany,
+    handleSaveCompany,
     handleToggleCompanyActive,
     toggleColumn,
+    remarkDialogOpen,
+    setRemarkDialogOpen,
+    pendingAction,
+    processCompanyAction,
   };
 }

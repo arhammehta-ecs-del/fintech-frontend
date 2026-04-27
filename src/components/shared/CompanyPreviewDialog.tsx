@@ -122,7 +122,6 @@ export function CompanyPreviewDialog({
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div>
                 <h3 className={sectionHeadingClassName}>Company Information</h3>
-                {groupName ? <p className="mt-1 text-sm text-muted-foreground">{groupName}</p> : null}
               </div>
             </div>
 
