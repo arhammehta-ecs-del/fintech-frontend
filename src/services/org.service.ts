@@ -17,18 +17,32 @@ type CreateOrgNodeResponse = {
   data?: unknown;
 };
 
+type OrgNodeAction = "approve" | "reject";
+
+type OrgNodeActionResponse = {
+  message?: string;
+  code?: number;
+  success?: boolean;
+  data?: unknown;
+};
+
 type RawCompanyRecord = Record<string, unknown>;
 type RawOrgRecord = Record<string, unknown>;
+type RawOrgRequestRecord = Record<string, unknown>;
 
 type OrgApiResponse = {
   message?: string;
   code?: number;
   success?: boolean;
-  data?: RawOrgRecord[];
+  data?: {
+    active?: RawOrgRecord[];
+    pending?: RawOrgRequestRecord[];
+  };
 };
 
 const COMPANY_ORG_PATH = "/api/v1/company-settings/org/fetch";
 const NEW_NODE_PATH = "/api/v1/company-settings/org/initiate";
+const NODE_ACTION_PATH = "/api/v1/company-settings/org/approve";
 
 const getString = (record: RawCompanyRecord, keys: string[], fallback = "") => {
   for (const key of keys) {
@@ -54,8 +68,15 @@ const getNullableString = (record: RawCompanyRecord, keys: string[]) => {
   return null;
 };
 
-const mapOrgNode = (record: RawOrgRecord): OrgNode => {
+const normalizePathSegment = (value: string) =>
+  value
+    .trim()
+    .replace(/[^a-zA-Z0-9_]/g, "_")
+    .toUpperCase();
+
+const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"): OrgNode => {
   const nodePath = getString(record, ["nodePath"], "");
+  const nodeUuid = getString(record, ["uuid"], getString(record, ["id"], ""));
 
   const generateId = () => {
     try {
@@ -67,19 +88,55 @@ const mapOrgNode = (record: RawOrgRecord): OrgNode => {
 
   return {
     id: getString(record, ["id"], nodePath || generateId()),
+    uuid: nodeUuid || undefined,
     companyId: getNullableString(record, ["companyId"]) ?? undefined,
     name: getString(record, ["nodeName"], "Untitled Node"),
     nodeType: getString(record, ["nodeType"], "NODE"),
     nodePath,
-    status: getString(record, ["status"], "Active") as any,
+    status,
     children: [],
   };
 };
 
-const buildOrgTree = (items: RawOrgRecord[]): OrgNode | null => {
-  if (!items.length) return null;
+const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
+  const requestData =
+    typeof record.data === "object" && record.data !== null
+      ? (record.data as RawOrgRecord)
+      : record;
 
-  const nodes = items.map(mapOrgNode);
+  const parentNode =
+    typeof requestData.parentNode === "object" && requestData.parentNode !== null
+      ? (requestData.parentNode as RawOrgRecord)
+      : null;
+
+  const parentNodePath = parentNode ? getString(parentNode, ["nodePath"], "") : "";
+  const newNodeName = getString(requestData, ["newNodeName"], "");
+  const nodeType = getString(requestData, ["nodeType"], "");
+  const requestId = getString(record, ["id"], "");
+
+  if (!newNodeName || !nodeType) return null;
+
+  const derivedNodePath =
+    nodeType.trim().toUpperCase() === "ROOT"
+      ? `${normalizePathSegment(getString(record, ["companyCode"], parentNodePath.split(".")[0] ?? ""))}.ROOT`
+      : parentNodePath
+        ? `${parentNodePath}.${normalizePathSegment(newNodeName)}`
+        : "";
+
+  return {
+    id: requestId || derivedNodePath || `pending-${normalizePathSegment(newNodeName)}`,
+    uuid: requestId || undefined,
+    companyId: getNullableString(record, ["companyId"]) ?? undefined,
+    name: newNodeName,
+    nodeType: nodeType || "NODE",
+    nodePath: derivedNodePath,
+    status: "Pending",
+    children: [],
+  };
+};
+
+const buildOrgTree = (nodes: OrgNode[]): OrgNode | null => {
+  if (!nodes.length) return null;
 
   const getDerivedParentPath = (nodePath: string) => {
     const segments = nodePath
@@ -169,6 +226,17 @@ export async function createNewOrgNode(payload: CreateOrgNodePayload) {
   });
 }
 
+export async function updateOrgNodeAction(id: string, action: OrgNodeAction, remark: string) {
+  return apiFetch<OrgNodeActionResponse>(NODE_ACTION_PATH, {
+    method: "POST",
+    body: JSON.stringify({
+      action,
+      remark,
+      id,
+    }),
+  });
+}
+
 export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNode | null> {
   try {
     const payload = await apiFetch<OrgApiResponse>(COMPANY_ORG_PATH, {
@@ -178,7 +246,14 @@ export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNo
       }),
     });
 
-    const parsedData = Array.isArray(payload.data) ? payload.data : [];
+    const activeNodes = Array.isArray(payload.data?.active) ? payload.data.active.map((record) => mapOrgNode(record, "Active")) : [];
+    const pendingNodes = Array.isArray(payload.data?.pending)
+      ? payload.data.pending
+          .map((record) => mapPendingOrgRequest(record))
+          .filter((node): node is OrgNode => node !== null)
+      : [];
+    const parsedData = [...activeNodes, ...pendingNodes];
+
     if (parsedData.length > 0) {
       const tree = buildOrgTree(parsedData);
       if (tree) return tree;

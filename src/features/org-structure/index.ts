@@ -1,4 +1,5 @@
-export { default as SaasOrganisation, OrgStructureView } from "./components/OrgStructureView";
+export { OrgStructureView } from "./components/OrgStructureView";
+export { default as SaasOrganisationScreen } from "./entry/SaasOrganisation";
 export { OrgCard } from "./components/OrgCard";
 export { OrgTreeCanvas } from "./components/OrgTreeCanvas";
 export { DepartmentSidebar } from "./components/DepartmentSidebar";

@@ -10,9 +10,8 @@ type UserTableProps = {
   paginatedMembers: AppUser[];
   onView: (member: AppUser) => void;
   onEdit: (member: AppUser) => void;
-  onApprove: (member: AppUser) => void;
   onActivate: (member: AppUser) => void;
-  onRemove: (member: AppUser) => void;
+  onDeactivate: (member: AppUser) => void;
 };
 
 export default function UserTable({
@@ -21,9 +20,8 @@ export default function UserTable({
   paginatedMembers,
   onView,
   onEdit,
-  onApprove,
   onActivate,
-  onRemove,
+  onDeactivate,
 }: UserTableProps) {
   if (isLoading) {
     return (
@@ -40,9 +38,9 @@ export default function UserTable({
     return (
       <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
         <Users className="mb-3 h-10 w-10 text-muted-foreground/40" />
-        <p className="text-sm font-medium text-foreground">No members found</p>
+        <p className="text-sm font-medium text-foreground">No users found</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Try adjusting the search or filters, or add a new member.
+          Try adjusting the search or filters, or add a new user.
         </p>
       </div>
     );
@@ -101,7 +99,7 @@ export default function UserTable({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-emerald-600"
-                      onClick={() => onApprove(member)}
+                      onClick={() => onActivate(member)}
                     >
                       <Check className="h-4 w-4" />
                     </Button>
@@ -109,7 +107,7 @@ export default function UserTable({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-destructive"
-                      onClick={() => onRemove(member)}
+                      onClick={() => onDeactivate(member)}
                     >
                       <X className="h-4 w-4" />
                     </Button>

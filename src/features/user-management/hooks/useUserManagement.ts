@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AppUser } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
-import { createUserOnboarding, getCompanyUsers, updateUserOnboardingAction } from "@/services/user.service";
+import { createUserOnboarding, getCompanyUsers, updateUserStatusByEmail } from "@/services/user.service";
 import { USER_DEFAULT_PAGE_SIZE, USER_PAGE_SIZE_OPTIONS, USER_SEARCH_DEBOUNCE_MS } from "@/features/user-management/constants";
-import type { MemberStatusTab, NewMemberOnboardingFormData, SortOrder } from "@/features/user-management/types";
+import type { MemberStatusTab, UserOnboardingFormData, SortOrder } from "@/features/user-management/types";
 import { buildUserOnboardingPayload } from "@/features/user-management/utils";
 
 export function useUserManagement() {
@@ -23,7 +23,7 @@ export function useUserManagement() {
   const [viewingMember, setViewingMember] = useState<AppUser | null>(null);
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
   const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<{ member: AppUser; action: "approve" | "reject" } | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ member: AppUser; action: "activate" | "deactivate" } | null>(null);
 
   const loadUsers = useCallback(
     async (showRefreshToast = false) => {
@@ -37,17 +37,17 @@ export function useUserManagement() {
         if (showRefreshToast) {
           toast({
             title: "Users refreshed",
-          description: "The member list was updated from the latest company data.",
+            description: "The user list was updated from the latest company data.",
+          });
+        }
+      } catch {
+        setUsers([]);
+        toast({
+          title: "Unable to load users",
+          description: "Live user API failed. Please try again once the backend is available.",
+          variant: "destructive",
         });
-      }
-    } catch {
-      setUsers([]);
-      toast({
-        title: "Unable to load users",
-        description: "Live user API failed. Please try again once the backend is available.",
-        variant: "destructive",
-      });
-    } finally {
+      } finally {
         setIsLoading(false);
       }
     },
@@ -134,10 +134,10 @@ export function useUserManagement() {
     setUsers((previous) => previous.map((user) => (ids.has(user.id) ? { ...user, status } : user)));
   };
 
-  const handleAddMember = async (memberData: NewMemberOnboardingFormData) => {
-    if (!memberData.basic.name.trim() || !memberData.basic.email.trim()) return;
+  const handleAddUser = async (userData: UserOnboardingFormData) => {
+    if (!userData.basic.name.trim() || !userData.basic.email.trim()) return;
 
-    const payload = buildUserOnboardingPayload(memberData);
+    const payload = buildUserOnboardingPayload(userData);
 
     try {
       const response = await createUserOnboarding(payload);
@@ -146,11 +146,11 @@ export function useUserManagement() {
       await loadUsers(true);
 
       toast({
-        title: "Member added",
-        description: response.message || `${memberData.basic.name.trim()} was created as a pending member request.`,
+        title: "User added",
+        description: response.message || `${userData.basic.name.trim()} was created as a pending user request.`,
       });
     } catch (error) {
-      const description = error instanceof Error ? error.message : "Unable to submit member onboarding.";
+      const description = error instanceof Error ? error.message : "Unable to submit user onboarding.";
       toast({
         title: "Submission failed",
         description,
@@ -166,21 +166,21 @@ export function useUserManagement() {
     setUsers((previous) => previous.map((user) => (user.id === editingMember.id ? editingMember : user)));
     setEditingMember(null);
     toast({
-      title: "Member updated",
-      description: "The member details were saved successfully.",
+      title: "User updated",
+      description: "The user details were saved successfully.",
     });
   };
 
   const removeMember = (userId: string) => {
     setUsers((previous) => previous.filter((user) => user.id !== userId));
     toast({
-      title: "Member removed",
-      description: "The member was removed from the company list.",
+      title: "User removed",
+      description: "The user was removed from the company list.",
       variant: "destructive",
     });
   };
 
-  const handleUserOnboardingAction = (member: AppUser, action: "approve" | "reject") => {
+  const handleUserStatusAction = (member: AppUser, action: "activate" | "deactivate") => {
     if (!member.id) {
       toast({ title: "Action failed", description: "User ID is missing", variant: "destructive" });
       return;
@@ -189,21 +189,25 @@ export function useUserManagement() {
     setRemarkDialogOpen(true);
   };
 
-  const processUserOnboardingAction = async (remark: string) => {
+  const processUserStatusAction = async (_remark: string) => {
     if (!pendingAction) return;
     const { member, action } = pendingAction;
 
     try {
-      await updateUserOnboardingAction(member.id, action, remark);
-      updateUsersStatus(new Set([member.id]), action === "approve" ? "Active" : "Inactive");
+      if (!member.email?.trim()) {
+        throw new Error("User email is missing");
+      }
+
+      await updateUserStatusByEmail(member.email.trim());
+      updateUsersStatus(new Set([member.id]), action === "activate" ? "Active" : "Inactive");
       toast({
-        title: action === "approve" ? "Member approved" : "Member rejected",
-        description: `${member.name} was moved to ${action === "approve" ? "active" : "inactive"} members.`,
+        title: action === "activate" ? "User activated" : "User deactivated",
+        description: `${member.name} was moved to ${action === "activate" ? "active" : "inactive"} users.`,
       });
     } catch (error) {
       toast({
-        title: action === "approve" ? "Approval failed" : "Rejection failed",
-        description: error instanceof Error ? error.message : "Unable to update member request.",
+        title: action === "activate" ? "Activation failed" : "Deactivation failed",
+        description: error instanceof Error ? error.message : "Unable to update user request.",
         variant: "destructive",
       });
     } finally {
@@ -211,12 +215,12 @@ export function useUserManagement() {
     }
   };
 
-  const handleApproveMember = (member: AppUser) => {
-    void handleUserOnboardingAction(member, "approve");
+  const handleActivateMember = (member: AppUser) => {
+    void handleUserStatusAction(member, "activate");
   };
 
-  const handleRejectMember = (member: AppUser) => {
-    void handleUserOnboardingAction(member, "reject");
+  const handleDeactivateMember = (member: AppUser) => {
+    void handleUserStatusAction(member, "deactivate");
   };
 
   const statusHeading =
@@ -255,17 +259,16 @@ export function useUserManagement() {
     safePage,
     paginatedMembers,
     updateUsersStatus,
-    handleAddMember,
-    handleApproveMember,
-    handleRejectMember,
+    handleAddUser,
+    handleActivateMember,
+    handleDeactivateMember,
     handleSaveEdit,
-    removeMember,
     removeMember,
     statusHeading,
     loadUsers,
     remarkDialogOpen,
     setRemarkDialogOpen,
     pendingAction,
-    processUserOnboardingAction,
+    processUserStatusAction,
   };
 }

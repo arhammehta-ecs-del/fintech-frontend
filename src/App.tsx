@@ -2,14 +2,14 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider, useAppContext } from "@/contexts/AppContext";
-import { DashboardLayout } from "@/features/layout";
+import { DashboardLayout } from "@/features/dashboard-layout";
+import { CompanyOnboardingWizard } from "@/features/company-list";
+import { SaasOrganisationScreen } from "@/features/org-structure";
 import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
-import CorporateList from "@/pages/CorporateList";
-import OnboardingWizard from "@/pages/OnboardingWizard";
+import CompanyList from "@/pages/CompanyList";
 import CompanySettings from "@/pages/CompanySettings";
 import Profile from "@/pages/Profile";
-import SaasOrganisation from "@/pages/SaasOrganisation";
 
 
 function AppRoutes() {
@@ -28,9 +28,9 @@ function AppRoutes() {
       <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} />
       <Route element={isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" replace />}>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/saas-organisation" element={<SaasOrganisation />} />
-        <Route path="/corporates" element={<CorporateList />} />
-        <Route path="/onboarding" element={<OnboardingWizard />} />
+        <Route path="/saas-organisation" element={<SaasOrganisationScreen />} />
+        <Route path="/companies" element={<CompanyList />} />
+        <Route path="/onboarding" element={<CompanyOnboardingWizard />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/settings" element={<CompanySettings />} />
       </Route>

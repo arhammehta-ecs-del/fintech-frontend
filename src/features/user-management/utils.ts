@@ -1,15 +1,15 @@
 import type { RoleRecord } from "@/services/role.service";
-import type { UserOnboardingPayload } from "@/services/user.service";
+import type { UserOnboardingPayload, UserOnboardingPermission } from "@/services/user.service";
 import type { OrgNode } from "@/contexts/AppContext";
 import type {
-  NewMemberOnboardingFormData,
-  NewMemberPermissions,
+  UserOnboardingFormData,
+  UserOnboardingPermissions,
   ValidationErrors,
 } from "@/features/user-management/types";
 
 const PERMISSION_ACTIONS = ["manager", "user", "viewer"] as const;
 
-export const buildUserOnboardingPayload = (formData: NewMemberOnboardingFormData): UserOnboardingPayload => {
+export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): UserOnboardingPayload => {
   const selectedNodeEntries =
     formData.nodeSelections.length > 0
       ? formData.nodeSelections
@@ -25,8 +25,8 @@ export const buildUserOnboardingPayload = (formData: NewMemberOnboardingFormData
         },
       ];
 
-  const mappedPermissions = selectedNodeEntries.flatMap((nodeEntry) =>
-    (Object.entries(nodeEntry.permissions) as Array<[string, NewMemberPermissions]>).flatMap(
+  const mappedPermissions: UserOnboardingPermission[] = selectedNodeEntries.flatMap((nodeEntry) =>
+    (Object.entries(nodeEntry.permissions) as Array<[string, UserOnboardingPermissions]>).flatMap(
       ([bucketKey, bucketPermissions]) =>
         Object.entries(bucketPermissions).flatMap(([category, modules]) =>
           Object.entries(modules).flatMap(([subCategory, rights]) => {
@@ -40,7 +40,7 @@ export const buildUserOnboardingPayload = (formData: NewMemberOnboardingFormData
               .join(" ");
 
             return selectedActions.map((action) => ({
-              roleCategory: category,
+              roleCategory: category as UserOnboardingPermission["roleCategory"],
               roleSubCategory: subCategory,
               roleName: `${roleNameBase} ${action[0].toUpperCase()}${action.slice(1)}`,
               nodeName: nodeEntry.nodeName,
@@ -70,11 +70,11 @@ export const buildUserOnboardingPayload = (formData: NewMemberOnboardingFormData
 };
 
 /**
- * Build an empty NewMemberPermissions object from the live roles.
+ * Build an empty UserOnboardingPermissions object from the live roles.
  * Structure: { [category]: { [subCategory]: { manager: false, user: false, viewer: false } } }
  */
-export const createInitialPermissions = (roles: RoleRecord[]): NewMemberPermissions => {
-  const permissions: NewMemberPermissions = {};
+export const createInitialPermissions = (roles: RoleRecord[]): UserOnboardingPermissions => {
+  const permissions: UserOnboardingPermissions = {};
 
   for (const role of roles) {
     const cat = role.category;
@@ -123,7 +123,7 @@ export const maskContactNumber = (phone?: string) => {
   return "*".repeat(digits.length - 4) + digits.slice(-4);
 };
 
-export const createInitialFormData = (): NewMemberOnboardingFormData => ({
+export const createInitialUserOnboardingFormData = (): UserOnboardingFormData => ({
   basic: {
     name: "avm",
     email: "arhammehta26@gmail.com",
@@ -213,7 +213,7 @@ export const isDateInFuture = (dateString: string): boolean => {
   return date > today;
 };
 
-export const validateNewMemberStep = (step: number, formData: NewMemberOnboardingFormData): ValidationErrors => {
+export const validateUserOnboardingStep = (step: number, formData: UserOnboardingFormData): ValidationErrors => {
   const errors: ValidationErrors = {};
 
   if (step === 1) {

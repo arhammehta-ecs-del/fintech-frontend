@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { type Company, type CompanyStatus, type GroupCompany } from "@/contexts/AppContext";
-import { CompanyPreviewDialog, } from "@/components/shared/CompanyPreviewDialog";
+import { CompanyPreviewDialog, } from "@/components/CompanyPreviewDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, XCircle, Clock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -163,7 +163,7 @@ export default function Dashboard() {
   const pending = countByStatus(groups, "Pending");
   const inactive = countByStatus(groups, "Inactive");
   const stats = buildStats(totalCompanies, pending, inactive, (status) =>
-    navigate("/corporates", { state: { statusFilter: status } }),
+    navigate("/companies", { state: { statusFilter: status } }),
   );
 
   // Flatten all companies for the recent list
@@ -213,7 +213,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Saas admin board</h1>
+        <h1 className="text-2xl font-semibold text-foreground">SaaS admin board</h1>
         <p className="text-muted-foreground text-sm mt-1">Overview of your corporate onboarding portal</p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">

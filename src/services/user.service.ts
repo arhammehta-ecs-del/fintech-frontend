@@ -1,7 +1,7 @@
 import type { AppUser } from "@/contexts/AppContext";
 import { apiFetch } from "@/services/client";
 
-type UserOnboardingPermission = {
+export type UserOnboardingPermission = {
   roleCategory: "TRANSACTIONAL" | "OPERATIONAL" | "SYSTEM_ACCESS";
   roleSubCategory: string;
   roleName: string;
@@ -16,6 +16,7 @@ export type UserOnboardingPayload = {
     email: string;
     phone: string;
     designation: string;
+    employeeId: string;
     reportingManager: string;
   };
   primary: UserOnboardingPermission[];
@@ -31,9 +32,7 @@ type UserOnboardingResponse = {
   };
 };
 
-type UserOnboardingAction = "approve" | "reject";
-
-type UserOnboardingActionResponse = {
+type UserStatusUpdateResponse = {
   message?: string;
   code?: number;
   success?: boolean;
@@ -55,7 +54,7 @@ type CompanyUsersResponse = {
 
 const COMPANY_USERS_PATH = "/api/v1/company-settings/user/fetch-all-users";
 const NEW_USER_ONBOARD_PATH = "/api/v1/company-settings/user/initiate";
-const USER_ACTION_PATH = "/api/v1/company-settings/user/action";
+const USER_STATUS_UPDATE_PATH = "/api/v1/company-settings/user/update-status";
 
 const toRecord = (value: unknown): RawUserRecord =>
   typeof value === "object" && value !== null ? (value as RawUserRecord) : {};
@@ -183,17 +182,11 @@ export async function createUserOnboarding(payload: UserOnboardingPayload) {
   });
 }
 
-export async function updateUserOnboardingAction(
-  id: string,
-  action: UserOnboardingAction,
-  remark: string,
-) {
-  return apiFetch<UserOnboardingActionResponse>(USER_ACTION_PATH, {
+export async function updateUserStatusByEmail(email: string) {
+  return apiFetch<UserStatusUpdateResponse>(USER_STATUS_UPDATE_PATH, {
     method: "POST",
     body: JSON.stringify({
-      id,
-      action,
-      remark,
+      email,
     }),
   });
 }

@@ -5,7 +5,7 @@ import { NewNodePopup } from "@/features/org-structure/components/NewNodePopup";
 import { OrgTreeCanvas } from "@/features/org-structure/components/OrgTreeCanvas";
 import { PendingNodePopup } from "@/features/org-structure/components/PendingNodePopup";
 import { useOrgStructure } from "@/features/org-structure/hooks/useOrgStructure";
-import { getNodeAncestors } from "@/features/org-structure/orgNode.utils";
+import { flattenOrg } from "@/features/org-structure/orgNode.utils";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { Eye, EyeOff } from "lucide-react";
@@ -62,6 +62,15 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   } = useOrgStructure();
 
   const [showPending, setShowPending] = useState(true);
+  const availableNodeTypes = useMemo(() => {
+    const nodeTypes = new Set(
+      flattenOrg(orgStructure)
+        .map((node) => node.nodeType.trim())
+        .filter((nodeType) => nodeType && nodeType.toUpperCase() !== "ROOT"),
+    );
+
+    return Array.from(nodeTypes).sort((left, right) => left.localeCompare(right));
+  }, [orgStructure]);
 
   const displayedStructure = useMemo(() => {
     if (showPending || !orgStructure) return orgStructure;
@@ -108,8 +117,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                   </div>
                 </div>
 
-                {/* Pending Toggle — 10/10 Premium Data Filter */}
-                <div className="mt-1">
+                <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setShowPending(!showPending)}
@@ -241,7 +249,8 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
 
       <NewNodePopup
         open={isNewNodePopupOpen}
-        ancestors={getNodeAncestors(newNodeParent)}
+        parentNodeName={newNodeParent?.name ?? ""}
+        nodeTypes={availableNodeTypes}
         onOpenChange={(open) => {
           startTransition(() => {
             setIsNewNodePopupOpen(open);
@@ -264,6 +273,6 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   );
 }
 
-export default function SaasOrganisation() {
+export default function OrgStructureViewPage() {
   return <OrgStructureView />;
 }

@@ -22,7 +22,7 @@ export default function EditMemberDialog({ editingMember, onEditMemberChange, on
     <DialogContent className="sm:max-w-[480px]">
       <DialogHeader>
         <DialogTitle>Edit Member</DialogTitle>
-        <DialogDescription>Update member details and save them immediately.</DialogDescription>
+        <DialogDescription>Update user details and save them immediately.</DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 py-2">
         <div className="space-y-2">

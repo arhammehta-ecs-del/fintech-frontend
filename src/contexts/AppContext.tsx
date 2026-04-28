@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/services/auth.service";
 export type CompanyStatus = "Pending" | "Approved" | "Inactive";
 
 export interface Signatory {
-  
+
   fullName: string;
   designation: string;
   email: string;
@@ -36,6 +36,7 @@ export interface GroupCompany {
 
 export interface OrgNode {
   id: string;
+  uuid?: string;
   name: string;
   companyId?: string;
   nodeType: string;

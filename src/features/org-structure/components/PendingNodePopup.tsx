@@ -1,14 +1,15 @@
-import React from "react";
+import { useEffect, useState } from "react";
 import { X, CheckCircle2, XCircle, Building2, MapPin, Layers3, Briefcase, Boxes, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrgNode } from "@/contexts/AppContext";
+import { Textarea } from "@/components/ui/textarea";
 
 type PendingNodePopupProps = {
   open: boolean;
   node: OrgNode | null;
   onClose: () => void;
-  onApprove: (node: OrgNode) => void;
-  onReject: (node: OrgNode) => void;
+  onApprove: (node: OrgNode, remark: string) => void;
+  onReject: (node: OrgNode, remark: string) => void;
 };
 
 const getNodeIcon = (nodeType: string) => {
@@ -21,6 +22,14 @@ const getNodeIcon = (nodeType: string) => {
 };
 
 export function PendingNodePopup({ open, node, onClose, onApprove, onReject }: PendingNodePopupProps) {
+  const [remark, setRemark] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setRemark("");
+    }
+  }, [open, node?.id]);
+
   if (!open || !node) return null;
 
   const Icon = getNodeIcon(node.nodeType);
@@ -81,19 +90,29 @@ export function PendingNodePopup({ open, node, onClose, onApprove, onReject }: P
             <CheckCircle2 size={14} className="text-emerald-500" />
             <p>Approving this node will make it visible to all users.</p>
           </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Remark</label>
+            <Textarea
+              value={remark}
+              onChange={(event) => setRemark(event.target.value)}
+              placeholder="Enter approval or rejection remark"
+              className="min-h-[96px] resize-none"
+            />
+          </div>
         </div>
 
         {/* Actions Section */}
         <div className="grid grid-cols-2 gap-3 border-t border-slate-100 bg-slate-50/30 px-6 py-5">
           <button
-            onClick={() => onReject(node)}
+            onClick={() => onReject(node, remark.trim())}
             className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-rose-600 hover:border-rose-200 shadow-sm"
           >
             <XCircle size={16} />
             Reject
           </button>
           <button
-            onClick={() => onApprove(node)}
+            onClick={() => onApprove(node, remark.trim())}
             className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 hover:shadow-lg shadow-md active:scale-[0.98]"
           >
             <CheckCircle2 size={16} />

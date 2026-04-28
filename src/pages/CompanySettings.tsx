@@ -1,7 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { RolesAllocationPanel } from "@/components/shared/RolesAllocationPanel";
+import { RolesAllocationPanel } from "@/components/RolesAllocationPanel";
 import { OrgStructureView } from "@/features/org-structure";
 import { UserManagementView } from "@/features/user-management";
 

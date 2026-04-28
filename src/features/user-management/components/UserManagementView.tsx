@@ -2,14 +2,14 @@ import { EyeOff, Users, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { NewMemberDialog } from "@/features/user-management/components/NewMemberDialog";
+import { UserOnboardingDialog } from "@/features/user-management";
 import EditMemberDialog from "@/features/user-management/components/EditMemberDialog";
 import UserFilters from "@/features/user-management/components/UserFilters";
 import UserPagination from "@/features/user-management/components/UserPagination";
 import UserTable from "@/features/user-management/components/UserTable";
 import { useUserManagement } from "@/features/user-management/hooks/useUserManagement";
-import { UserManagePreview } from "@/components/shared/UserManagePreview";
-import { RemarkDialog } from "@/components/shared/RemarkDialog";
+import { UserManagePreview } from "./UserManagePreview";
+import { RemarkDialog } from "@/components/RemarkDialog";
 
 export function UserManagementView() {
   const {
@@ -37,9 +37,9 @@ export function UserManagementView() {
     setViewingMember,
     editingMember,
     setEditingMember,
-    handleAddMember,
-    handleApproveMember,
-    handleRejectMember,
+    handleAddUser,
+    handleActivateMember,
+    handleDeactivateMember,
     handleSaveEdit,
     statusTab,
     setStatusTab,
@@ -47,7 +47,7 @@ export function UserManagementView() {
     remarkDialogOpen,
     setRemarkDialogOpen,
     pendingAction,
-    processUserOnboardingAction,
+    processUserStatusAction,
   } = useUserManagement();
 
   return (
@@ -79,7 +79,7 @@ export function UserManagementView() {
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" onClick={() => setAddDialogOpen(true)}>
               <UserPlus className="mr-1.5 h-4 w-4" />
-              Add Member
+              Add User
             </Button>
           </div>
         </CardHeader>
@@ -92,9 +92,8 @@ export function UserManagementView() {
               paginatedMembers={paginatedMembers}
               onView={setViewingMember}
               onEdit={setEditingMember}
-              onApprove={handleApproveMember}
-              onActivate={handleApproveMember}
-              onRemove={handleRejectMember}
+              onActivate={handleActivateMember}
+              onDeactivate={handleDeactivateMember}
             />
           </div>
 
@@ -110,7 +109,7 @@ export function UserManagementView() {
         </CardContent>
       </Card>
 
-      <NewMemberDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onSubmit={handleAddMember} />
+      <UserOnboardingDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onSubmit={handleAddUser} />
 
       <Dialog open={Boolean(viewingMember)} onOpenChange={(open) => !open && setViewingMember(null)}>
         <DialogContent className="h-[92vh] w-[96vw] max-w-[1200px] overflow-y-auto p-0">
@@ -131,11 +130,11 @@ export function UserManagementView() {
       <RemarkDialog
         open={remarkDialogOpen}
         onOpenChange={setRemarkDialogOpen}
-        onConfirm={processUserOnboardingAction}
-        title={pendingAction?.action === "approve" ? "Approve Member" : "Reject Member"}
+        onConfirm={processUserStatusAction}
+        title={pendingAction?.action === "activate" ? "Activate User" : "Deactivate User"}
         description={`Are you sure you want to ${pendingAction?.action} ${pendingAction?.member.name}? Please provide a remark.`}
-        confirmLabel={pendingAction?.action === "approve" ? "Approve" : "Reject"}
-        confirmVariant={pendingAction?.action === "approve" ? "success" : "destructive"}
+        confirmLabel={pendingAction?.action === "activate" ? "Activate" : "Deactivate"}
+        confirmVariant={pendingAction?.action === "activate" ? "success" : "destructive"}
       />
     </div>
   );

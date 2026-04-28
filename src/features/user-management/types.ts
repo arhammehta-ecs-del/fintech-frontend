@@ -12,14 +12,14 @@ export type PermissionBucket = Record<PermissionAction, boolean>;
 
 // Dynamic: category key → module key → action bucket
 // e.g. { "TRANSACTIONAL": { "PURCHASE_ORDER": { manager: true, user: false, viewer: false } } }
-export type NewMemberPermissions = Record<string, Record<string, PermissionBucket>>;
+export type UserOnboardingPermissions = Record<string, Record<string, PermissionBucket>>;
 
 export type NodePermissionBuckets = {
-  primary: NewMemberPermissions;
-  secondary: NewMemberPermissions;
+  primary: UserOnboardingPermissions;
+  secondary: UserOnboardingPermissions;
 };
 
-export type NewMemberOnboardingFormData = {
+export type UserOnboardingFormData = {
   basic: {
     name: string;
     email: string;
@@ -28,7 +28,7 @@ export type NewMemberOnboardingFormData = {
     employeeId: string;
     reportingManager: string;
   };
-  permissions: NewMemberPermissions;
+  permissions: UserOnboardingPermissions;
   nodeSelections: Array<{
     nodeId: string;
     nodeName: string;

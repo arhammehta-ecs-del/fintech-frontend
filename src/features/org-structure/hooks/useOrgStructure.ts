@@ -1,7 +1,7 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import type { OrgNode } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
-import { createNewOrgNode, getCompanyOrgStructure } from "@/services/org.service";
+import { createNewOrgNode, getCompanyOrgStructure, updateOrgNodeAction } from "@/services/org.service";
 import { collectNodeTrail, findOrgNodeById, findParentNodeById, flattenOrg } from "@/features/org-structure/orgNode.utils";
 import type { DepartmentSidebarDepartment, NewNodeType } from "@/features/org-structure/types";
 
@@ -247,19 +247,36 @@ export function useOrgStructure() {
     });
   };
 
-  const handleApproveNode = async (node: OrgNode) => {
-    // In a real app, this would be an API call
-    console.log("APPROVING NODE:", node.name);
-    setPendingNodeForReview(null);
-    // Refreshing org structure to simulate status change
-    await loadOrgForCompanyCode(companyCode);
+  const handleApproveNode = async (node: OrgNode, remark: string) => {
+    const nodeId = node.uuid?.trim() || node.id?.trim();
+    if (!nodeId) {
+      setOrgError("Pending node ID is missing.");
+      return;
+    }
+
+    try {
+      await updateOrgNodeAction(nodeId, "approve", remark || "Approved from UI");
+      setPendingNodeForReview(null);
+      await loadOrgForCompanyCode(companyCode);
+    } catch {
+      setOrgError("Failed to approve node. Please try again.");
+    }
   };
 
-  const handleRejectNode = async (node: OrgNode) => {
-    // In a real app, this would be an API call
-    console.log("REJECTING NODE:", node.name);
-    setPendingNodeForReview(null);
-    await loadOrgForCompanyCode(companyCode);
+  const handleRejectNode = async (node: OrgNode, remark: string) => {
+    const nodeId = node.uuid?.trim() || node.id?.trim();
+    if (!nodeId) {
+      setOrgError("Pending node ID is missing.");
+      return;
+    }
+
+    try {
+      await updateOrgNodeAction(nodeId, "reject", remark || "Rejected from UI");
+      setPendingNodeForReview(null);
+      await loadOrgForCompanyCode(companyCode);
+    } catch {
+      setOrgError("Failed to reject node. Please try again.");
+    }
   };
 
   const zoomOut = () => setZoom((current) => Math.max(MIN_ZOOM, Number((current - ZOOM_STEP).toFixed(2))));
