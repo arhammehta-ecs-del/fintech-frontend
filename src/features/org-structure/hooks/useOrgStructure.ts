@@ -248,6 +248,12 @@ export function useOrgStructure() {
   };
 
   const handleApproveNode = async (node: OrgNode, remark: string) => {
+    const cleanedRemark = remark.trim();
+    if (!cleanedRemark) {
+      setOrgError("Remark is required before approving this node.");
+      return;
+    }
+
     const nodeId = node.uuid?.trim() || node.id?.trim();
     if (!nodeId) {
       setOrgError("Pending node ID is missing.");
@@ -255,7 +261,7 @@ export function useOrgStructure() {
     }
 
     try {
-      await updateOrgNodeAction(nodeId, "approve", remark || "Approved from UI");
+      await updateOrgNodeAction(nodeId, "approve", cleanedRemark);
       setPendingNodeForReview(null);
       await loadOrgForCompanyCode(companyCode);
     } catch {
@@ -264,6 +270,12 @@ export function useOrgStructure() {
   };
 
   const handleRejectNode = async (node: OrgNode, remark: string) => {
+    const cleanedRemark = remark.trim();
+    if (!cleanedRemark) {
+      setOrgError("Remark is required before rejecting this node.");
+      return;
+    }
+
     const nodeId = node.uuid?.trim() || node.id?.trim();
     if (!nodeId) {
       setOrgError("Pending node ID is missing.");
@@ -271,7 +283,7 @@ export function useOrgStructure() {
     }
 
     try {
-      await updateOrgNodeAction(nodeId, "reject", remark || "Rejected from UI");
+      await updateOrgNodeAction(nodeId, "reject", cleanedRemark);
       setPendingNodeForReview(null);
       await loadOrgForCompanyCode(companyCode);
     } catch {

@@ -23,6 +23,9 @@ export function UserManagementView() {
     setSortOrder,
     roles,
     departments,
+    activeMembers,
+    pendingMembers,
+    inactiveMembers,
     isLoading,
     currentMembers,
     paginatedMembers,
@@ -65,6 +68,11 @@ export function UserManagementView() {
         onSortOrderChange={setSortOrder}
         roles={roles}
         departments={departments}
+        statusCounts={{
+          active: activeMembers.length,
+          pending: pendingMembers.length,
+          inactive: inactiveMembers.length,
+        }}
       />
 
       <Card className="overflow-hidden border-slate-200 shadow-sm">
@@ -91,9 +99,6 @@ export function UserManagementView() {
               currentMembers={currentMembers}
               paginatedMembers={paginatedMembers}
               onView={setViewingMember}
-              onEdit={setEditingMember}
-              onActivate={handleActivateMember}
-              onDeactivate={handleDeactivateMember}
             />
           </div>
 
@@ -112,8 +117,21 @@ export function UserManagementView() {
       <UserOnboardingDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onSubmit={handleAddUser} />
 
       <Dialog open={Boolean(viewingMember)} onOpenChange={(open) => !open && setViewingMember(null)}>
-        <DialogContent className="h-[92vh] w-[96vw] max-w-[1200px] overflow-y-auto p-0">
-          {viewingMember ? <UserManagePreview member={viewingMember} /> : null}
+        <DialogContent className="flex h-[92vh] w-[96vw] max-w-[1200px] flex-col overflow-hidden p-0">
+          {viewingMember ? (
+            <UserManagePreview
+              member={viewingMember}
+              onApprovePending={handleActivateMember}
+              onRejectPending={handleDeactivateMember}
+              onToggleActiveStatus={(member, isActive) => {
+                if (isActive) {
+                  handleActivateMember(member);
+                  return;
+                }
+                handleDeactivateMember(member);
+              }}
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
 

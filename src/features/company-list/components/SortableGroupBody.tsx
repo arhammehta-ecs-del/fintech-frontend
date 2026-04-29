@@ -13,7 +13,6 @@ type SortableGroupBodyProps = {
   showStatusColumn: boolean;
   onToggle: () => void;
   onManage: (company: Company, editing?: boolean) => void;
-  onToggleActive: (companyId: string, isActive: boolean) => void;
   dragState: DragPayload | null;
   onDragStart: (payload: DragPayload) => (event: DragEvent<HTMLElement>) => void;
   onDragEnd: () => void;
@@ -28,7 +27,6 @@ export default function SortableGroupBody({
   showStatusColumn,
   onToggle,
   onManage,
-  onToggleActive,
   dragState,
   onDragStart,
   onDragEnd,
@@ -97,7 +95,6 @@ export default function SortableGroupBody({
             visibleColumns={visibleColumns}
             showStatusColumn={showStatusColumn}
             onManage={onManage}
-            onToggleActive={onToggleActive}
             dragState={dragState}
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}

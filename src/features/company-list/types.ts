@@ -48,8 +48,7 @@ export type CompanyListToolbarProps = {
   onSearchInputChange: (value: string) => void;
   onSearchSubmit: () => void;
   onClearSearch: () => void;
-  viewMode: ViewMode;
-  onViewModeChange: (viewMode: ViewMode) => void;
+  statusCounts: Record<"active" | "pending" | "inactive", number>;
   visibleColumns: Set<VisibleColumn>;
   onToggleColumn: (column: VisibleColumn, checked: boolean) => void;
   onOpenOnboarding: () => void;

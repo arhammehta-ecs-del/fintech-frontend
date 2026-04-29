@@ -14,6 +14,12 @@ const STATUS_TABS: Array<{ id: MemberStatusTab; label: string }> = [
   { id: "inactive", label: "Inactive" },
 ];
 
+const STATUS_BADGE_CLASS: Record<MemberStatusTab, string> = {
+  active: "bg-emerald-100 text-emerald-700",
+  pending: "bg-amber-100 text-amber-700",
+  inactive: "bg-rose-100 text-rose-700",
+};
+
 type UserFiltersProps = {
   statusTab: MemberStatusTab;
   onStatusTabChange: (value: MemberStatusTab) => void;
@@ -27,6 +33,7 @@ type UserFiltersProps = {
   onSortOrderChange: (value: SortOrder) => void;
   roles: string[];
   departments: string[];
+  statusCounts: Record<MemberStatusTab, number>;
 };
 
 export default function UserFilters({
@@ -41,6 +48,7 @@ export default function UserFilters({
   onSortOrderChange,
   roles,
   departments,
+  statusCounts,
 }: UserFiltersProps) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -66,18 +74,29 @@ export default function UserFilters({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border border-border bg-muted/30 p-1">
+          <div className="inline-flex rounded-full border border-slate-200 bg-white p-1.5 shadow-sm">
             {STATUS_TABS.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => onStatusTabChange(tab.id)}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                  statusTab === tab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                  "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200",
+                  statusTab === tab.id
+                    ? "bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)]"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
                 )}
+                aria-pressed={statusTab === tab.id}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                    statusTab === tab.id ? "bg-white/18 text-white ring-1 ring-white/25" : STATUS_BADGE_CLASS[tab.id],
+                  )}
+                >
+                  {statusCounts[tab.id]}
+                </span>
               </button>
             ))}
           </div>

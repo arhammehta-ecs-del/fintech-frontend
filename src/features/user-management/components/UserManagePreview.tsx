@@ -1,9 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Building2,
   Calendar,
   ChevronRight,
-  Edit2,
   IdCard,
   Mail,
   Maximize2,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import type { AppUser } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
+import { Textarea } from "@/components/ui/textarea";
 import {
   formatDateLabel,
   getAvatarColor,
@@ -24,6 +24,85 @@ import {
 
 const formatKey = (key: string) =>
   key.split("_").map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+
+const formatDesignation = (value?: string) => {
+  const cleaned = (value || "").trim();
+  if (!cleaned || cleaned === "-") return "Not available";
+  const upper = cleaned.toUpperCase();
+  const acronymMap: Record<string, string> = {
+    CEO: "CEO",
+    CTO: "CTO",
+    CFO: "CFO",
+    COO: "COO",
+    CMO: "CMO",
+    CHRO: "CHRO",
+    VP: "VP",
+  };
+  if (acronymMap[upper]) return acronymMap[upper];
+  return cleaned
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
+const cleanDisplayValue = (value?: string) => {
+  const cleaned = (value || "").trim();
+  return cleaned && cleaned !== "-" ? cleaned : "";
+};
+
+const pickFirst = (obj: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    const value = obj[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+};
+
+const formatToIst = (value?: string) => {
+  if (!value?.trim()) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Kolkata",
+  }).format(parsed);
+};
+
+const INITIATOR_FALLBACK = {
+  name: "Super Admin",
+  email: "admin@globaltech.com",
+  initiatedAt: "2026-04-28T12:36:00.615Z",
+};
+
+const DEMO_SECONDARY_ACCESS: NonNullable<AppUser["accessDetails"]> = [
+  {
+    roleCategory: "SYSTEM_ACCESS",
+    roleSubCategory: "ORG_STR",
+    roleName: "Org Structure Viewer",
+    nodeName: "Head Office",
+    nodePath: "GLOBALTECH.HEAD_OFFICE",
+    accessType: "SECONDARY",
+  },
+  {
+    roleCategory: "TRANSACTIONAL",
+    roleSubCategory: "ACCOUNTS",
+    roleName: "Accounts User",
+    nodeName: "Finance Node",
+    nodePath: "GLOBALTECH.FINANCE.NODE",
+    accessType: "SECONDARY",
+  },
+  {
+    roleCategory: "OPERATIONAL",
+    roleSubCategory: "MASTER",
+    roleName: "Master Viewer",
+    nodeName: "Operations Node",
+    nodePath: "GLOBALTECH.OPERATIONS.NODE",
+    accessType: "SECONDARY",
+  },
+];
 
 // Group accessDetails by nodeName, then by roleCategory
 type GroupedByNode = Record<string, {
@@ -114,24 +193,25 @@ function NodeAccessCard({
   const edgeCls   = isPrimary ? "bg-blue-500"              : BRANCH_EDGE[paletteIdx];
   const badgeCls  = isPrimary ? "bg-blue-100 text-blue-700" : BRANCH_BADGE[paletteIdx];
   const borderCls = isPrimary ? "border-blue-100"           : BRANCH_BORDER[paletteIdx];
+  const badgeLabel = `${isPrimary ? "P" : "S"}${nodeIndex + 1}`;
 
   const presentCats = CATEGORY_ORDER.filter((cat) => (categories[cat]?.length ?? 0) > 0);
 
   return (
-    <div className={cn("relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm", borderCls)}>
+    <div className={cn("relative overflow-hidden rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-100/70", borderCls)}>
       {/* Left accent edge */}
       <span className={cn("absolute left-0 top-[10%] h-[80%] w-[4px] rounded-r-full", edgeCls)} />
 
       {/* Node header */}
       <div className="mb-3 flex items-center gap-3 pl-1">
         <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold", badgeCls)}>
-          {nodeIndex + 1}
+          {badgeLabel}
         </div>
         <div className="text-sm font-semibold text-slate-800">{nodeName}</div>
       </div>
 
       {/* Permissions by category */}
-      <div className="space-y-3 rounded-xl border border-slate-200/80 bg-slate-50/40 p-3 pl-4">
+      <div className="space-y-3 rounded-xl bg-slate-50/30 p-3 pl-4">
         {presentCats.length === 0 ? (
           <div className="text-xs text-slate-400">No permissions configured.</div>
         ) : presentCats.map((cat) => {
@@ -172,9 +252,23 @@ function NodeAccessCard({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function UserManagePreview({ member }: { member: AppUser }) {
-  const [activeTab, setActiveTab] = useState<"basic" | "access">("basic");
+export function UserManagePreview({
+  member,
+  onApprovePending,
+  onRejectPending,
+  onToggleActiveStatus,
+}: {
+  member: AppUser;
+  onApprovePending?: (member: AppUser, remark?: string) => void;
+  onRejectPending?: (member: AppUser, remark?: string) => void;
+  onToggleActiveStatus?: (member: AppUser, isActive: boolean) => void;
+}) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [pendingDecision, setPendingDecision] = useState<"approve" | "reject" | null>(null);
+  const [pendingRemark, setPendingRemark] = useState("");
+  const [remarkTouched, setRemarkTouched] = useState(false);
+  const remarkCardRef = useRef<HTMLDivElement | null>(null);
+  const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const rawJoiningDate = member.basicDetails?.companyOnboardingDate || member.onboardingDate || "";
   const formattedJoiningDate = formatDateLabel(rawJoiningDate);
@@ -191,16 +285,73 @@ export function UserManagePreview({ member }: { member: AppUser }) {
     reportingManagerEmail: member.manager?.email || member.basicDetails?.reportingManager || "",
   };
 
+  const formattedDesignation = formatDesignation(userData.designation);
+  const formattedDepartment = cleanDisplayValue(userData.department);
+
+  const memberRecord = member as unknown as Record<string, unknown>;
+  const basicDetailsRecord =
+    typeof memberRecord.basicDetails === "object" && memberRecord.basicDetails !== null
+      ? (memberRecord.basicDetails as Record<string, unknown>)
+      : {};
+
+  const initiatorName =
+    pickFirst(memberRecord, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"]) ||
+    pickFirst(basicDetailsRecord, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"]);
+  const initiatorEmail =
+    pickFirst(memberRecord, ["requestedByEmail", "initiatorEmail", "requesterEmail", "createdByEmail"]) ||
+    pickFirst(basicDetailsRecord, ["requestedByEmail", "initiatorEmail", "requesterEmail", "createdByEmail"]);
+  const initiatedOnRaw =
+    pickFirst(memberRecord, ["requestedAt", "initiatedAt", "initiatedDate", "createdAt", "requestedOn", "requestDate"]) ||
+    pickFirst(basicDetailsRecord, ["requestedAt", "initiatedAt", "initiatedDate", "createdAt", "requestedOn", "requestDate"]);
+  const resolvedInitiatorName = initiatorName || INITIATOR_FALLBACK.name;
+  const resolvedInitiatorEmail = initiatorEmail || INITIATOR_FALLBACK.email;
+  const initiatedOn = formatToIst(initiatedOnRaw || INITIATOR_FALLBACK.initiatedAt);
+
   const avatar = getAvatarColor(userData.name);
 
   const accessDetails = member.accessDetails ?? [];
   const primaryItems = accessDetails.filter((a) => a.accessType === "PRIMARY");
-  const secondaryItems = accessDetails.filter((a) => a.accessType !== "PRIMARY");
+  const secondaryItemsRaw = accessDetails.filter((a) => a.accessType !== "PRIMARY");
+  const secondaryItems = secondaryItemsRaw.length > 0 ? secondaryItemsRaw : DEMO_SECONDARY_ACCESS;
 
   const primaryByNode = groupByNode(primaryItems);
   const secondaryByNode = groupByNode(secondaryItems);
 
   const isEmpty = accessDetails.length === 0;
+  const isRemarkValid = Boolean(pendingRemark.trim());
+  const showRemarkError = remarkTouched && !isRemarkValid;
+  const isActive = member.status !== "Inactive";
+  const showActiveToggle = member.status === "Active" || member.status === "Inactive";
+
+  useEffect(() => {
+    if (!pendingDecision) return;
+    requestAnimationFrame(() => {
+      remarkCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      remarkInputRef.current?.focus();
+    });
+  }, [pendingDecision]);
+
+  const handleStartPendingAction = (action: "approve" | "reject") => {
+    setPendingDecision(action);
+    setRemarkTouched(false);
+  };
+
+  const handleSubmitPendingAction = (action: "approve" | "reject") => {
+    setRemarkTouched(true);
+    if (!isRemarkValid) return;
+
+    if (action === "approve") {
+      onApprovePending?.(member, pendingRemark.trim());
+      return;
+    }
+    onRejectPending?.(member, pendingRemark.trim());
+  };
+
+  const handleCloseRemark = () => {
+    setPendingDecision(null);
+    setPendingRemark("");
+    setRemarkTouched(false);
+  };
 
   // Status badge
   const statusCls =
@@ -219,70 +370,93 @@ export function UserManagePreview({ member }: { member: AppUser }) {
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="border-b border-slate-200 px-6 pt-6 pb-0">
         {/* Name + avatar row — no EDIT here so it doesn't clash with dialog X */}
-        <div className="flex items-center gap-4 pr-8">
-          <div className={cn("flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-bold", avatar.bg, avatar.text)}>
-            {getInitials(userData.name)}
+        <div className="flex items-start justify-between gap-4 pr-8">
+          <div className="flex items-center gap-4">
+            <div className={cn("flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-bold", avatar.bg, avatar.text)}>
+              {getInitials(userData.name)}
+            </div>
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-slate-900">{userData.name}</h2>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-slate-500">{formattedDesignation}</span>
+                {formattedDesignation !== "Not available" && formattedDepartment && (
+                  <span className="text-slate-300">•</span>
+                )}
+                {formattedDepartment ? <span className="text-xs font-medium text-slate-500">{formattedDepartment}</span> : null}
+                <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider", statusCls)}>
+                  <span className={cn("h-1 w-1 rounded-full", statusDot)} />
+                  {member.status || "Active"}
+                </span>
+              </div>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-bold tracking-tight text-slate-900">{userData.name}</h2>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-slate-500">{userData.designation}</span>
-              {userData.designation !== "-" && userData.department !== "-" && (
-                <span className="text-slate-300">•</span>
-              )}
-              <span className="text-xs font-medium text-slate-500">{userData.department}</span>
-              <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider", statusCls)}>
-                <span className={cn("h-1 w-1 rounded-full", statusDot)} />
-                {member.status || "Active"}
+          {showActiveToggle ? (
+            <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm">
+              <button
+                type="button"
+                onClick={() => onToggleActiveStatus?.(member, true)}
+                className={cn(
+                  "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
+                  isActive
+                    ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
+                    : "text-slate-500 hover:text-slate-700",
+                )}
+                aria-pressed={isActive}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggleActiveStatus?.(member, false)}
+                className={cn(
+                  "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
+                  !isActive
+                    ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
+                    : "text-slate-500 hover:text-slate-700",
+                )}
+                aria-pressed={!isActive}
+              >
+                Inactive
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        {member.status === "Pending" ? (
+          <div className="mb-4 mt-3 rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2 text-[12px]">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                <UserCheck size={12} className="text-slate-400" />
+                <span className="text-slate-500">By</span>
+                <span className="font-medium text-slate-700">{resolvedInitiatorName}</span>
+              </span>
+              <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                <Mail size={12} className="text-slate-400" />
+                <span className="text-slate-500">Email</span>
+                <span className="font-medium text-slate-700 truncate">{resolvedInitiatorEmail}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                <Calendar size={12} className="text-slate-400" />
+                <span className="text-slate-500">Initiated</span>
+                <span className="font-medium text-slate-700">{initiatedOn || formatToIst(INITIATOR_FALLBACK.initiatedAt)}</span>
               </span>
             </div>
           </div>
-        </div>
+        ) : null}
 
-        {/* Tabs row — EDIT lives here, well away from the dialog X button */}
-        <div className="mt-4 flex items-center gap-6">
-          {(["basic", "access"] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                "relative pb-3 text-xs font-black uppercase tracking-widest transition-colors",
-                activeTab === tab ? "text-[rgb(53,83,233)]" : "text-slate-400 hover:text-slate-600"
-              )}
-            >
-              {tab === "basic" ? "Basic Details" : "Access Rights"}
-              {activeTab === tab && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[rgb(53,83,233)]" />
-              )}
-            </button>
-          ))}
-
-          <button
-            type="button"
-            className="ml-auto mb-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
-          >
-            <Edit2 size={13} />
-            EDIT
-          </button>
-        </div>
+        <div className="mt-2" />
       </div>
 
-      {/* ── Tab Content ────────────────────────────────────────────────── */}
+      {/* ── Content ────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto p-6">
-
-        {/* BASIC DETAILS */}
-        {activeTab === "basic" && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3">
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">General Information</span>
               </div>
-              <div className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+              <div className="grid grid-cols-1 divide-y divide-slate-100 md:grid-cols-3 md:divide-x md:divide-y-0">
                 <BasicRow icon={Mail} label="Official Email" value={userData.email} />
                 <BasicRow icon={Phone} label="Mobile Number" value={userData.phone} />
-              </div>
-              <div className="grid grid-cols-1 divide-y divide-slate-100 border-t border-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                 <BasicRow icon={Calendar} label="Joining Date" value={userData.joiningDate} />
               </div>
             </div>
@@ -301,20 +475,14 @@ export function UserManagePreview({ member }: { member: AppUser }) {
                 <BasicRow
                   icon={Building2}
                   label="Current Designation"
-                  value={userData.designation}
-                  sub={userData.department !== "-" ? `${userData.department} Department` : ""}
+                  value={formattedDesignation}
+                  sub={formattedDepartment ? `${formattedDepartment} Department` : ""}
                 />
               </div>
             </div>
-          </div>
-        )}
-
-        {/* ACCESS RIGHTS */}
-        {activeTab === "access" && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-
-            {/* Toggle button */}
-            <div className="flex justify-end">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
+            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Access Rights</span>
               <button
                 type="button"
                 onClick={() => setIsExpanded((v) => !v)}
@@ -324,7 +492,7 @@ export function UserManagePreview({ member }: { member: AppUser }) {
                 {isExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
               </button>
             </div>
-
+            {/* Toggle button */}
             {isEmpty ? (
               <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 py-16 text-center">
                 <ShieldCheck size={28} className="mb-3 text-slate-300" />
@@ -388,7 +556,7 @@ export function UserManagePreview({ member }: { member: AppUser }) {
                         className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
                       >
                         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
-                          {idx + 1}
+                          P{idx + 1}
                         </div>
                         <div className="min-w-0">
                           <div className="truncate text-xs font-semibold text-slate-700">{group.nodeName}</div>
@@ -418,7 +586,7 @@ export function UserManagePreview({ member }: { member: AppUser }) {
                           className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
                         >
                           <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold", BRANCH_BADGE[pi])}>
-                            {idx + 1}
+                            S{idx + 1}
                           </div>
                           <div className="min-w-0">
                             <div className="truncate text-xs font-semibold text-slate-700">{group.nodeName}</div>
@@ -432,9 +600,82 @@ export function UserManagePreview({ member }: { member: AppUser }) {
               </div>
             )}
           </div>
-        )}
 
+          {member.status === "Pending" && pendingDecision ? (
+            <div ref={remarkCardRef} className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900">
+                  {pendingDecision === "approve" ? "Approve Remark" : "Reject Remark"}
+                </h4>
+                <div className="mt-1 flex items-center justify-between">
+                  <p className="text-xs text-slate-500">Remark is required before submitting this action.</p>
+                  <div className="text-[11px] text-slate-500">{pendingRemark.length}/100</div>
+                </div>
+              </div>
+              <Textarea
+                ref={remarkInputRef}
+                value={pendingRemark}
+                onChange={(event) => setPendingRemark(event.target.value)}
+                onBlur={() => setRemarkTouched(true)}
+                maxLength={100}
+                placeholder={`Enter remark for ${pendingDecision === "approve" ? "approval" : "rejection"}`}
+                className="mt-3 min-h-[88px]"
+              />
+              {showRemarkError ? <p className="mt-2 text-xs text-rose-600">Please enter a remark.</p> : null}
+            </div>
+          ) : null}
+        </div>
       </div>
+
+      {member.status === "Pending" ? (
+        <div className="border-t border-slate-200 bg-white px-6 py-4">
+          <div className="flex items-center justify-end gap-3">
+            {pendingDecision !== "approve" ? (
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition",
+                  pendingDecision === "reject"
+                    ? "border-[rgb(220,38,38)] bg-[rgb(220,38,38)] text-white hover:bg-[rgb(220,38,38)]"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600",
+                )}
+                onClick={() =>
+                  pendingDecision === "reject" ? handleSubmitPendingAction("reject") : handleStartPendingAction("reject")
+                }
+                disabled={pendingDecision === "reject" && !isRemarkValid}
+              >
+                Reject
+              </button>
+            ) : null}
+            {pendingDecision ? (
+              <button
+                type="button"
+                className="inline-flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                onClick={handleCloseRemark}
+              >
+                Close
+              </button>
+            ) : null}
+            {pendingDecision !== "reject" ? (
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition",
+                  pendingDecision === "approve"
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                    : "bg-[rgb(53,83,233)] text-white shadow-sm hover:bg-[rgb(45,71,210)]",
+                )}
+                onClick={() =>
+                  pendingDecision === "approve" ? handleSubmitPendingAction("approve") : handleStartPendingAction("approve")
+                }
+                disabled={pendingDecision === "approve" && !isRemarkValid}
+              >
+                Approve
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

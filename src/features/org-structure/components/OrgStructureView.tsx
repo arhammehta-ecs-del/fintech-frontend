@@ -5,10 +5,11 @@ import { NewNodePopup } from "@/features/org-structure/components/NewNodePopup";
 import { OrgTreeCanvas } from "@/features/org-structure/components/OrgTreeCanvas";
 import { PendingNodePopup } from "@/features/org-structure/components/PendingNodePopup";
 import { useOrgStructure } from "@/features/org-structure/hooks/useOrgStructure";
-import { flattenOrg } from "@/features/org-structure/orgNode.utils";
+import { collectNodeTrail } from "@/features/org-structure/orgNode.utils";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import type { NewNodeType } from "@/features/org-structure/types";
 
 function filterPendingNodes(node: OrgNode | null): OrgNode | null {
   if (!node) return null;
@@ -26,7 +27,14 @@ function countNodes(node: OrgNode | null): number {
   return 1 + node.children.reduce((acc, child) => acc + countNodes(child), 0);
 }
 
+function hasPendingNodes(node: OrgNode | null): boolean {
+  if (!node) return false;
+  if (node.status === "Pending") return true;
+  return node.children.some(hasPendingNodes);
+}
+
 export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
+  const newNodeTypeOptions: NewNodeType[] = ["Division", "Department", "Team", "Plant", "Location"];
   const {
     orgStructure,
     selectedDepartment,
@@ -62,15 +70,6 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   } = useOrgStructure();
 
   const [showPending, setShowPending] = useState(true);
-  const availableNodeTypes = useMemo(() => {
-    const nodeTypes = new Set(
-      flattenOrg(orgStructure)
-        .map((node) => node.nodeType.trim())
-        .filter((nodeType) => nodeType && nodeType.toUpperCase() !== "ROOT"),
-    );
-
-    return Array.from(nodeTypes).sort((left, right) => left.localeCompare(right));
-  }, [orgStructure]);
 
   const displayedStructure = useMemo(() => {
     if (showPending || !orgStructure) return orgStructure;
@@ -80,6 +79,12 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const displayedCount = useMemo(() => {
     return countNodes(displayedStructure);
   }, [displayedStructure]);
+
+  const hasPending = useMemo(() => hasPendingNodes(orgStructure), [orgStructure]);
+  const newNodeParentTrail = useMemo(() => {
+    if (!orgStructure || !newNodeParent?.id) return [];
+    return collectNodeTrail(orgStructure, newNodeParent.id);
+  }, [orgStructure, newNodeParent]);
 
   return (
     <div
@@ -117,30 +122,32 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                   </div>
                 </div>
 
-                <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowPending(!showPending)}
-                    className={cn(
-                      "group relative flex items-center gap-2.5 rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all duration-300",
-                      showPending
-                        ? "border-amber-200 bg-amber-50/50 text-amber-700 shadow-[0_2px_10px_rgba(245,158,11,0.1)]"
-                        : "border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600"
-                    )}
-                  >
-                    {showPending ? (
-                      <span className="flex items-center gap-2">
-                        <Eye size={13} className="shrink-0 transition-transform group-hover:scale-110" />
-                        Pending Nodes
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <EyeOff size={13} className="shrink-0 transition-transform group-hover:scale-110" />
-                        Pending Nodes
-                      </span>
-                    )}
-                  </button>
-                </div>
+                {hasPending ? (
+                  <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowPending(!showPending)}
+                      className={cn(
+                        "group relative flex items-center gap-2.5 rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all duration-300",
+                        showPending
+                          ? "border-amber-200 bg-amber-50/50 text-amber-700 shadow-[0_2px_10px_rgba(245,158,11,0.1)]"
+                          : "border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600"
+                      )}
+                    >
+                      {showPending ? (
+                        <span className="flex items-center gap-2">
+                          <Eye size={13} className="shrink-0 transition-transform group-hover:scale-110" />
+                          Pending Nodes
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <EyeOff size={13} className="shrink-0 transition-transform group-hover:scale-110" />
+                          Pending Nodes
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
               {orgError ? (
@@ -250,7 +257,8 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
       <NewNodePopup
         open={isNewNodePopupOpen}
         parentNodeName={newNodeParent?.name ?? ""}
-        nodeTypes={availableNodeTypes}
+        parentNodeTrail={newNodeParentTrail}
+        nodeTypes={newNodeTypeOptions}
         onOpenChange={(open) => {
           startTransition(() => {
             setIsNewNodePopupOpen(open);

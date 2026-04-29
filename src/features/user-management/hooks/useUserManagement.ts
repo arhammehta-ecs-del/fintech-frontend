@@ -180,18 +180,11 @@ export function useUserManagement() {
     });
   };
 
-  const handleUserStatusAction = (member: AppUser, action: "activate" | "deactivate") => {
+  const executeUserStatusAction = async (member: AppUser, action: "activate" | "deactivate", _remark?: string) => {
     if (!member.id) {
       toast({ title: "Action failed", description: "User ID is missing", variant: "destructive" });
       return;
     }
-    setPendingAction({ member, action });
-    setRemarkDialogOpen(true);
-  };
-
-  const processUserStatusAction = async (_remark: string) => {
-    if (!pendingAction) return;
-    const { member, action } = pendingAction;
 
     try {
       if (!member.email?.trim()) {
@@ -210,16 +203,38 @@ export function useUserManagement() {
         description: error instanceof Error ? error.message : "Unable to update user request.",
         variant: "destructive",
       });
-    } finally {
-      setPendingAction(null);
     }
   };
 
-  const handleActivateMember = (member: AppUser) => {
+  const handleUserStatusAction = (member: AppUser, action: "activate" | "deactivate") => {
+    if (!member.id) {
+      toast({ title: "Action failed", description: "User ID is missing", variant: "destructive" });
+      return;
+    }
+    setPendingAction({ member, action });
+    setRemarkDialogOpen(true);
+  };
+
+  const processUserStatusAction = async (_remark: string) => {
+    if (!pendingAction) return;
+    const { member, action } = pendingAction;
+    await executeUserStatusAction(member, action, _remark);
+    setPendingAction(null);
+  };
+
+  const handleActivateMember = (member: AppUser, remark?: string) => {
+    if (remark?.trim()) {
+      void executeUserStatusAction(member, "activate", remark);
+      return;
+    }
     void handleUserStatusAction(member, "activate");
   };
 
-  const handleDeactivateMember = (member: AppUser) => {
+  const handleDeactivateMember = (member: AppUser, remark?: string) => {
+    if (remark?.trim()) {
+      void executeUserStatusAction(member, "deactivate", remark);
+      return;
+    }
     void handleUserStatusAction(member, "deactivate");
   };
 

@@ -23,7 +23,9 @@ export const reorderItems = <T,>(items: T[], fromIndex: number, toIndex: number)
 };
 
 export const isUngroupedGroup = (group: GroupCompany) =>
-  group.id.trim().toLowerCase() === "ungrouped" || group.groupName.trim().toLowerCase() === "ungrouped";
+  group.id.trim().toLowerCase().startsWith("ungrouped") ||
+  group.groupName.trim().toLowerCase() === "ungrouped" ||
+  group.groupName.trim().toLowerCase() === "independent";
 
 export const getSortableTimestamp = (value: string) => {
   if (!value) return 0;

@@ -1,7 +1,7 @@
 import type { AppUser } from "@/contexts/AppContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, Check, Edit, Eye, Users, X } from "lucide-react";
+import { ArrowUpDown, SlidersHorizontal, Users } from "lucide-react";
 import { maskContactNumber, getInitials, getAvatarColor } from "@/features/user-management/utils";
 
 type UserTableProps = {
@@ -9,9 +9,6 @@ type UserTableProps = {
   currentMembers: AppUser[];
   paginatedMembers: AppUser[];
   onView: (member: AppUser) => void;
-  onEdit: (member: AppUser) => void;
-  onActivate: (member: AppUser) => void;
-  onDeactivate: (member: AppUser) => void;
 };
 
 export default function UserTable({
@@ -19,9 +16,6 @@ export default function UserTable({
   currentMembers,
   paginatedMembers,
   onView,
-  onEdit,
-  onActivate,
-  onDeactivate,
 }: UserTableProps) {
   if (isLoading) {
     return (
@@ -87,41 +81,15 @@ export default function UserTable({
             <td className="px-4 py-4 font-mono text-sm text-slate-600">{maskContactNumber(member.phone)}</td>
             <td className="px-4 py-4">
               <div className="flex items-center justify-center gap-3">
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-[rgb(53,83,233)] hover:text-[rgb(53,83,233)]" onClick={() => onView(member)}>
-                  <Eye className="h-4 w-4" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+                  onClick={() => onView(member)}
+                  aria-label={`Manage ${member.name || member.email || "member"}`}
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(member)}>
-                  <Edit className="h-4 w-4" />
-                </Button>
-                {member.status === "Pending" ? (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-emerald-600"
-                      onClick={() => onActivate(member)}
-                    >
-                      <Check className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive"
-                      onClick={() => onDeactivate(member)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </>
-                ) : member.status === "Inactive" ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-emerald-600"
-                    onClick={() => onActivate(member)}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                ) : null}
               </div>
             </td>
           </tr>

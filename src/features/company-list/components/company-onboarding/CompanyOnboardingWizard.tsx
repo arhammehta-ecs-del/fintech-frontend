@@ -56,6 +56,7 @@ export function CompanyOnboardingWizardContent({
     newSig,
     newSigErrors,
     errors,
+    signatoryValidationAttempted,
     selectedGroupData,
     isExistingGroup,
     existingSignatories,
@@ -172,6 +173,7 @@ export function CompanyOnboardingWizardContent({
               showNewSignatoryForm={showNewSignatoryForm}
               newSig={newSig}
               newSigErrors={newSigErrors}
+              signatoryValidationAttempted={signatoryValidationAttempted}
               onSetShowNewSignatoryForm={setShowNewSignatoryForm}
               onSetNewSigErrors={setNewSigErrors}
               onSetNewSig={setNewSig}

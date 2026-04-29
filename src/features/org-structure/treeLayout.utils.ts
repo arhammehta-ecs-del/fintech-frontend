@@ -18,7 +18,7 @@ export const getNodeBoxSize = (node: OrgNode) => {
   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
   const isLeaf = node.children.length === 0 && !isRoot;
 
-  if (isRoot) return { width: 108, height: 48 };
+  if (isRoot) return { width: 168, height: 62 };
   if (isLeaf) return { width: 160, height: 58 };
   return { width: 168, height: 62 };
 };

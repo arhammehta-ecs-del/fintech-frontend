@@ -383,7 +383,7 @@ export function UserOnboardingStepAccessRights({
                         <GripVertical className="h-4 w-4" />
                       </button>
                       <div className={cn("flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold", getOrgNodeBadgeTheme(node.nodeType))}>
-                        {index + 1}
+                        P{index + 1}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">

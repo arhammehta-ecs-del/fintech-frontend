@@ -63,7 +63,7 @@ export function CompanyOnboardingStepCompanyDetails({
         {errors.companyName ? <p className="text-sm text-destructive">{errors.companyName}</p> : null}
       </div>
       <div className="space-y-2">
-        <Label>IE Code</Label>
+        <Label>IE Code </Label>
         <Input value={ieCode} onChange={(event) => onIeCodeChange(event.target.value)} />
         {errors.ieCode ? <p className="text-sm text-destructive">{errors.ieCode}</p> : null}
       </div>
@@ -74,7 +74,7 @@ export function CompanyOnboardingStepCompanyDetails({
       </div>
       <div className="space-y-2">
         <Label>GST</Label>
-        <Input value={gstin} onChange={(event) => onGstinChange(event.target.value)} />
+        <Input value={gstin} onChange={(event) => onGstinChange(event.target.value.toUpperCase())} />
         {errors.gstin ? <p className="text-sm text-destructive">{errors.gstin}</p> : null}
         <div className="space-y-2 pt-1">
           <Label htmlFor="gstDocument">Upload Company GST (Optional)</Label>

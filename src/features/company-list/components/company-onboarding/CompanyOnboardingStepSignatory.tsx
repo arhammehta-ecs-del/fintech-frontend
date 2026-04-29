@@ -18,6 +18,7 @@ type StepSignatoryProps = {
   showNewSignatoryForm: boolean;
   newSig: Omit<SignatoryForm, "id" | "source">;
   newSigErrors: Record<string, string>;
+  signatoryValidationAttempted: boolean;
   onSetShowNewSignatoryForm: (show: boolean) => void;
   onSetNewSigErrors: (errors: Record<string, string>) => void;
   onSetNewSig: (updater: (current: Omit<SignatoryForm, "id" | "source">) => Omit<SignatoryForm, "id" | "source">) => void;
@@ -39,6 +40,7 @@ export function CompanyOnboardingStepSignatory({
   showNewSignatoryForm,
   newSig,
   newSigErrors,
+  signatoryValidationAttempted,
   onSetShowNewSignatoryForm,
   onSetNewSigErrors,
   onSetNewSig,
@@ -65,6 +67,10 @@ export function CompanyOnboardingStepSignatory({
           <Plus className="h-3 w-3" /> Add Signatory
         </Button>
       </div>
+
+      {signatoryValidationAttempted && errors.signatories === "Details can't be same" ? (
+        <p className="text-sm text-destructive">Details can&apos;t be same</p>
+      ) : null}
 
       {showNewSignatoryForm ? (
         <Card className="p-4 shadow-sm">
@@ -143,7 +149,12 @@ export function CompanyOnboardingStepSignatory({
         </Card>
       ) : null}
 
-      {errors.signatories && (totalSignatories < 2 || totalSignatories > 3) ? <p className="text-sm text-destructive">{errors.signatories}</p> : null}
+      {signatoryValidationAttempted &&
+      !showNewSignatoryForm &&
+      errors.signatories &&
+      (totalSignatories < 2 || totalSignatories > 3) ? (
+        <p className="text-sm text-destructive">{errors.signatories}</p>
+      ) : null}
 
       {isExistingGroup && existingSignatories.length > 0 ? (
         <div className="space-y-2">
@@ -251,7 +262,7 @@ export function CompanyOnboardingStepSignatory({
           ))}
         </div>
       ) : (
-        <div className="py-8 text-center text-sm text-muted-foreground">No signatories added yet. Minimum 2 signatories required.</div>
+        <div className="py-8 text-center text-sm text-muted-foreground">No signatories added yet.</div>
       )}
     </div>
   );

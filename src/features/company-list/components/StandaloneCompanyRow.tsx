@@ -2,7 +2,7 @@ import type { DragEvent } from "react";
 import type { Company } from "@/contexts/AppContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, Eye, GripVertical, Pencil, X } from "lucide-react";
+import { GripVertical, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DragPayload, VisibleColumn } from "@/features/company-list/types";
 import { formatDisplayDate, statusColors } from "@/features/company-list/utils";
@@ -14,7 +14,6 @@ type StandaloneCompanyRowProps = {
   visibleColumns: Set<VisibleColumn>;
   showStatusColumn: boolean;
   onManage: (company: Company, editing?: boolean) => void;
-  onToggleActive: (companyId: string, isActive: boolean) => void;
   dragState: DragPayload | null;
   onDragStart: (payload: DragPayload) => (event: DragEvent<HTMLElement>) => void;
   onDragEnd: () => void;
@@ -29,7 +28,6 @@ export default function StandaloneCompanyRow({
   visibleColumns,
   showStatusColumn,
   onManage,
-  onToggleActive,
   dragState,
   onDragStart,
   onDragEnd,
@@ -105,49 +103,10 @@ export default function StandaloneCompanyRow({
                 size="icon"
                 className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
                 onClick={() => onManage(company)}
+                aria-label={`Manage ${company.companyName}`}
               >
-                <Eye className="h-4 w-4" />
+                <SlidersHorizontal className="h-4 w-4" />
               </Button>
-              {company.status === "Pending" ? (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    className="h-8 w-8 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
-                    aria-label={`Approve ${company.companyName}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onToggleActive(company.id, true);
-                    }}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    className="h-8 w-8 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
-                    aria-label={`Reject ${company.companyName}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onToggleActive(company.id, false);
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  type="button"
-                  className="h-8 w-8 cursor-default text-slate-400 hover:bg-transparent hover:text-slate-400"
-                  aria-label={`Edit ${company.companyName}`}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              )}
             </div>
           </td>
         )}

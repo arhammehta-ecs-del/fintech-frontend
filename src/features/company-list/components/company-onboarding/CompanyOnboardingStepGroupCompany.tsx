@@ -32,6 +32,8 @@ export function CompanyOnboardingStepGroupCompany({
   onGroupNameChange,
   onRemarksChange,
 }: StepGroupCompanyProps) {
+  const selectableGroups = groups.filter((group) => group.groupName.trim().toLowerCase() !== "independent");
+
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
       <div className="space-y-2">
@@ -43,7 +45,7 @@ export function CompanyOnboardingStepGroupCompany({
           <SelectContent>
             <SelectItem value="new">New Group</SelectItem>
             <SelectItem value="existing">Existing Group</SelectItem>
-            <SelectItem value="not_applicable">Not applicable</SelectItem>
+            <SelectItem value="not_applicable">Independent</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -52,7 +54,11 @@ export function CompanyOnboardingStepGroupCompany({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Group Name</Label>
-            <Input value={groupName} onChange={(event) => onGroupNameChange(event.target.value)} />
+            <Input
+              value={groupName}
+              onChange={(event) => onGroupNameChange(event.target.value)}
+              className="capitalize"
+            />
             {errors.groupName ? <p className="text-sm text-destructive">{errors.groupName}</p> : null}
           </div>
           <div className="space-y-2">
@@ -71,16 +77,25 @@ export function CompanyOnboardingStepGroupCompany({
                 <SelectValue placeholder="Choose a group" />
               </SelectTrigger>
               <SelectContent>
-                {groups.map((group) => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.groupName}
+                {selectableGroups.map((group) => (
+                  <SelectItem
+                    key={group.id}
+                    value={group.id}
+                    textValue={`${group.groupName}${group.code ? ` ${group.code}` : ""}`}
+                    className="py-2.5 pr-3"
+                  >
+                    <div className="flex w-full items-center justify-between gap-4">
+                      <span className="min-w-0 truncate text-[15px] font-medium text-slate-900">{group.groupName}</span>
+                      {group.code ? (
+                        <span className="shrink-0 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-medium leading-none tracking-[0.02em] text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                          {group.code}
+                        </span>
+                      ) : null}
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {errors.selectedGroupId ? (
-              <p className="text-sm text-destructive">{errors.selectedGroupId}</p>
-            ) : null}
           </div>
 
           {selectedGroupData ? (
@@ -98,7 +113,7 @@ export function CompanyOnboardingStepGroupCompany({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Group Name</Label>
-            <Input value="Not applicable" disabled />
+            <Input value="Independent" disabled />
           </div>
           <div className="space-y-2">
             <Label>Remarks</Label>

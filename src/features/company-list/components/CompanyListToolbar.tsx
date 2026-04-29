@@ -6,17 +6,17 @@ import { Search, Settings2, X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CompanyListToolbarProps, StatusTab, VisibleColumn } from "@/features/company-list/types";
 
-const STATUS_TABS: Array<{ id: StatusTab; label: string }> = [
-  { id: "active", label: "Active" },
-  { id: "pending", label: "Pending" },
-  { id: "inactive", label: "Inactive" },
+const STATUS_TABS: Array<{ id: StatusTab; label: string; badgeClassName: string }> = [
+  { id: "active", label: "Active", badgeClassName: "bg-emerald-100 text-emerald-700" },
+  { id: "pending", label: "Pending", badgeClassName: "bg-amber-100 text-amber-700" },
+  { id: "inactive", label: "Inactive", badgeClassName: "bg-rose-100 text-rose-700" },
 ];
 
 const DEFAULT_COLUMNS: Array<{ id: VisibleColumn; label: string }> = [
   { id: "groupName", label: "Group Name" },
   { id: "companyName", label: "Company Name" },
   { id: "code", label: "Code / Legal Name" },
-  { id: "createdDate", label: "Incorporation Date" },
+  { id: "createdDate", label: "Registration Date" },
   { id: "manage", label: "Manage" },
 ];
 
@@ -27,6 +27,7 @@ export default function CompanyListToolbar({
   onClearSearch,
   selectedStatusTab,
   onStatusTabChange,
+  statusCounts,
   visibleColumns,
   onToggleColumn,
   onOpenOnboarding,
@@ -36,7 +37,10 @@ export default function CompanyListToolbar({
   return (
     <>
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-foreground">CompanyList List</h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Company List</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Switch between active, pending, and inactive companies at a glance.</p>
+        </div>
         <Button onClick={onOpenOnboarding} className="gap-2">
           <Plus className="h-4 w-4" /> Add New Company
         </Button>
@@ -47,7 +51,7 @@ export default function CompanyListToolbar({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search groups..."
+              placeholder="Search companies or groups..."
               className="pl-9 pr-9"
               value={searchInput}
               onChange={(event) => onSearchInputChange(event.target.value)}
@@ -75,20 +79,29 @@ export default function CompanyListToolbar({
         </div>
 
         <div className="flex w-full flex-wrap items-center gap-2 self-start sm:w-auto sm:self-end">
-          <div className="inline-flex rounded-lg border border-border bg-muted/30 p-1">
+          <div className="inline-flex rounded-full border border-slate-200 bg-white p-1.5 shadow-sm">
             {STATUS_TABS.map((option) => (
               <button
                 key={option.id}
                 type="button"
                 onClick={() => onStatusTabChange(option.id)}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200",
                   selectedStatusTab === option.id
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)]"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
                 )}
+                aria-pressed={selectedStatusTab === option.id}
               >
-                {option.label}
+                <span>{option.label}</span>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                    selectedStatusTab === option.id ? "bg-white/18 text-white ring-1 ring-white/25" : option.badgeClassName,
+                  )}
+                >
+                  {statusCounts[option.id]}
+                </span>
               </button>
             ))}
           </div>

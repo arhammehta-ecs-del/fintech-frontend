@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { Company, CompanyStatus, GroupCompany } from "@/contexts/AppContext";
 import { getAllCompanies, updateCompanyOnboardingAction } from "@/services/company.service";
+import { useToast } from "@/hooks/use-toast";
 import type { DisplayRow, StatusTab, VisibleColumn } from "@/features/company-list/types";
 import {
   buildAllDisplayRows,
@@ -9,9 +10,16 @@ import {
   getSelectedGroupInfo,
 } from "@/features/company-list/utils";
 
+const EMPTY_STATUS_COUNTS = {
+  active: 0,
+  pending: 0,
+  inactive: 0,
+};
+
 export function useCompanyList() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [groups, setGroups] = useState<GroupCompany[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [searchInput, setSearchInput] = useState("");
@@ -35,6 +43,20 @@ export function useCompanyList() {
   const [pendingAction, setPendingAction] = useState<{ companyId: string; isActive: boolean } | null>(null);
   const statusFilter: CompanyStatus =
     selectedStatusTab === "inactive" ? "Inactive" : selectedStatusTab === "pending" ? "Pending" : "Approved";
+
+  const statusCounts = useMemo(() => {
+    return groups.reduce(
+      (counts, group) => {
+        group.subsidiaries.forEach((company) => {
+          if (company.status === "Approved") counts.active += 1;
+          else if (company.status === "Pending") counts.pending += 1;
+          else if (company.status === "Inactive") counts.inactive += 1;
+        });
+        return counts;
+      },
+      { ...EMPTY_STATUS_COUNTS },
+    );
+  }, [groups]);
 
   useEffect(() => {
     let ignore = false;
@@ -123,7 +145,38 @@ export function useCompanyList() {
     setSelectedCompany(updatedCompany);
   };
 
-  const handleToggleCompanyActive = (companyId: string, isActive: boolean) => {
+  const executeCompanyAction = async (companyId: string, isActive: boolean, remark: string) => {
+    const nextStatus: CompanyStatus = isActive ? "Approved" : "Inactive";
+    const actionLabel = isActive ? "approved" : "rejected";
+
+    await updateCompanyOnboardingAction(companyId, isActive ? "approve" : "reject", remark);
+    updateSpecificCompany(companyId, (company) => ({
+      ...company,
+      status: nextStatus,
+    }));
+    setSelectedCompany((previous) =>
+      previous && previous.id === companyId ? { ...previous, status: nextStatus } : previous,
+    );
+    toast({
+      title: `Company ${actionLabel}`,
+      description: `The company request has been ${actionLabel} successfully.`,
+    });
+  };
+
+  const handleToggleCompanyActive = (companyId: string, isActive: boolean, remark?: string) => {
+    if (typeof remark === "string") {
+      void executeCompanyAction(companyId, isActive, remark).catch((err) => {
+        const message = err instanceof Error ? err.message : "Failed to update company status";
+        setError(message);
+        toast({
+          title: "Action failed",
+          description: message,
+          variant: "destructive",
+        });
+      });
+      return;
+    }
+
     setPendingAction({ companyId, isActive });
     setRemarkDialogOpen(true);
   };
@@ -131,19 +184,17 @@ export function useCompanyList() {
   const processCompanyAction = async (remark: string) => {
     if (!pendingAction) return;
     const { companyId, isActive } = pendingAction;
-    const nextStatus: CompanyStatus = isActive ? "Approved" : "Inactive";
 
     try {
-      await updateCompanyOnboardingAction(companyId, isActive ? "approve" : "reject", remark);
-      updateSpecificCompany(companyId, (company) => ({
-        ...company,
-        status: nextStatus,
-      }));
-      setSelectedCompany((previous) =>
-        previous && previous.id === companyId ? { ...previous, status: nextStatus } : previous,
-      );
+      await executeCompanyAction(companyId, isActive, remark);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update company status");
+      const message = err instanceof Error ? err.message : "Failed to update company status";
+      setError(message);
+      toast({
+        title: "Action failed",
+        description: message,
+        variant: "destructive",
+      });
     } finally {
       setPendingAction(null);
     }
@@ -171,6 +222,7 @@ export function useCompanyList() {
     isOnboardingOpen,
     setIsOnboardingOpen,
     visibleColumns,
+    statusCounts,
     isLoading,
     error,
     selectedStatusTab,

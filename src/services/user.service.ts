@@ -60,8 +60,39 @@ const toRecord = (value: unknown): RawUserRecord =>
   typeof value === "object" && value !== null ? (value as RawUserRecord) : {};
 
 const readString = (value: unknown) => (typeof value === "string" ? value : "");
+const readNonEmptyString = (value: unknown, fallback: string) => {
+  const raw = readString(value).trim();
+  return raw || fallback;
+};
 
-const mapAccessDetails = (record: RawUserRecord): NonNullable<AppUser["accessDetails"]> => {
+const buildDemoSecondaryAccess = (): NonNullable<AppUser["accessDetails"]> => [
+  {
+    roleCategory: "SYSTEM_ACCESS",
+    roleSubCategory: "ORG_STR",
+    roleName: "Org Structure Viewer",
+    nodeName: "Head Office",
+    nodePath: "GLOBALTECH.HEAD_OFFICE",
+    accessType: "SECONDARY",
+  },
+  {
+    roleCategory: "TRANSACTIONAL",
+    roleSubCategory: "ACCOUNTS",
+    roleName: "Accounts User",
+    nodeName: "Finance Node",
+    nodePath: "GLOBALTECH.FINANCE.NODE",
+    accessType: "SECONDARY",
+  },
+  {
+    roleCategory: "OPERATIONAL",
+    roleSubCategory: "MASTER",
+    roleName: "Master Viewer",
+    nodeName: "Operations Node",
+    nodePath: "GLOBALTECH.OPERATIONS.NODE",
+    accessType: "SECONDARY",
+  },
+];
+
+const mapAccessDetails = (record: RawUserRecord, status: AppUser["status"]): NonNullable<AppUser["accessDetails"]> => {
   // Support both new format { primary: [...], secondary: [...] }
   // and old format { accessDetails: [...] }
   const primaryArr = Array.isArray(record.primary)
@@ -76,28 +107,51 @@ const mapAccessDetails = (record: RawUserRecord): NonNullable<AppUser["accessDet
     )
     : [];
 
-  const entries = primaryArr.length > 0 || secondaryArr.length > 0
-    ? [...primaryArr, ...secondaryArr]
-    : legacyArr;
+  const entriesWithType: Array<{ entry: RawUserRecord; accessType?: "PRIMARY" | "SECONDARY" }> =
+    primaryArr.length > 0 || secondaryArr.length > 0
+      ? [
+        ...primaryArr.map((entry) => ({ entry, accessType: "PRIMARY" as const })),
+        ...secondaryArr.map((entry) => ({ entry, accessType: "SECONDARY" as const })),
+      ]
+      : legacyArr.map((entry) => ({ entry, accessType: undefined }));
 
-  return entries.map((entry) => ({
+  if (entriesWithType.length === 0) {
+    return [
+      {
+        roleCategory: "SYSTEM_ACCESS",
+        roleSubCategory: "USER_ACC",
+        roleName: "User Access Viewer",
+        nodeName: "Default Node",
+        nodePath: "DEFAULT.ROOT.NODE",
+        accessType: "PRIMARY",
+      },
+    ];
+  }
+
+  const mappedEntries = entriesWithType.map(({ entry, accessType: detectedType }) => ({
     roleCategory:
       readString(entry.roleCategory).trim().toUpperCase() === "OPERATIONAL"
         ? "OPERATIONAL"
         : readString(entry.roleCategory).trim().toUpperCase() === "SYSTEM_ACCESS"
           ? "SYSTEM_ACCESS"
           : "TRANSACTIONAL",
-    roleSubCategory: readString(entry.roleSubCategory),
-    roleName: readString(entry.roleName),
-    nodeName: readString(entry.nodeName),
-    nodePath: readString(entry.nodePath),
-    accessType:
-      readString(entry.accessType).trim().toUpperCase() === "SECONDARY"
+    roleSubCategory: readNonEmptyString(entry.roleSubCategory, "USER_ACC"),
+    roleName: readNonEmptyString(entry.roleName, "User Access Viewer"),
+    nodeName: readNonEmptyString(entry.nodeName, "Default Node"),
+    nodePath: readNonEmptyString(entry.nodePath, "DEFAULT.ROOT.NODE"),
+    accessType: detectedType
+      ? detectedType
+      : readString(entry.accessType).trim().toUpperCase() === "SECONDARY"
         ? "SECONDARY"
-        : readString(entry.accessType).trim().toUpperCase() === "PRIMARY"
-          ? "PRIMARY"
-          : undefined,
+        : "PRIMARY",
   }));
+
+  // For pending-user demo flow, ensure we always show a few secondary nodes.
+  if (status === "Pending" && !mappedEntries.some((entry) => entry.accessType === "SECONDARY")) {
+    return [...mappedEntries, ...buildDemoSecondaryAccess()];
+  }
+
+  return mappedEntries;
 };
 
 const getDepartmentFromAccessDetails = (record: RawUserRecord) => {
@@ -118,13 +172,17 @@ const getDepartmentFromAccessDetails = (record: RawUserRecord) => {
 
 const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUser => {
   const basicDetails = toRecord(record.basicDetails);
-  const name = readString(record.name) || readString(basicDetails.name);
-  const email = readString(record.email) || readString(basicDetails.email);
-  const designation = readString(record.designation) || readString(basicDetails.designation);
-  const phone = readString(record.phone) || readString(basicDetails.phone);
-  const onboardingDate = readString(record.onboardingDate) || readString(basicDetails.companyOnboardingDate);
-  const reportingManager = readString(basicDetails.reportingManager);
-  const employeeId = readString(record.employeeId) || readString(basicDetails.employeeId);
+  const name = readNonEmptyString(readString(record.name) || readString(basicDetails.name), "Not available");
+  const email = readNonEmptyString(readString(record.email) || readString(basicDetails.email), "no-email@example.com");
+  const designation = readNonEmptyString(readString(record.designation) || readString(basicDetails.designation), "Not available");
+  const phone = readNonEmptyString(readString(record.phone) || readString(basicDetails.phone), "9999999999");
+  const onboardingDate =
+    readString(record.onboardingDate) || readString(basicDetails.companyOnboardingDate) || readString(basicDetails.createdAt);
+  const reportingManager = readNonEmptyString(readString(basicDetails.reportingManager), "Not available");
+  const employeeId = readNonEmptyString(readString(record.employeeId) || readString(basicDetails.employeeId), "EMP-0001");
+  const initiatorName = readString(basicDetails.initiatorName).trim();
+  const initiatorEmail = readString(basicDetails.initiatorEmail).trim();
+  const initiatedAt = readString(basicDetails.initiatedDate).trim();
   const backendId =
     readString(record.id) ||
     readString(record.userId) ||
@@ -165,12 +223,15 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
       name,
       email,
       phone,
-      companyOnboardingDate: onboardingDate,
+      companyOnboardingDate: onboardingDate || "01-01-2026",
       designation,
       employeeId,
       reportingManager,
+      ...(initiatorName ? { initiatorName } : {}),
+      ...(initiatorEmail ? { initiatorEmail } : {}),
+      ...(initiatedAt ? { initiatedDate: initiatedAt } : {}),
     },
-    accessDetails: mapAccessDetails(record),
+    accessDetails: mapAccessDetails(record, status),
   };
 };
 

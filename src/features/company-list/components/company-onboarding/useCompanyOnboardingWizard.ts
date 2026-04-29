@@ -41,6 +41,41 @@ export function useCompanyOnboardingWizard({
   const [newSig, setNewSig] = useState(emptySignatoryForm);
   const [newSigErrors, setNewSigErrors] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [signatoryValidationAttempted, setSignatoryValidationAttempted] = useState(false);
+
+  const resetWizardState = () => {
+    setStep(0);
+    setIsSubmitting(false);
+    setGroupSelectionMode("new");
+    setSelectedGroupLocalId("");
+    setGroupName("");
+    setRemarks("");
+    setCompanyName("");
+    setLegalName("");
+    setIncDate("");
+    setAddress("");
+    setGstin("");
+    setGstDocumentName("");
+    setGstDocumentFile(null);
+    setIsGstPreviewOpen(false);
+    setGstPreviewUrl("");
+    setGstPreviewMimeType("");
+    setIeCode("");
+    setSignatories([]);
+    setLinkedSigIds(new Set());
+    setEditingSignatoryIds(new Set());
+    setSignatoryToRemove(null);
+    setShowNewSignatoryForm(false);
+    setNewSig(emptySignatoryForm);
+    setNewSigErrors({});
+    setErrors({});
+    setSignatoryValidationAttempted(false);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    resetWizardState();
+  }, [open]);
 
   useEffect(() => {
     if (embedded && !open) return;
@@ -102,8 +137,8 @@ export function useCompanyOnboardingWizard({
     setSignatories([]);
 
     if (value === "not_applicable") {
-      setGroupName("Not applicable");
-    } else if (groupName === "Not applicable") {
+      setGroupName("Independent");
+    } else if (groupName === "Independent") {
       setGroupName("");
     }
   };
@@ -169,13 +204,50 @@ export function useCompanyOnboardingWizard({
       if (!legalName.trim()) nextErrors.legalName = "Required";
       if (!companyName.trim()) nextErrors.companyName = "Required";
       if (!gstin.trim()) nextErrors.gstin = "Required";
-      if (!ieCode.trim()) nextErrors.ieCode = "Required";
       if (!incDate.trim()) nextErrors.incDate = "Required";
       else if (incDate > todayDateInputValue) nextErrors.incDate = "Date cannot be later than today";
       if (!address.trim()) nextErrors.address = "Required";
     } else if (step === 2) {
+      setSignatoryValidationAttempted(true);
       if (totalSignatories < 2) nextErrors.signatories = "Minimum 2 signatories required";
       else if (totalSignatories > 3) nextErrors.signatories = "You can add a maximum of 3 signatories";
+
+      const duplicateIndices = new Set<number>();
+      const emailIndexMap = new Map<string, number[]>();
+      const phoneIndexMap = new Map<string, number[]>();
+
+      signatories.forEach((sig, index) => {
+        const emailKey = sig.email.trim().toLowerCase();
+        const phoneKey = sig.phone.replace(/\D/g, "");
+
+        if (emailKey) {
+          const existing = emailIndexMap.get(emailKey) ?? [];
+          existing.push(index);
+          emailIndexMap.set(emailKey, existing);
+        }
+
+        if (phoneKey) {
+          const existing = phoneIndexMap.get(phoneKey) ?? [];
+          existing.push(index);
+          phoneIndexMap.set(phoneKey, existing);
+        }
+      });
+
+      emailIndexMap.forEach((indices) => {
+        if (indices.length > 1) {
+          indices.forEach((index) => duplicateIndices.add(index));
+        }
+      });
+
+      phoneIndexMap.forEach((indices) => {
+        if (indices.length > 1) {
+          indices.forEach((index) => duplicateIndices.add(index));
+        }
+      });
+
+      if (duplicateIndices.size > 0) {
+        nextErrors.signatories = "Details can't be same";
+      }
 
       signatories.forEach((sig, index) => {
         const prefix = `signatory-${index}`;
@@ -227,6 +299,7 @@ export function useCompanyOnboardingWizard({
         source: "new",
       },
     ]);
+    setSignatoryValidationAttempted(false);
     setNewSig(emptySignatoryForm);
     setNewSigErrors({});
     setShowNewSignatoryForm(false);
@@ -245,6 +318,7 @@ export function useCompanyOnboardingWizard({
       next.delete(id);
       return next;
     });
+    setSignatoryValidationAttempted(false);
   };
 
   const buildPayload = (): OnboardingPayload => ({
@@ -253,7 +327,7 @@ export function useCompanyOnboardingWizard({
         groupSelectionMode === "existing"
           ? selectedGroupData?.groupName ?? ""
           : groupSelectionMode === "not_applicable"
-            ? "Not applicable"
+            ? "Independent"
             : groupName.trim(),
       groupCode: resolvedGroupCode,
       remarks: remarks.trim(),
@@ -261,7 +335,7 @@ export function useCompanyOnboardingWizard({
     company: {
       companyCode: generatedCompanyCode,
       name: legalName.trim().toUpperCase(),
-      gst: gstin.trim(),
+      gst: gstin.trim().toUpperCase(),
       brand: companyName.trim(),
       ieCode: ieCode.trim(),
       registeredAt: incDate,
@@ -386,6 +460,7 @@ export function useCompanyOnboardingWizard({
     setNewSigErrors,
     errors,
     setErrors,
+    signatoryValidationAttempted,
     selectedGroupData,
     isExistingGroup,
     existingSignatories,

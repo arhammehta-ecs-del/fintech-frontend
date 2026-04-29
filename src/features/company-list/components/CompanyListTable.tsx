@@ -11,7 +11,6 @@ export default function CompanyListTable({
   dragState,
   onToggleGroup,
   onOpenCompany,
-  onToggleActive,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -66,7 +65,6 @@ export default function CompanyListTable({
                 showStatusColumn={showStatusColumn}
                 onToggle={() => onToggleGroup(row.group.id)}
                 onManage={onOpenCompany}
-                onToggleActive={onToggleActive}
                 dragState={dragState}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
@@ -82,7 +80,6 @@ export default function CompanyListTable({
                 visibleColumns={visibleColumns}
                 showStatusColumn={showStatusColumn}
                 onManage={onOpenCompany}
-                onToggleActive={onToggleActive}
                 dragState={dragState}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}

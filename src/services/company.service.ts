@@ -51,11 +51,28 @@ type RawCompanyListItem = {
   gst?: string | null;
   brand?: string | null;
   ieCode?: string | null;
+  iecode?: string | null;
   registeredAt?: string | null;
   registration?: string | null;
   address?: string | null;
   status?: string | null;
   isActive?: boolean | null;
+  signatories?:
+    | Array<{
+        fullName?: string | null;
+        name?: string | null;
+        designation?: string | null;
+        email?: string | null;
+        phone?: string | null;
+      } | null>
+    | null;
+  requesterName?: string | null;
+  requesterEmail?: string | null;
+  requestInitiatedAt?: string | null;
+  initiatedByName?: string | null;
+  initiatedByEmail?: string | null;
+  initiatedAt?: string | null;
+  createdAt?: string | null;
 };
 
 type RawCompanyGroup = {
@@ -67,6 +84,7 @@ type RawCompanyGroup = {
     groupCode?: string | null;
   } | null;
   companyDetails?: RawCompanyListItem[] | null;
+  comapnyDetails?: RawCompanyListItem[] | null;
 };
 
 type CompanyListApiResponse = {
@@ -86,6 +104,7 @@ const COMPANY_ACTION_PATH = "/api/v1/company-settings/action";
 
 const getPacketString = (value: string | null | undefined) => (typeof value === "string" ? value.trim() : "");
 const toUpperValue = (value: string) => value.toUpperCase();
+
 const normalizeCompanyStatus = (
   company: RawCompanyListItem,
   bucketStatus?: Company["status"] | null,
@@ -103,6 +122,18 @@ const mapCompany = (company: RawCompanyListItem, bucketStatus?: Company["status"
   const legalName = getPacketString(company.name) || "Untitled Company";
   const companyName = getPacketString(company.brand) || legalName;
   const companyCode = toUpperValue(getPacketString(company.companyCode));
+  const mappedSignatories =
+    company.signatories
+      ?.filter((signatory): signatory is NonNullable<typeof signatory> => Boolean(signatory))
+      .map((signatory) => ({
+        fullName: getPacketString(signatory.fullName) || getPacketString(signatory.name),
+        designation: getPacketString(signatory.designation),
+        email: getPacketString(signatory.email),
+        phone: getPacketString(signatory.phone),
+      }))
+      .filter((signatory) => Boolean(signatory.fullName || signatory.email || signatory.phone || signatory.designation)) ??
+    [];
+  const signatories = mappedSignatories;
 
   return {
     id: getPacketString(company.id) || companyCode || companyName.toLowerCase().replace(/\s+/g, "-"),
@@ -113,9 +144,15 @@ const mapCompany = (company: RawCompanyListItem, bucketStatus?: Company["status"
     incorporationDate: getPacketString(company.registeredAt) || getPacketString(company.registration),
     address: getPacketString(company.address),
     gstin: getPacketString(company.gst),
-    ieCode: getPacketString(company.ieCode),
+    ieCode: getPacketString(company.ieCode) || getPacketString(company.iecode),
     status: normalizeCompanyStatus(company, bucketStatus),
-    signatories: [],
+    signatories,
+    requesterName: getPacketString(company.requesterName) || getPacketString(company.initiatedByName),
+    requesterEmail: getPacketString(company.requesterEmail) || getPacketString(company.initiatedByEmail),
+    requestInitiatedAt:
+      getPacketString(company.requestInitiatedAt) ||
+      getPacketString(company.initiatedAt) ||
+      getPacketString(company.createdAt),
   };
 };
 
@@ -123,14 +160,15 @@ const getGroupName = (group: RawCompanyGroup) =>
   getPacketString(group.groupName) || getPacketString(group.groupDetails?.groupName);
 const getGroupCode = (group: RawCompanyGroup) =>
   toUpperValue(getPacketString(group.groupCode) || getPacketString(group.groupDetails?.groupCode));
-const getGroupCompanies = (group: RawCompanyGroup) => group.companies ?? group.companyDetails ?? [];
+const getGroupCompanies = (group: RawCompanyGroup) =>
+  group.companies ?? group.comapnyDetails ?? group.companyDetails ?? [];
 
 const mapGroups = (groups: RawCompanyGroup[], bucketStatus?: Company["status"] | null): GroupCompany[] =>
   groups.map((group, index) => {
     const rawGroupName = getGroupName(group);
     const groupCode = getGroupCode(group);
-    const isIndependentGroup = !rawGroupName && !groupCode;
-    const groupName = isIndependentGroup ? "ungrouped" : rawGroupName;
+    const isIndependentGroup = !rawGroupName && !groupCode || rawGroupName.trim().toLowerCase() === "ungrouped";
+    const groupName = isIndependentGroup ? "Independent" : rawGroupName;
     const groupId = isIndependentGroup ? `ungrouped-${bucketStatus ?? "default"}-${index + 1}` : groupCode || rawGroupName;
     const subsidiaries = getGroupCompanies(group).map((company) => mapCompany(company, bucketStatus));
 
@@ -165,8 +203,14 @@ export async function getAllCompanies(): Promise<GroupCompany[]> {
 export async function createCompanyOnboarding(payload: OnboardingPayload, file?: File | null) {
   const finalPayload = {
     ...payload,
-    group: { ...payload.group, groupCode: null },
-    company: { ...payload.company, companyCode: null },
+    group: {
+      ...payload.group,
+      groupCode: payload.group.groupCode?.trim() ? payload.group.groupCode.trim().toUpperCase() : null,
+    },
+    company: {
+      ...payload.company,
+      companyCode: payload.company.companyCode?.trim() ? payload.company.companyCode.trim().toUpperCase() : null,
+    },
   };
 
   if (file) {

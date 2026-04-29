@@ -23,6 +23,9 @@ export interface Company {
   ieCode: string;
   status: CompanyStatus;
   signatories: Signatory[];
+  requesterName?: string;
+  requesterEmail?: string;
+  requestInitiatedAt?: string;
 }
 
 export interface GroupCompany {
@@ -41,6 +44,9 @@ export interface OrgNode {
   companyId?: string;
   nodeType: string;
   nodePath: string;
+  requestedByName?: string;
+  requestedByEmail?: string;
+  requestedAt?: string;
   disabled?: boolean;
   status?: "Active" | "Pending" | "Inactive";
   children: OrgNode[];

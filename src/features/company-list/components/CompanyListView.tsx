@@ -27,6 +27,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     isOnboardingOpen,
     setIsOnboardingOpen,
     visibleColumns,
+    statusCounts,
     isLoading,
     error,
     selectedStatusTab,
@@ -59,6 +60,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
         onClearSearch={handleClearSearch}
         selectedStatusTab={selectedStatusTab}
         onStatusTabChange={setSelectedStatusTab}
+        statusCounts={statusCounts}
         visibleColumns={visibleColumns}
         onToggleColumn={toggleColumn}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}

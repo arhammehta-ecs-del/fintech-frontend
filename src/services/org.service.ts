@@ -113,6 +113,15 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
   const newNodeName = getString(requestData, ["newNodeName"], "");
   const nodeType = getString(requestData, ["nodeType"], "");
   const requestId = getString(record, ["id"], "");
+  const requestedByName =
+    getString(record, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"], "") ||
+    getString(requestData, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"], "");
+  const requestedByEmail =
+    getString(record, ["requestedByEmail", "initiatorEmail", "requesterEmail", "createdByEmail"], "") ||
+    getString(requestData, ["requestedByEmail", "initiatorEmail", "requesterEmail", "createdByEmail"], "");
+  const requestedAt =
+    getString(record, ["requestedAt", "initiatedAt", "createdAt", "requestedOn", "requestDate"], "") ||
+    getString(requestData, ["requestedAt", "initiatedAt", "createdAt", "requestedOn", "requestDate"], "");
 
   if (!newNodeName || !nodeType) return null;
 
@@ -130,6 +139,9 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
     name: newNodeName,
     nodeType: nodeType || "NODE",
     nodePath: derivedNodePath,
+    requestedByName: requestedByName || undefined,
+    requestedByEmail: requestedByEmail || undefined,
+    requestedAt: requestedAt || undefined,
     status: "Pending",
     children: [],
   };

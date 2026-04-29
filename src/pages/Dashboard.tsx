@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { type Company, type CompanyStatus, type GroupCompany } from "@/contexts/AppContext";
 import { CompanyPreviewDialog, } from "@/components/CompanyPreviewDialog";
+import { RemarkDialog } from "@/components/RemarkDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, XCircle, Clock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { getAllCompanies } from "@/services/company.service";
+import { getAllCompanies, updateCompanyOnboardingAction } from "@/services/company.service";
 
 // Exported/shared types
 type CompanyUpdate = Company;
@@ -120,6 +121,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [selectedCompanyId, setSelectedCompanyLocalId] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ companyId: string; isActive: boolean } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -182,12 +185,39 @@ export default function Dashboard() {
     setGroups((prevGroups) => replaceCompanyInGroups(prevGroups, updatedCompany));
   };
 
-  const handleToggleCompanyActive = (companyId: string, isActive: boolean) => {
-    const selected = groups.flatMap((group) => group.subsidiaries).find((company) => company.id === companyId);
-    const nextStatus = isActive ? "Approved" : "Inactive";
-    if (!selected || selected.status === nextStatus) return;
-
+  const executeCompanyAction = async (companyId: string, isActive: boolean, remark: string) => {
+    const nextStatus: CompanyStatus = isActive ? "Approved" : "Inactive";
+    await updateCompanyOnboardingAction(companyId, isActive ? "approve" : "reject", remark);
     setGroups((prevGroups) => updateCompanyStatusInGroups(prevGroups, companyId, nextStatus));
+    setSelectedCompanyLocalId((previousCompanyId) => {
+      if (previousCompanyId !== companyId) return previousCompanyId;
+      return companyId;
+    });
+  };
+
+  const handleToggleCompanyActive = (companyId: string, isActive: boolean, remark?: string) => {
+    if (typeof remark === "string") {
+      void executeCompanyAction(companyId, isActive, remark).catch((actionError) => {
+        setError(actionError instanceof Error ? actionError.message : "Failed to update company status");
+      });
+      return;
+    }
+
+    setPendingAction({ companyId, isActive });
+    setRemarkDialogOpen(true);
+  };
+
+  const processCompanyAction = async (remark: string) => {
+    if (!pendingAction) return;
+    const { companyId, isActive } = pendingAction;
+
+    try {
+      await executeCompanyAction(companyId, isActive, remark);
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : "Failed to update company status");
+    } finally {
+      setPendingAction(null);
+    }
   };
 
   if (isLoading) {
@@ -295,6 +325,19 @@ export default function Dashboard() {
         onSave={handleSaveCompany}
         onToggleActive={handleToggleCompanyActive}
         approvalStatusLabel={selectedCompany?.status}
+      />
+
+      <RemarkDialog
+        open={remarkDialogOpen}
+        onOpenChange={(open) => {
+          setRemarkDialogOpen(open);
+          if (!open) setPendingAction(null);
+        }}
+        onConfirm={processCompanyAction}
+        title={pendingAction?.isActive ? "Approve Company" : "Reject Company"}
+        description={`Are you sure you want to ${pendingAction?.isActive ? "approve" : "reject"} this company? Please provide a remark.`}
+        confirmLabel={pendingAction?.isActive ? "Approve" : "Reject"}
+        confirmVariant={pendingAction?.isActive ? "success" : "destructive"}
       />
     </div>
   );

@@ -79,7 +79,7 @@ export function CompanyOnboardingStepPreviewSubmit({
                 <span className="font-semibold text-slate-900">{payloadPreview.company.ieCode}</span>
               </p>
               <p className="flex items-start gap-1">
-                <span className="w-28 shrink-0 font-medium tracking-wide text-slate-500">Incorporation Date</span>
+                <span className="w-28 shrink-0 font-medium tracking-wide text-slate-500">Registeration Date</span>
                 <span className="font-medium tracking-wide text-slate-500">:</span>
                 <span className="font-semibold text-slate-900">{formatDisplayDate(payloadPreview.company.registeredAt)}</span>
               </p>
