@@ -7,7 +7,6 @@ import {
   getBranchAppearance,
   getNodeAccentBackground,
   getNodeAccentBorderLeft,
-  getNodeIcon
 } from "@/features/org-structure/nodeTheme.utils";
 
 type StepSelectNodeProps = {
@@ -23,14 +22,6 @@ type BranchMeta = {
   branchIndex: number | null;
   branchDepth: number;
 };
-
-const CONNECTOR_ARROW_ID = "onboarding-step2-connector-arrow";
-const FLOW_CARD_WIDTH = 338;
-const FLOW_CARD_HEIGHT = 118;
-const FLOW_LEFT_X = 70;
-const FLOW_RIGHT_X = 508;
-const FLOW_TOP_Y = 56;
-const FLOW_ROW_GAP = 176;
 
 const formatPathSegment = (segment: string) =>
   segment
@@ -148,34 +139,28 @@ type FlowNode = {
   node: OrgNode;
   branchIndex: number | null;
   branchDepth: number;
-  x: number;
-  y: number;
+  depth: number;
   level: number;
 };
 
 const getFlowNodes = (root: OrgNode | null, branchMetaMap: Map<string, BranchMeta>): FlowNode[] => {
   if (!root) return [];
 
-  const linearNodes: OrgNode[] = [];
-  const walk = (node: OrgNode) => {
-    linearNodes.push(node);
-    node.children.forEach(walk);
+  const linearNodes: Array<{ node: OrgNode; depth: number }> = [];
+  const walk = (node: OrgNode, depth: number) => {
+    linearNodes.push({ node, depth });
+    node.children.forEach((child) => walk(child, depth + 1));
   };
-  walk(root);
+  walk(root, 0);
 
-  return linearNodes.map((node, index) => {
-    const row = Math.floor(index / 2);
-    const positionInRow = index % 2;
-    const isEvenRow = row % 2 === 0;
-    const isLeft = isEvenRow ? positionInRow === 0 : positionInRow === 1;
+  return linearNodes.map(({ node, depth }, index) => {
     const meta = branchMetaMap.get(node.id) ?? { branchIndex: null, branchDepth: 0 };
 
     return {
       node,
       branchIndex: meta.branchIndex,
       branchDepth: meta.branchDepth,
-      x: isLeft ? FLOW_LEFT_X : FLOW_RIGHT_X,
-      y: FLOW_TOP_Y + row * FLOW_ROW_GAP,
+      depth,
       level: index + 1,
     };
   });
@@ -193,19 +178,7 @@ export function UserOnboardingStepSelectNode({
   const branchMetaMap = useMemo(() => buildBranchMetaMap(filteredStructure), [filteredStructure]);
   const selectedNodeIds = useMemo(() => new Set(selectedNodes.map((node) => node.id)), [selectedNodes]);
 
-  const canvasLayout = useMemo(() => {
-    const flowNodes = getFlowNodes(filteredStructure, branchMetaMap);
-    if (flowNodes.length === 0) return null;
-    const maxBottom = flowNodes[flowNodes.length - 1].y + FLOW_CARD_HEIGHT + 56;
-    const canvasWidth = FLOW_RIGHT_X + FLOW_CARD_WIDTH + 74;
-    const canvasHeight = Math.max(520, maxBottom);
-
-    return {
-      flowNodes,
-      canvasWidth,
-      canvasHeight,
-    };
-  }, [branchMetaMap, filteredStructure]);
+  const flowNodes = useMemo(() => getFlowNodes(filteredStructure, branchMetaMap), [branchMetaMap, filteredStructure]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -219,109 +192,27 @@ export function UserOnboardingStepSelectNode({
         <div className="rounded-2xl border border-slate-200 bg-slate-50/40 p-5">
           <div className="mb-4">
             <h3 className="text-base font-semibold text-slate-800">Select Node</h3>
-            <p className="mt-1 text-xs text-slate-500">Click cards on the canvas to toggle node selection.</p>
+            <p className="mt-1 text-xs text-slate-500">Click node rows to toggle selection.</p>
           </div>
 
-          {canvasLayout ? (
+          {flowNodes.length > 0 ? (
             <div className="max-h-[31rem] overflow-auto rounded-xl border border-slate-200 bg-white/80">
-              <div
-                className="relative"
-                style={{
-                  width: `${canvasLayout.canvasWidth}px`,
-                  height: `${canvasLayout.canvasHeight}px`,
-                }}
-              >
-                <svg
-                  className="absolute inset-0"
-                  width={canvasLayout.canvasWidth}
-                  height={canvasLayout.canvasHeight}
-                  viewBox={`0 0 ${canvasLayout.canvasWidth} ${canvasLayout.canvasHeight}`}
-                  aria-hidden="true"
-                >
-                  <defs>
-                    <marker
-                      id={CONNECTOR_ARROW_ID}
-                      viewBox="0 0 10 10"
-                      refX="8"
-                      refY="5"
-                      markerWidth="6"
-                      markerHeight="6"
-                      orient="auto"
-                      markerUnits="strokeWidth"
-                    >
-                      <path d="M0 0L10 5L0 10Z" fill="#c7d2e5" />
-                    </marker>
-                  </defs>
-                  <g
-                    stroke="#9eb1c9"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    vectorEffect="non-scaling-stroke"
-                    strokeDasharray="6 6"
-                  >
-                    {canvasLayout.flowNodes.map((item, index) => {
-                      const next = canvasLayout.flowNodes[index + 1];
-                      if (!next) return null;
-
-                      const sameRow = item.y === next.y;
-                      if (sameRow) {
-                        const itemCenterY = item.y + FLOW_CARD_HEIGHT / 2;
-                        const fromX = item.x < next.x ? item.x + FLOW_CARD_WIDTH : item.x;
-                        const toX = item.x < next.x ? next.x : next.x + FLOW_CARD_WIDTH;
-
-                        return (
-                          <line
-                            key={`${item.node.id}-${next.node.id}`}
-                            x1={fromX}
-                            y1={itemCenterY}
-                            x2={toX}
-                            y2={itemCenterY}
-                            markerEnd={`url(#${CONNECTOR_ARROW_ID})`}
-                          />
-                        );
-                      }
-
-                      const itemCenterX = item.x + FLOW_CARD_WIDTH / 2;
-                      const nextCenterX = next.x + FLOW_CARD_WIDTH / 2;
-                      const fromY = item.y + FLOW_CARD_HEIGHT;
-                      const toY = next.y;
-
-                      return (
-                        <path
-                          key={`${item.node.id}-${next.node.id}`}
-                          d={`M ${itemCenterX} ${fromY} L ${itemCenterX} ${(fromY + toY) / 2} L ${nextCenterX} ${(fromY + toY) / 2} L ${nextCenterX} ${toY}`}
-                          fill="none"
-                          markerEnd={`url(#${CONNECTOR_ARROW_ID})`}
-                        />
-                      );
-                    })}
-                  </g>
-                </svg>
-
-                {canvasLayout.flowNodes.map((item) => {
+              <div className="space-y-2 p-3">
+                {flowNodes.map((item) => {
                   const isRoot = item.node.nodeType.trim().toUpperCase() === "ROOT";
                   const isSelected = selectedNodeIds.has(item.node.id);
                   const isFocusedSelection = selectedNodeId === item.node.id;
                   const appearance = getBranchAppearance(item.branchIndex, item.branchDepth, isRoot);
                   const borderLeftClass = getNodeBorderLeftClass(item.branchIndex, item.branchDepth, isRoot);
                   const parentSubtitle = getNodeParentSubtitle(item.node.nodePath);
-                  const Icon = getNodeIcon(item.node.nodeType);
 
                   return (
-                    <div
-                      key={item.node.id}
-                      className="absolute"
-                      style={{
-                        left: `${item.x}px`,
-                        top: `${item.y}px`,
-                      }}
-                    >
+                    <div key={item.node.id} style={{ paddingLeft: `${item.depth * 20}px` }}>
                       <button
                         type="button"
                         onClick={() => onNodeSelect(item.node.id)}
                         className={cn(
-                          "group relative w-[338px] overflow-hidden rounded-[22px] border bg-white px-4 py-4 text-left shadow-[0_8px_20px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5",
+                          "group relative w-full overflow-hidden rounded-xl border bg-white px-3 py-2.5 text-left transition",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
                           getSelectedNodeClass(isRoot, isSelected, appearance, item.branchIndex, item.branchDepth),
                           isFocusedSelection && "ring-2 ring-[rgb(53,83,233)]/25 ring-offset-1",
@@ -334,24 +225,20 @@ export function UserOnboardingStepSelectNode({
                           )}
                           aria-hidden="true"
                         />
-                        <div className="mb-3 flex items-center justify-between">
+                        <div className="mb-2 flex items-center justify-between">
                           <div className="flex items-center gap-2.5">
-                            <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold", isRoot ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600")}>
+                            <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold", isRoot ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600")}>
                               L{item.level}
                             </div>
-                            <span className={cn("text-[11px] font-bold uppercase tracking-[0.14em]", isRoot ? "text-white/80" : "text-slate-500")}>Approvers</span>
+                            <span className={cn("text-[11px] font-bold uppercase tracking-[0.14em]", isRoot ? "text-white/80" : "text-slate-500")}>{item.node.nodeType}</span>
                           </div>
-                          <span className={cn("text-lg leading-none", isRoot ? "text-white/90" : "text-[rgb(53,83,233)]")}>+</span>
+                          <span className={cn("text-xs font-semibold", isRoot ? "text-white/80" : "text-slate-400")}>{isSelected ? "Selected" : "Select"}</span>
                         </div>
                         <div className={cn("flex items-center gap-2 rounded-xl border px-3 py-2", isRoot ? "border-white/30 bg-white/10" : "border-slate-200 bg-white")}>
-                          <div className={cn("flex h-7 w-7 items-center justify-center rounded-full", isRoot ? "bg-white text-indigo-600" : "bg-slate-100 text-slate-500")}>
-                            <Icon className="h-3.5 w-3.5" />
-                          </div>
                           <div className="min-w-0 flex-1">
                             <div className={cn("truncate text-[13px] font-semibold", isRoot ? "text-white" : "text-slate-800")}>{item.node.name}</div>
                             <div className={cn("truncate text-[10px]", isRoot ? "text-white/80" : "text-slate-500")}>{parentSubtitle || item.node.nodeType}</div>
                           </div>
-                          <span className={cn("text-sm", isRoot ? "text-white/80" : "text-slate-400")}>v</span>
                         </div>
                       </button>
                     </div>
