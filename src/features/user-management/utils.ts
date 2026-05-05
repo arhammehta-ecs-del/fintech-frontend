@@ -152,9 +152,10 @@ export const parseSlashDate = (value: string): Date | null => {
 };
 
 export const formatDateLabel = (value: string) => {
-  if (!value) return "-";
+  const normalizedValue = value.trim();
+  if (!normalizedValue) return "-";
 
-  const slashDate = parseSlashDate(value);
+  const slashDate = parseSlashDate(normalizedValue);
   if (slashDate) {
     return new Intl.DateTimeFormat("en-GB", {
       day: "2-digit",
@@ -163,7 +164,25 @@ export const formatDateLabel = (value: string) => {
     }).format(slashDate);
   }
 
-  const isoDate = new Date(`${value}T00:00:00`);
+  const dashMatch = normalizedValue.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (dashMatch) {
+    const [, dayText, monthText, yearText] = dashMatch;
+    const day = Number(dayText);
+    const month = Number(monthText);
+    const year = Number(yearText);
+    const date = new Date(year, month - 1, day);
+    const isValid = date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+
+    if (isValid) {
+      return new Intl.DateTimeFormat("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(date);
+    }
+  }
+
+  const isoDate = new Date(`${normalizedValue}T00:00:00`);
   if (Number.isNaN(isoDate.getTime())) return "-";
 
   return new Intl.DateTimeFormat("en-GB", {

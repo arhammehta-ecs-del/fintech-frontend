@@ -191,7 +191,7 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
       name,
       email,
       phone,
-      companyOnboardingDate: onboardingDate || "01-01-2026",
+      companyOnboardingDate: onboardingDate || "",
       designation,
       employeeId,
       reportingManager: reportingManagerName,

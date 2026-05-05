@@ -602,7 +602,7 @@ export function UserManagePreview({
                         <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
                           <span className="text-slate-500">Onboarding Date</span>
                           <span className="text-slate-400">:</span>
-                          <span className="font-semibold text-slate-900">{userData.createdAt || "-"}</span>
+                          <span className="font-semibold text-slate-900">{userData.joiningDate || "-"}</span>
                         </div>
                         <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
                           <span className="text-slate-500">Designation</span>
