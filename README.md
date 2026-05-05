@@ -32,7 +32,7 @@ npm install
 Create a `.env` file in the project root and add:
 
 ```env
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:5005
 ```
 
 This variable is used by the frontend to connect to the backend API.

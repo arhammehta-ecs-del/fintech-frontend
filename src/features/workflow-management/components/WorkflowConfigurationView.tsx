@@ -1,177 +1,83 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChevronDown,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronRight, Rocket } from "lucide-react";
 import { useAppContext, type OrgNode } from "@/contexts/AppContext";
-import { APPROVAL_OPTIONS } from "@/features/workflow-management/constants";
 import { getCompanyOrgStructure } from "@/services/org.service";
 import { getCompanyRoles } from "@/services/role.service";
+import WorkflowStepper from "@/features/workflow-management/components/configuration/WorkflowStepper";
+import WorkflowStepInputs from "@/features/workflow-management/components/configuration/WorkflowStepInputs";
+import WorkflowStepLevels from "@/features/workflow-management/components/configuration/WorkflowStepLevels";
+import WorkflowStepSummary from "@/features/workflow-management/components/configuration/WorkflowStepSummary";
+import type { ModuleGroup, WorkflowLevel, WorkflowStep } from "@/features/workflow-management/components/configuration/types";
 
-type ApprovalEntry = {
-  option: string;
+type WorkflowConfigurationViewProps = {
+  isOpen?: boolean;
 };
 
-type WorkflowLevel = {
-  id: number;
-  type: "AND" | "OR";
-  approvals: ApprovalEntry[];
+const formatTokenLabel = (value: string) =>
+  value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+
+const getCategoryLabel = (value: string) => {
+  const normalized = value.trim().toUpperCase();
+  if (normalized === "TRANSACTIONAL") return "Transactional";
+  if (normalized === "OPERATIONAL") return "Operational";
+  if (normalized === "SYSTEM_ACCESS") return "System Access";
+  return formatTokenLabel(normalized);
 };
 
-export default function WorkflowConfigurationView() {
+const INITIAL_LEVELS: WorkflowLevel[] = Array.from({ length: 5 }, (_, index) => ({
+  id: index + 1,
+  approvals: [{ option: "" }],
+  type: "AND",
+}));
+
+export default function WorkflowConfigurationView({ isOpen = false }: WorkflowConfigurationViewProps) {
   const { currentUser } = useAppContext();
+
+  const [step, setStep] = useState<WorkflowStep>(1);
+  const [visibleLevels, setVisibleLevels] = useState(1);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [showMetaErrors, setShowMetaErrors] = useState(false);
+
   const [wfName, setWfName] = useState("");
   const [wfAlias, setWfAlias] = useState("");
-  const [wfModule, setWfModule] = useState("PO");
-  const [wfNode, setWfNode] = useState("all");
-  const [moduleOptions, setModuleOptions] = useState<Array<{ value: string; label: string }>>([
-    { value: "PO", label: "Purchase Order (PO)" },
-  ]);
-  const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string }>>([
-    { value: "all", label: "Entire Organization" },
-  ]);
+  const [wfModule, setWfModule] = useState("");
+  const [wfNode, setWfNode] = useState("");
 
-  const [levels, setLevels] = useState<WorkflowLevel[]>([
-    { id: 1, type: "AND", approvals: [{ option: "reporting_manager" }] },
-  ]);
-  const [dropTargetLevelId, setDropTargetLevelId] = useState<number | null>(null);
-  const [showMetaErrors, setShowMetaErrors] = useState(false);
-  const [openApprovalMenu, setOpenApprovalMenu] = useState<{ levelIdx: number; approvalIdx: number } | null>(null);
-  const [pendingScrollLevelId, setPendingScrollLevelId] = useState<number | null>(null);
-  const [openMetaMenu, setOpenMetaMenu] = useState<"module" | "department" | null>(null);
-  const levelRefs = useRef<Record<number, HTMLDivElement | null>>({});
-  const metaMenuRef = useRef<HTMLDivElement | null>(null);
-  const isWorkflowMetaComplete =
-    [wfName, wfAlias, wfModule, wfNode].every((value) => Boolean(String(value).trim()));
+  const [moduleGroups, setModuleGroups] = useState<ModuleGroup[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string }>>([]);
 
-  const ensureWorkflowMetaComplete = () => {
-    setShowMetaErrors(true);
-    return isWorkflowMetaComplete;
-  };
+  const [levels, setLevels] = useState<WorkflowLevel[]>(INITIAL_LEVELS);
 
-  const isRMUsedGlobally = useMemo(() => {
-    return levels.some((l) => l.approvals.some((a) => a.option === "reporting_manager"));
-  }, [levels]);
+  const isWorkflowMetaComplete = [wfName, wfAlias, wfModule, wfNode].every((value) => Boolean(String(value).trim()));
 
-  const addLevelAfter = (levelId: number) => {
-    if (!ensureWorkflowMetaComplete()) return;
-    const insertAt = levels.findIndex((item) => item.id === levelId);
-    if (insertAt === -1 || levels.length >= 5) return;
-    const nextLevelId = insertAt + 2;
+  const isRMUsedGlobally = useMemo(
+    () => levels.slice(0, visibleLevels).some((level) => level.approvals.some((approval) => approval.option === "reporting_manager")),
+    [levels, visibleLevels],
+  );
 
-    setLevels((current) => {
-      if (current.length >= 5) return current;
-      const currentInsertAt = current.findIndex((item) => item.id === levelId);
-      if (currentInsertAt === -1) return current;
+  const currentLevelComplete = useMemo(() => {
+    const current = levels[visibleLevels - 1];
+    return Boolean(current) && current.approvals.every((approval) => approval.option);
+  }, [levels, visibleLevels]);
 
-      const next = [...current];
-      next.splice(currentInsertAt + 1, 0, { id: 0, type: "AND", approvals: [{ option: "" }] });
-      return next.map((level, index) => ({ ...level, id: index + 1 }));
-    });
-    setPendingScrollLevelId(nextLevelId);
-  };
+  const selectedModuleLabel = useMemo(() => {
+    return moduleGroups
+      .flatMap((group) => group.options)
+      .find((option) => option.value === wfModule)?.label || "-";
+  }, [moduleGroups, wfModule]);
 
-  const addNextLevel = () => {
-    if (!ensureWorkflowMetaComplete()) return;
-    if (levels.length === 0) return;
-    addLevelAfter(levels[levels.length - 1].id);
-  };
-
-  const canAddNextFromLevel = (level: WorkflowLevel) => level.approvals.every((approval) => Boolean(approval.option));
-
-  const removeLevelById = (levelId: number) => {
-    setLevels((current) => {
-      const removeAt = current.findIndex((item) => item.id === levelId);
-      if (removeAt <= 0 || removeAt >= current.length) return current;
-
-      const next = current.slice();
-      next.splice(removeAt, 1);
-      return next.map((level, index) => ({ ...level, id: index + 1 }));
-    });
-
-    setOpenApprovalMenu(null);
-    setDropTargetLevelId(null);
-  };
+  const selectedDepartmentLabel = useMemo(() => {
+    return departmentOptions.find((option) => option.value === wfNode)?.label || "-";
+  }, [departmentOptions, wfNode]);
 
   useEffect(() => {
-    if (!pendingScrollLevelId) return;
-    const target = levelRefs.current[pendingScrollLevelId];
-    if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "center" });
-    setPendingScrollLevelId(null);
-  }, [pendingScrollLevelId, levels.length]);
-
-  useEffect(() => {
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!metaMenuRef.current) return;
-      if (metaMenuRef.current.contains(event.target as Node)) return;
-      setOpenMetaMenu(null);
-    };
-
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
-  }, []);
-
-  const startAddLevelDrag = (event: React.DragEvent<HTMLButtonElement>) => {
-    event.dataTransfer.setData("workflow-action", "add-level");
-    event.dataTransfer.effectAllowed = "copy";
-  };
-
-  const addApprovalWithLogic = (lIdx: number, type: "AND" | "OR") => {
-    if (!ensureWorkflowMetaComplete()) return;
-    setLevels((current) => {
-      const nextLevels = [...current];
-      if (nextLevels[lIdx].approvals.length >= 2) return current;
-
-      nextLevels[lIdx].type = type;
-      const currentIds = nextLevels[lIdx].approvals.map((a) => a.option);
-      const nextOption =
-        APPROVAL_OPTIONS.find((opt) => {
-          if (opt.id === "reporting_manager") return !isRMUsedGlobally;
-          return !currentIds.includes(opt.id);
-        })?.id ?? "";
-
-      nextLevels[lIdx].approvals.push({ option: nextOption });
-      return nextLevels;
-    });
-  };
-
-  const updateApproval = (lIdx: number, aIdx: number, val: string) => {
-    if (!ensureWorkflowMetaComplete()) return;
-    setLevels((current) => {
-      const nextLevels = [...current];
-      nextLevels[lIdx].approvals[aIdx].option = val;
-      return nextLevels;
-    });
-  };
-
-  const removeApproval = (lIdx: number, aIdx: number) => {
-    setLevels((current) => {
-      const nextLevels = [...current];
-      if (nextLevels[lIdx].approvals.length > 1) {
-        nextLevels[lIdx].approvals.splice(aIdx, 1);
-      }
-      return nextLevels;
-    });
-  };
-
-  const getApprovalOptionState = (optionId: string, appOption: string, level: WorkflowLevel) => {
-    const usedGlobal = isRMUsedGlobally && optionId === "reporting_manager" && appOption !== "reporting_manager";
-    const usedLevel = level.approvals.some((a) => a.option === optionId) && appOption !== optionId;
-    return {
-      hidden: (optionId === "reporting_manager" && usedGlobal) || (optionId !== "reporting_manager" && usedLevel),
-      disabled: false,
-    };
-  };
-
-  const formatTokenLabel = (value: string) =>
-    value
-      .split("_")
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-      .join(" ");
+    if (!errorMsg) return;
+    const timer = setTimeout(() => setErrorMsg(""), 3000);
+    return () => clearTimeout(timer);
+  }, [errorMsg]);
 
   useEffect(() => {
     const companyCode = currentUser?.companyCode?.trim().toUpperCase();
@@ -195,361 +101,275 @@ export default function WorkflowConfigurationView() {
 
     async function loadWorkflowDependencies() {
       try {
-        const [roles, orgTree] = await Promise.all([
-          getCompanyRoles(companyCode),
-          getCompanyOrgStructure(companyCode),
-        ]);
+        const [roles, orgTree] = await Promise.all([getCompanyRoles(companyCode), getCompanyOrgStructure(companyCode)]);
         if (ignore) return;
 
-        const nextModules = Array.from(
-          new Map(
-            roles
-              .filter((role) => role.subCategory)
-              .map((role) => {
-                const key = role.subCategory.toUpperCase();
-                return [key, { value: key, label: formatTokenLabel(key) }] as const;
-              }),
-          ).values(),
+        const groupedModules = Array.from(
+          roles.reduce((acc, role) => {
+            const categoryKey = role.category?.trim().toUpperCase();
+            const subCategoryKey = role.subCategory?.trim().toUpperCase();
+            if (!categoryKey || !subCategoryKey) return acc;
+
+            if (!acc.has(categoryKey)) {
+              acc.set(categoryKey, new Map());
+            }
+
+            const categoryMap = acc.get(categoryKey)!;
+            if (!categoryMap.has(subCategoryKey)) {
+              categoryMap.set(subCategoryKey, {
+                value: subCategoryKey,
+                label: formatTokenLabel(subCategoryKey),
+              });
+            }
+
+            return acc;
+          }, new Map<string, Map<string, { value: string; label: string }>>()),
+          ([categoryKey, optionsMap]) => ({
+            categoryKey,
+            categoryLabel: getCategoryLabel(categoryKey),
+            options: Array.from(optionsMap.values()),
+          }),
         );
 
-        if (nextModules.length > 0) {
-          setModuleOptions(nextModules);
-          setWfModule((current) =>
-            nextModules.some((option) => option.value === current) ? current : nextModules[0].value,
-          );
-        }
+        setModuleGroups(groupedModules);
+        setWfModule((current) => {
+          const exists = groupedModules.some((group) => group.options.some((option) => option.value === current));
+          return exists ? current : "";
+        });
 
         const nodeNames = collectNodeNames(orgTree);
         const uniqueNodeNames = Array.from(new Set(nodeNames));
-        const nextDepartments = [
-          { value: "all", label: "Entire Organization" },
-          ...uniqueNodeNames.map((name) => ({
-            value: name.toLowerCase().replace(/\s+/g, "_"),
-            label: name,
-          })),
-        ];
+        const nextDepartments = uniqueNodeNames.map((name) => ({
+          value: name.toLowerCase().replace(/\s+/g, "_"),
+          label: name,
+        }));
 
         setDepartmentOptions(nextDepartments);
-        setWfNode((current) =>
-          nextDepartments.some((option) => option.value === current) ? current : nextDepartments[0].value,
-        );
+        setWfNode((current) => (nextDepartments.some((option) => option.value === current) ? current : ""));
       } catch {
         if (ignore) return;
       }
     }
 
     void loadWorkflowDependencies();
+
     return () => {
       ignore = true;
     };
   }, [currentUser?.companyCode]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setStep(1);
+    setVisibleLevels(1);
+    setErrorMsg("");
+    setShowMetaErrors(false);
+    setWfName("");
+    setWfAlias("");
+    setWfModule("");
+    setWfNode("");
+    setLevels(INITIAL_LEVELS.map((level) => ({ ...level, approvals: [{ option: "" }] })));
+  }, [isOpen]);
+
+  const updateLevelApprover = (levelId: number, index: number, value: string) => {
+    setErrorMsg("");
+    setLevels((previous) =>
+      previous.map((level) =>
+        level.id === levelId
+          ? {
+              ...level,
+              approvals: level.approvals.map((approval, approvalIdx) =>
+                approvalIdx === index ? { ...approval, option: value } : approval,
+              ),
+            }
+          : level,
+      ),
+    );
+  };
+
+  const addApproverToLevel = (levelId: number) => {
+    setLevels((previous) =>
+      previous.map((level) =>
+        level.id === levelId && level.approvals.length < 2
+          ? {
+              ...level,
+              approvals: [...level.approvals, { option: "" }],
+            }
+          : level,
+      ),
+    );
+  };
+
+  const removeApproverFromLevel = (levelId: number, index: number) => {
+    setLevels((previous) =>
+      previous.map((level) =>
+        level.id === levelId && level.approvals.length > 1
+          ? {
+              ...level,
+              approvals: level.approvals.filter((_, approvalIdx) => approvalIdx !== index),
+            }
+          : level,
+      ),
+    );
+  };
+
+  const toggleLogic = (levelId: number) => {
+    setLevels((previous) =>
+      previous.map((level) =>
+        level.id === levelId
+          ? {
+              ...level,
+              type: level.type === "AND" ? "OR" : "AND",
+            }
+          : level,
+      ),
+    );
+  };
+
+  const addNewLevel = () => {
+    if (!currentLevelComplete) {
+      setErrorMsg(`Please select an approver for Level ${visibleLevels} first.`);
+      return;
+    }
+
+    if (visibleLevels < 5) {
+      setVisibleLevels((current) => current + 1);
+      setErrorMsg("");
+    }
+  };
+
+  const removeLastLevel = () => {
+    if (visibleLevels <= 1) return;
+
+    const removeIndex = visibleLevels - 1;
+    setLevels((previous) =>
+      previous.map((level, idx) =>
+        idx === removeIndex
+          ? { ...level, approvals: [{ option: "" }], type: "AND" as const }
+          : level,
+      ),
+    );
+    setVisibleLevels((current) => Math.max(1, current - 1));
+    setErrorMsg("");
+  };
+
+  const handleNext = () => {
+    setErrorMsg("");
+
+    if (step === 1) {
+      setShowMetaErrors(true);
+      if (!isWorkflowMetaComplete) {
+        setErrorMsg("Please complete all base parameters before continuing.");
+        return;
+      }
+      setStep(2);
+      return;
+    }
+
+    if (step === 2) {
+      if (!currentLevelComplete) {
+        setErrorMsg(`Complete Level ${visibleLevels} configuration to proceed.`);
+        return;
+      }
+      setStep(3);
+      return;
+    }
+
+    window.alert("Workflow Published!");
+  };
+
+  const handleBack = () => {
+    setErrorMsg("");
+    setShowMetaErrors(false);
+    if (step > 1) {
+      setStep((current) => (current - 1) as WorkflowStep);
+    }
+  };
+
   return (
-    <div className="space-y-4 text-slate-900">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-          <div className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-2" ref={metaMenuRef}>
-            <div className="space-y-1.5">
-              <label className="ml-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Workflow Name</label>
-              <input
-                type="text"
-                placeholder="e.g. Standard PO"
-                className="h-10 w-full rounded-lg border border-slate-100 bg-slate-50 px-4 text-sm font-medium outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
-                value={wfName}
-                onChange={(e) => setWfName(e.target.value)}
-              />
-              {showMetaErrors && !wfName.trim() ? (
-                <p className="text-sm font-medium text-red-500">Required</p>
-              ) : null}
-            </div>
+    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="flex-1 p-5">
+        <WorkflowStepper step={step} />
 
-            <div className="space-y-1.5">
-              <label className="ml-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Alias</label>
-              <input
-                type="text"
-                placeholder="e.g. PO_APPROVAL_V1"
-                className="h-10 w-full rounded-lg border border-slate-100 bg-slate-50 px-4 text-sm font-medium outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
-                value={wfAlias}
-                onChange={(e) => setWfAlias(e.target.value)}
-              />
-              {showMetaErrors && !wfAlias.trim() ? (
-                <p className="text-sm font-medium text-red-500">Required</p>
-              ) : null}
-            </div>
+        <div className="mt-3 h-[calc(100%-56px)] overflow-hidden rounded-2xl border border-slate-200 bg-[#fcfcfd]">
+          {step === 1 ? (
+            <WorkflowStepInputs
+              wfName={wfName}
+              wfAlias={wfAlias}
+              wfModule={wfModule}
+              wfNode={wfNode}
+              moduleGroups={moduleGroups}
+              departmentOptions={departmentOptions}
+              showMetaErrors={showMetaErrors}
+              onSetWfName={setWfName}
+              onSetWfAlias={setWfAlias}
+              onSetWfModule={setWfModule}
+              onSetWfNode={setWfNode}
+            />
+          ) : null}
 
-            <div className="space-y-1.5">
-              <label className="ml-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Module</label>
-              <div className="relative">
-                <button
-                  type="button"
-                  className="flex h-10 w-full items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 text-left text-sm font-medium text-slate-800 outline-none transition-all hover:border-slate-200 focus:bg-white focus:ring-1 focus:ring-blue-500"
-                  onClick={() => setOpenMetaMenu((current) => (current === "module" ? null : "module"))}
-                >
-                  <span>{moduleOptions.find((option) => option.value === wfModule)?.label ?? "Select module"}</span>
-                  <ChevronDown
-                    className={`text-slate-300 transition-transform ${openMetaMenu === "module" ? "rotate-180" : ""}`}
-                    size={16}
-                  />
-                </button>
-                {openMetaMenu === "module" ? (
-                  <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.14)]">
-                    <div className="max-h-56 overflow-auto p-1.5">
-                      {moduleOptions.map((option) => {
-                        const isSelected = option.value === wfModule;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => {
-                              setWfModule(option.value);
-                              setOpenMetaMenu(null);
-                            }}
-                            className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left ${
-                              isSelected ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
-                            }`}
-                          >
-                            <span className="truncate text-sm font-medium">{option.label}</span>
-                            {isSelected ? <span className="text-[10px] font-semibold uppercase tracking-wide">Selected</span> : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              {showMetaErrors && !wfModule.trim() ? (
-                <p className="text-sm font-medium text-red-500">Required</p>
-              ) : null}
-            </div>
+          {step === 2 ? (
+            <WorkflowStepLevels
+              levels={levels}
+              visibleLevels={visibleLevels}
+              errorMsg={errorMsg}
+              isRMUsedGlobally={isRMUsedGlobally}
+              onUpdateApprover={updateLevelApprover}
+              onAddApprover={addApproverToLevel}
+              onRemoveApprover={removeApproverFromLevel}
+              onToggleLogic={toggleLogic}
+              onAddLevel={addNewLevel}
+              onRemoveLevel={removeLastLevel}
+              canAddLevel={currentLevelComplete && visibleLevels < 5}
+              canRemoveLevel={visibleLevels > 1}
+            />
+          ) : null}
 
-            <div className="space-y-1.5">
-              <label className="ml-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Department</label>
-              <div className="relative">
-                <button
-                  type="button"
-                  className="flex h-10 w-full items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 text-left text-sm font-medium text-slate-800 outline-none transition-all hover:border-slate-200 focus:bg-white focus:ring-1 focus:ring-blue-500"
-                  onClick={() => setOpenMetaMenu((current) => (current === "department" ? null : "department"))}
-                >
-                  <span>{departmentOptions.find((option) => option.value === wfNode)?.label ?? "Select department"}</span>
-                  <ChevronDown
-                    className={`text-slate-300 transition-transform ${openMetaMenu === "department" ? "rotate-180" : ""}`}
-                    size={16}
-                  />
-                </button>
-                {openMetaMenu === "department" ? (
-                  <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.14)]">
-                    <div className="max-h-56 overflow-auto p-1.5">
-                      {departmentOptions.map((option) => {
-                        const isSelected = option.value === wfNode;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => {
-                              setWfNode(option.value);
-                              setOpenMetaMenu(null);
-                            }}
-                            className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left ${
-                              isSelected ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
-                            }`}
-                          >
-                            <span className="truncate text-sm font-medium">{option.label}</span>
-                            {isSelected ? <span className="text-[10px] font-semibold uppercase tracking-wide">Selected</span> : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              {showMetaErrors && !wfNode.trim() ? (
-                <p className="text-sm font-medium text-red-500">Required</p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="space-y-8">
-          <div className="border-b pb-4" />
-
-            <div className="relative space-y-10 pl-10 md:pl-16">
-              <div className="absolute left-6 top-4 bottom-4 w-px bg-slate-200 md:left-[34px]" />
-
-              {levels.map((level, lIdx) => (
-                <div
-                  key={level.id}
-                  className="relative"
-                  ref={(el) => {
-                    levelRefs.current[level.id] = el;
-                  }}
-                >
-                  <div
-                    className="absolute -left-10 top-0 z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-blue-600 bg-white text-[11px] font-bold text-blue-600 shadow-sm md:-left-16 md:h-10 md:w-10 md:text-xs"
-                  >
-                    {`L${lIdx + 1}`}
-                  </div>
-                  <div
-                    className={`rounded-2xl border bg-slate-50/50 p-5 transition-none ${
-                      dropTargetLevelId === level.id ? "border-blue-300" : "border-slate-100"
-                    }`}
-                    onDragOver={(e) => {
-                      if (levels.length >= 5) return;
-                      e.preventDefault();
-                      setDropTargetLevelId(level.id);
-                    }}
-                    onDragLeave={() => setDropTargetLevelId((current) => (current === level.id ? null : current))}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const dragType = e.dataTransfer.getData("workflow-action");
-                      if (dragType === "add-level") addLevelAfter(level.id);
-                      setDropTargetLevelId(null);
-                    }}
-                  >
-                    <div className="mb-5 flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-tight text-slate-400">Stage {lIdx + 1} Configuration</span>
-                      <div className="flex items-center gap-2">
-                        {level.approvals.length > 1 ? (
-                          <div className={`rounded px-2 py-0.5 text-[9px] font-black text-white ${level.type === "AND" ? "bg-blue-600" : "bg-amber-500"}`}>
-                            {level.type} LOGIC
-                          </div>
-                        ) : null}
-                        {lIdx > 0 && lIdx === levels.length - 1 ? (
-                          <button
-                            type="button"
-                            onClick={() => removeLevelById(level.id)}
-                            className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-500 hover:bg-red-50"
-                            title={`Delete L${lIdx + 1}`}
-                          >
-                            <Trash2 size={12} />
-                            <span>Delete</span>
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      {level.approvals.map((app, aIdx) => {
-                        return (
-                          <div key={`${level.id}-${aIdx}`}>
-                            {aIdx > 0 ? <div className="py-1 text-center text-[9px] font-black uppercase text-slate-300">{level.type}</div> : null}
-
-                            <div className="relative flex flex-col items-center gap-4 rounded-xl border border-slate-100 bg-white p-4 shadow-sm md:flex-row">
-                              <div className="w-full flex-1 space-y-1">
-                                <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Approval Category</label>
-                                <div className="relative">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      ensureWorkflowMetaComplete() &&
-                                      setOpenApprovalMenu(
-                                        openApprovalMenu?.levelIdx === lIdx && openApprovalMenu?.approvalIdx === aIdx
-                                          ? null
-                                          : { levelIdx: lIdx, approvalIdx: aIdx }
-                                      )
-                                    }
-                                    className="flex h-11 w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-left shadow-sm outline-none hover:border-slate-300"
-                                  >
-                                    <span className={`text-sm font-semibold ${app.option ? "text-slate-800" : "text-slate-400"}`}>
-                                      {APPROVAL_OPTIONS.find((opt) => opt.id === app.option)?.label ?? "Select Category"}
-                                    </span>
-                                    <ChevronDown
-                                      className={`text-slate-300 ${
-                                        openApprovalMenu?.levelIdx === lIdx && openApprovalMenu?.approvalIdx === aIdx ? "rotate-180" : ""
-                                      }`}
-                                      size={14}
-                                    />
-                                  </button>
-                                  {openApprovalMenu?.levelIdx === lIdx && openApprovalMenu?.approvalIdx === aIdx ? (
-                                    <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.10)]">
-                                      <div className="max-h-56 overflow-auto p-1.5">
-                                        {APPROVAL_OPTIONS.map((opt) => {
-                                          const optionState = getApprovalOptionState(opt.id, app.option, level);
-                                          if (optionState.hidden) return null;
-
-                                          const isSelected = app.option === opt.id;
-                                          return (
-                                            <button
-                                              key={opt.id}
-                                              type="button"
-                                              onClick={() => {
-                                                updateApproval(lIdx, aIdx, opt.id);
-                                                setOpenApprovalMenu(null);
-                                              }}
-                                              className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left ${
-                                                isSelected
-                                                  ? "bg-blue-50 text-blue-700"
-                                                  : "text-slate-700 hover:bg-slate-50"
-                                              }`}
-                                            >
-                                              <div className="flex items-center gap-3">
-                                                <span
-                                                  className={`h-2 w-2 rounded-full ${
-                                                    isSelected ? "bg-blue-600" : "bg-slate-300"
-                                                  }`}
-                                                />
-                                                <span className="text-sm font-medium">{opt.label}</span>
-                                              </div>
-                                              {isSelected ? <span className="text-[10px] font-semibold text-blue-600">Selected</span> : null}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  ) : null}
-                                </div>
-                              </div>
-
-                              {level.approvals.length > 1 ? (
-                                <button onClick={() => removeApproval(lIdx, aIdx)} className="rounded-lg p-2 text-red-300 hover:bg-red-50 hover:text-red-500">
-                                  <Trash2 size={16} />
-                                </button>
-                              ) : null}
-                            </div>
-
-                    {aIdx === level.approvals.length - 1 && level.approvals.length < 2 ? (
-                              <div className="flex justify-center pt-4">
-                                <div className="flex gap-3">
-                                  <button onClick={() => addApprovalWithLogic(lIdx, "AND")} className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-1 text-[10px] font-bold text-blue-600 shadow-sm hover:bg-blue-600 hover:text-white">
-                                    + AND
-                                  </button>
-                                  <button onClick={() => addApprovalWithLogic(lIdx, "OR")} className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-1 text-[10px] font-bold text-amber-600 shadow-sm hover:bg-amber-500 hover:text-white">
-                                    + OR
-                                  </button>
-                                </div>
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                  </div>
-
-                </div>
-              ))}
-
-              <div className="relative h-12 md:h-14">
-                <button
-                  type="button"
-                  onClick={addNextLevel}
-                  draggable
-                  onDragStart={startAddLevelDrag}
-                  onDragEnd={() => setDropTargetLevelId(null)}
-                  disabled={levels.length >= 5 || !canAddNextFromLevel(levels[levels.length - 1])}
-                  className="absolute -left-10 top-1 z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-blue-600 bg-white text-blue-600 shadow-sm disabled:border-slate-300 disabled:bg-white disabled:text-slate-300 disabled:opacity-100 md:-left-16 md:h-10 md:w-10"
-                  title="Add level"
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t pt-8 sm:flex-row">
-              <div />
-              <button className="w-full rounded-xl bg-blue-600 px-10 py-2.5 text-sm font-bold tracking-tight text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700 sm:w-auto">
-                Publish Workflow
-              </button>
-            </div>
-          </div>
+          {step === 3 ? (
+            <WorkflowStepSummary
+              wfName={wfName}
+              wfAlias={wfAlias}
+              moduleLabel={selectedModuleLabel}
+              departmentLabel={selectedDepartmentLabel}
+              levels={levels}
+              visibleLevels={visibleLevels}
+            />
+          ) : null}
         </div>
+      </div>
+
+      <div className="flex items-center justify-between border-t border-slate-200 bg-white px-6 py-4">
+        <button
+          type="button"
+          onClick={handleBack}
+          className={`rounded-xl border border-slate-200 px-6 py-2.5 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50 ${
+            step === 1 ? "pointer-events-none opacity-0" : ""
+          }`}
+        >
+          Back
+        </button>
+
+        <button
+          type="button"
+          onClick={handleNext}
+          className={`flex items-center gap-2 rounded-xl px-8 py-3 text-sm font-semibold text-white shadow-sm transition-all active:scale-95 ${
+            step === 3 ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"
+          }`}
+        >
+          {step === 1 ? "Next Step" : step === 2 ? "Generate Summary" : "Publish Workflow"}
+          {step < 3 ? <ChevronRight className="h-4 w-4" /> : <Rocket className="h-4 w-4" />}
+        </button>
+      </div>
+
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+          `,
+        }}
+      />
     </div>
   );
 }

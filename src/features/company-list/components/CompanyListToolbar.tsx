@@ -39,7 +39,6 @@ export default function CompanyListToolbar({
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Company List</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Switch between active, pending, and inactive companies at a glance.</p>
         </div>
         <Button onClick={onOpenOnboarding} className="gap-2">
           <Plus className="h-4 w-4" /> Add New Company

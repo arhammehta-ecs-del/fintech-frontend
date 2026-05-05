@@ -77,6 +77,8 @@ export interface AppUser {
     designation: string;
     employeeId?: string;
     reportingManager: string;
+    reportingManagerName?: string;
+    reportingManagerEmail?: string;
   };
   accessDetails?: Array<{
     roleCategory: "TRANSACTIONAL" | "OPERATIONAL" | "SYSTEM_ACCESS";

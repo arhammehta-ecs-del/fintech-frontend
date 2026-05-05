@@ -41,29 +41,31 @@ export function OrgCard({
     <div className="group relative">
       <button
         type="button"
+        data-org-card-body="true"
         onClick={() => onSelect(node)}
         className={cn(
-          "relative flex items-center gap-2.5 overflow-hidden rounded-[18px] px-4 text-left text-slate-900 transition hover:-translate-y-0.5",
-          isRoot ? "min-h-[62px] min-w-[168px] rounded-2xl py-3.5" : compact ? "min-h-[58px] min-w-[160px] py-3" : "min-h-[62px] min-w-[168px] py-3.5",
+          "relative flex items-center gap-2.5 overflow-hidden rounded-[18px] px-4 text-left transition hover:-translate-y-0.5",
+          isRoot ? "text-white" : "text-slate-900",
+          isRoot ? "min-h-[70px] min-w-[196px] rounded-2xl py-4 pl-5 pr-5" : compact ? "min-h-[58px] min-w-[160px] py-3" : "min-h-[62px] min-w-[168px] py-3.5",
           appearance.hoverBorderClass,
           active ? appearance.activeBorderClass : appearance.defaultSurfaceClass,
-          !isRoot && `border-l-[4px] ${accentBorderClass}`,
+          isRoot ? "border-l-[4px] border-l-indigo-500" : `border-l-[4px] ${accentBorderClass}`,
           node.status === "Pending" && "border-dashed border-amber-300 bg-amber-50/30"
         )}
       >
-        <div className={cn("flex items-center justify-center rounded-full bg-white/75", isRoot ? "h-7 w-7" : "h-7 w-7")}>
-          <Icon className={cn(isRoot ? "h-3.5 w-3.5" : "h-3.5 w-3.5", theme.iconColor)} />
+        <div className={cn("flex items-center justify-center rounded-full", isRoot ? "h-8 w-8 bg-white text-indigo-600 shadow-sm" : "h-7 w-7 bg-white/75")}>
+          <Icon className={cn(isRoot ? "h-4 w-4 text-indigo-600" : "h-3.5 w-3.5", !isRoot && theme.iconColor)} />
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <p className={cn("truncate font-semibold", isRoot ? "text-[14px]" : compact ? "text-[13px]" : "text-[14px]")}>{node.name}</p>
+            <p className={cn("truncate font-semibold", isRoot ? "text-[16px] font-bold tracking-[-0.01em] text-white" : "text-[16px]")}>{node.name}</p>
             {node.status === "Pending" && (
               <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-700">
                 Pending
               </span>
             )}
           </div>
-          {!isRoot ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</p> : null}
+          {!isRoot ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.1em] text-slate-500">{node.nodeType}</p> : null}
         </div>
       </button>
 

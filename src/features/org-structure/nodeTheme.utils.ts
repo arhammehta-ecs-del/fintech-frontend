@@ -134,9 +134,9 @@ export const getBranchAppearance = (branchIndex: number | null, branchDepth: num
   if (isRoot || branchIndex === null) {
     return {
       accentClass: "bg-slate-200",
-      hoverBorderClass: "hover:border-slate-300",
-      defaultSurfaceClass: "border border-slate-200 bg-white shadow-[0_6px_18px_rgba(15,23,42,0.05)]",
-      activeBorderClass: "border-slate-300 shadow-[0_10px_24px_rgba(15,23,42,0.08)]",
+      hoverBorderClass: "hover:border-indigo-700",
+      defaultSurfaceClass: "border-2 border-indigo-600 bg-indigo-600 shadow-[0_10px_24px_rgba(15,23,42,0.12)]",
+      activeBorderClass: "border-2 border-indigo-700 bg-indigo-700 shadow-[0_14px_30px_rgba(15,23,42,0.16)]",
     };
   }
 

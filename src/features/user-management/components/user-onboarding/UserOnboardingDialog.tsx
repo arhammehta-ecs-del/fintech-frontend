@@ -26,6 +26,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
     errors,
     selectedNodeId,
     selectedNodes,
+    reportingManagerOptions,
     expandedAccessNodeIds,
     primaryNodeId,
     nodePermissions,
@@ -114,12 +115,19 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
             <CardContent
               className={cn(
                 step === 4 ? "min-h-0 flex-1 overflow-hidden" : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden",
-                step === 1 ? "p-5 pt-5 sm:p-6 sm:pt-6" : step === 3 ? "p-5 pt-5 sm:p-6 sm:pt-6" : "p-6 pt-6 sm:p-8 sm:pt-8",
+                step === 1
+                  ? "p-5 pt-5 sm:p-6 sm:pt-6"
+                  : step === 3
+                    ? "p-5 pt-5 sm:p-6 sm:pt-6"
+                    : step === 4
+                      ? "p-4 pt-4 sm:p-5 sm:pt-5"
+                      : "p-6 pt-6 sm:p-8 sm:pt-8",
               )}
             >
               {step === 1 ? (
                 <UserOnboardingStepBasicDetails
                   basic={formData.basic}
+                  reportingManagerOptions={reportingManagerOptions}
                   errors={errors}
                   onBasicChange={updateBasic}
                   onClearError={clearError}
@@ -139,6 +147,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
 
               {step === 3 ? (
                 <UserOnboardingStepAccessRights
+                  orgStructure={orgStructure}
                   selectedNodes={selectedNodes}
                   roles={roles}
                   errors={errors}
@@ -156,6 +165,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
 
               {step === 4 ? (
                 <UserOnboardingStepReviewSubmit
+                  orgStructure={orgStructure}
                   basic={formData.basic}
                   selectedNodes={selectedNodes}
                   primaryNodeId={primaryNodeId}

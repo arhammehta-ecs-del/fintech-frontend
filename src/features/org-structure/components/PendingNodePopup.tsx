@@ -57,6 +57,7 @@ export function PendingNodePopup({ open, node, onClose, onApprove, onReject }: P
   const requesterName = node.requestedByName?.trim() || DUMMY_REQUEST_INFO.name;
   const requesterEmail = node.requestedByEmail?.trim() || DUMMY_REQUEST_INFO.email;
   const requestedOn = formatRequestedAtToIst(node.requestedAt || DUMMY_REQUEST_INFO.requestedAt);
+  const nodePathSegments = node.nodePath.split(".").filter(Boolean);
 
   const validateAndRun = (action: "approve" | "reject") => {
     const cleanedRemark = remark.trim();
@@ -119,31 +120,36 @@ export function PendingNodePopup({ open, node, onClose, onApprove, onReject }: P
               <div className="grid grid-cols-[18px_96px_1fr] items-center gap-2 text-sm">
                 <Info size={14} className="text-slate-400" />
                 <span className="text-slate-500">Node Path</span>
-                <span className="font-mono text-[12px] font-semibold text-slate-700 break-all">{node.nodePath}</span>
+                <span className="font-mono text-[12px] font-semibold text-slate-700 break-words">
+                  {nodePathSegments.length > 0
+                    ? nodePathSegments.map((segment, index) => (
+                      <span key={`${segment}-${index}`}>
+                        {segment}
+                        {index < nodePathSegments.length - 1 ? "." : ""}
+                        <wbr />
+                      </span>
+                    ))
+                    : node.nodePath}
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/60 bg-slate-50/45 px-3 py-2">
-            <div className="mb-2 flex items-center gap-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">Initiator Info</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-slate-500 ring-1 ring-slate-200/50">
-                <User size={12} className="text-slate-400" />
-                <span className="text-slate-400">By</span>
-                <span className="font-medium text-slate-600">{requesterName}</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-slate-500 ring-1 ring-slate-200/50">
-                <Clock3 size={12} className="text-slate-400" />
-                <span className="text-slate-400">On</span>
-                <span className="font-medium text-slate-600">{requestedOn}</span>
-              </span>
-              <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-slate-500 ring-1 ring-slate-200/50">
-                <Mail size={12} className="text-slate-400" />
-                <span className="text-slate-400">Email</span>
-                <span className="font-medium text-slate-600 truncate">{requesterEmail}</span>
-              </span>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Initiator Info</p>
+            <div className="mt-2.5 space-y-1.5 text-[13px] leading-relaxed">
+              <div className="flex items-center gap-2">
+                <User size={13} className="shrink-0 text-slate-400" />
+                <p className="truncate text-slate-600">{requesterName}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Mail size={13} className="shrink-0 text-slate-400" />
+                <p className="truncate text-slate-500">{requesterEmail}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock3 size={13} className="shrink-0 text-slate-400" />
+                <p className="text-slate-500">{requestedOn}</p>
+              </div>
             </div>
           </div>
 

@@ -27,6 +27,12 @@ function countNodes(node: OrgNode | null): number {
   return 1 + node.children.reduce((acc, child) => acc + countNodes(child), 0);
 }
 
+function countPendingNodes(node: OrgNode | null): number {
+  if (!node) return 0;
+  const own = node.status === "Pending" ? 1 : 0;
+  return own + node.children.reduce((acc, child) => acc + countPendingNodes(child), 0);
+}
+
 function hasPendingNodes(node: OrgNode | null): boolean {
   if (!node) return false;
   if (node.status === "Pending") return true;
@@ -81,6 +87,8 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   }, [displayedStructure]);
 
   const hasPending = useMemo(() => hasPendingNodes(orgStructure), [orgStructure]);
+  const approvedBaseCount = useMemo(() => countNodes(filterPendingNodes(orgStructure)), [orgStructure]);
+  const pendingCount = useMemo(() => countPendingNodes(orgStructure), [orgStructure]);
   const newNodeParentTrail = useMemo(() => {
     if (!orgStructure || !newNodeParent?.id) return [];
     return collectNodeTrail(orgStructure, newNodeParent.id);
@@ -108,15 +116,22 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                   <div className="mt-1 flex items-center gap-1.5 overflow-hidden text-[13px] text-slate-400">
                     <span className="transition-all duration-300 hover:text-slate-600">{companyName}</span>
                     <span className="opacity-40">·</span>
-                    <span 
-                      key={displayedCount} 
-                      className="inline-block animate-[fadeInUp_0.3s_ease-out] font-medium text-slate-500"
+                    <span
+                      key={`${displayedCount}-${pendingCount}-${showPending ? "show" : "hide"}`}
+                      className="inline-flex items-center gap-1 animate-[fadeInUp_0.3s_ease-out] font-medium"
                     >
-                      {displayedCount} nodes
+                      {showPending && pendingCount > 0 ? (
+                        <>
+                          <span className="text-slate-500">{approvedBaseCount}</span>
+                          <span className="text-amber-500">{`+ ${pendingCount} nodes`}</span>
+                        </>
+                      ) : (
+                        <span className="text-slate-500">{`${displayedCount} nodes`}</span>
+                      )}
                     </span>
-                    {!showPending && nodeCount > displayedCount && (
+                    {!showPending && pendingCount > 0 && (
                       <span className="ml-1 text-[11px] font-normal text-amber-500/80 italic animate-pulse">
-                        (+{nodeCount - displayedCount} Pending)
+                        (+{pendingCount} Pending)
                       </span>
                     )}
                   </div>
@@ -187,6 +202,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                 <OrgTreeCanvas
                   root={displayedStructure!}
                   selectedId={selectedDepartment?.id}
+                  remeasureKey={`${selectedDepartment?.id ?? "none"}-${sidebarOpen ? "open" : "closed"}`}
                   onSelect={handleDepartmentClick}
                   onCreateNode={handleOpenNewNodePopup}
                   scrollContainerRef={treeScrollRef}

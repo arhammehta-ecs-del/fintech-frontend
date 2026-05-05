@@ -6,8 +6,8 @@ import { collectNodeTrail, findOrgNodeById, findParentNodeById, flattenOrg } fro
 import type { DepartmentSidebarDepartment, NewNodeType } from "@/features/org-structure/types";
 
 const VIEWPORT_EDGE_PADDING = 96;
-const MIN_ZOOM = 0.75;
-const MAX_ZOOM = 1.4;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 
 export function useOrgStructure() {
@@ -27,6 +27,7 @@ export function useOrgStructure() {
   const bottomScrollRef = useRef<HTMLDivElement | null>(null);
   const graphContentRef = useRef<HTMLDivElement | null>(null);
   const syncSourceRef = useRef<"tree" | "bottom" | null>(null);
+  const didApplyInitialAutoZoomRef = useRef(false);
   const companyCode = currentUser?.companyCode?.trim().toUpperCase() ?? "";
 
   const loadOrgForCompanyCode = async (nextCompanyCode: string) => {
@@ -86,6 +87,13 @@ export function useOrgStructure() {
         setSelectedDepartment(null);
         setSidebarOpen(false);
       });
+      didApplyInitialAutoZoomRef.current = false;
+    }
+  }, [orgStructure]);
+
+  useEffect(() => {
+    if (orgStructure) {
+      didApplyInitialAutoZoomRef.current = false;
     }
   }, [orgStructure]);
 
@@ -155,7 +163,37 @@ export function useOrgStructure() {
       treeElement.removeEventListener("scroll", syncFromTree);
       bottomElement.removeEventListener("scroll", syncFromBottom);
     };
-  }, [canvasWidth, hasHorizontalOverflow, sidebarOpen, zoom]);
+  }, [canvasWidth, hasHorizontalOverflow, zoom]);
+
+  useEffect(() => {
+    if (!orgStructure) return;
+    if (didApplyInitialAutoZoomRef.current) return;
+    if (zoom !== 1) return;
+    if (!hasHorizontalOverflow) return;
+
+    didApplyInitialAutoZoomRef.current = true;
+    setZoom(Math.max(MIN_ZOOM, Number((1 - ZOOM_STEP * 2).toFixed(2))));
+  }, [orgStructure, hasHorizontalOverflow, zoom]);
+
+  useEffect(() => {
+    const treeElement = treeScrollRef.current;
+    const selectedId = selectedDepartment?.id;
+    if (!treeElement || !selectedId) return;
+
+    const escapedId = selectedId.replace(/"/g, '\\"');
+    const selectedNodeElement = treeElement.querySelector<HTMLElement>(`[data-org-node-id="${escapedId}"]`);
+    if (!selectedNodeElement) return;
+
+    const treeRect = treeElement.getBoundingClientRect();
+    const nodeRect = selectedNodeElement.getBoundingClientRect();
+    const nodeCenterFromScrollLeft = treeElement.scrollLeft + (nodeRect.left - treeRect.left) + nodeRect.width / 2;
+    const targetScrollLeft = Math.max(0, nodeCenterFromScrollLeft - treeElement.clientWidth / 2);
+
+    treeElement.scrollTo({
+      left: targetScrollLeft,
+      behavior: "smooth",
+    });
+  }, [selectedDepartment?.id, sidebarOpen, canvasWidth, zoom]);
 
   const allNodes = useMemo(() => flattenOrg(orgStructure), [orgStructure]);
   const nodeCount = Math.max(allNodes.length - 1, 0);

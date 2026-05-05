@@ -1,5 +1,6 @@
 import type { AppUser } from "@/contexts/AppContext";
 import { apiFetch } from "@/services/client";
+const USE_MOCK_DATA = String(import.meta.env.VITE_USE_ORG_MOCK).toLowerCase() === "true";
 
 export type UserOnboardingPermission = {
   roleCategory: "TRANSACTIONAL" | "OPERATIONAL" | "SYSTEM_ACCESS";
@@ -178,7 +179,14 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   const phone = readNonEmptyString(readString(record.phone) || readString(basicDetails.phone), "9999999999");
   const onboardingDate =
     readString(record.onboardingDate) || readString(basicDetails.companyOnboardingDate) || readString(basicDetails.createdAt);
-  const reportingManager = readNonEmptyString(readString(basicDetails.reportingManager), "Not available");
+  const reportingManagerName = readNonEmptyString(
+    readString(basicDetails.reportingManagerName) || readString(basicDetails.reportingManager),
+    "Not available",
+  );
+  const reportingManagerEmail = readNonEmptyString(
+    readString(basicDetails.reportingManagerEmail) || readString(record.manager && typeof record.manager === "object" ? (record.manager as RawUserRecord).email : ""),
+    "not-available@example.com",
+  );
   const employeeId = readNonEmptyString(readString(record.employeeId) || readString(basicDetails.employeeId), "EMP-0001");
   const initiatorName = readString(basicDetails.initiatorName).trim();
   const initiatorEmail = readString(basicDetails.initiatorEmail).trim();
@@ -201,10 +209,10 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
     phone,
     companyId: typeof record.companyId === "string" ? record.companyId : undefined,
     onboardingDate: onboardingDate || undefined,
-    manager: reportingManager
+    manager: reportingManagerName
       ? {
-        name: reportingManager,
-        email: reportingManager,
+        name: reportingManagerName,
+        email: reportingManagerEmail,
       }
       : record.manager && typeof record.manager === "object"
         ? {
@@ -226,7 +234,9 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
       companyOnboardingDate: onboardingDate || "01-01-2026",
       designation,
       employeeId,
-      reportingManager,
+      reportingManager: reportingManagerName,
+      reportingManagerName,
+      reportingManagerEmail,
       ...(initiatorName ? { initiatorName } : {}),
       ...(initiatorEmail ? { initiatorEmail } : {}),
       ...(initiatedAt ? { initiatedDate: initiatedAt } : {}),
@@ -237,6 +247,16 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
 
 export async function createUserOnboarding(payload: UserOnboardingPayload) {
   console.log("EXACT PAYLOAD BEING SENT TO BACKEND:", JSON.stringify(payload, null, 2));
+  if (USE_MOCK_DATA) {
+    return {
+      message: "User onboarding initiated successfully (mock)",
+      code: 200,
+      data: {
+        userId: `mock-${Date.now()}`,
+        status: "Pending",
+      },
+    };
+  }
   return apiFetch<UserOnboardingResponse>(NEW_USER_ONBOARD_PATH, {
     method: "POST",
     body: JSON.stringify(payload),
@@ -244,6 +264,13 @@ export async function createUserOnboarding(payload: UserOnboardingPayload) {
 }
 
 export async function updateUserStatusByEmail(email: string) {
+  if (USE_MOCK_DATA) {
+    return {
+      message: `User status updated for ${email} (mock)`,
+      code: 200,
+      success: true,
+    };
+  }
   return apiFetch<UserStatusUpdateResponse>(USER_STATUS_UPDATE_PATH, {
     method: "POST",
     body: JSON.stringify({
@@ -261,11 +288,13 @@ const MOCK_USERS_RESPONSE = {
       {
         basicDetails: {
           name: "Arham Vipul Mehta",
-          email: "arhammehta26@gmail.com",
+          email: "don",
           phone: "09324041063",
           companyOnboardingDate: "01-03-2024",
           designation: "CEO",
           reportingManager: "N/A",
+          reportingManagerName: "Amit Sharma",
+          reportingManagerEmail: "amit.sharma@globaltech.com",
         },
         primary: [
           {
@@ -277,40 +306,7 @@ const MOCK_USERS_RESPONSE = {
             accessType: "PRIMARY",
           },
         ],
-        secondary: [
-          {
-            roleCategory: "SYSTEM_ACCESS",
-            roleSubCategory: "USER_MANAGEMENT",
-            roleName: "User Management Manager",
-            nodeName: "TEST Company",
-            nodePath: "TECH_SOLUTIONS_LTD.ROOT",
-            accessType: "SECONDARY",
-          },
-          {
-            roleCategory: "TRANSACTIONAL",
-            roleSubCategory: "ACCOUNTS",
-            roleName: "Accounts Viewer",
-            nodeName: "Finance",
-            nodePath: "TECH_SOLUTIONS_LTD.ALUMINUM.MUMBAI.FINANCE",
-            accessType: "SECONDARY",
-          },
-          {
-            roleCategory: "OPERATIONAL",
-            roleSubCategory: "MASTER",
-            roleName: "Master User",
-            nodeName: "Strategy",
-            nodePath: "TECH_SOLUTIONS_LTD.STRATEGY",
-            accessType: "SECONDARY",
-          },
-          {
-            roleCategory: "SYSTEM_ACCESS",
-            roleSubCategory: "ORG_STRUCTURE",
-            roleName: "Org Structure Viewer",
-            nodeName: "TEST Company",
-            nodePath: "TECH_SOLUTIONS_LTD.ROOT",
-            accessType: "SECONDARY",
-          },
-        ],
+        secondary: [],
       },
       {
         basicDetails: {
@@ -319,7 +315,9 @@ const MOCK_USERS_RESPONSE = {
           phone: "09812345678",
           companyOnboardingDate: "15-06-2023",
           designation: "Finance Head",
-          reportingManager: "arhammehta26@gmail.com",
+          reportingManager: "Amit Sharma",
+          reportingManagerName: "Amit Sharma",
+          reportingManagerEmail: "amit.sharma@globaltech.com",
         },
         primary: [
           {
@@ -348,6 +346,70 @@ const MOCK_USERS_RESPONSE = {
             nodePath: "TECH_SOLUTIONS_LTD.ALUMINUM.MUMBAI.FINANCE.PROCUREMENT",
             accessType: "SECONDARY",
           },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "USER_MANAGEMENT",
+            roleName: "User Management Viewer",
+            nodeName: "Admin Portal",
+            nodePath: "TECH_SOLUTIONS_LTD.ADMIN.PORTAL",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "OPERATIONAL",
+            roleSubCategory: "MASTER",
+            roleName: "Master Viewer",
+            nodeName: "Operations",
+            nodePath: "TECH_SOLUTIONS_LTD.OPERATIONS",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "ORG_STRUCTURE",
+            roleName: "Org Structure Viewer",
+            nodeName: "Head Office",
+            nodePath: "TECH_SOLUTIONS_LTD.ROOT",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "PAYMENT",
+            roleName: "Payment Viewer",
+            nodeName: "Treasury",
+            nodePath: "TECH_SOLUTIONS_LTD.TREASURY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "OPERATIONAL",
+            roleSubCategory: "MASTER",
+            roleName: "Master User",
+            nodeName: "Warehouse",
+            nodePath: "TECH_SOLUTIONS_LTD.WAREHOUSE",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "INVOICE",
+            roleName: "Invoice Viewer",
+            nodeName: "Billing",
+            nodePath: "TECH_SOLUTIONS_LTD.BILLING",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "TRACK_WORKFLOW",
+            roleName: "Track Workflow Viewer",
+            nodeName: "Workflow",
+            nodePath: "TECH_SOLUTIONS_LTD.WORKFLOW",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "PURCHASE_ORDER",
+            roleName: "Purchase Order Viewer",
+            nodeName: "Procurement Hub",
+            nodePath: "TECH_SOLUTIONS_LTD.PROCUREMENT.HUB",
+            accessType: "SECONDARY",
+          },
         ],
       },
       {
@@ -357,33 +419,243 @@ const MOCK_USERS_RESPONSE = {
           phone: "09876543210",
           companyOnboardingDate: "10-01-2024",
           designation: "Operations Manager",
-          reportingManager: "arhammehta26@gmail.com",
+          reportingManager: "Amit Sharma",
+          reportingManagerName: "Amit Sharma",
+          reportingManagerEmail: "amit.sharma@globaltech.com",
         },
         primary: [
           {
             roleCategory: "OPERATIONAL",
             roleSubCategory: "MASTER",
             roleName: "Master Manager",
-            nodeName: "Aluminum",
-            nodePath: "TECH_SOLUTIONS_LTD.ALUMINUM",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
             accessType: "PRIMARY",
           },
         ],
         secondary: [
           {
-            roleCategory: "SYSTEM_ACCESS",
-            roleSubCategory: "TRACK_WORKFLOW",
-            roleName: "Track Workflow Viewer",
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "PURCHASE_ORDER",
+            roleName: "Purchase Order Checker",
             nodeName: "TEST Company",
-            nodePath: "TECH_SOLUTIONS_LTD.ROOT",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
             accessType: "SECONDARY",
           },
           {
             roleCategory: "TRANSACTIONAL",
             roleSubCategory: "PURCHASE_ORDER",
-            roleName: "Purchase Order User",
-            nodeName: "Kolkata",
-            nodePath: "TECH_SOLUTIONS_LTD.ALUMINUM.KOLKATA",
+            roleName: "Purchase Order Maker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "PURCHASE_ORDER",
+            roleName: "Purchase Order Viewer",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "ACCOUNTS",
+            roleName: "Accounts Checker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "ACCOUNTS",
+            roleName: "Accounts Maker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "ACCOUNTS",
+            roleName: "Accounts Viewer",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "INVOICE",
+            roleName: "Invoice Checker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "INVOICE",
+            roleName: "Invoice Maker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "INVOICE",
+            roleName: "Invoice Viewer",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "OPERATIONAL",
+            roleSubCategory: "MASTER",
+            roleName: "Master Checker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "OPERATIONAL",
+            roleSubCategory: "MASTER",
+            roleName: "Master Maker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "OPERATIONAL",
+            roleSubCategory: "MASTER",
+            roleName: "Master Viewer",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "ORG_STRUCTURE",
+            roleName: "Org Structure Checker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "ORG_STRUCTURE",
+            roleName: "Org Structure Maker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "ORG_STRUCTURE",
+            roleName: "Org Structure Viewer",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "USER_MANAGEMENT",
+            roleName: "User Management Checker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "USER_MANAGEMENT",
+            roleName: "User Management Maker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "USER_MANAGEMENT",
+            roleName: "User Management Viewer",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "TRACK_WORKFLOW",
+            roleName: "Track Workflow Checker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "TRACK_WORKFLOW",
+            roleName: "Track Workflow Maker",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "TRACK_WORKFLOW",
+            roleName: "Track Workflow Viewer",
+            nodeName: "TEST Company",
+            nodePath: "TECH_SOLUTIONS_LTD.TEST_COMPANY",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "ACCOUNTS",
+            roleName: "Accounts Viewer",
+            nodeName: "Finance Hub",
+            nodePath: "TECH_SOLUTIONS_LTD.FINANCE_HUB",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "TRANSACTIONAL",
+            roleSubCategory: "INVOICE",
+            roleName: "Invoice Checker",
+            nodeName: "Finance Hub",
+            nodePath: "TECH_SOLUTIONS_LTD.FINANCE_HUB",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "OPERATIONAL",
+            roleSubCategory: "MASTER",
+            roleName: "Master User",
+            nodeName: "Operations Hub",
+            nodePath: "TECH_SOLUTIONS_LTD.OPERATIONS_HUB",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "OPERATIONAL",
+            roleSubCategory: "MASTER",
+            roleName: "Master Viewer",
+            nodeName: "Operations Hub",
+            nodePath: "TECH_SOLUTIONS_LTD.OPERATIONS_HUB",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "ORG_STRUCTURE",
+            roleName: "Org Structure Viewer",
+            nodeName: "Control Center",
+            nodePath: "TECH_SOLUTIONS_LTD.CONTROL_CENTER",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "USER_MANAGEMENT",
+            roleName: "User Management User",
+            nodeName: "Control Center",
+            nodePath: "TECH_SOLUTIONS_LTD.CONTROL_CENTER",
+            accessType: "SECONDARY",
+          },
+          {
+            roleCategory: "SYSTEM_ACCESS",
+            roleSubCategory: "TRACK_WORKFLOW",
+            roleName: "Track Workflow Manager",
+            nodeName: "Control Center",
+            nodePath: "TECH_SOLUTIONS_LTD.CONTROL_CENTER",
             accessType: "SECONDARY",
           },
         ],
@@ -397,7 +669,9 @@ const MOCK_USERS_RESPONSE = {
           phone: "09765432100",
           companyOnboardingDate: "22-04-2026",
           designation: "Procurement Analyst",
-          reportingManager: "priya.sharma@techsolutions.com",
+          reportingManager: "Amit Sharma",
+          reportingManagerName: "Amit Sharma",
+          reportingManagerEmail: "amit.sharma@globaltech.com",
         },
         primary: [
           {
@@ -429,7 +703,9 @@ const MOCK_USERS_RESPONSE = {
           phone: "09123456780",
           companyOnboardingDate: "05-09-2022",
           designation: "Strategy Lead",
-          reportingManager: "arhammehta26@gmail.com",
+          reportingManager: "Amit Sharma",
+          reportingManagerName: "Amit Sharma",
+          reportingManagerEmail: "amit.sharma@globaltech.com",
         },
         primary: [
           {
@@ -458,11 +734,12 @@ const MOCK_USERS_RESPONSE = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function getCompanyUsers(_companyCode: string): Promise<AppUser[]> {
-  const payload = await apiFetch<CompanyUsersResponse>(COMPANY_USERS_PATH, {
-    method: "POST",
-    body: JSON.stringify({ companyCode: _companyCode.trim().toUpperCase() }),
-  });
-  // const payload: CompanyUsersResponse = MOCK_USERS_RESPONSE;
+  const payload: CompanyUsersResponse = USE_MOCK_DATA
+    ? MOCK_USERS_RESPONSE
+    : await apiFetch<CompanyUsersResponse>(COMPANY_USERS_PATH, {
+      method: "POST",
+      body: JSON.stringify({ companyCode: _companyCode.trim().toUpperCase() }),
+    });
 
   const activeUsers = Array.isArray(payload.data?.activeUsers)
     ? payload.data.activeUsers.map((record) => mapCompanyUser(record, "Active"))

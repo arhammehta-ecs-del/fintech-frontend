@@ -3,6 +3,7 @@ import { Check, CreditCard, Database, ShieldCheck, Workflow } from "lucide-react
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAppContext } from "@/contexts/AppContext";
 import { getCompanyRoles, type RoleRecord } from "@/services/role.service";
+import { getPermissionActionLabelFromRoleName, getPermissionActionLabelFromText } from "@/features/user-management/roleLabels";
 
 type RoleRow = {
   module: string;
@@ -29,11 +30,13 @@ type RolesAllocationPanelProps = {
 };
 
 const formatLabel = (value: string) =>
-  value
+  getPermissionActionLabelFromRoleName(
+    value
     .toLowerCase()
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+    .join(" "),
+  );
 
 const getCategoryMeta = (categoryKey: string) => {
   switch (categoryKey) {
@@ -262,7 +265,7 @@ export function RolesAllocationPanel({
                         key={`${category.key}-${level}`}
                         className="px-3 py-3 text-center text-xs font-bold uppercase tracking-[0.12em] text-slate-500 align-middle"
                       >
-                        {formatLabel(level)}
+                        {getPermissionActionLabelFromText(formatLabel(level))}
                       </th>
                     ))}
                   </tr>

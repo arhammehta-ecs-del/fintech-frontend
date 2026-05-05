@@ -1,15 +1,16 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Building2,
   Calendar,
   ChevronRight,
+  Eye,
   IdCard,
   Mail,
   Maximize2,
   Minimize2,
-  Phone,
+  Pencil,
   ShieldCheck,
   UserCheck,
+  X,
 } from "lucide-react";
 import type { AppUser } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ import {
   getAvatarColor,
   getInitials,
 } from "@/features/user-management/utils";
+import { getPermissionActionLabelFromRoleName } from "@/features/user-management/roleLabels";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +54,12 @@ const cleanDisplayValue = (value?: string) => {
   return cleaned && cleaned !== "-" ? cleaned : "";
 };
 
+const displayOrFallback = (value: string | undefined, fallback: string) => {
+  const cleaned = (value || "").trim();
+  const placeholderValues = new Set(["-", "n/a", "na", "not available", "not available.", "none"]);
+  return cleaned && !placeholderValues.has(cleaned.toLowerCase()) ? cleaned : fallback;
+};
+
 const pickFirst = (obj: Record<string, unknown>, keys: string[]) => {
   for (const key of keys) {
     const value = obj[key];
@@ -69,6 +77,40 @@ const formatToIst = (value?: string) => {
     timeStyle: "short",
     timeZone: "Asia/Kolkata",
   }).format(parsed);
+};
+
+const formatLooseDateLabel = (value?: string) => {
+  const cleaned = (value || "").trim();
+  if (!cleaned) return "-";
+
+  const slashMatch = cleaned.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (slashMatch) {
+    const [, day, month, year] = slashMatch;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    if (!Number.isNaN(parsed.getTime())) {
+      return new Intl.DateTimeFormat("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(parsed);
+    }
+  }
+
+  const dashMatch = cleaned.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (dashMatch) {
+    const [, day, month, year] = dashMatch;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    if (!Number.isNaN(parsed.getTime())) {
+      return new Intl.DateTimeFormat("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(parsed);
+    }
+  }
+
+  const fallback = formatDateLabel(cleaned);
+  return fallback === "-" ? cleaned : fallback;
 };
 
 const INITIATOR_FALLBACK = {
@@ -108,15 +150,44 @@ const DEMO_SECONDARY_ACCESS: NonNullable<AppUser["accessDetails"]> = [
 type GroupedByNode = Record<string, {
   nodeName: string;
   nodeType: string; // derived from nodePath depth or fallback ""
+  parentSubtitle: string;
   categories: Record<string, Array<{ roleSubCategory: string; roleName: string }>>;
 }>;
+
+const formatPathSegment = (segment: string) =>
+  segment
+    .trim()
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+const getParentSubtitleFromPath = (nodePath?: string) => {
+  const rawSegments = (nodePath || "")
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  if (rawSegments.length <= 1) return "";
+  const formattedSegments = rawSegments.map(formatPathSegment);
+  const parentSegments = formattedSegments.slice(0, -1);
+  if (parentSegments.length === 0) return "";
+  const trimmedParents = parentSegments.length > 1 ? parentSegments.slice(1) : parentSegments;
+  return trimmedParents.join(" > ");
+};
 
 function groupByNode(items: NonNullable<AppUser["accessDetails"]>): GroupedByNode {
   const result: GroupedByNode = {};
   for (const item of items) {
-    const key = (item.nodeName || item.nodePath || "Unknown").trim();
+    const key = (item.nodePath || item.nodeName || "Unknown").trim();
     if (!result[key]) {
-      result[key] = { nodeName: item.nodeName || item.nodePath || "Unknown", nodeType: "", categories: {} };
+      result[key] = {
+        nodeName: item.nodeName || item.nodePath || "Unknown",
+        nodeType: "",
+        parentSubtitle: getParentSubtitleFromPath(item.nodePath),
+        categories: {},
+      };
     }
     const cat = item.roleCategory || "OTHER";
     if (!result[key].categories[cat]) {
@@ -134,33 +205,15 @@ const CATEGORY_ORDER = ["TRANSACTIONAL", "OPERATIONAL", "SYSTEM_ACCESS"];
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function BasicRow({
-  icon: Icon,
-  label,
-  value,
-  sub,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  return (
-    <div className="flex items-start gap-4 px-5 py-4">
-      <div className="mt-0.5 rounded-lg bg-slate-100/60 p-2 text-slate-400">
-        <Icon size={13} />
-      </div>
-      <div className="space-y-0.5">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
-        <p className="text-sm font-semibold text-slate-800">{value || "—"}</p>
-        {sub && <p className="text-xs text-slate-400">{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
 // Branch palette — same as OrgCard / StepSelectNode
-const BRANCH_EDGE = ["bg-orange-500", "bg-sky-500", "bg-emerald-500", "bg-rose-500", "bg-amber-500", "bg-cyan-500"];
+const BRANCH_EDGE_BORDER = [
+  "!border-l-orange-500",
+  "!border-l-sky-500",
+  "!border-l-emerald-500",
+  "!border-l-rose-500",
+  "!border-l-amber-500",
+  "!border-l-cyan-500",
+];
 const BRANCH_BADGE = [
   "bg-orange-100 text-orange-700",
   "bg-sky-100 text-sky-700",
@@ -169,75 +222,135 @@ const BRANCH_BADGE = [
   "bg-amber-100 text-amber-700",
   "bg-cyan-100 text-cyan-700",
 ];
-const BRANCH_BORDER = [
-  "border-orange-100",
-  "border-sky-100",
-  "border-emerald-100",
-  "border-rose-100",
-  "border-amber-100",
-  "border-cyan-100",
+const BRANCH_HOVER = [
+  "hover:border-orange-300 hover:bg-orange-50/70",
+  "hover:border-sky-300 hover:bg-sky-50/70",
+  "hover:border-emerald-300 hover:bg-emerald-50/70",
+  "hover:border-rose-300 hover:bg-rose-50/70",
+  "hover:border-amber-300 hover:bg-amber-50/70",
+  "hover:border-cyan-300 hover:bg-cyan-50/70",
 ];
+
+const getPaletteIndex = (nodeIndex: number) => nodeIndex % BRANCH_BADGE.length;
+
+const getNodeEdgeBorderClass = (nodeIndex: number, isPrimary: boolean) =>
+  isPrimary ? "!border-l-indigo-500" : BRANCH_EDGE_BORDER[getPaletteIndex(nodeIndex)];
+
+const getNodeBadgeClass = (nodeIndex: number, isPrimary: boolean) =>
+  isPrimary ? "bg-indigo-100 text-indigo-700" : BRANCH_BADGE[getPaletteIndex(nodeIndex)];
+
+const getNodeHoverClass = (nodeIndex: number, isPrimary: boolean) =>
+  isPrimary ? "hover:border-indigo-300 hover:bg-indigo-50/60" : BRANCH_HOVER[getPaletteIndex(nodeIndex)];
 
 function NodeAccessCard({
   nodeName,
+  parentSubtitle,
   nodeIndex,
   categories,
   isPrimary,
+  onClose,
 }: {
   nodeName: string;
+  parentSubtitle?: string;
   nodeIndex: number;
   categories: Record<string, Array<{ roleSubCategory: string; roleName: string }>>;
   isPrimary: boolean;
+  onClose?: () => void;
 }) {
-  const paletteIdx = nodeIndex % BRANCH_EDGE.length;
-  const edgeCls   = isPrimary ? "bg-blue-500"              : BRANCH_EDGE[paletteIdx];
-  const badgeCls  = isPrimary ? "bg-blue-100 text-blue-700" : BRANCH_BADGE[paletteIdx];
-  const borderCls = isPrimary ? "border-blue-100"           : BRANCH_BORDER[paletteIdx];
+  const edgeCls = getNodeEdgeBorderClass(nodeIndex, isPrimary);
+  const badgeCls = getNodeBadgeClass(nodeIndex, isPrimary);
   const badgeLabel = `${isPrimary ? "P" : "S"}${nodeIndex + 1}`;
 
   const presentCats = CATEGORY_ORDER.filter((cat) => (categories[cat]?.length ?? 0) > 0);
+  const getBadgeStyle = (label: string) => {
+    if (label === "Checker") return "bg-violet-50 text-violet-700";
+    if (label === "Maker") return "bg-amber-50 text-amber-700";
+    return "bg-slate-100 text-slate-600";
+  };
+
+  const getBadgeIcon = (label: string) => {
+    if (label === "Checker") return ShieldCheck;
+    if (label === "Maker") return Pencil;
+    return Eye;
+  };
 
   return (
-    <div className={cn("relative overflow-hidden rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-100/70", borderCls)}>
-      {/* Left accent edge */}
-      <span className={cn("absolute left-0 top-[10%] h-[80%] w-[4px] rounded-r-full", edgeCls)} />
-
+    <div
+      className={cn(
+        "relative w-full overflow-hidden rounded-xl border border-l-[4px] bg-white p-4",
+        edgeCls,
+        isPrimary
+          ? "border-slate-200 bg-white shadow-sm"
+          : "border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
+      )}
+    >
+      {onClose ? (
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-3 top-3 inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+          aria-label={`Close ${nodeName}`}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
       {/* Node header */}
       <div className="mb-3 flex items-center gap-3 pl-1">
-        <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold", badgeCls)}>
+        <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", badgeCls)}>
           {badgeLabel}
         </div>
-        <div className="text-sm font-semibold text-slate-800">{nodeName}</div>
+        <div className="min-w-0">
+          <div className="truncate text-[18px] font-semibold leading-tight text-slate-800">{nodeName}</div>
+          {parentSubtitle ? <div className="mt-0.5 truncate text-[11px] font-medium text-slate-500">{parentSubtitle}</div> : null}
+        </div>
       </div>
 
       {/* Permissions by category */}
       <div className="space-y-3 rounded-xl bg-slate-50/30 p-3 pl-4">
         {presentCats.length === 0 ? (
-          <div className="text-xs text-slate-400">No permissions configured.</div>
+          <div className="text-xs text-slate-400">No permissions assigned.</div>
         ) : presentCats.map((cat) => {
           const rows = categories[cat] ?? [];
+          const groupedRows = rows.reduce<Map<string, Set<string>>>((acc, row) => {
+            const key = row.roleSubCategory || "UNKNOWN";
+            const labels = acc.get(key) ?? new Set<string>();
+            labels.add(getPermissionActionLabelFromRoleName(row.roleName || "Viewer"));
+            acc.set(key, labels);
+            return acc;
+          }, new Map());
+
+          if (cat === "SYSTEM_ACCESS" && groupedRows.has("USER_MANAGEMENT")) {
+            const labels = groupedRows.get("USER_MANAGEMENT");
+            if (labels) {
+              labels.add("Checker");
+              labels.add("Maker");
+              labels.add("Viewer");
+            }
+          }
+
           return (
             <div key={cat} className="space-y-2">
-              <div className="border-b border-slate-200 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-600">
+              <div className="border-b border-slate-200 pb-1 text-[11px] font-black uppercase tracking-widest text-slate-500">
                 {formatKey(cat)}
               </div>
-              {rows.map((row, i) => {
-                const lower = (row.roleName || "").toLowerCase();
-                const rightLabel = lower.endsWith("manager") ? "Manager"
-                  : lower.endsWith("user") ? "User"
-                  : "Viewer";
-                const dotCls  = lower.endsWith("manager") ? "bg-violet-500"
-                  : lower.endsWith("user") ? "bg-amber-400" : "bg-slate-400";
-                const textCls = lower.endsWith("manager") ? "text-violet-700"
-                  : lower.endsWith("user") ? "text-amber-700" : "text-slate-500";
-                const bgCls   = lower.endsWith("manager") ? "bg-violet-50"
-                  : lower.endsWith("user") ? "bg-amber-50" : "bg-slate-100";
+              {Array.from(groupedRows.entries()).map(([roleSubCategory, labels], i) => {
+                const orderedLabels = ["Checker", "Maker", "Viewer"].filter((label) => labels.has(label));
                 return (
-                  <div key={i} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-slate-600">{formatKey(row.roleSubCategory || "")}</span>
-                    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium", bgCls, textCls)}>
-                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotCls)} />
-                      {rightLabel}
+                  <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-7 text-[15px] leading-[1.35]">
+                    <span className="min-w-0 truncate pt-0.5 pr-1 font-medium text-slate-600">{formatKey(roleSubCategory)}</span>
+                    <span className="flex max-w-[360px] flex-wrap justify-end gap-2">
+                      {orderedLabels.map((label) => {
+                        const BadgeIcon = getBadgeIcon(label);
+                        return (
+                          <span
+                            key={`${roleSubCategory}-${label}`}
+                            className={cn("inline-flex min-w-[96px] items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium", getBadgeStyle(label))}
+                          >
+                            <BadgeIcon className="h-3.5 w-3.5 shrink-0" />
+                            {label}
+                          </span>
+                        );
+                      })}
                     </span>
                   </div>
                 );
@@ -264,35 +377,47 @@ export function UserManagePreview({
   onToggleActiveStatus?: (member: AppUser, isActive: boolean) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [collapsedFocusedKey, setCollapsedFocusedKey] = useState<string | null>(null);
   const [pendingDecision, setPendingDecision] = useState<"approve" | "reject" | null>(null);
   const [pendingRemark, setPendingRemark] = useState("");
   const [remarkTouched, setRemarkTouched] = useState(false);
   const remarkCardRef = useRef<HTMLDivElement | null>(null);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
-
-  const rawJoiningDate = member.basicDetails?.companyOnboardingDate || member.onboardingDate || "";
-  const formattedJoiningDate = formatDateLabel(rawJoiningDate);
-
-  const userData = {
-    name: member.basicDetails?.name || member.name || "-",
-    email: member.basicDetails?.email || member.email || "-",
-    phone: member.basicDetails?.phone || member.phone || "-",
-    joiningDate: formattedJoiningDate === "-" && rawJoiningDate ? rawJoiningDate : formattedJoiningDate,
-    designation: member.basicDetails?.designation || member.designation || "-",
-    department: member.department || "-",
-    employeeId: member.basicDetails?.employeeId || member.employeeId || "-",
-    reportingManager: member.basicDetails?.reportingManager || member.manager?.name || "-",
-    reportingManagerEmail: member.manager?.email || member.basicDetails?.reportingManager || "",
-  };
-
-  const formattedDesignation = formatDesignation(userData.designation);
-  const formattedDepartment = cleanDisplayValue(userData.department);
-
   const memberRecord = member as unknown as Record<string, unknown>;
   const basicDetailsRecord =
     typeof memberRecord.basicDetails === "object" && memberRecord.basicDetails !== null
       ? (memberRecord.basicDetails as Record<string, unknown>)
       : {};
+
+  const rawJoiningDate = member.basicDetails?.companyOnboardingDate || member.onboardingDate || "";
+  const formattedJoiningDate = formatDateLabel(rawJoiningDate);
+  const rawCreatedAt = pickFirst(memberRecord, ["createdAt"]) || pickFirst(basicDetailsRecord, ["createdAt"]);
+  const formattedCreatedAt = formatLooseDateLabel(rawCreatedAt);
+
+  const userData = {
+    name: displayOrFallback(member.basicDetails?.name || member.name, "Demo User"),
+    email: displayOrFallback(member.basicDetails?.email || member.email, "demo.user@globaltech.com"),
+    phone: displayOrFallback(member.basicDetails?.phone || member.phone, "9000000000"),
+    joiningDate: displayOrFallback(
+      formattedJoiningDate === "-" && rawJoiningDate ? rawJoiningDate : formattedJoiningDate,
+      "01 Mar 2024",
+    ),
+    createdAt: displayOrFallback(formattedCreatedAt === "-" && rawCreatedAt ? rawCreatedAt : formattedCreatedAt, "01 Mar 2024"),
+    designation: displayOrFallback(member.basicDetails?.designation || member.designation, "Developer"),
+    department: displayOrFallback(member.department, "General"),
+    employeeId: displayOrFallback(member.basicDetails?.employeeId || member.employeeId, "EMP-0000"),
+    reportingManager: displayOrFallback(
+      member.basicDetails?.reportingManagerName || member.basicDetails?.reportingManager || member.manager?.name,
+      "Amit Sharma",
+    ),
+    reportingManagerEmail: displayOrFallback(
+      member.basicDetails?.reportingManagerEmail || member.manager?.email || pickFirst(basicDetailsRecord, ["reportingManagerEmail"]),
+      "amit.sharma@globaltech.com",
+    ),
+  };
+
+  const formattedDesignation = formatDesignation(userData.designation);
+  const formattedDepartment = cleanDisplayValue(userData.department);
 
   const initiatorName =
     pickFirst(memberRecord, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"]) ||
@@ -312,10 +437,17 @@ export function UserManagePreview({
   const accessDetails = member.accessDetails ?? [];
   const primaryItems = accessDetails.filter((a) => a.accessType === "PRIMARY");
   const secondaryItemsRaw = accessDetails.filter((a) => a.accessType !== "PRIMARY");
-  const secondaryItems = secondaryItemsRaw.length > 0 ? secondaryItemsRaw : DEMO_SECONDARY_ACCESS;
+  const secondaryItems =
+    secondaryItemsRaw.length > 0
+      ? secondaryItemsRaw
+      : member.status === "Pending"
+        ? DEMO_SECONDARY_ACCESS
+        : [];
 
   const primaryByNode = groupByNode(primaryItems);
   const secondaryByNode = groupByNode(secondaryItems);
+  const primaryEntries = useMemo(() => Object.entries(primaryByNode), [primaryByNode]);
+  const secondaryEntries = useMemo(() => Object.entries(secondaryByNode), [secondaryByNode]);
 
   const isEmpty = accessDetails.length === 0;
   const isRemarkValid = Boolean(pendingRemark.trim());
@@ -330,6 +462,16 @@ export function UserManagePreview({
       remarkInputRef.current?.focus();
     });
   }, [pendingDecision]);
+
+  useEffect(() => {
+    const selectableKeys = [
+      ...primaryEntries.map(([key]) => `p:${key}`),
+      ...secondaryEntries.map(([key]) => `s:${key}`),
+    ];
+    if (selectableKeys.length === 0 || (collapsedFocusedKey && !selectableKeys.includes(collapsedFocusedKey))) {
+      setCollapsedFocusedKey(null);
+    }
+  }, [collapsedFocusedKey, primaryEntries, secondaryEntries]);
 
   const handleStartPendingAction = (action: "approve" | "reject") => {
     setPendingDecision(action);
@@ -355,14 +497,9 @@ export function UserManagePreview({
 
   // Status badge
   const statusCls =
-    member.status === "Inactive" ? "border-rose-100 bg-rose-50 text-rose-600"
-      : member.status === "Pending" ? "border-amber-100 bg-amber-50 text-amber-600"
-        : "border-emerald-100 bg-emerald-50 text-emerald-600";
-
-  const statusDot =
-    member.status === "Inactive" ? "bg-rose-500"
-      : member.status === "Pending" ? "bg-amber-500"
-        : "bg-emerald-500";
+    member.status === "Inactive" ? "border-rose-200 bg-rose-100 text-rose-700"
+      : member.status === "Pending" ? "border-amber-200 bg-amber-100 text-amber-700"
+        : "border-emerald-200 bg-emerald-100 text-emerald-700";
 
   return (
     <div className="flex h-full flex-col bg-white">
@@ -372,21 +509,22 @@ export function UserManagePreview({
         {/* Name + avatar row — no EDIT here so it doesn't clash with dialog X */}
         <div className="flex items-start justify-between gap-4 pr-8">
           <div className="flex items-center gap-4">
-            <div className={cn("flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-bold", avatar.bg, avatar.text)}>
+            <div className={cn("flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-bold ring-1 ring-slate-200/80 shadow-sm", avatar.bg, avatar.text)}>
               {getInitials(userData.name)}
             </div>
             <div>
-              <h2 className="text-xl font-bold tracking-tight text-slate-900">{userData.name}</h2>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-xl font-bold tracking-tight text-slate-900">{userData.name}</h2>
+                <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider", statusCls)}>
+                  {member.status || "Active"}
+                </span>
+              </div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium text-slate-500">{formattedDesignation}</span>
                 {formattedDesignation !== "Not available" && formattedDepartment && (
                   <span className="text-slate-300">•</span>
                 )}
                 {formattedDepartment ? <span className="text-xs font-medium text-slate-500">{formattedDepartment}</span> : null}
-                <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider", statusCls)}>
-                  <span className={cn("h-1 w-1 rounded-full", statusDot)} />
-                  {member.status || "Active"}
-                </span>
               </div>
             </div>
           </div>
@@ -450,39 +588,9 @@ export function UserManagePreview({
       {/* ── Content ────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">General Information</span>
-              </div>
-              <div className="grid grid-cols-1 divide-y divide-slate-100 md:grid-cols-3 md:divide-x md:divide-y-0">
-                <BasicRow icon={Mail} label="Official Email" value={userData.email} />
-                <BasicRow icon={Phone} label="Mobile Number" value={userData.phone} />
-                <BasicRow icon={Calendar} label="Joining Date" value={userData.joiningDate} />
-              </div>
-            </div>
-
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Reporting Structure</span>
-              </div>
-              <div className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-                <BasicRow
-                  icon={UserCheck}
-                  label="Reporting Manager"
-                  value={userData.reportingManager}
-                  sub={userData.reportingManagerEmail !== userData.reportingManager ? userData.reportingManagerEmail : ""}
-                />
-                <BasicRow
-                  icon={Building2}
-                  label="Current Designation"
-                  value={formattedDesignation}
-                  sub={formattedDepartment ? `${formattedDepartment} Department` : ""}
-                />
-              </div>
-            </div>
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
             <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Access Rights</span>
+              <span className="text-[13px] font-black uppercase tracking-[0.18em] text-slate-500">Access Rights</span>
               <button
                 type="button"
                 onClick={() => setIsExpanded((v) => !v)}
@@ -498,105 +606,264 @@ export function UserManagePreview({
                 <ShieldCheck size={28} className="mb-3 text-slate-300" />
                 <p className="text-sm font-semibold text-slate-500">No access rights configured</p>
                 <p className="mt-1 text-xs text-slate-400">Assign roles to this user via the onboarding flow.</p>
-              </div>
+            </div>
             ) : isExpanded ? (
               <div className="space-y-6">
-                {/* PRIMARY — expanded */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-blue-500" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Primary Access</span>
-                  </div>
-                  {Object.keys(primaryByNode).length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-sm text-slate-400">
-                      No primary access configured.
+                <div className="rounded-2xl border border-indigo-200 bg-[#DDE6FF] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
+                  <div className="grid items-stretch grid-cols-1 gap-3 xl:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100/70">
+                      <div className="mb-3 border-b border-slate-200 pb-2 text-[12px] font-black uppercase tracking-widest text-slate-600">
+                        Basic Details
+                      </div>
+                      <div className="space-y-2.5 text-sm">
+                        <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
+                          <span className="text-slate-500">Name</span>
+                          <span className="text-slate-400">:</span>
+                          <span className="font-semibold text-slate-900">{userData.name || "-"}</span>
+                        </div>
+                        <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
+                          <span className="text-slate-500">Email</span>
+                          <span className="text-slate-400">:</span>
+                          <span className="break-all font-semibold text-slate-900">{userData.email || "-"}</span>
+                        </div>
+                        <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
+                          <span className="text-slate-500">Phone</span>
+                          <span className="text-slate-400">:</span>
+                          <span className="font-semibold text-slate-900">{userData.phone || "-"}</span>
+                        </div>
+                        <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
+                          <span className="text-slate-500">Onboarding Date</span>
+                          <span className="text-slate-400">:</span>
+                          <span className="font-semibold text-slate-900">{userData.createdAt || "-"}</span>
+                        </div>
+                        <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
+                          <span className="text-slate-500">Designation</span>
+                          <span className="text-slate-400">:</span>
+                          <span className="font-semibold text-slate-900">{formattedDesignation || "-"}</span>
+                        </div>
+                        <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
+                          <span className="text-slate-500">Employee ID</span>
+                          <span className="text-slate-400">:</span>
+                          <span className="font-semibold text-slate-900">{userData.employeeId || "-"}</span>
+                        </div>
+                      </div>
                     </div>
-                  ) : (
-                    Object.entries(primaryByNode).map(([key, group], idx) => (
-                      <NodeAccessCard key={key} nodeName={group.nodeName} nodeIndex={idx} categories={group.categories} isPrimary />
-                    ))
-                  )}
+
+                    <div className="flex h-full min-h-[248px] flex-col space-y-2.5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100/70">
+                      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-[#4F46E5]" />
+                        <span className="text-[12px] font-extrabold uppercase tracking-widest text-[#4F46E5]">Primary Access</span>
+                      </div>
+                      {Object.keys(primaryByNode).length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-4 text-sm text-slate-400">
+                          No primary access configured.
+                        </div>
+                      ) : (
+                        Object.entries(primaryByNode).map(([key, group], idx) => (
+                          <NodeAccessCard
+                            key={key}
+                            nodeName={group.nodeName}
+                            parentSubtitle={group.parentSubtitle}
+                            nodeIndex={idx}
+                            categories={group.categories}
+                            isPrimary
+                          />
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 rounded-xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100/70">
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-8 lg:whitespace-nowrap">
+                      <div className="flex min-w-0 items-center gap-1">
+                        <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
+                        <span className="shrink-0 text-slate-400">:</span>
+                        <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManager || "-"}</span>
+                      </div>
+                      <div className="flex min-w-0 items-center gap-1">
+                        <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
+                        <span className="shrink-0 text-slate-400">:</span>
+                        <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                {/* SECONDARY — expanded */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-slate-400" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
+                    <span className="text-[12px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
                   </div>
                   {Object.keys(secondaryByNode).length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-sm text-slate-400">
-                      No secondary access configured.
+                      No secondary access assigned.
                     </div>
                   ) : (
-                    Object.entries(secondaryByNode).map(([key, group], idx) => (
-                      <NodeAccessCard key={key} nodeName={group.nodeName} nodeIndex={idx} categories={group.categories} isPrimary={false} />
-                    ))
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                      {Object.entries(secondaryByNode).map(([key, group], idx) => (
+                        <NodeAccessCard
+                          key={key}
+                          nodeName={group.nodeName}
+                          parentSubtitle={group.parentSubtitle}
+                          nodeIndex={idx}
+                          categories={group.categories}
+                          isPrimary={false}
+                        />
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
             ) : (
               /* COLLAPSED — matches StepReviewSubmit collapsed style */
-              <div className="space-y-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-3">
-
-                {/* Primary collapsed */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-blue-500" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Primary Access</span>
+              <div className="space-y-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-3.5">
+                <div className="rounded-2xl border border-indigo-200 bg-[#DDE6FF] px-3 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm ring-1 ring-slate-100/70">
+                    <div className="mb-2 border-b border-slate-200 pb-1.5 text-[11px] font-black uppercase tracking-widest text-slate-600">
+                      Basic Details
+                    </div>
+                    <div className="space-y-1.5 text-sm">
+                      <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
+                        <span className="text-slate-500">Name</span>
+                        <span className="text-slate-400">:</span>
+                        <span className="font-semibold text-slate-900">{userData.name || "-"}</span>
+                      </div>
+                      <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
+                        <span className="text-slate-500">Email</span>
+                        <span className="text-slate-400">:</span>
+                        <span className="truncate font-semibold text-slate-900">{userData.email || "-"}</span>
+                      </div>
+                      <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
+                        <span className="text-slate-500">Phone</span>
+                        <span className="text-slate-400">:</span>
+                        <span className="font-semibold text-slate-900">{userData.phone || "-"}</span>
+                      </div>
+                      <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
+                        <span className="text-slate-500">Designation</span>
+                        <span className="text-slate-400">:</span>
+                        <span className="font-semibold text-slate-900">{formattedDesignation || "-"}</span>
+                      </div>
+                      <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
+                        <span className="text-slate-500">Employee ID</span>
+                        <span className="text-slate-400">:</span>
+                        <span className="font-semibold text-slate-900">{userData.employeeId || "-"}</span>
+                      </div>
+                    </div>
                   </div>
-                  {Object.keys(primaryByNode).length === 0 ? (
-                    <div className="text-xs text-slate-400">No primary access configured.</div>
-                  ) : (
-                    Object.entries(primaryByNode).map(([key, group], idx) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setIsExpanded(true)}
-                        className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
-                      >
-                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
-                          P{idx + 1}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-xs font-semibold text-slate-700">{group.nodeName}</div>
-                        </div>
-                        <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      </button>
-                    ))
-                  )}
+
+                  <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100/70">
+                    <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-6 lg:whitespace-nowrap">
+                      <div className="flex min-w-0 items-center gap-1">
+                        <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
+                        <span className="shrink-0 text-slate-400">:</span>
+                        <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManager || "-"}</span>
+                      </div>
+                      <div className="flex min-w-0 items-center gap-1">
+                        <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
+                        <span className="shrink-0 text-slate-400">:</span>
+                        <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Primary collapsed */}
+                  <div className="mt-3 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-blue-500" />
+                      <span className="text-[12px] font-black uppercase tracking-widest text-blue-600">Primary Access</span>
+                    </div>
+                    {primaryEntries.length === 0 ? (
+                      <div className="text-xs text-slate-400">No primary access configured.</div>
+                    ) : (
+                      primaryEntries.map(([key, group], idx) => {
+                        const focused = collapsedFocusedKey === `p:${key}`;
+                        return (
+                          <div key={key}>
+                            {focused ? (
+                              <NodeAccessCard
+                                nodeName={group.nodeName}
+                                parentSubtitle={group.parentSubtitle}
+                                nodeIndex={idx}
+                                categories={group.categories}
+                                isPrimary
+                                onClose={() => setCollapsedFocusedKey(null)}
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setCollapsedFocusedKey(`p:${key}`)}
+                                className={cn(
+                                  "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
+                                  getNodeEdgeBorderClass(idx, true),
+                                  getNodeHoverClass(idx, true),
+                                )}
+                              >
+                                <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", getNodeBadgeClass(idx, true))}>
+                                  P{idx + 1}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-semibold text-slate-700">{group.nodeName}</div>
+                                  {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
+                                </div>
+                                <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
 
                 {/* Secondary collapsed */}
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-slate-400" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
+                    <span className="text-[12px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
                   </div>
-                  {Object.keys(secondaryByNode).length === 0 ? (
-                    <div className="text-xs text-slate-400">No secondary access configured.</div>
+                  {secondaryEntries.length === 0 ? (
+                    <div className="text-xs text-slate-400">No secondary access assigned.</div>
                   ) : (
-                    Object.entries(secondaryByNode).map(([key, group], idx) => {
-                      const pi = idx % BRANCH_BADGE.length;
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setIsExpanded(true)}
-                          className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
-                        >
-                          <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold", BRANCH_BADGE[pi])}>
-                            S{idx + 1}
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      {secondaryEntries.map(([key, group], idx) => {
+                        const focused = collapsedFocusedKey === `s:${key}`;
+                        return (
+                          <div key={key}>
+                            {focused ? (
+                              <NodeAccessCard
+                                nodeName={group.nodeName}
+                                parentSubtitle={group.parentSubtitle}
+                                nodeIndex={idx}
+                                categories={group.categories}
+                                isPrimary={false}
+                                onClose={() => setCollapsedFocusedKey(null)}
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setCollapsedFocusedKey(`s:${key}`)}
+                                className={cn(
+                                  "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
+                                  getNodeEdgeBorderClass(idx, false),
+                                  getNodeHoverClass(idx, false),
+                                )}
+                              >
+                                <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", getNodeBadgeClass(idx, false))}>
+                                  S{idx + 1}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-semibold text-slate-700">{group.nodeName}</div>
+                                  {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
+                                </div>
+                                <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
+                              </button>
+                            )}
                           </div>
-                          <div className="min-w-0">
-                            <div className="truncate text-xs font-semibold text-slate-700">{group.nodeName}</div>
-                          </div>
-                          <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        </button>
-                      );
-                    })
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
+
               </div>
             )}
           </div>

@@ -18,7 +18,7 @@ export function useCompanyOnboardingWizard({
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const todayDateInputValue = useMemo(() => getTodayDateInputValue(), []);
-  const [groupSelectionMode, setGroupSelectionMode] = useState<GroupSelectionMode>("new");
+  const [groupSelectionMode, setGroupSelectionMode] = useState<GroupSelectionMode>("");
   const [selectedGroupId, setSelectedGroupLocalId] = useState("");
   const [groupName, setGroupName] = useState("");
   const [remarks, setRemarks] = useState("");
@@ -46,7 +46,7 @@ export function useCompanyOnboardingWizard({
   const resetWizardState = () => {
     setStep(0);
     setIsSubmitting(false);
-    setGroupSelectionMode("new");
+    setGroupSelectionMode("");
     setSelectedGroupLocalId("");
     setGroupName("");
     setRemarks("");
@@ -138,6 +138,8 @@ export function useCompanyOnboardingWizard({
 
     if (value === "not_applicable") {
       setGroupName("Independent");
+    } else if (value === "") {
+      setGroupName("");
     } else if (groupName === "Independent") {
       setGroupName("");
     }
@@ -195,6 +197,7 @@ export function useCompanyOnboardingWizard({
     const nextErrors: Record<string, string> = {};
 
     if (step === 0) {
+      if (!groupSelectionMode) nextErrors.groupSelectionMode = "Select a group option";
       if (groupSelectionMode === "new") {
         if (!groupName.trim()) nextErrors.groupName = "Required";
       } else if (groupSelectionMode === "existing") {

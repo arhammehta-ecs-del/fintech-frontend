@@ -1,8 +1,9 @@
-import type { DragEvent } from "react";
+import { useMemo, useState, type DragEvent } from "react";
+import CompanyHistorySidebar, { buildCompanyHistoryData } from "@/features/company-list/components/CompanyHistorySidebar";
 import type { Company } from "@/contexts/AppContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { GripVertical, SlidersHorizontal } from "lucide-react";
+import { GripVertical, History, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DragPayload, VisibleColumn } from "@/features/company-list/types";
 import { formatDisplayDate, statusColors } from "@/features/company-list/utils";
@@ -34,6 +35,8 @@ export default function StandaloneCompanyRow({
   onDragOver,
   onDrop,
 }: StandaloneCompanyRowProps) {
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const historyData = useMemo(() => buildCompanyHistoryData(company), [company]);
   const isDropTarget =
     dragState?.type === "subsidiary" &&
     dragState.groupId === groupId &&
@@ -99,18 +102,33 @@ export default function StandaloneCompanyRow({
           <td className="px-4 py-3">
             <div className="flex items-center gap-1">
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
-                onClick={() => onManage(company)}
-                aria-label={`Manage ${company.companyName}`}
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-              </Button>
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              onClick={() => setIsHistoryOpen(true)}
+              aria-label={`View history for ${company.companyName}`}
+            >
+              <History className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+              onClick={() => onManage(company)}
+              aria-label={`Manage ${company.companyName}`}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </Button>
             </div>
           </td>
         )}
       </tr>
+      <CompanyHistorySidebar
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        company={company}
+        data={historyData}
+      />
     </tbody>
   );
 }

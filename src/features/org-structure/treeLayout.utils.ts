@@ -14,18 +14,30 @@ export const LEVEL_STEP = 140;
 export const LEAF_SLOT_WIDTH = 220;
 export const VIEWPORT_EDGE_PADDING = 96;
 
-export const getNodeBoxSize = (node: OrgNode) => {
+export const getNodeBoxSize = (
+  node: OrgNode,
+  measuredSizes?: Map<string, { width: number; height: number }>,
+) => {
+  const measured = measuredSizes?.get(node.id);
+  if (measured) {
+    return measured;
+  }
+
   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
   const isLeaf = node.children.length === 0 && !isRoot;
 
-  if (isRoot) return { width: 168, height: 62 };
+  if (isRoot) return { width: 196, height: 70 };
   if (isLeaf) return { width: 160, height: 58 };
   return { width: 168, height: 62 };
 };
 
-export const buildTreeLayout = (node: OrgNode, depth = 0): LayoutNode => {
-  const { width, height } = getNodeBoxSize(node);
-  const childLayouts = node.children.map((child) => buildTreeLayout(child, depth + 1));
+export const buildTreeLayout = (
+  node: OrgNode,
+  depth = 0,
+  measuredSizes?: Map<string, { width: number; height: number }>,
+): LayoutNode => {
+  const { width, height } = getNodeBoxSize(node, measuredSizes);
+  const childLayouts = node.children.map((child) => buildTreeLayout(child, depth + 1, measuredSizes));
   const childrenWidth =
     childLayouts.length > 0
       ? childLayouts.reduce((total, child) => total + child.subtreeWidth, 0) + HORIZONTAL_GAP * (childLayouts.length - 1)

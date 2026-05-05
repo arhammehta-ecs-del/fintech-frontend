@@ -1,4 +1,4 @@
-import { Pencil, Plus, User, X } from "lucide-react";
+import { Pencil, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -156,46 +156,11 @@ export function CompanyOnboardingStepSignatory({
         <p className="text-sm text-destructive">{errors.signatories}</p>
       ) : null}
 
-      {isExistingGroup && existingSignatories.length > 0 ? (
-        <div className="space-y-2">
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Existing Signatories from Group</Label>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {existingSignatories.map((sig) => (
-              <Card
-                key={sig.id}
-                className={cn(
-                  "cursor-pointer border-2 p-4 transition-colors",
-                  linkedSigIds.has(sig.id) ? "border-primary bg-primary/5" : "border-transparent",
-                )}
-                onClick={() => onToggleLinkedSig(sig)}
-              >
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    checked={linkedSigIds.has(sig.id)}
-                    onClick={(event) => event.stopPropagation()}
-                    onCheckedChange={() => onToggleLinkedSig(sig)}
-                  />
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                    <User className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{sig.fullName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {sig.designation || "Signatory"} · {sig.email}
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
       {signatories.length > 0 ? (
         <div className="space-y-3">
           {signatories.map((sig, index) => (
-            <Card key={sig.id} className="p-4 shadow-sm">
-              <div className="mb-4 flex items-center justify-between gap-3">
+            <Card key={sig.id} className="border border-slate-200 p-3 shadow-none">
+              <div className="mb-2 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">{sig.fullName || `Signatory ${index + 1}`}</p>
                   {sig.source === "existing" ? <p className="text-xs text-muted-foreground">Existing group signatory</p> : null}
@@ -238,22 +203,22 @@ export function CompanyOnboardingStepSignatory({
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-x-10 gap-y-1.5 sm:grid-cols-2">
                   <p className="text-sm text-foreground">
-                    <span className="font-medium tracking-wide text-slate-500">Name:</span> <span className="font-semibold text-slate-900">{sig.fullName}</span>
+                    <span className="font-medium text-slate-500">Name:</span> <span className="font-semibold text-slate-900">{sig.fullName}</span>
                   </p>
                   <p className="min-w-0 text-sm text-foreground">
-                    <span className="font-medium tracking-wide text-slate-500">Email:</span> <span className="break-all font-semibold text-slate-900">{sig.email}</span>
+                    <span className="font-medium text-slate-500">Email:</span> <span className="break-all font-semibold text-slate-900">{sig.email}</span>
                   </p>
                   <p className="text-sm text-foreground">
-                    <span className="font-medium tracking-wide text-slate-500">Phone:</span> <span className="font-semibold text-slate-900">{sig.phone}</span>
+                    <span className="font-medium text-slate-500">Phone:</span> <span className="font-semibold text-slate-900">{sig.phone}</span>
                   </p>
                   <p className="text-sm text-foreground">
-                    <span className="font-medium tracking-wide text-slate-500">Designation:</span> <span className="font-semibold text-slate-900">{sig.designation}</span>
+                    <span className="font-medium text-slate-500">Designation:</span> <span className="font-semibold text-slate-900">{sig.designation}</span>
                   </p>
                   {sig.employeeId.trim() ? (
                     <p className="text-sm text-foreground sm:col-span-2">
-                      <span className="font-medium tracking-wide text-slate-500">Employee ID:</span> <span className="font-semibold text-slate-900">{sig.employeeId}</span>
+                      <span className="font-medium text-slate-500">Employee ID:</span> <span className="font-semibold text-slate-900">{sig.employeeId}</span>
                     </p>
                   ) : null}
                 </div>
@@ -261,9 +226,7 @@ export function CompanyOnboardingStepSignatory({
             </Card>
           ))}
         </div>
-      ) : (
-        <div className="py-8 text-center text-sm text-muted-foreground">No signatories added yet.</div>
-      )}
+      ) : null}
     </div>
   );
 }

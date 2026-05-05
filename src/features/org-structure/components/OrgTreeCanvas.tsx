@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import type { OrgNode } from "@/contexts/AppContext";
 import { OrgCard } from "@/features/org-structure/components/OrgCard";
 import {
@@ -14,6 +14,7 @@ import {
 type OrgTreeCanvasProps = {
   root: OrgNode;
   selectedId?: string;
+  remeasureKey?: string;
   onSelect: (node: OrgNode) => void;
   onCreateNode: (node: OrgNode) => void;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
@@ -24,13 +25,17 @@ type OrgTreeCanvasProps = {
 export function OrgTreeCanvas({
   root,
   selectedId,
+  remeasureKey,
   onSelect,
   onCreateNode,
   scrollContainerRef,
   onCanvasWidthChange,
   zoom = 1,
 }: OrgTreeCanvasProps) {
-  const layout = buildTreeLayout(root);
+  const nodeElementRefs = useRef(new Map<string, HTMLDivElement>());
+  const [measuredSizes, setMeasuredSizes] = useState<Map<string, { width: number; height: number }>>(new Map());
+
+  const layout = buildTreeLayout(root, 0, measuredSizes);
   const topLevelBranchIndexMap = new Map(root.children.map((child, index) => [child.id, index] as const));
   const positionedNodes = collectAbsoluteNodes(layout, topLevelBranchIndexMap);
   const maxRight = positionedNodes.reduce((maximum, node) => Math.max(maximum, node.x + node.width), 0);
@@ -49,6 +54,38 @@ export function OrgTreeCanvas({
   useEffect(() => {
     onCanvasWidthChange?.(outerCanvasWidth);
   }, [onCanvasWidthChange, outerCanvasWidth]);
+
+  useLayoutEffect(() => {
+    const nextSizes = new Map<string, { width: number; height: number }>();
+
+    nodeElementRefs.current.forEach((element, nodeId) => {
+      const cardBody = element.querySelector<HTMLElement>('[data-org-card-body="true"]');
+      const rect = (cardBody ?? element).getBoundingClientRect();
+      const safeZoom = zoom > 0 ? zoom : 1;
+      nextSizes.set(nodeId, {
+        // Rect is measured after CSS transform scale; convert back to logical canvas size.
+        width: Math.ceil(rect.width / safeZoom),
+        height: Math.ceil(rect.height / safeZoom),
+      });
+    });
+
+    setMeasuredSizes((current) => {
+      if (current.size === nextSizes.size) {
+        let hasChange = false;
+        nextSizes.forEach((size, key) => {
+          const existing = current.get(key);
+          if (!existing || existing.width !== size.width || existing.height !== size.height) {
+            hasChange = true;
+          }
+        });
+        if (!hasChange) {
+          return current;
+        }
+      }
+
+      return nextSizes;
+    });
+  }, [root, zoom, positionedNodes.length, selectedId, remeasureKey]);
 
   return (
     <div
@@ -79,6 +116,13 @@ export function OrgTreeCanvas({
             viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
             aria-hidden="true"
           >
+            <g
+              stroke="#d8e0ec"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            >
             {positionedNodes.flatMap((item) => {
               if (item.children.length === 0) return [];
 
@@ -91,30 +135,37 @@ export function OrgTreeCanvas({
               const rightMostChild = Math.max(...childCenters);
 
               return [
-                <line key={`${item.node.id}-stem`} x1={parentCenterX} y1={parentBottomY} x2={parentCenterX} y2={junctionY} stroke="#d8e0ec" strokeWidth="1.5" />,
-                <line key={`${item.node.id}-branch`} x1={leftMostChild} y1={junctionY} x2={rightMostChild} y2={junctionY} stroke="#d8e0ec" strokeWidth="1.5" />,
+                <line key={`${item.node.id}-stem`} x1={parentCenterX} y1={parentBottomY} x2={parentCenterX} y2={junctionY + 1} />,
+                <line key={`${item.node.id}-branch`} x1={leftMostChild - 1} y1={junctionY} x2={rightMostChild + 1} y2={junctionY} />,
                 ...item.children.map((child) => {
                   const childCenterX = offsetX + CANVAS_PADDING_X + child.x + child.width / 2;
                   return (
                     <line
                       key={`${item.node.id}-${child.node.id}`}
                       x1={childCenterX}
-                      y1={junctionY}
+                      y1={junctionY - 1}
                       x2={childCenterX}
                       y2={childTopY}
-                      stroke="#d8e0ec"
-                      strokeWidth="1.5"
                     />
                   );
                 }),
               ];
             })}
+            </g>
           </svg>
 
           {positionedNodes.map((item) => (
             <div
               key={item.node.id}
               className="absolute"
+              data-org-node-id={item.node.id}
+              ref={(element) => {
+                if (element) {
+                  nodeElementRefs.current.set(item.node.id, element);
+                } else {
+                  nodeElementRefs.current.delete(item.node.id);
+                }
+              }}
               style={{
                 left: `${offsetX + CANVAS_PADDING_X + item.x}px`,
                 top: `${CANVAS_PADDING_Y + item.y}px`,

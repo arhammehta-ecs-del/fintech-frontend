@@ -71,8 +71,8 @@ export default function UserTable({
                   );
                 })()}
                 <div>
-                  <div className="text-sm font-medium text-slate-900">{member.name}</div>
-                  <div className="text-sm text-slate-500">{member.email || "No email"}</div>
+                  <div className="text-[15px] font-medium text-slate-900">{member.name}</div>
+                  <div className="text-[13px] text-slate-500">{member.email || "No email"}</div>
                 </div>
               </button>
             </td>

@@ -24,7 +24,7 @@ type UseUserOnboardingFormOptions = {
 };
 
 export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserOnboardingFormOptions) {
-  const { orgStructure: contextOrgStructure, currentUser } = useAppContext();
+  const { orgStructure: contextOrgStructure, currentUser, users } = useAppContext();
   const companyCode = currentUser?.companyCode ?? "";
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [localOrgStructure, setLocalOrgStructure] = useState<OrgNode | null>(null);
@@ -79,9 +79,33 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   }, [open, orgStructure]);
 
   const selectedNodes = useMemo(
-    () => selectedNodeIds.map((nodeId) => findOrgNode(orgStructure, nodeId)).filter((node): node is OrgNode => Boolean(node)),
+    () =>
+      selectedNodeIds
+        .map((nodeId) => findOrgNode(orgStructure, nodeId))
+        .filter((node): node is OrgNode => Boolean(node) && node.status?.trim().toUpperCase() !== "PENDING"),
     [orgStructure, selectedNodeIds],
   );
+
+  const reportingManagerOptions = useMemo(() => {
+    const seenEmails = new Set<string>();
+    const options = users
+      .filter((user) => user.status === "Active")
+      .map((user) => {
+        const name = user.name.trim();
+        const email = user.email.trim().toLowerCase();
+        if (!email || seenEmails.has(email)) return null;
+        seenEmails.add(email);
+        return {
+          id: user.id || email,
+          name,
+          email,
+          designation: user.designation?.trim() || "",
+        };
+      })
+      .filter((option): option is { id: string; name: string; email: string; designation: string } => Boolean(option));
+
+    return options.sort((a, b) => a.name.localeCompare(b.name) || a.email.localeCompare(b.email));
+  }, [users]);
 
   useEffect(() => {
     if (step !== 4 || !isReviewAccessExpanded || expandedAccessNodeIds.length === 0) return;
@@ -138,6 +162,8 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
 
   const handleNodeSelect = (nodeId: string) => {
     clearError("nodeSelection");
+    const node = findOrgNode(orgStructure, nodeId);
+    if (node?.status?.trim().toUpperCase() === "PENDING") return;
     setSelectedNodeId(nodeId);
     setSelectedNodeIds((current) => {
       if (current.includes(nodeId)) {
@@ -246,6 +272,29 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
       }
 
       if (step === 3) {
+        const effectivePrimaryNodeId = primaryNodeId ?? selectedNodes[0]?.id ?? null;
+        const hasPrimaryAccess = (() => {
+          if (!effectivePrimaryNodeId) return false;
+          const primaryPermissions = nodePermissions[effectivePrimaryNodeId]?.primary;
+          if (!primaryPermissions) return false;
+
+          return Object.values(primaryPermissions).some((categoryItems) =>
+            Object.values(categoryItems).some((permissionItem) =>
+              Object.values(permissionItem).some(Boolean),
+            ),
+          );
+        })();
+
+        if (!hasPrimaryAccess) {
+          nextErrors.accessRights = "Select at least one Primary Access right before continuing.";
+          if (effectivePrimaryNodeId) {
+            setExpandedAccessNodeIds((current) =>
+              current.includes(effectivePrimaryNodeId) ? current : [effectivePrimaryNodeId, ...current],
+            );
+            setPrimaryNodeId(effectivePrimaryNodeId);
+          }
+        }
+
         const pendingNodes = selectedNodes.filter((node) => {
           const permissions = nodePermissions[node.id];
           if (!permissions) return true;
@@ -286,6 +335,34 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
       return;
     }
 
+    const effectivePrimaryNodeId = primaryNodeId ?? selectedNodes[0]?.id ?? null;
+    const hasPrimaryAccess = (() => {
+      if (!effectivePrimaryNodeId) return false;
+      const primaryPermissions = nodePermissions[effectivePrimaryNodeId]?.primary;
+      if (!primaryPermissions) return false;
+
+      return Object.values(primaryPermissions).some((categoryItems) =>
+        Object.values(categoryItems).some((permissionItem) =>
+          Object.values(permissionItem).some(Boolean),
+        ),
+      );
+    })();
+
+    if (!hasPrimaryAccess) {
+      setErrors((current) => ({
+        ...current,
+        accessRights: "Select at least one Primary Access right before continuing.",
+      }));
+      if (effectivePrimaryNodeId) {
+        setExpandedAccessNodeIds((current) =>
+          current.includes(effectivePrimaryNodeId) ? current : [effectivePrimaryNodeId, ...current],
+        );
+        setPrimaryNodeId(effectivePrimaryNodeId);
+      }
+      setStep(3);
+      return;
+    }
+
     if (onSubmit) {
       const fallbackPermissions = createInitialPermissions(roles);
       const firstSelectedNodeId = selectedNodeIds[0];
@@ -321,6 +398,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
     selectedNodeId,
     selectedNodeIds,
     selectedNodes,
+    reportingManagerOptions,
     expandedAccessNodeIds,
     primaryNodeId,
     nodePermissions,

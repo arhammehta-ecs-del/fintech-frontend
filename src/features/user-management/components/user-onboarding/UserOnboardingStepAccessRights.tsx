@@ -1,4 +1,4 @@
-import { Check, ChevronLeft, ChevronRight, GripVertical, Maximize2, Minimize2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, GripVertical, Maximize2, Minimize2, Pencil, ShieldCheck, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { OrgNode } from "@/contexts/AppContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -12,9 +12,11 @@ import type {
   PermissionCategory,
   ValidationErrors,
 } from "@/features/user-management/types";
-import { getOrgNodeBadgeTheme, getOrgNodeTheme } from "@/features/user-management/utils";
+import { PERMISSION_ACTIONS, getPermissionActionLabel } from "@/features/user-management/roleLabels";
+import { getNodeAccentBackground, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
 
 type StepAccessRightsProps = {
+  orgStructure: OrgNode | null;
   selectedNodes: OrgNode[];
   roles: RoleRecord[];
   errors: ValidationErrors;
@@ -41,6 +43,115 @@ type ActivePermissionSelection = {
   action: PermissionAction;
 };
 
+type BranchMeta = {
+  branchIndex: number | null;
+  branchDepth: number;
+};
+
+const formatPathSegment = (segment: string) =>
+  segment
+    .trim()
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+const getNodeParentSubtitle = (nodePath?: string) => {
+  const rawSegments = (nodePath || "").split(".").map((segment) => segment.trim()).filter(Boolean);
+  if (rawSegments.length <= 1) return "";
+  const segments = rawSegments.map(formatPathSegment);
+  const parentSegments = segments.slice(0, -1);
+  if (parentSegments.length === 0) return "";
+  const trimmedParents = parentSegments.length > 1 ? parentSegments.slice(1) : parentSegments;
+  return trimmedParents.join(" > ");
+};
+
+const BRANCH_BADGE_BY_ACCENT: Record<string, string> = {
+  "bg-orange-500": "border-orange-300 bg-orange-50 text-orange-700",
+  "bg-orange-300": "border-orange-200 bg-orange-50 text-orange-600",
+  "bg-orange-200": "border-orange-200 bg-orange-50 text-orange-600",
+  "bg-orange-100": "border-orange-200 bg-orange-50 text-orange-600",
+  "bg-sky-500": "border-sky-300 bg-sky-50 text-sky-700",
+  "bg-sky-300": "border-sky-200 bg-sky-50 text-sky-600",
+  "bg-sky-200": "border-sky-200 bg-sky-50 text-sky-600",
+  "bg-sky-100": "border-sky-200 bg-sky-50 text-sky-600",
+  "bg-emerald-500": "border-emerald-300 bg-emerald-50 text-emerald-700",
+  "bg-emerald-300": "border-emerald-200 bg-emerald-50 text-emerald-600",
+  "bg-emerald-200": "border-emerald-200 bg-emerald-50 text-emerald-600",
+  "bg-emerald-100": "border-emerald-200 bg-emerald-50 text-emerald-600",
+  "bg-rose-500": "border-rose-300 bg-rose-50 text-rose-700",
+  "bg-rose-300": "border-rose-200 bg-rose-50 text-rose-600",
+  "bg-rose-200": "border-rose-200 bg-rose-50 text-rose-600",
+  "bg-rose-100": "border-rose-200 bg-rose-50 text-rose-600",
+  "bg-amber-500": "border-amber-300 bg-amber-50 text-amber-700",
+  "bg-amber-300": "border-amber-200 bg-amber-50 text-amber-600",
+  "bg-amber-200": "border-amber-200 bg-amber-50 text-amber-600",
+  "bg-amber-100": "border-amber-200 bg-amber-50 text-amber-600",
+  "bg-cyan-500": "border-cyan-300 bg-cyan-50 text-cyan-700",
+  "bg-cyan-300": "border-cyan-200 bg-cyan-50 text-cyan-600",
+  "bg-cyan-200": "border-cyan-200 bg-cyan-50 text-cyan-600",
+  "bg-cyan-100": "border-cyan-200 bg-cyan-50 text-cyan-600",
+};
+
+const buildBranchMetaMap = (root: OrgNode | null): Map<string, BranchMeta> => {
+  const branchMap = new Map<string, BranchMeta>();
+  if (!root) return branchMap;
+
+  const walk = (node: OrgNode, branchIndex: number | null, branchDepth: number) => {
+    branchMap.set(node.id, { branchIndex, branchDepth });
+
+    node.children.forEach((child, childIdx) => {
+      const nextBranchIndex = node.nodeType.trim().toUpperCase() === "ROOT" ? childIdx : branchIndex;
+      const nextBranchDepth = node.nodeType.trim().toUpperCase() === "ROOT" ? 0 : branchDepth + 1;
+      walk(child, nextBranchIndex, nextBranchDepth);
+    });
+  };
+
+  walk(root, null, 0);
+  return branchMap;
+};
+
+const getNodeAccentClass = (node: OrgNode, branchMetaMap: Map<string, BranchMeta>) => {
+  const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
+  const meta = branchMetaMap.get(node.id) ?? { branchIndex: null, branchDepth: 0 };
+  return getNodeAccentBackground(meta.branchIndex, meta.branchDepth, isRoot);
+};
+
+const getNodeBorderLeftClass = (node: OrgNode, branchMetaMap: Map<string, BranchMeta>) => {
+  const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
+  const meta = branchMetaMap.get(node.id) ?? { branchIndex: null, branchDepth: 0 };
+  return isRoot ? "border-l-indigo-500" : getNodeAccentBorderLeft(meta.branchIndex, meta.branchDepth, isRoot);
+};
+
+const getNodeBadgeClass = (node: OrgNode, branchMetaMap: Map<string, BranchMeta>) =>
+  BRANCH_BADGE_BY_ACCENT[getNodeAccentClass(node, branchMetaMap)] ?? "border-slate-200 bg-slate-50 text-slate-700";
+
+const getPermissionActionTheme = (action: PermissionAction) => {
+  if (action === "manager") {
+    return {
+      Icon: ShieldCheck,
+      active: "border-violet-300 bg-violet-50 text-violet-700",
+      idle: "border-slate-200 bg-white text-transparent hover:border-violet-200 hover:bg-violet-50",
+    };
+  }
+
+  if (action === "user") {
+    return {
+      Icon: Pencil,
+      active: "border-amber-300 bg-amber-50 text-amber-700",
+      idle: "border-slate-200 bg-white text-transparent hover:border-amber-200 hover:bg-amber-50",
+    };
+  }
+
+  return {
+    Icon: Eye,
+    active: "border-slate-300 bg-slate-50 text-slate-700",
+    idle: "border-slate-200 bg-white text-transparent hover:border-slate-300 hover:bg-slate-50",
+  };
+};
+
 function PermissionRow({
   category,
   itemKey,
@@ -60,12 +171,10 @@ function PermissionRow({
   occupiedChoice?: ActivePermissionSelection | null;
   onToggle: (category: string, itemKey: string, action: PermissionAction) => void;
 }) {
-  const activeAction = (["manager", "user", "viewer"] as PermissionAction[]).find((action) => checked[action]) ?? null;
-
   return (
     <div className="grid grid-cols-4 items-center border-b border-slate-100 px-4 py-2.5 transition-colors hover:bg-slate-50/50 last:border-b-0">
       <div className="text-sm font-medium text-slate-700">{label}</div>
-      {(["manager", "user", "viewer"] as PermissionAction[]).map((action) => (
+      {PERMISSION_ACTIONS.map((action) => (
         <div key={action} className="flex justify-center">
           {(() => {
             const isSelected =
@@ -79,31 +188,23 @@ function PermissionRow({
             const isPrimaryDisabled = variant === "primary" && Boolean(selectedChoice) && !isSelected;
             const shouldDisable = isPrimaryDisabled || isOccupied;
             const isFilled = checked[action] || isSelected;
+            const theme = getPermissionActionTheme(action);
+            const Icon = theme.Icon;
 
             const button = (
               <button
                 type="button"
                 aria-pressed={isFilled || isOccupied}
-                aria-label={`${label} ${action}`}
+                aria-label={`${label} ${getPermissionActionLabel(action)}`}
                 disabled={shouldDisable}
                 onClick={() => onToggle(category, itemKey, action)}
                 className={cn(
-                  "flex h-6.5 w-6.5 items-center justify-center rounded-sm border-2 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(53,83,233)]/30",
-                  isFilled
-                    ? "border-[rgb(53,83,233)] bg-[rgb(53,83,233)] text-white shadow-[0_6px_14px_rgba(53,83,233,0.28)]"
-                    : "border-slate-300 bg-white text-transparent hover:border-slate-400 hover:bg-slate-50",
-                  shouldDisable ? "cursor-not-allowed border-slate-200 bg-slate-100 text-transparent hover:border-slate-200 hover:bg-slate-100" : "",
+                  "flex h-7 w-7 items-center justify-center rounded-sm border-2 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(53,83,233)]/20",
+                  isFilled ? theme.active : theme.idle,
+                  shouldDisable && !isFilled ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-300 hover:border-slate-200 hover:bg-slate-100" : "",
                 )}
               >
-                {variant === "primary" ? (
-                  <span
-                    className={cn("text-[10px] font-black uppercase tracking-[0.08em] transition-transform duration-150", isFilled ? "scale-100" : "scale-0")}
-                  >
-                    P
-                  </span>
-                ) : (
-                  <Check className={cn("h-3.5 w-3.5 transition-transform duration-150", isFilled ? "scale-100" : "scale-0")} />
-                )}
+                <Icon className={cn("h-3.5 w-3.5 transition-transform duration-150", isFilled ? "scale-100" : "scale-95")} />
               </button>
             );
 
@@ -129,6 +230,7 @@ function PermissionRow({
 }
 
 export function UserOnboardingStepAccessRights({
+  orgStructure,
   selectedNodes,
   roles,
   errors,
@@ -142,6 +244,7 @@ export function UserOnboardingStepAccessRights({
   onSetInfoNodeId,
   onTogglePermission,
 }: StepAccessRightsProps) {
+  const branchMetaMap = buildBranchMetaMap(orgStructure);
   const primarySelectedNode = selectedNodes.find((node) => node.id === primaryNodeId) ?? selectedNodes[0] ?? null;
   const secondarySelectedNodes = selectedNodes;
   const selectedNodeIndexMap = new Map(selectedNodes.map((node, index) => [node.id, index + 1] as const));
@@ -207,7 +310,7 @@ export function UserOnboardingStepAccessRights({
       for (const item of items) {
         const rights = permissions[categoryKey]?.[item.key];
         if (!rights) continue;
-        for (const action of ["manager", "user", "viewer"] as PermissionAction[]) {
+        for (const action of PERMISSION_ACTIONS) {
           if (rights[action]) return { categoryKey, itemKey: item.key, action };
         }
       }
@@ -228,9 +331,9 @@ export function UserOnboardingStepAccessRights({
       <div key={`${node.id}-${bucketKey}`} className="overflow-hidden bg-white">
         <div className="grid grid-cols-4 bg-[rgba(30,66,189,1)] px-4 py-2.5 text-[11px] font-semibold text-white">
           <div>Module</div>
-          <div className="text-center">Manager</div>
-          <div className="text-center">User</div>
-          <div className="text-center">Viewer</div>
+          <div className="text-center">{getPermissionActionLabel("manager")}</div>
+          <div className="text-center">{getPermissionActionLabel("user")}</div>
+          <div className="text-center">{getPermissionActionLabel("viewer")}</div>
         </div>
         <div className="flex flex-col">
           {roleCategories.map(({ categoryKey, label, items }) => (
@@ -356,15 +459,13 @@ export function UserOnboardingStepAccessRights({
                       }}
                       onDoubleClick={() => onSetInfoNodeId(infoNodeId === node.id ? null : node.id)}
                       className={cn(
-                        "snap-start relative flex shrink-0 items-center gap-3 overflow-hidden rounded-xl border bg-white px-4 py-3 text-left shadow-sm transition-all",
+                        "snap-start relative flex shrink-0 items-center gap-3 overflow-hidden rounded-xl border border-l-[4px] bg-white px-4 py-3 text-left shadow-sm transition-all",
+                        getNodeBorderLeftClass(node, branchMetaMap),
                         draggedNodeId === node.id ? "opacity-50" : "",
                         dropTargetNodeId === node.id ? "border-[rgb(53,83,233)] ring-2 ring-[rgb(53,83,233)]/10" : "",
                         expandedAccessNodeIds.includes(node.id) ? "border-slate-300 bg-slate-50/80" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/60",
                       )}
                     >
-                      {node.nodeType.trim().toUpperCase() !== "ROOT" ? (
-                        <span className={cn("absolute left-0 top-[12%] h-[76%] w-[4px] rounded-r-full", getOrgNodeTheme(node.nodeType).edge)} aria-hidden="true" />
-                      ) : null}
                       <button
                         type="button"
                         draggable
@@ -382,13 +483,16 @@ export function UserOnboardingStepAccessRights({
                       >
                         <GripVertical className="h-4 w-4" />
                       </button>
-                      <div className={cn("flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold", getOrgNodeBadgeTheme(node.nodeType))}>
+                      <div className={cn("flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold", getNodeBadgeClass(node, branchMetaMap))}>
                         P{index + 1}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <div className="truncate text-sm font-semibold text-slate-800">{node.name}</div>
                         </div>
+                        {getNodeParentSubtitle(node.nodePath) ? (
+                          <div className="truncate text-[11px] font-medium text-slate-500">{getNodeParentSubtitle(node.nodePath)}</div>
+                        ) : null}
                         <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{node.nodeType}</div>
                       </div>
                       <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
@@ -425,11 +529,14 @@ export function UserOnboardingStepAccessRights({
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <div className={cn("flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold", getOrgNodeBadgeTheme(infoNode.nodeType))}>
+                            <div className={cn("flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold", getNodeBadgeClass(infoNode, branchMetaMap))}>
                               {infoIndex + 1}
                             </div>
                             <div>
                               <div className="text-sm font-semibold text-slate-800">{infoNode.name}</div>
+                              {getNodeParentSubtitle(infoNode.nodePath) ? (
+                                <div className="text-[11px] font-medium text-slate-500">{getNodeParentSubtitle(infoNode.nodePath)}</div>
+                              ) : null}
                               <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{infoNode.nodeType}</div>
                             </div>
                           </div>
@@ -487,7 +594,12 @@ export function UserOnboardingStepAccessRights({
                   <p className="mt-1 text-xs text-slate-500">Selected node assigned as the primary access scope.</p>
                 </div>
                 {primarySelectedNode ? (
-                  <div className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  <div
+                    className={cn(
+                      "inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest",
+                      getNodeBadgeClass(primarySelectedNode, branchMetaMap),
+                    )}
+                  >
                     1 node
                   </div>
                 ) : null}
@@ -497,25 +609,26 @@ export function UserOnboardingStepAccessRights({
                   <button
                     type="button"
                     onClick={() => toggleNodeExpansion(primarySelectedNode.id)}
-                    className="relative flex w-full items-center justify-between gap-4 overflow-hidden border-b border-slate-200 bg-slate-50/70 px-4 py-3 text-left transition-colors hover:bg-slate-50"
+                    className={cn(
+                      "relative flex w-full items-center justify-between gap-4 overflow-hidden border-b border-slate-200 border-l-[4px] bg-slate-50/70 px-4 py-3 text-left transition-colors hover:bg-slate-50",
+                      getNodeBorderLeftClass(primarySelectedNode, branchMetaMap),
+                    )}
                   >
-                    {primarySelectedNode.nodeType.trim().toUpperCase() !== "ROOT" ? (
-                      <span
-                        className={cn("absolute left-0 top-[12%] h-[76%] w-[4px] rounded-r-full", getOrgNodeTheme(primarySelectedNode.nodeType).edge)}
-                        aria-hidden="true"
-                      />
-                    ) : null}
                     <div className="flex min-w-0 items-center gap-3">
                       <div
                         className={cn(
                           "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-                          getOrgNodeBadgeTheme(primarySelectedNode.nodeType),
+                          "border",
+                          getNodeBadgeClass(primarySelectedNode, branchMetaMap),
                         )}
                       >
-                        {selectedNodeIndexMap.get(primarySelectedNode.id)}
+                        P1
                       </div>
                       <div className="min-w-0">
                         <div className="truncate text-sm font-semibold text-slate-800">{primarySelectedNode.name}</div>
+                        {getNodeParentSubtitle(primarySelectedNode.nodePath) ? (
+                          <div className="truncate text-[11px] font-medium text-slate-500">{getNodeParentSubtitle(primarySelectedNode.nodePath)}</div>
+                        ) : null}
                         <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
                           {primarySelectedNode.nodeType}
                         </div>
@@ -541,7 +654,12 @@ export function UserOnboardingStepAccessRights({
                   <h4 className="text-base font-bold text-slate-800">Secondary Access</h4>
                   <p className="mt-1 text-xs text-slate-500">All selected nodes are grouped here automatically.</p>
                 </div>
-                <div className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                <div
+                  className={cn(
+                    "inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest",
+                    secondarySelectedNodes[0] ? getNodeBadgeClass(secondarySelectedNodes[0], branchMetaMap) : "border-slate-200 bg-slate-100 text-slate-500",
+                  )}
+                >
                   {secondarySelectedNodes.length} nodes
                 </div>
               </div>
@@ -557,25 +675,26 @@ export function UserOnboardingStepAccessRights({
                         <button
                           type="button"
                           onClick={() => toggleNodeExpansion(node.id)}
-                          className="relative flex w-full items-center justify-between gap-4 overflow-hidden border-b border-slate-200 bg-slate-50/70 px-4 py-3 text-left transition-colors hover:bg-slate-50"
+                          className={cn(
+                            "relative flex w-full items-center justify-between gap-4 overflow-hidden border-b border-slate-200 border-l-[4px] bg-slate-50/70 px-4 py-3 text-left transition-colors hover:bg-slate-50",
+                            getNodeBorderLeftClass(node, branchMetaMap),
+                          )}
                         >
-                          {node.nodeType.trim().toUpperCase() !== "ROOT" ? (
-                            <span
-                              className={cn("absolute left-0 top-[12%] h-[76%] w-[4px] rounded-r-full", getOrgNodeTheme(node.nodeType).edge)}
-                              aria-hidden="true"
-                            />
-                          ) : null}
                           <div className="flex min-w-0 items-center gap-3">
                             <div
                               className={cn(
                                 "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-                                getOrgNodeBadgeTheme(node.nodeType),
+                                "border",
+                                getNodeBadgeClass(node, branchMetaMap),
                               )}
                             >
-                              {nodeIndex}
+                              {`S${nodeIndex}`}
                             </div>
                             <div className="min-w-0">
                               <div className="truncate text-sm font-semibold text-slate-800">{node.name}</div>
+                              {getNodeParentSubtitle(node.nodePath) ? (
+                                <div className="truncate text-[11px] font-medium text-slate-500">{getNodeParentSubtitle(node.nodePath)}</div>
+                              ) : null}
                               <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
                                 {node.nodeType}
                               </div>

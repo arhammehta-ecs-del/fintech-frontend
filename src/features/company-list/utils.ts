@@ -61,7 +61,7 @@ export const filterGroupsByStatusAndSearch = (
   statusFilter: CompanyStatus,
   appliedSearch: string,
 ) => {
-  const result = sortGroupsLifo(groups)
+  const result = groups
     .map((group) => ({
       ...group,
       subsidiaries: group.subsidiaries.filter((company) => company.status === statusFilter),
@@ -96,11 +96,10 @@ export const filterGroupsByStatusAndSearch = (
 };
 
 export const filterGroupsBySearch = (groups: GroupCompany[], appliedSearch: string) => {
-  const sorted = sortGroupsLifo(groups);
   const term = appliedSearch.trim().toLowerCase();
-  if (!term) return sorted;
+  if (!term) return groups;
 
-  return sorted
+  return groups
     .map((group) => {
       const groupMatches =
         group.groupName.toLowerCase().includes(term) ||
@@ -151,10 +150,7 @@ export const buildAllDisplayRows = (filteredGroups: GroupCompany[]): DisplayRow[
         isIndependent: isUngroupedGroup(group),
       })),
     )
-    .sort(
-      (left, right) =>
-        getSortableTimestamp(right.company.incorporationDate) - getSortableTimestamp(left.company.incorporationDate),
-    );
+    ;
 
 export const getSelectedGroupInfo = (groups: GroupCompany[], selectedCompany: Company | null) => {
   const selectedParentGroup =

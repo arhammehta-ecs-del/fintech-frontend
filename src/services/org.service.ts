@@ -1,5 +1,6 @@
 import type { OrgNode } from "@/contexts/AppContext";
 import { apiFetch } from "@/services/client";
+const USE_MOCK_DATA = String(import.meta.env.VITE_USE_ORG_MOCK).toLowerCase() === "true";
 
 type CreateOrgNodePayload = {
   companyCode: string;
@@ -43,6 +44,201 @@ type OrgApiResponse = {
 const COMPANY_ORG_PATH = "/api/v1/company-settings/org/fetch";
 const NEW_NODE_PATH = "/api/v1/company-settings/org/initiate";
 const NODE_ACTION_PATH = "/api/v1/company-settings/org/approve";
+
+const MOCK_ORG_TREE: OrgNode = {
+  id: "TEST28042026.ROOT",
+  uuid: "mock-root",
+  companyId: "mock-company",
+  name: "TEST Tech solution Pvt Ltd",
+  nodeType: "ROOT",
+  nodePath: "TEST28042026.ROOT",
+  status: "Active",
+  children: [
+    {
+      id: "TEST28042026.ROOT.FINANCE",
+      uuid: "mock-finance",
+      name: "Finance",
+      nodeType: "Department",
+      nodePath: "TEST28042026.ROOT.FINANCE",
+      status: "Active",
+      children: [
+        {
+          id: "TEST28042026.ROOT.FINANCE.PROCUREMENT",
+          uuid: "mock-procurement",
+          name: "Procurement",
+          nodeType: "Team",
+          nodePath: "TEST28042026.ROOT.FINANCE.PROCUREMENT",
+          status: "Pending",
+          requestedByName: "Sneha Kulkarni",
+          requestedByEmail: "sneha.kulkarni@techsolutions.com",
+          requestedAt: "2026-04-30T10:30:00.000Z",
+          children: [],
+        },
+        {
+          id: "TEST28042026.ROOT.FINANCE.ACCOUNTS",
+          uuid: "mock-accounts",
+          name: "Accounts",
+          nodeType: "Team",
+          nodePath: "TEST28042026.ROOT.FINANCE.ACCOUNTS",
+          status: "Active",
+          children: [],
+        },
+        {
+          id: "TEST28042026.ROOT.FINANCE.TREASURY",
+          uuid: "mock-treasury",
+          name: "Treasury",
+          nodeType: "Team",
+          nodePath: "TEST28042026.ROOT.FINANCE.TREASURY",
+          status: "Active",
+          children: [],
+        },
+      ],
+    },
+    {
+      id: "TEST28042026.ROOT.OPERATIONS",
+      uuid: "mock-operations",
+      name: "Operations",
+      nodeType: "Department",
+      nodePath: "TEST28042026.ROOT.OPERATIONS",
+      status: "Active",
+      children: [
+        {
+          id: "TEST28042026.ROOT.OPERATIONS.LOGISTICS",
+          uuid: "mock-logistics",
+          name: "Logistics",
+          nodeType: "Team",
+          nodePath: "TEST28042026.ROOT.OPERATIONS.LOGISTICS",
+          status: "Active",
+          children: [],
+        },
+        {
+          id: "TEST28042026.ROOT.OPERATIONS.FACILITIES",
+          uuid: "mock-facilities",
+          name: "Facilities",
+          nodeType: "Team",
+          nodePath: "TEST28042026.ROOT.OPERATIONS.FACILITIES",
+          status: "Pending",
+          requestedByName: "Rohit Sharma",
+          requestedByEmail: "rohit.sharma@techsolutions.com",
+          requestedAt: "2026-05-01T09:45:00.000Z",
+          children: [],
+        },
+      ],
+    },
+    {
+      id: "TEST28042026.ROOT.TECHNOLOGY",
+      uuid: "mock-technology",
+      name: "Technology",
+      nodeType: "Department",
+      nodePath: "TEST28042026.ROOT.TECHNOLOGY",
+      status: "Active",
+      children: [
+        {
+          id: "TEST28042026.ROOT.TECHNOLOGY.PLATFORM",
+          uuid: "mock-platform",
+          name: "Platform",
+          nodeType: "Division",
+          nodePath: "TEST28042026.ROOT.TECHNOLOGY.PLATFORM",
+          status: "Active",
+          children: [
+            {
+              id: "TEST28042026.ROOT.TECHNOLOGY.PLATFORM.BACKEND",
+              uuid: "mock-backend",
+              name: "Backend",
+              nodeType: "Team",
+              nodePath: "TEST28042026.ROOT.TECHNOLOGY.PLATFORM.BACKEND",
+              status: "Active",
+              children: [],
+            },
+            {
+              id: "TEST28042026.ROOT.TECHNOLOGY.PLATFORM.FRONTEND",
+              uuid: "mock-frontend",
+              name: "Frontend",
+              nodeType: "Team",
+              nodePath: "TEST28042026.ROOT.TECHNOLOGY.PLATFORM.FRONTEND",
+              status: "Active",
+              children: [],
+            },
+            {
+              id: "TEST28042026.ROOT.TECHNOLOGY.PLATFORM.DEVOPS",
+              uuid: "mock-devops",
+              name: "DevOps",
+              nodeType: "Team",
+              nodePath: "TEST28042026.ROOT.TECHNOLOGY.PLATFORM.DEVOPS",
+              status: "Active",
+              children: [],
+            },
+          ],
+        },
+        {
+          id: "TEST28042026.ROOT.TECHNOLOGY.SECURITY",
+          uuid: "mock-security",
+          name: "Security",
+          nodeType: "Team",
+          nodePath: "TEST28042026.ROOT.TECHNOLOGY.SECURITY",
+          status: "Active",
+          children: [],
+        },
+        {
+          id: "TEST28042026.ROOT.TECHNOLOGY.DATA",
+          uuid: "mock-data",
+          name: "Data",
+          nodeType: "Team",
+          nodePath: "TEST28042026.ROOT.TECHNOLOGY.DATA",
+          status: "Active",
+          children: [],
+        },
+      ],
+    },
+    {
+      id: "TEST28042026.ROOT.HR",
+      uuid: "mock-hr",
+      name: "People & HR",
+      nodeType: "Department",
+      nodePath: "TEST28042026.ROOT.HR",
+      status: "Active",
+      children: [
+        {
+          id: "TEST28042026.ROOT.HR.TALENT",
+          uuid: "mock-talent",
+          name: "Talent Acquisition",
+          nodeType: "Team",
+          nodePath: "TEST28042026.ROOT.HR.TALENT",
+          status: "Active",
+          children: [],
+        },
+      ],
+    },
+    {
+      id: "TEST28042026.ROOT.SALES",
+      uuid: "mock-sales",
+      name: "Sales",
+      nodeType: "Department",
+      nodePath: "TEST28042026.ROOT.SALES",
+      status: "Active",
+      children: [
+        {
+          id: "TEST28042026.ROOT.SALES.ENTERPRISE",
+          uuid: "mock-enterprise",
+          name: "Enterprise Sales",
+          nodeType: "Team",
+          nodePath: "TEST28042026.ROOT.SALES.ENTERPRISE",
+          status: "Active",
+          children: [],
+        },
+        {
+          id: "TEST28042026.ROOT.SALES.SMB",
+          uuid: "mock-smb",
+          name: "SMB Sales",
+          nodeType: "Team",
+          nodePath: "TEST28042026.ROOT.SALES.SMB",
+          status: "Active",
+          children: [],
+        },
+      ],
+    },
+  ],
+};
 
 const getString = (record: RawCompanyRecord, keys: string[], fallback = "") => {
   for (const key of keys) {
@@ -232,6 +428,14 @@ const buildOrgTree = (nodes: OrgNode[]): OrgNode | null => {
 };
 
 export async function createNewOrgNode(payload: CreateOrgNodePayload) {
+  if (USE_MOCK_DATA) {
+    return {
+      message: `Node "${payload.newNodeName}" created successfully (mock)`,
+      code: 200,
+      data: { nodeType: payload.nodeType, companyCode: payload.companyCode },
+    };
+  }
+
   return apiFetch<CreateOrgNodeResponse>(NEW_NODE_PATH, {
     method: "POST",
     body: JSON.stringify(payload),
@@ -239,6 +443,15 @@ export async function createNewOrgNode(payload: CreateOrgNodePayload) {
 }
 
 export async function updateOrgNodeAction(id: string, action: OrgNodeAction, remark: string) {
+  if (USE_MOCK_DATA) {
+    return {
+      message: `Node ${id} ${action} (mock)`,
+      code: 200,
+      success: true,
+      data: { remark },
+    };
+  }
+
   return apiFetch<OrgNodeActionResponse>(NODE_ACTION_PATH, {
     method: "POST",
     body: JSON.stringify({
@@ -250,6 +463,14 @@ export async function updateOrgNodeAction(id: string, action: OrgNodeAction, rem
 }
 
 export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNode | null> {
+  if (USE_MOCK_DATA) {
+    return {
+      ...MOCK_ORG_TREE,
+      id: `${companyCode.trim().toUpperCase() || "TEST28042026"}.ROOT`,
+      nodePath: `${companyCode.trim().toUpperCase() || "TEST28042026"}.ROOT`,
+    };
+  }
+
   try {
     const payload = await apiFetch<OrgApiResponse>(COMPANY_ORG_PATH, {
       method: "POST",

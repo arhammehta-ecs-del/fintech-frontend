@@ -23,45 +23,55 @@ export type RoleRecord = {
 };
 
 const ROLES_PATH = "/api/v1/company-settings/role/fetch-all";
+const USE_MOCK_DATA = String(import.meta.env.VITE_USE_ORG_MOCK).toLowerCase() === "true";
 
 const getPacketString = (value: string | null | undefined) => (typeof value === "string" ? value.trim() : "");
 
-export async function getCompanyRoles(companyCode: string): Promise<RoleRecord[]> {
-  const payload = await apiFetch<RolesApiResponse>(ROLES_PATH, {
-    method: "POST",
-    body: JSON.stringify({
-      companyCode: companyCode.trim().toUpperCase(),
-    }),
-  });
+const MOCK_ROLES_PAYLOAD: RolesApiResponse = {
+  success: true,
+  data: [
+    { roleName: "Purchase Order Viewer", category: "TRANSACTIONAL", subCategory: "PURCHASE_ORDER", permissionLevel: "VIEWER" },
+    { roleName: "Purchase Order User", category: "TRANSACTIONAL", subCategory: "PURCHASE_ORDER", permissionLevel: "USER" },
+    { roleName: "Purchase Order Manager", category: "TRANSACTIONAL", subCategory: "PURCHASE_ORDER", permissionLevel: "MANAGER" },
+    { roleName: "Accounts Viewer", category: "TRANSACTIONAL", subCategory: "ACCOUNTS", permissionLevel: "VIEWER" },
+    { roleName: "Accounts User", category: "TRANSACTIONAL", subCategory: "ACCOUNTS", permissionLevel: "USER" },
+    { roleName: "Accounts Manager", category: "TRANSACTIONAL", subCategory: "ACCOUNTS", permissionLevel: "MANAGER" },
+    { roleName: "Invoice Viewer", category: "TRANSACTIONAL", subCategory: "INVOICE", permissionLevel: "VIEWER" },
+    { roleName: "Invoice User", category: "TRANSACTIONAL", subCategory: "INVOICE", permissionLevel: "USER" },
+    { roleName: "Invoice Manager", category: "TRANSACTIONAL", subCategory: "INVOICE", permissionLevel: "MANAGER" },
+    { roleName: "Master Viewer", category: "OPERATIONAL", subCategory: "MASTER", permissionLevel: "VIEWER" },
+    { roleName: "Master User", category: "OPERATIONAL", subCategory: "MASTER", permissionLevel: "USER" },
+    { roleName: "Master Manager", category: "OPERATIONAL", subCategory: "MASTER", permissionLevel: "MANAGER" },
+    { roleName: "Org Structure Viewer", category: "SYSTEM_ACCESS", subCategory: "ORG_STRUCTURE", permissionLevel: "VIEWER" },
+    { roleName: "Org Structure User", category: "SYSTEM_ACCESS", subCategory: "ORG_STRUCTURE", permissionLevel: "USER" },
+    { roleName: "Org Structure Manager", category: "SYSTEM_ACCESS", subCategory: "ORG_STRUCTURE", permissionLevel: "MANAGER" },
+    { roleName: "User Management Viewer", category: "SYSTEM_ACCESS", subCategory: "USER_MANAGEMENT", permissionLevel: "VIEWER" },
+    { roleName: "User Management User", category: "SYSTEM_ACCESS", subCategory: "USER_MANAGEMENT", permissionLevel: "USER" },
+    { roleName: "User Management Manager", category: "SYSTEM_ACCESS", subCategory: "USER_MANAGEMENT", permissionLevel: "MANAGER" },
+    { roleName: "Track Workflow Viewer", category: "SYSTEM_ACCESS", subCategory: "TRACK_WORKFLOW", permissionLevel: "VIEWER" },
+    { roleName: "Track Workflow User", category: "SYSTEM_ACCESS", subCategory: "TRACK_WORKFLOW", permissionLevel: "USER" },
+    { roleName: "Track Workflow Manager", category: "SYSTEM_ACCESS", subCategory: "TRACK_WORKFLOW", permissionLevel: "MANAGER" },
+  ],
+};
 
-  /* Mock payload commented out
-  const mockPayload: RolesApiResponse = {
-    success: true,
-    data: [
-      { roleName: "Purchase Order Viewer", category: "TRANSACTIONAL", subCategory: "PURCHASE_ORDER", permissionLevel: "VIEWER" },
-      { roleName: "Purchase Order User", category: "TRANSACTIONAL", subCategory: "PURCHASE_ORDER", permissionLevel: "USER" },
-      { roleName: "Purchase Order Manager", category: "TRANSACTIONAL", subCategory: "PURCHASE_ORDER", permissionLevel: "MANAGER" },
-      { roleName: "Accounts Viewer", category: "TRANSACTIONAL", subCategory: "ACCOUNTS", permissionLevel: "VIEWER" },
-      { roleName: "Accounts User", category: "TRANSACTIONAL", subCategory: "ACCOUNTS", permissionLevel: "USER" },
-      { roleName: "Accounts Manager", category: "TRANSACTIONAL", subCategory: "ACCOUNTS", permissionLevel: "MANAGER" },
-      { roleName: "Invoice Viewer", category: "TRANSACTIONAL", subCategory: "INVOICE", permissionLevel: "VIEWER" },
-      { roleName: "Invoice User", category: "TRANSACTIONAL", subCategory: "INVOICE", permissionLevel: "USER" },
-      { roleName: "Invoice Manager", category: "TRANSACTIONAL", subCategory: "INVOICE", permissionLevel: "MANAGER" },
-      { roleName: "Master Viewer", category: "OPERATIONAL", subCategory: "MASTER", permissionLevel: "VIEWER" },
-      { roleName: "Master User", category: "OPERATIONAL", subCategory: "MASTER", permissionLevel: "USER" },
-      { roleName: "Master Manager", category: "OPERATIONAL", subCategory: "MASTER", permissionLevel: "MANAGER" },
-      { roleName: "Org Structure Viewer", category: "SYSTEM_ACCESS", subCategory: "ORG_STRUCTURE", permissionLevel: "VIEWER" },
-      { roleName: "Org Structure User", category: "SYSTEM_ACCESS", subCategory: "ORG_STRUCTURE", permissionLevel: "USER" },
-      { roleName: "Org Structure Manager", category: "SYSTEM_ACCESS", subCategory: "ORG_STRUCTURE", permissionLevel: "MANAGER" },
-      { roleName: "User Management Viewer", category: "SYSTEM_ACCESS", subCategory: "USER_MANAGEMENT", permissionLevel: "VIEWER" },
-      { roleName: "User Management User", category: "SYSTEM_ACCESS", subCategory: "USER_MANAGEMENT", permissionLevel: "USER" },
-      { roleName: "User Management Manager", category: "SYSTEM_ACCESS", subCategory: "USER_MANAGEMENT", permissionLevel: "MANAGER" },
-      { roleName: "Track Workflow Viewer", category: "SYSTEM_ACCESS", subCategory: "TRACK_WORKFLOW", permissionLevel: "VIEWER" },
-      { roleName: "Track Workflow User", category: "SYSTEM_ACCESS", subCategory: "TRACK_WORKFLOW", permissionLevel: "USER" },
-      { roleName: "Track Workflow Manager", category: "SYSTEM_ACCESS", subCategory: "TRACK_WORKFLOW", permissionLevel: "MANAGER" }
-    ]
-  };
-  */
+export async function getCompanyRoles(companyCode: string): Promise<RoleRecord[]> {
+  let payload: RolesApiResponse;
+
+  if (USE_MOCK_DATA) {
+    payload = MOCK_ROLES_PAYLOAD;
+  } else {
+    try {
+      payload = await apiFetch<RolesApiResponse>(ROLES_PATH, {
+        method: "POST",
+        body: JSON.stringify({
+          companyCode: companyCode.trim().toUpperCase(),
+        }),
+      });
+    } catch {
+      // Temporary fallback until backend role API is fully available.
+      payload = MOCK_ROLES_PAYLOAD;
+    }
+  }
 
   const roles = Array.isArray(payload.data) ? payload.data : [];
 
