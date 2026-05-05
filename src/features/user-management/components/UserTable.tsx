@@ -1,8 +1,10 @@
 import type { AppUser } from "@/contexts/AppContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, SlidersHorizontal, Users } from "lucide-react";
+import { ArrowUpDown, SlidersHorizontal, Users, History } from "lucide-react";
 import { maskContactNumber, getInitials, getAvatarColor } from "@/features/user-management/utils";
+import UserHistorySidebar from "./UserHistorySidebar";
+import { useState } from "react";
 
 type UserTableProps = {
   isLoading: boolean;
@@ -17,6 +19,8 @@ export default function UserTable({
   paginatedMembers,
   onView,
 }: UserTableProps) {
+  const [historyOpenForUser, setHistoryOpenForUser] = useState<AppUser | null>(null);
+
   if (isLoading) {
     return (
       <div className="flex min-h-[260px] items-center justify-center">
@@ -41,6 +45,7 @@ export default function UserTable({
   }
 
   return (
+    <>
     <table className="min-w-[920px] w-full table-fixed">
       <thead className="bg-slate-50">
         <tr className="border-b border-slate-200">
@@ -72,15 +77,24 @@ export default function UserTable({
                 })()}
                 <div>
                   <div className="text-[15px] font-medium text-slate-900">{member.name}</div>
-                  <div className="text-[13px] text-slate-500">{member.email || "No email"}</div>
+                  <div className="text-[13when px] text-slate-500">{member.email || "No email"}</div>
                 </div>
               </button>
             </td>
             <td className="px-4 py-4 text-sm text-slate-700">{member.designation || "—"}</td>
-            <td className="px-4 py-4 text-sm text-slate-600">{member.department || "General"}</td>
+            <td className="px-4 py-4 text-sm text-slate-600">{member.department || "—"}</td>
             <td className="px-4 py-4 font-mono text-sm text-slate-600">{maskContactNumber(member.phone)}</td>
             <td className="px-4 py-4">
               <div className="flex items-center justify-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  onClick={() => setHistoryOpenForUser(member)}
+                  aria-label={`View history for ${member.name || member.email}`}
+                >
+                  <History className="h-4 w-4" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -96,5 +110,11 @@ export default function UserTable({
         ))}
       </tbody>
     </table>
+    <UserHistorySidebar
+      isOpen={!!historyOpenForUser}
+      onClose={() => setHistoryOpenForUser(null)}
+      user={historyOpenForUser}
+    />
+    </>
   );
 }

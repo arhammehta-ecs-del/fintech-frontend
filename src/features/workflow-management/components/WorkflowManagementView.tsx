@@ -1,40 +1,77 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Search, Settings, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Search, Settings, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { fetchWorkflows, updateWorkflowAction } from "@/services/workflow.service";
 import WorkflowConfigurationView from "@/features/workflow-management/components/WorkflowConfigurationView";
+import WorkflowHistorySidebar from "./WorkflowHistorySidebar";
+import { History } from "lucide-react";
+import WorkflowManageDialog from "./WorkflowManageDialog";
 
 type WorkflowStatus = "Active" | "Pending";
 
-type WorkflowRecord = {
+export type WorkflowRecord = {
   id: string;
   name: string;
   alias: string;
   module: string;
   department: string;
+  subModule: string;
+  nodePath: string;
+  levels: Record<string, unknown>;
+  approvalRemark?: string;
   status: WorkflowStatus;
 };
 
-const mockWorkflows: WorkflowRecord[] = [
-  {
-    id: "wf-1",
-    name: "Standard PO",
-    alias: "WF_PO_STD",
-    module: "Purchase Order (PO)",
-    department: "Entire Organization",
-    status: "Active",
-  },
-  {
-    id: "wf-2",
-    name: "Invoice Escalation",
-    alias: "WF_INV_ESC",
-    module: "Invoice Processing",
-    department: "Finance",
-    status: "Pending",
-  },
-];
+type RawWorkflowRecord = Record<string, unknown>;
+
+const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+const toRecord = (value: unknown): RawWorkflowRecord =>
+  typeof value === "object" && value !== null ? (value as RawWorkflowRecord) : {};
+
+const getNodeLabelFromPath = (nodePath: string) => {
+  const segments = nodePath.split(".").map((segment) => segment.trim()).filter(Boolean);
+  const last = segments[segments.length - 1] || "";
+  return last
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): WorkflowRecord => {
+  const record = toRecord(item);
+  const payload = toRecord(record.data);
+
+  const id = readString(record.id) || `wf-${Math.random()}`;
+  const name = readString(record.name) || readString(payload.name) || "Unknown";
+  const alias = readString(record.alias) || readString(payload.alias) || "-";
+  const moduleName = readString(record.module) || readString(payload.module) || "Unknown";
+  const nodePath = readString(record.nodePath) || readString(payload.nodePath);
+  const subModule = readString(record.subModule) || readString(payload.subModule);
+  const department = nodePath ? getNodeLabelFromPath(nodePath) : subModule || "Unknown";
+  const rawLevels = payload.levels;
+  const levels =
+    typeof rawLevels === "object" && rawLevels !== null
+      ? (rawLevels as Record<string, unknown>)
+      : {};
+
+  return {
+    id,
+    name,
+    alias,
+    module: moduleName,
+    department,
+    subModule,
+    nodePath,
+    levels,
+    approvalRemark: readString(record.approvalRemark),
+    status,
+  };
+};
+
+
 
 const tabClassName =
   "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:shadow-sm";
@@ -47,10 +84,50 @@ export default function WorkflowManagementView() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<WorkflowPageSize>(15);
+  const [historyWorkflow, setHistoryWorkflow] = useState<WorkflowRecord | null>(null);
+  const [manageWorkflow, setManageWorkflow] = useState<WorkflowRecord | null>(null);
+
+  const [workflows, setWorkflows] = useState<WorkflowRecord[]>([]);
+
+  const loadWorkflows = async () => {
+    const response = await fetchWorkflows();
+    if (!response?.data) return;
+
+    const activeWorkflows = Array.isArray(response.data.active)
+      ? response.data.active.map((w: unknown) => mapWorkflowRecord(w, "Active"))
+      : [];
+
+    const pendingWorkflows = Array.isArray(response.data.pending)
+      ? response.data.pending.map((w: unknown) => mapWorkflowRecord(w, "Pending"))
+      : [];
+
+    setWorkflows([...activeWorkflows, ...pendingWorkflows]);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    const safeLoadWorkflows = async () => {
+      try {
+        await loadWorkflows();
+      } catch (error) {
+        if (!isMounted) return;
+        console.error("Failed to fetch workflows:", error);
+      }
+    };
+    void safeLoadWorkflows();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleWorkflowAction = async (workflow: WorkflowRecord, action: "approve" | "reject", remark: string) => {
+    await updateWorkflowAction(workflow.id, action, remark);
+    await loadWorkflows();
+  };
 
   const filteredWorkflows = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return mockWorkflows.filter((workflow) => {
+    return workflows.filter((workflow) => {
       if (workflow.status !== activeStatus) return false;
       if (!query) return true;
       return [workflow.name, workflow.alias, workflow.module, workflow.department]
@@ -58,7 +135,7 @@ export default function WorkflowManagementView() {
         .toLowerCase()
         .includes(query);
     });
-  }, [activeStatus, search]);
+  }, [activeStatus, search, workflows]);
 
   useEffect(() => {
     setPage(1);
@@ -128,17 +205,18 @@ export default function WorkflowManagementView() {
           <div className="p-8 text-sm text-slate-500">No {activeStatus.toLowerCase()} workflows available.</div>
         ) : (
           <div>
-            <div className="grid grid-cols-1 gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-3 md:grid-cols-5 md:items-center">
+            <div className="grid grid-cols-1 gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-3 md:grid-cols-6 md:items-center">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Workflow</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Alias</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Module</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Department</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 md:text-right">Status</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 text-center">Manage</div>
             </div>
 
             <div className="divide-y divide-slate-100">
               {paginatedWorkflows.map((workflow) => (
-                <div key={workflow.id} className="grid grid-cols-1 gap-3 p-4 md:grid-cols-5 md:items-center">
+                <div key={workflow.id} className="grid grid-cols-1 gap-3 p-4 md:grid-cols-6 md:items-center">
                   <div className="text-sm font-semibold text-slate-800">{workflow.name}</div>
                   <div className="text-sm text-slate-700">{workflow.alias}</div>
                   <div className="text-sm text-slate-700">{workflow.module}</div>
@@ -147,6 +225,28 @@ export default function WorkflowManagementView() {
                     <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
                       {workflow.status}
                     </span>
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                        onClick={() => setHistoryWorkflow(workflow)}
+                        aria-label={`View history for ${workflow.name}`}
+                      >
+                        <History className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+                        onClick={() => setManageWorkflow(workflow)}
+                        aria-label={`Manage ${workflow.name}`}
+                      >
+                        <SlidersHorizontal className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -208,6 +308,17 @@ export default function WorkflowManagementView() {
           </div>
         </DialogContent>
       </Dialog>
+      <WorkflowHistorySidebar
+        isOpen={!!historyWorkflow}
+        onClose={() => setHistoryWorkflow(null)}
+        workflow={historyWorkflow}
+      />
+      <WorkflowManageDialog
+        open={!!manageWorkflow}
+        workflow={manageWorkflow}
+        onClose={() => setManageWorkflow(null)}
+        onSubmitAction={handleWorkflowAction}
+      />
     </div>
   );
 }

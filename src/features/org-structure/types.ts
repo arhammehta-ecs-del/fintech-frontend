@@ -2,7 +2,7 @@ import type { OrgNode } from "@/contexts/AppContext";
 
 export type OrgTreeNode = OrgNode;
 
-export type NewNodeType = string;
+export type NewNodeType = "" | "ROOT" | "DEPARTMENT" | "TEAM" | "PLANT" | "LOCATION";
 
 export type DepartmentSidebarDepartment = {
   id: string;

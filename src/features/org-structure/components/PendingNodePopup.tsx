@@ -33,11 +33,6 @@ const formatRequestedAtToIst = (value?: string) => {
   }).format(parsed);
 };
 
-const DUMMY_REQUEST_INFO = {
-  name: "Arham Vipul Mehta",
-  email: "arham.mehta@example.com",
-  requestedAt: "2026-04-29T10:13:00Z",
-};
 const REMARK_MAX_LENGTH = 100;
 
 export function PendingNodePopup({ open, node, onClose, onApprove, onReject }: PendingNodePopupProps) {
@@ -54,9 +49,9 @@ export function PendingNodePopup({ open, node, onClose, onApprove, onReject }: P
   if (!open || !node) return null;
 
   const Icon = getNodeIcon(node.nodeType);
-  const requesterName = node.requestedByName?.trim() || DUMMY_REQUEST_INFO.name;
-  const requesterEmail = node.requestedByEmail?.trim() || DUMMY_REQUEST_INFO.email;
-  const requestedOn = formatRequestedAtToIst(node.requestedAt || DUMMY_REQUEST_INFO.requestedAt);
+  const requesterName = node.requestedByName?.trim() || "Not available";
+  const requesterEmail = node.requestedByEmail?.trim() || "Not available";
+  const requestedOn = formatRequestedAtToIst(node.requestedAt);
   const nodePathSegments = node.nodePath.split(".").filter(Boolean);
 
   const validateAndRun = (action: "approve" | "reject") => {

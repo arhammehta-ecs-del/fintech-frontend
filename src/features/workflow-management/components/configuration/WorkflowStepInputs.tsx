@@ -91,7 +91,6 @@ export default function WorkflowStepInputs({
               icon={<Layers className="h-4 w-4 text-purple-500" />}
               onChange={onSetWfAlias}
             />
-            {showMetaErrors && !wfAlias.trim() ? <p className="mt-1 text-xs font-semibold text-red-500">Required</p> : null}
           </div>
 
           <div className="space-y-2 group">

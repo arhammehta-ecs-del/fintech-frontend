@@ -52,9 +52,6 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
     ),
   );
 
-  const primary = mappedPermissions.filter((p) => p.accessType === "PRIMARY");
-  const secondary = mappedPermissions.filter((p) => p.accessType === "SECONDARY");
-
   return {
     basicDetails: {
       name: formData.basic.name.trim(),
@@ -64,8 +61,7 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
       employeeId: formData.basic.employeeId.trim(),
       reportingManager: formData.basic.reportingManager.trim(),
     },
-    primary,
-    secondary,
+    permissions: mappedPermissions,
   };
 };
 

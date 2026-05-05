@@ -3,6 +3,7 @@ import { ChevronRight, Rocket } from "lucide-react";
 import { useAppContext, type OrgNode } from "@/contexts/AppContext";
 import { getCompanyOrgStructure } from "@/services/org.service";
 import { getCompanyRoles } from "@/services/role.service";
+import { createWorkflow } from "@/services/workflow.service";
 import WorkflowStepper from "@/features/workflow-management/components/configuration/WorkflowStepper";
 import WorkflowStepInputs from "@/features/workflow-management/components/configuration/WorkflowStepInputs";
 import WorkflowStepLevels from "@/features/workflow-management/components/configuration/WorkflowStepLevels";
@@ -33,6 +34,14 @@ const INITIAL_LEVELS: WorkflowLevel[] = Array.from({ length: 5 }, (_, index) => 
   type: "AND",
 }));
 
+const toApiApprover = (value: string) => {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "reporting_manager") return "REPORTING_MANAGER";
+  if (normalized === "node_approver") return "NODE_APPROVER";
+  if (normalized === "hierarchy_approver") return "HIERARCHY_APPROVER";
+  return value.trim().toUpperCase();
+};
+
 export default function WorkflowConfigurationView({ isOpen = false }: WorkflowConfigurationViewProps) {
   const { currentUser } = useAppContext();
 
@@ -51,7 +60,7 @@ export default function WorkflowConfigurationView({ isOpen = false }: WorkflowCo
 
   const [levels, setLevels] = useState<WorkflowLevel[]>(INITIAL_LEVELS);
 
-  const isWorkflowMetaComplete = [wfName, wfAlias, wfModule, wfNode].every((value) => Boolean(String(value).trim()));
+  const isWorkflowMetaComplete = [wfName, wfModule, wfNode].every((value) => Boolean(String(value).trim()));
 
   const isRMUsedGlobally = useMemo(
     () => levels.slice(0, visibleLevels).some((level) => level.approvals.some((approval) => approval.option === "reporting_manager")),
@@ -73,6 +82,15 @@ export default function WorkflowConfigurationView({ isOpen = false }: WorkflowCo
     return departmentOptions.find((option) => option.value === wfNode)?.label || "-";
   }, [departmentOptions, wfNode]);
 
+  const selectedModuleCategoryKey = useMemo(() => {
+    for (const group of moduleGroups) {
+      if (group.options.some((option) => option.value === wfModule)) {
+        return group.categoryKey;
+      }
+    }
+    return "";
+  }, [moduleGroups, wfModule]);
+
   useEffect(() => {
     if (!errorMsg) return;
     const timer = setTimeout(() => setErrorMsg(""), 3000);
@@ -85,18 +103,19 @@ export default function WorkflowConfigurationView({ isOpen = false }: WorkflowCo
 
     let ignore = false;
 
-    const collectNodeNames = (node: OrgNode | null): string[] => {
+    const collectNodes = (node: OrgNode | null): Array<{ label: string; value: string }> => {
       if (!node) return [];
-      const names: string[] = [];
+      const nodes: Array<{ label: string; value: string }> = [];
       const walk = (current: OrgNode) => {
         const normalized = current.name.trim();
-        if (normalized && current.nodeType.toUpperCase() !== "ROOT") {
-          names.push(normalized);
+        const normalizedPath = current.nodePath.trim();
+        if (normalized && normalizedPath && current.nodeType.toUpperCase() !== "ROOT") {
+          nodes.push({ label: normalized, value: normalizedPath });
         }
         current.children.forEach(walk);
       };
       walk(node);
-      return names;
+      return nodes;
     };
 
     async function loadWorkflowDependencies() {
@@ -137,12 +156,15 @@ export default function WorkflowConfigurationView({ isOpen = false }: WorkflowCo
           return exists ? current : "";
         });
 
-        const nodeNames = collectNodeNames(orgTree);
-        const uniqueNodeNames = Array.from(new Set(nodeNames));
-        const nextDepartments = uniqueNodeNames.map((name) => ({
-          value: name.toLowerCase().replace(/\s+/g, "_"),
-          label: name,
-        }));
+        const nodes = collectNodes(orgTree);
+        const uniqueNodes = Array.from(
+          nodes.reduce((acc, item) => {
+            if (!acc.has(item.value)) acc.set(item.value, item);
+            return acc;
+          }, new Map<string, { value: string; label: string }>())
+            .values(),
+        );
+        const nextDepartments = uniqueNodes;
 
         setDepartmentOptions(nextDepartments);
         setWfNode((current) => (nextDepartments.some((option) => option.value === current) ? current : ""));
@@ -253,7 +275,7 @@ export default function WorkflowConfigurationView({ isOpen = false }: WorkflowCo
     setErrorMsg("");
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     setErrorMsg("");
 
     if (step === 1) {
@@ -275,7 +297,39 @@ export default function WorkflowConfigurationView({ isOpen = false }: WorkflowCo
       return;
     }
 
-    window.alert("Workflow Published!");
+    const companyCode = currentUser?.companyCode?.trim().toUpperCase();
+    if (!companyCode) {
+      setErrorMsg("Company code unavailable. Please re-login and try again.");
+      return;
+    }
+
+    try {
+      const payloadLevels = levels.slice(0, visibleLevels).reduce<Record<string, Record<string, string>>>((acc, level, idx) => {
+        const levelKey = `l${idx + 1}`;
+        const approver1 = level.approvals[0]?.option ? toApiApprover(level.approvals[0].option) : "";
+        const approver2 = level.approvals[1]?.option ? toApiApprover(level.approvals[1].option) : "";
+
+        acc[levelKey] = {
+          approver1,
+          ...(approver2 ? { approver2 } : {}),
+          ...(level.approvals.length > 1 ? { type: level.type } : {}),
+        };
+        return acc;
+      }, {});
+
+      await createWorkflow({
+        companyCode,
+        name: wfName.trim(),
+        ...(wfAlias.trim() ? { alias: wfAlias.trim() } : {}),
+        module: selectedModuleCategoryKey || wfModule.trim(),
+        subModule: wfModule.trim(),
+        nodePath: wfNode.trim(),
+        levels: payloadLevels,
+      });
+      window.alert("Workflow Published!");
+    } catch {
+      setErrorMsg("Failed to publish workflow. Please try again.");
+    }
   };
 
   const handleBack = () => {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AppUser } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
-import { createUserOnboarding, getCompanyUsers, updateUserStatusByEmail } from "@/services/user.service";
+import { createUserOnboarding, getCompanyUsers, updateUserStatus } from "@/services/user.service";
 import { USER_DEFAULT_PAGE_SIZE, USER_PAGE_SIZE_OPTIONS, USER_SEARCH_DEBOUNCE_MS } from "@/features/user-management/constants";
 import type { MemberStatusTab, UserOnboardingFormData, SortOrder } from "@/features/user-management/types";
 import { buildUserOnboardingPayload } from "@/features/user-management/utils";
@@ -191,7 +191,7 @@ export function useUserManagement() {
         throw new Error("User email is missing");
       }
 
-      await updateUserStatusByEmail(member.email.trim());
+      await updateUserStatus(member.id, action === "activate" ? "approve" : "reject", _remark ?? "");
       updateUsersStatus(new Set([member.id]), action === "activate" ? "Active" : "Inactive");
       toast({
         title: action === "activate" ? "User activated" : "User deactivated",

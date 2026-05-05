@@ -117,27 +117,6 @@ const formatUtcToIstDateTime = (value?: string) => {
   }).format(utcDate);
 };
 
-const previewDummySignatories: Company["signatories"] = [
-  {
-    fullName: "Arham Vipul Mehta",
-    designation: "CEO",
-    email: "arham.mehta@example.com",
-    phone: "9324041063",
-  },
-  {
-    fullName: "Aarav Sharma",
-    designation: "Director",
-    email: "aarav.sharma@example.com",
-    phone: "9831045521",
-  },
-];
-
-const pendingMetaFallback = {
-  name: "Arham Vipul Mehta",
-  email: "arham.mehta@example.com",
-  initiatedAt: "2026-04-29T10:13:00.000Z",
-};
-
 export function CompanyPreviewDialog({
   company,
   companyCode,
@@ -179,13 +158,10 @@ export function CompanyPreviewDialog({
   const isActive = company.status === "Approved";
   const showActiveToggle = Boolean(onToggleActive) && (company.status === "Approved" || company.status === "Inactive");
   const showPendingActions = Boolean(onToggleActive) && statusLabel === "Pending";
-  const signatoriesForPreview = company.signatories.length > 0 ? company.signatories : previewDummySignatories;
-  const pendingMetaName = displayValue(company.requesterName) === "—" ? pendingMetaFallback.name : displayValue(company.requesterName);
-  const pendingMetaEmail = displayValue(company.requesterEmail) === "—" ? pendingMetaFallback.email : displayValue(company.requesterEmail);
-  const pendingMetaInitiatedAt =
-    formatUtcToIstDateTime(company.requestInitiatedAt) === "—"
-      ? formatUtcToIstDateTime(pendingMetaFallback.initiatedAt)
-      : formatUtcToIstDateTime(company.requestInitiatedAt);
+  const signatoriesForPreview = company.signatories;
+  const pendingMetaName = displayValue(company.requesterName);
+  const pendingMetaEmail = displayValue(company.requesterEmail);
+  const pendingMetaInitiatedAt = formatUtcToIstDateTime(company.requestInitiatedAt);
   const isRemarkValid = Boolean(pendingRemark.trim());
   const showRemarkError = remarkTouched && !isRemarkValid;
 

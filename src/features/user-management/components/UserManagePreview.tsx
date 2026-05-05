@@ -56,8 +56,7 @@ const cleanDisplayValue = (value?: string) => {
 
 const displayOrFallback = (value: string | undefined, fallback: string) => {
   const cleaned = (value || "").trim();
-  const placeholderValues = new Set(["-", "n/a", "na", "not available", "not available.", "none"]);
-  return cleaned && !placeholderValues.has(cleaned.toLowerCase()) ? cleaned : fallback;
+  return cleaned ? cleaned : fallback;
 };
 
 const pickFirst = (obj: Record<string, unknown>, keys: string[]) => {
@@ -114,37 +113,13 @@ const formatLooseDateLabel = (value?: string) => {
 };
 
 const INITIATOR_FALLBACK = {
-  name: "Super Admin",
-  email: "admin@globaltech.com",
-  initiatedAt: "2026-04-28T12:36:00.615Z",
+  name: "—",
+  email: "—",
+  initiatedAt: "",
 };
 
-const DEMO_SECONDARY_ACCESS: NonNullable<AppUser["accessDetails"]> = [
-  {
-    roleCategory: "SYSTEM_ACCESS",
-    roleSubCategory: "ORG_STR",
-    roleName: "Org Structure Viewer",
-    nodeName: "Head Office",
-    nodePath: "GLOBALTECH.HEAD_OFFICE",
-    accessType: "SECONDARY",
-  },
-  {
-    roleCategory: "TRANSACTIONAL",
-    roleSubCategory: "ACCOUNTS",
-    roleName: "Accounts User",
-    nodeName: "Finance Node",
-    nodePath: "GLOBALTECH.FINANCE.NODE",
-    accessType: "SECONDARY",
-  },
-  {
-    roleCategory: "OPERATIONAL",
-    roleSubCategory: "MASTER",
-    roleName: "Master Viewer",
-    nodeName: "Operations Node",
-    nodePath: "GLOBALTECH.OPERATIONS.NODE",
-    accessType: "SECONDARY",
-  },
-];
+const DEMO_SECONDARY_ACCESS: NonNullable<AppUser["accessDetails"]> = [];
+
 
 // Group accessDetails by nodeName, then by roleCategory
 type GroupedByNode = Record<string, {
@@ -395,24 +370,24 @@ export function UserManagePreview({
   const formattedCreatedAt = formatLooseDateLabel(rawCreatedAt);
 
   const userData = {
-    name: displayOrFallback(member.basicDetails?.name || member.name, "Demo User"),
-    email: displayOrFallback(member.basicDetails?.email || member.email, "demo.user@globaltech.com"),
-    phone: displayOrFallback(member.basicDetails?.phone || member.phone, "9000000000"),
+    name: displayOrFallback(member.basicDetails?.name || member.name, "—"),
+    email: displayOrFallback(member.basicDetails?.email || member.email, "—"),
+    phone: displayOrFallback(member.basicDetails?.phone || member.phone, "—"),
     joiningDate: displayOrFallback(
       formattedJoiningDate === "-" && rawJoiningDate ? rawJoiningDate : formattedJoiningDate,
-      "01 Mar 2024",
+      "—",
     ),
-    createdAt: displayOrFallback(formattedCreatedAt === "-" && rawCreatedAt ? rawCreatedAt : formattedCreatedAt, "01 Mar 2024"),
-    designation: displayOrFallback(member.basicDetails?.designation || member.designation, "Developer"),
-    department: displayOrFallback(member.department, "General"),
-    employeeId: displayOrFallback(member.basicDetails?.employeeId || member.employeeId, "EMP-0000"),
+    createdAt: displayOrFallback(formattedCreatedAt === "-" && rawCreatedAt ? rawCreatedAt : formattedCreatedAt, "—"),
+    designation: displayOrFallback(member.basicDetails?.designation || member.designation, "—"),
+    department: displayOrFallback(member.department, "—"),
+    employeeId: displayOrFallback(member.basicDetails?.employeeId || member.employeeId, "—"),
     reportingManager: displayOrFallback(
       member.basicDetails?.reportingManagerName || member.basicDetails?.reportingManager || member.manager?.name,
-      "Amit Sharma",
+      "—",
     ),
     reportingManagerEmail: displayOrFallback(
       member.basicDetails?.reportingManagerEmail || member.manager?.email || pickFirst(basicDetailsRecord, ["reportingManagerEmail"]),
-      "amit.sharma@globaltech.com",
+      "—",
     ),
   };
 
@@ -449,7 +424,6 @@ export function UserManagePreview({
   const primaryEntries = useMemo(() => Object.entries(primaryByNode), [primaryByNode]);
   const secondaryEntries = useMemo(() => Object.entries(secondaryByNode), [secondaryByNode]);
 
-  const isEmpty = accessDetails.length === 0;
   const isRemarkValid = Boolean(pendingRemark.trim());
   const showRemarkError = remarkTouched && !isRemarkValid;
   const isActive = member.status !== "Inactive";
@@ -601,13 +575,7 @@ export function UserManagePreview({
               </button>
             </div>
             {/* Toggle button */}
-            {isEmpty ? (
-              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 py-16 text-center">
-                <ShieldCheck size={28} className="mb-3 text-slate-300" />
-                <p className="text-sm font-semibold text-slate-500">No access rights configured</p>
-                <p className="mt-1 text-xs text-slate-400">Assign roles to this user via the onboarding flow.</p>
-            </div>
-            ) : isExpanded ? (
+            {isExpanded ? (
               <div className="space-y-6">
                 <div className="rounded-2xl border border-indigo-200 bg-[#DDE6FF] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
                   <div className="grid items-stretch grid-cols-1 gap-3 xl:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">

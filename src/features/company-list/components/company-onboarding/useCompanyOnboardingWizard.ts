@@ -324,34 +324,37 @@ export function useCompanyOnboardingWizard({
     setSignatoryValidationAttempted(false);
   };
 
-  const buildPayload = (): OnboardingPayload => ({
-    group: {
-      name:
-        groupSelectionMode === "existing"
-          ? selectedGroupData?.groupName ?? ""
-          : groupSelectionMode === "not_applicable"
-            ? "Independent"
-            : groupName.trim(),
-      groupCode: resolvedGroupCode,
-      remarks: remarks.trim(),
-    },
-    company: {
-      companyCode: generatedCompanyCode,
-      name: legalName.trim().toUpperCase(),
-      gst: gstin.trim().toUpperCase(),
-      brand: companyName.trim(),
-      ieCode: ieCode.trim(),
-      registeredAt: incDate,
-      address: address.trim(),
-    },
-    signatories: signatories.map((sig) => ({
-      name: sig.fullName.trim(),
-      email: sig.email.trim(),
-      phone: sig.phone.trim(),
-      designation: sig.designation.trim(),
-      employeeId: sig.employeeId.trim(),
-    })),
-  });
+  const buildPayload = (): OnboardingPayload => {
+    const isIndependent = groupSelectionMode === "not_applicable";
+
+    return {
+      group: isIndependent
+        ? { name: "Independent", groupCode: null, remarks: "" }
+        : {
+            name:
+              groupSelectionMode === "existing"
+                ? selectedGroupData?.groupName ?? ""
+                : groupName.trim(),
+            groupCode: resolvedGroupCode || null,
+            remarks: remarks.trim(),
+          },
+      company: {
+        name: legalName.trim().toUpperCase(),
+        gst: gstin.trim().toUpperCase(),
+        brand: companyName.trim(),
+        ieCode: ieCode.trim(),
+        registeredAt: incDate,
+        address: address.trim(),
+      },
+      signatories: signatories.map((sig) => ({
+        name: sig.fullName.trim(),
+        email: sig.email.trim(),
+        phone: sig.phone.trim(),
+        designation: sig.designation.trim(),
+        employeeId: sig.employeeId.trim(),
+      })),
+    };
+  };
 
   const handleSubmit = async () => {
     if (!validateStep()) return;

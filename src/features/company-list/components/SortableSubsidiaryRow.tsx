@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GripVertical, History, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import CompanyHistorySidebar, { buildCompanyHistoryData } from "@/features/company-list/components/CompanyHistorySidebar";
+import CompanyHistorySidebar from "@/features/company-list/components/CompanyHistorySidebar";
 import type { DragPayload, VisibleColumn } from "@/features/company-list/types";
 import { formatDisplayDate, statusColors } from "@/features/company-list/utils";
 
@@ -34,7 +34,6 @@ export default function SortableSubsidiaryRow({
   onDrop,
 }: SortableSubsidiaryRowProps) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const historyData = useMemo(() => buildCompanyHistoryData(sub), [sub]);
 
   const isDropTarget =
     dragState?.type === "subsidiary" &&
@@ -135,7 +134,6 @@ export default function SortableSubsidiaryRow({
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
         company={sub}
-        data={historyData}
       />
     </>
   );

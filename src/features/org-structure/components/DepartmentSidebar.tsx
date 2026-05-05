@@ -1,4 +1,4 @@
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight, History, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DepartmentSidebarDepartment } from "@/features/org-structure/types";
 
@@ -117,11 +117,13 @@ function DepartmentSidebarContent({
   breadcrumbs,
   roster,
   onClose,
+  onOpenHistory,
 }: {
   department: DepartmentSidebarDepartment | null;
   breadcrumbs: string[];
   roster: DepartmentRoster | null;
   onClose: () => void;
+  onOpenHistory: () => void;
 }) {
   const showBreadcrumbs = breadcrumbs.length > 1 || breadcrumbs[0] !== (department?.name ?? "Organisation");
 
@@ -144,14 +146,25 @@ function DepartmentSidebarContent({
           </h2>
         </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-          aria-label="Close department sidebar"
-        >
-          <X className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Open organisation history"
+            title="View org history"
+          >
+            <History className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Close department sidebar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {department && roster ? (
@@ -182,10 +195,12 @@ export function DepartmentSidebar({
   open,
   onOpenChange,
   department,
+  onOpenHistory,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   department: DepartmentSidebarDepartment | null;
+  onOpenHistory: () => void;
 }) {
   const breadcrumbs = department?.breadcrumbs?.length ? department.breadcrumbs : [department?.name ?? "Organisation"];
   const roster = department ? buildFallbackRoster(department) : null;
@@ -204,6 +219,7 @@ export function DepartmentSidebar({
         breadcrumbs={breadcrumbs}
         roster={roster}
         onClose={() => onOpenChange(false)}
+        onOpenHistory={onOpenHistory}
       />
     </aside>
   );

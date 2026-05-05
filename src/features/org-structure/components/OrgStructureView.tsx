@@ -4,6 +4,7 @@ import { DepartmentSidebar } from "@/features/org-structure/components/Departmen
 import { NewNodePopup } from "@/features/org-structure/components/NewNodePopup";
 import { OrgTreeCanvas } from "@/features/org-structure/components/OrgTreeCanvas";
 import { PendingNodePopup } from "@/features/org-structure/components/PendingNodePopup";
+import OrgHistorySidebar from "@/features/org-structure/components/OrgHistorySidebar";
 import { useOrgStructure } from "@/features/org-structure/hooks/useOrgStructure";
 import { collectNodeTrail } from "@/features/org-structure/orgNode.utils";
 import { cn } from "@/lib/utils";
@@ -40,8 +41,9 @@ function hasPendingNodes(node: OrgNode | null): boolean {
 }
 
 export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
-  const newNodeTypeOptions: NewNodeType[] = ["Division", "Department", "Team", "Plant", "Location"];
+  const newNodeTypeOptions: NewNodeType[] = ["DEPARTMENT", "TEAM", "PLANT", "LOCATION"];
   const {
+    companyCode,
     orgStructure,
     selectedDepartment,
     sidebarOpen,
@@ -76,6 +78,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   } = useOrgStructure();
 
   const [showPending, setShowPending] = useState(true);
+  const [isOrgHistoryOpen, setIsOrgHistoryOpen] = useState(false);
 
   const displayedStructure = useMemo(() => {
     if (showPending || !orgStructure) return orgStructure;
@@ -234,6 +237,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
               open={sidebarOpen}
               onOpenChange={handleSidebarOpenChange}
               department={selectedDepartment}
+              onOpenHistory={() => setIsOrgHistoryOpen(true)}
             />
           </div>
         </section>
@@ -250,6 +254,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
             open={sidebarOpen}
             onOpenChange={handleSidebarOpenChange}
             department={selectedDepartment}
+            onOpenHistory={() => setIsOrgHistoryOpen(true)}
           />
         </div>
 
@@ -292,6 +297,13 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         onClose={() => setPendingNodeForReview(null)}
         onApprove={handleApproveNode}
         onReject={handleRejectNode}
+      />
+
+      <OrgHistorySidebar
+        isOpen={isOrgHistoryOpen}
+        onClose={() => setIsOrgHistoryOpen(false)}
+        companyCode={companyCode}
+        subtitle={selectedDepartment?.name || companyName}
       />
     </div>
   );

@@ -333,6 +333,7 @@ export function useOrgStructure() {
   const zoomIn = () => setZoom((current) => Math.min(MAX_ZOOM, Number((current + ZOOM_STEP).toFixed(2))));
 
   return {
+    companyCode,
     orgStructure,
     selectedDepartment,
     sidebarOpen,

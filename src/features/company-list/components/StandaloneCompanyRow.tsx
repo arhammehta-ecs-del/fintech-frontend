@@ -1,5 +1,5 @@
 import { useMemo, useState, type DragEvent } from "react";
-import CompanyHistorySidebar, { buildCompanyHistoryData } from "@/features/company-list/components/CompanyHistorySidebar";
+import CompanyHistorySidebar from "@/features/company-list/components/CompanyHistorySidebar";
 import type { Company } from "@/contexts/AppContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,6 @@ export default function StandaloneCompanyRow({
   onDrop,
 }: StandaloneCompanyRowProps) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const historyData = useMemo(() => buildCompanyHistoryData(company), [company]);
   const isDropTarget =
     dragState?.type === "subsidiary" &&
     dragState.groupId === groupId &&
@@ -127,7 +126,6 @@ export default function StandaloneCompanyRow({
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
         company={company}
-        data={historyData}
       />
     </tbody>
   );
