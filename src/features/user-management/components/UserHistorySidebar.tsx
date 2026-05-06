@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import type { AppUser } from "@/contexts/AppContext";
 import HistorySidebar, { formatDateParts, getInitials, type HistoryEntry } from "@/components/HistorySidebar";
+import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/services/client";
 import { fetchUserHistory } from "@/services/user.service";
 import { useAppContext } from "@/contexts/AppContext";
 
@@ -46,6 +48,7 @@ const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number
 
   const normalizedAction = action.toLowerCase();
   const isPendingAction = normalizedAction.includes("initiate") || normalizedAction.includes("pending");
+  const isApprovedAction = normalizedAction.includes("approve");
 
   return {
     id:
@@ -57,7 +60,7 @@ const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number
     month,
     day,
     action,
-    details: `${action} event recorded for ${fallbackEmail || "this user"}.`,
+    details: `event recorded for ${fallbackEmail || "this user"}.`,
     initiator: {
       name: initiatorName,
       email: initiatorEmail,
@@ -65,6 +68,14 @@ const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number
       date,
       time,
     },
+    approver: isApprovedAction
+      ? {
+        name: initiatorName,
+        email: initiatorEmail,
+        date,
+        time,
+      }
+      : undefined,
     status: isPendingAction ? "pending" : "approved",
   };
 };
@@ -72,6 +83,7 @@ const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number
 export default function UserHistorySidebar({ isOpen, onClose, user }: UserHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
   const { currentUser } = useAppContext();
+  const { toast } = useToast();
 
   useEffect(() => {
     // History API expects companyCode; use authenticated user's companyCode.
@@ -93,7 +105,8 @@ export default function UserHistorySidebar({ isOpen, onClose, user }: UserHistor
           setHistoryData(mappedHistory);
         }
       } catch (error) {
-        console.error("Failed to fetch user history:", error);
+        const message = getApiErrorMessage(error, "Failed to fetch user history.");
+        toast({ title: "Unable to load user history", description: message, variant: "destructive" });
       }
     };
 
@@ -101,7 +114,7 @@ export default function UserHistorySidebar({ isOpen, onClose, user }: UserHistor
     return () => {
       isMounted = false;
     };
-  }, [isOpen, user, currentUser]);
+  }, [isOpen, user, currentUser, toast]);
 
   return (
     <HistorySidebar

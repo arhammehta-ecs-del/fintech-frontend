@@ -16,7 +16,7 @@ export type UserOnboardingPayload = {
     email: string;
     phone: string;
     designation: string;
-    employeeId: string;
+    employeeId: string | null;
     reportingManager: string;
   };
   permissions: UserOnboardingPermission[];

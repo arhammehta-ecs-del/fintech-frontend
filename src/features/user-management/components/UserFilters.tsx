@@ -50,6 +50,8 @@ export default function UserFilters({
   departments,
   statusCounts,
 }: UserFiltersProps) {
+  const visibleTabs = STATUS_TABS.filter((tab) => tab.id === "active" || statusCounts[tab.id] > 0);
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -75,7 +77,7 @@ export default function UserFilters({
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-full border border-slate-200 bg-white p-1.5 shadow-sm">
-            {STATUS_TABS.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"

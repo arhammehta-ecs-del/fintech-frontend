@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import HistorySidebar, { formatDateParts, getInitials, type HistoryEntry } from "@/components/HistorySidebar";
-import type { WorkflowRecord } from "@/features/workflow-management/components/WorkflowManagementView";
+import { useToast } from "@/hooks/use-toast";
+import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
+import { getApiErrorMessage } from "@/services/client";
 import { fetchWorkflowHistory } from "@/services/workflow.service";
 
 export type WorkflowHistorySidebarProps = {
@@ -28,6 +30,7 @@ const mapWorkflowHistoryEntry = (item: unknown, workflowName: string, index: num
   const initiatorEmail = readString(user.email) || readString(record.initiatorEmail) || "no-email@example.com";
   const normalizedAction = action.toLowerCase();
   const isPendingAction = normalizedAction.includes("initiate") || normalizedAction.includes("pending");
+  const isApprovedAction = normalizedAction.includes("approve");
 
   return {
     id: readString(record.id) || readString(record.workflowId) || `${createdAt || "history"}-${index}`,
@@ -35,7 +38,7 @@ const mapWorkflowHistoryEntry = (item: unknown, workflowName: string, index: num
     month,
     day,
     action,
-    details: `${action} event recorded for ${workflowName || "this workflow"}.`,
+    details: `event recorded for ${workflowName || "this workflow"}.`,
     initiator: {
       name: initiatorName,
       email: initiatorEmail,
@@ -43,12 +46,21 @@ const mapWorkflowHistoryEntry = (item: unknown, workflowName: string, index: num
       date,
       time,
     },
+    approver: isApprovedAction
+      ? {
+        name: initiatorName,
+        email: initiatorEmail,
+        date,
+        time,
+      }
+      : undefined,
     status: isPendingAction ? "pending" : "approved",
   };
 };
 
 export default function WorkflowHistorySidebar({ isOpen, onClose, workflow }: WorkflowHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!isOpen || !workflow) {
@@ -67,7 +79,8 @@ export default function WorkflowHistorySidebar({ isOpen, onClose, workflow }: Wo
           setHistoryData(mappedHistory);
         }
       } catch (error) {
-        console.error("Failed to fetch workflow history:", error);
+        const message = getApiErrorMessage(error, "Failed to fetch workflow history.");
+        toast({ title: "Unable to load workflow history", description: message, variant: "destructive" });
       }
     };
 
@@ -75,7 +88,7 @@ export default function WorkflowHistorySidebar({ isOpen, onClose, workflow }: Wo
     return () => {
       isMounted = false;
     };
-  }, [isOpen, workflow]);
+  }, [isOpen, workflow, toast]);
 
   return (
     <HistorySidebar

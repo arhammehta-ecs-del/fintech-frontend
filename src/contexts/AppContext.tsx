@@ -140,6 +140,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isActive = true;
+    const isLoginRoute = typeof window !== "undefined" && window.location.pathname === "/login";
+
+    if (isLoginRoute) {
+      setIsAuthLoading(false);
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      return () => {
+        isActive = false;
+      };
+    }
 
     const validateSession = async () => {
       try {

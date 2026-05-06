@@ -2,7 +2,7 @@ export { OrgStructureView } from "./components/OrgStructureView";
 export { default as SaasOrganisationScreen } from "./entry/SaasOrganisation";
 export { OrgCard } from "./components/OrgCard";
 export { OrgTreeCanvas } from "./components/OrgTreeCanvas";
-export { DepartmentSidebar } from "./components/DepartmentSidebar";
+export { NodeSidebar } from "./components/NodeSidebar";
 export { NewNodePopup } from "./components/NewNodePopup";
 export { useOrgStructure } from "./hooks/useOrgStructure";
 export * from "./types";

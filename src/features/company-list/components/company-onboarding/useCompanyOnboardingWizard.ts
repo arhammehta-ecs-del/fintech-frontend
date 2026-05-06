@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { GroupCompany } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/services/client";
 import { createCompanyOnboarding, getAllCompanies, type OnboardingPayload } from "@/services/company.service";
 import type { GroupSelectionMode, CompanyOnboardingWizardContentProps, SignatoryForm, SignatoryWithId } from "./types";
 import { emptySignatoryForm, getTodayDateInputValue, companyOnboardingSteps } from "./utils";
@@ -37,6 +38,7 @@ export function useCompanyOnboardingWizard({
   const [signatories, setSignatories] = useState<SignatoryForm[]>([]);
   const [linkedSigIds, setLinkedSigIds] = useState<Set<string>>(new Set());
   const [editingSignatoryIds, setEditingSignatoryIds] = useState<Set<string>>(new Set());
+  const [editingSignatoryDrafts, setEditingSignatoryDrafts] = useState<Record<string, SignatoryForm>>({});
   const [signatoryToRemove, setSignatoryToRemove] = useState<SignatoryForm | null>(null);
   const [showNewSignatoryForm, setShowNewSignatoryForm] = useState(false);
   const [newSig, setNewSig] = useState(emptySignatoryForm);
@@ -65,6 +67,7 @@ export function useCompanyOnboardingWizard({
     setSignatories([]);
     setLinkedSigIds(new Set());
     setEditingSignatoryIds(new Set());
+    setEditingSignatoryDrafts({});
     setSignatoryToRemove(null);
     setShowNewSignatoryForm(false);
     setNewSig(emptySignatoryForm);
@@ -135,6 +138,7 @@ export function useCompanyOnboardingWizard({
     setSelectedGroupLocalId("");
     setLinkedSigIds(new Set());
     setEditingSignatoryIds(new Set());
+    setEditingSignatoryDrafts({});
     setSignatories([]);
 
     if (value === "not_applicable") {
@@ -150,6 +154,7 @@ export function useCompanyOnboardingWizard({
     setSelectedGroupLocalId(value);
     setLinkedSigIds(new Set());
     setEditingSignatoryIds(new Set());
+    setEditingSignatoryDrafts({});
     setSignatories([]);
   };
 
@@ -164,6 +169,12 @@ export function useCompanyOnboardingWizard({
           const nextEditing = new Set(current);
           nextEditing.delete(sig.id);
           return nextEditing;
+        });
+        setEditingSignatoryDrafts((current) => {
+          if (!current[sig.id]) return current;
+          const next = { ...current };
+          delete next[sig.id];
+          return next;
         });
       } else {
         next.add(sig.id);
@@ -181,17 +192,46 @@ export function useCompanyOnboardingWizard({
     });
   };
 
-  const updateSignatory = (id: string, key: keyof SignatoryForm, value: string) => {
-    setSignatories((current) => current.map((item) => (item.id === id ? { ...item, [key]: value } : item)));
-  };
+  const startSignatoryEditing = (id: string) => {
+    const target = signatories.find((item) => item.id === id);
+    if (!target) return;
 
-  const toggleSignatoryEditing = (id: string) => {
     setEditingSignatoryIds((current) => {
       const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.add(id);
       return next;
     });
+    setEditingSignatoryDrafts((current) => ({ ...current, [id]: { ...target } }));
+  };
+
+  const updateSignatoryDraft = (id: string, key: keyof SignatoryForm, value: string) => {
+    setEditingSignatoryDrafts((current) => {
+      const draft = current[id];
+      if (!draft) return current;
+      return { ...current, [id]: { ...draft, [key]: value } };
+    });
+  };
+
+  const cancelSignatoryEditing = (id: string) => {
+    setEditingSignatoryIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    setEditingSignatoryDrafts((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const saveSignatoryEditing = (id: string) => {
+    const draft = editingSignatoryDrafts[id];
+    if (!draft) return;
+
+    setSignatories((current) => current.map((item) => (item.id === id ? { ...draft } : item)));
+    cancelSignatoryEditing(id);
   };
 
   const validateStep = () => {
@@ -206,7 +246,6 @@ export function useCompanyOnboardingWizard({
       }
     } else if (step === 1) {
       if (!legalName.trim()) nextErrors.legalName = "Required";
-      if (!companyName.trim()) nextErrors.companyName = "Required";
       if (!gstin.trim()) nextErrors.gstin = "Required";
       if (!incDate.trim()) nextErrors.incDate = "Required";
       else if (incDate > todayDateInputValue) nextErrors.incDate = "Date cannot be later than today";
@@ -322,6 +361,12 @@ export function useCompanyOnboardingWizard({
       next.delete(id);
       return next;
     });
+    setEditingSignatoryDrafts((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
     setSignatoryValidationAttempted(false);
   };
 
@@ -342,7 +387,7 @@ export function useCompanyOnboardingWizard({
       company: {
         name: legalName.trim().toUpperCase(),
         gst: gstin.trim().toUpperCase(),
-        brand: companyName.trim(),
+        brand: companyName.trim() ? companyName.trim() : null,
         ieCode: ieCode.trim(),
         registeredAt: incDate,
         address: address.trim(),
@@ -373,7 +418,7 @@ export function useCompanyOnboardingWizard({
       if (embedded) onOpenChange?.(false);
       else navigate("/companies");
     } catch (error) {
-      const description = error instanceof Error ? error.message : "Unable to submit onboarding request.";
+      const description = getApiErrorMessage(error, "Unable to submit onboarding request.");
       toast({
         title: "Submission failed",
         description,
@@ -458,6 +503,7 @@ export function useCompanyOnboardingWizard({
     setLinkedSigIds,
     editingSignatoryIds,
     setEditingSignatoryIds,
+    editingSignatoryDrafts,
     signatoryToRemove,
     setSignatoryToRemove,
     showNewSignatoryForm,
@@ -482,8 +528,10 @@ export function useCompanyOnboardingWizard({
     handleGroupModeChange,
     handleGroupSelection,
     toggleLinkedSig,
-    updateSignatory,
-    toggleSignatoryEditing,
+    startSignatoryEditing,
+    updateSignatoryDraft,
+    cancelSignatoryEditing,
+    saveSignatoryEditing,
     validateStep,
     next,
     prev,

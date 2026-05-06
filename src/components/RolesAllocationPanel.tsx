@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, CreditCard, Database, ShieldCheck, Workflow } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAppContext } from "@/contexts/AppContext";
+import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/services/client";
 import { getCompanyRoles, type RoleRecord } from "@/services/role.service";
-import { getPermissionActionLabelFromRoleName, getPermissionActionLabelFromText } from "@/features/user-management/roleLabels";
+import { getPermissionActionLabelFromRoleName } from "@/features/user-management/roleLabels";
 
 type RoleRow = {
+  moduleKey: string;
   module: string;
   levels: Record<string, string>;
   isPrimary: boolean;
@@ -41,11 +44,11 @@ const formatLabel = (value: string) =>
 const getCategoryMeta = (categoryKey: string) => {
   switch (categoryKey) {
     case "TRANSACTIONAL":
-      return { title: "Transactional", icon: CreditCard, theme: { headerBg: "bg-white group-hover:bg-slate-50", iconBg: "bg-blue-100", iconColor: "text-blue-600", border: "border-l-[4px] border-l-blue-300" } };
+      return { title: formatLabel(categoryKey), icon: CreditCard, theme: { headerBg: "bg-white group-hover:bg-slate-50", iconBg: "bg-blue-100", iconColor: "text-blue-600", border: "border-l-[4px] border-l-blue-300" } };
     case "OPERATIONAL":
-      return { title: "Operational Controls", icon: Database, theme: { headerBg: "bg-white group-hover:bg-slate-50", iconBg: "bg-amber-100", iconColor: "text-amber-600", border: "border-l-[4px] border-l-amber-300" } };
+      return { title: formatLabel(categoryKey), icon: Database, theme: { headerBg: "bg-white group-hover:bg-slate-50", iconBg: "bg-amber-100", iconColor: "text-amber-600", border: "border-l-[4px] border-l-amber-300" } };
     case "SYSTEM_ACCESS":
-      return { title: "System Access", icon: Workflow, theme: { headerBg: "bg-white group-hover:bg-slate-50", iconBg: "bg-emerald-100", iconColor: "text-emerald-600", border: "border-l-[4px] border-l-emerald-300" } };
+      return { title: formatLabel(categoryKey), icon: Workflow, theme: { headerBg: "bg-white group-hover:bg-slate-50", iconBg: "bg-emerald-100", iconColor: "text-emerald-600", border: "border-l-[4px] border-l-emerald-300" } };
     default:
       return { title: formatLabel(categoryKey), icon: ShieldCheck, theme: { headerBg: "bg-white group-hover:bg-slate-50", iconBg: "bg-slate-100", iconColor: "text-slate-600", border: "border-l-[4px] border-l-slate-300" } };
   }
@@ -66,6 +69,18 @@ const parseRoleCode = (roleCode: string, fallbackLevel: string) => {
   const moduleKey = parts.slice(0, -1).join("_") || "UNKNOWN";
 
   return { moduleKey, levelKey };
+};
+
+const getModuleNameFromRoleName = (roleName: string, permissionLevel: string, fallbackModuleKey: string) => {
+  const rawRoleName = roleName.trim();
+  const rawPermissionLevel = permissionLevel.trim();
+  if (!rawRoleName) return formatLabel(fallbackModuleKey);
+
+  if (!rawPermissionLevel) return rawRoleName;
+
+  const permissionRegex = new RegExp(`\\s+${rawPermissionLevel}$`, "i");
+  const stripped = rawRoleName.replace(permissionRegex, "").trim();
+  return stripped || rawRoleName;
 };
 
 const getLevelChipClasses = (level: string, categoryKey: string) => {
@@ -94,6 +109,7 @@ const buildRolesView = (roles: RoleRecord[]) => {
   const activeRoles = roles.filter((role) => role.isActive);
   const levelSet = new Set<string>();
   const categoryMap = new Map<string, Map<string, Record<string, string>>>();
+  const moduleNameMap = new Map<string, string>();
   const primaryModules = new Set<string>();
 
   activeRoles.forEach((role) => {
@@ -111,6 +127,12 @@ const buildRolesView = (roles: RoleRecord[]) => {
 
     if (!moduleMap.has(moduleKey)) {
       moduleMap.set(moduleKey, {});
+    }
+    if (!moduleNameMap.has(`${categoryKey}::${moduleKey}`)) {
+      moduleNameMap.set(
+        `${categoryKey}::${moduleKey}`,
+        getModuleNameFromRoleName(role.roleName || "", role.permissionLevel, moduleKey),
+      );
     }
 
     const row = moduleMap.get(moduleKey);
@@ -137,7 +159,8 @@ const buildRolesView = (roles: RoleRecord[]) => {
     const meta = getCategoryMeta(categoryKey);
 
     const rows = Array.from(modules.entries()).map(([moduleKey, rowLevels]) => ({
-      module: formatLabel(moduleKey),
+      moduleKey,
+      module: moduleNameMap.get(`${categoryKey}::${moduleKey}`) || formatLabel(moduleKey),
       levels: rowLevels,
       isPrimary: primaryModules.has(`${categoryKey}::${moduleKey}`),
     }));
@@ -159,6 +182,7 @@ export function RolesAllocationPanel({
   showUserNote = false,
 }: RolesAllocationPanelProps) {
   const { currentUser } = useAppContext();
+  const { toast } = useToast();
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -179,7 +203,9 @@ export function RolesAllocationPanel({
       } catch (err) {
         if (!ignore) {
           setRoles([]);
-          setError(err instanceof Error ? err.message : "Failed to load roles");
+          const message = getApiErrorMessage(err, "Failed to load roles");
+          setError(message);
+          toast({ title: "Unable to load roles", description: message, variant: "destructive" });
         }
       } finally {
         if (!ignore) {
@@ -192,7 +218,7 @@ export function RolesAllocationPanel({
     return () => {
       ignore = true;
     };
-  }, [companyCode]);
+  }, [companyCode, toast]);
 
   const { levels, categories } = useMemo(() => buildRolesView(roles), [roles]);
 
@@ -265,14 +291,14 @@ export function RolesAllocationPanel({
                         key={`${category.key}-${level}`}
                         className="px-3 py-3 text-center text-xs font-bold uppercase tracking-[0.12em] text-slate-500 align-middle"
                       >
-                        {getPermissionActionLabelFromText(formatLabel(level))}
+                        {formatLabel(level)}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {category.rows.map((row) => (
-                    <tr key={`${category.key}-${row.module}`} className="border-b border-slate-100 last:border-0">
+                    <tr key={`${category.key}-${row.moduleKey}`} className="border-b border-slate-100 last:border-0">
                       <td className="border-l-2 border-transparent px-3 py-2.5 font-semibold text-slate-800 align-middle">
                         <span className="inline-flex max-w-full items-center whitespace-nowrap">{row.module}</span>
                       </td>
@@ -280,7 +306,7 @@ export function RolesAllocationPanel({
                         const roleCode = row.levels[level];
                         return (
                           <td
-                            key={`${category.key}-${row.module}-${level}`}
+                            key={`${category.key}-${row.moduleKey}-${level}`}
                             className="px-3 py-2.5 text-center align-middle"
                           >
                             {roleCode ? (

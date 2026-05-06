@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { Company, CompanyStatus, GroupCompany } from "@/contexts/AppContext";
 import { getAllCompanies, updateCompanyOnboardingAction } from "@/services/company.service";
+import { getApiErrorMessage } from "@/services/client";
 import { useToast } from "@/hooks/use-toast";
 import type { DisplayRow, StatusTab, VisibleColumn } from "@/features/company-list/types";
 import {
@@ -88,6 +89,15 @@ export function useCompanyList() {
   }, [groups]);
 
   useEffect(() => {
+    if (selectedStatusTab === "pending" && statusCounts.pending === 0) {
+      setSelectedStatusTab("active");
+    }
+    if (selectedStatusTab === "inactive" && statusCounts.inactive === 0) {
+      setSelectedStatusTab("active");
+    }
+  }, [selectedStatusTab, statusCounts.inactive, statusCounts.pending]);
+
+  useEffect(() => {
     let ignore = false;
 
     async function loadCompanies() {
@@ -157,6 +167,8 @@ export function useCompanyList() {
 
     await updateCompanyOnboardingAction(companyId, isActive ? "approve" : "reject", remark);
     await refreshCompanies();
+    setIsPreviewOpen(false);
+    setSelectedCompany(null);
     toast({
       title: `Company ${actionLabel}`,
       description: `The company request has been ${actionLabel} successfully.`,
@@ -166,7 +178,7 @@ export function useCompanyList() {
   const handleToggleCompanyActive = (companyId: string, isActive: boolean, remark?: string) => {
     if (typeof remark === "string") {
       void executeCompanyAction(companyId, isActive, remark).catch((err) => {
-        const message = err instanceof Error ? err.message : "Failed to update company status";
+        const message = getApiErrorMessage(err, "Failed to update company status");
         setError(message);
         toast({
           title: "Action failed",
@@ -188,7 +200,7 @@ export function useCompanyList() {
     try {
       await executeCompanyAction(companyId, isActive, remark);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to update company status";
+      const message = getApiErrorMessage(err, "Failed to update company status");
       setError(message);
       toast({
         title: "Action failed",
@@ -196,6 +208,7 @@ export function useCompanyList() {
         variant: "destructive",
       });
     } finally {
+      setRemarkDialogOpen(false);
       setPendingAction(null);
     }
   };

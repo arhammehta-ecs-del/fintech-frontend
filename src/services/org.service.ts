@@ -29,7 +29,7 @@ type OrgNodeActionResponse = {
 type RawCompanyRecord = Record<string, unknown>;
 type RawOrgRecord = Record<string, unknown>;
 type RawOrgRequestRecord = Record<string, unknown>;
-type AllowedNodeType = "ROOT" | "DEPARTMENT" | "TEAM" | "PLANT" | "LOCATION";
+type AllowedNodeType = "ROOT" | "DEPARTMENT" | "TEAM" | "PLANT" | "DIVISION" | "LOCATION";
 
 type OrgApiResponse = {
   message?: string;
@@ -79,8 +79,7 @@ const normalizePathSegment = (value: string) =>
 
 const normalizeNodeTypeForApi = (nodeType: string): AllowedNodeType => {
   const normalized = nodeType.trim().toUpperCase();
-  if (normalized === "DIVISION") return "DEPARTMENT";
-  if (normalized === "ROOT" || normalized === "DEPARTMENT" || normalized === "TEAM" || normalized === "PLANT" || normalized === "LOCATION") {
+  if (normalized === "ROOT" || normalized === "DEPARTMENT" || normalized === "TEAM" || normalized === "PLANT" || normalized === "DIVISION" || normalized === "LOCATION") {
     return normalized;
   }
   return "DEPARTMENT";

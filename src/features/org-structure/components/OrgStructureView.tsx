@@ -1,6 +1,6 @@
 import { startTransition } from "react";
 import { Building2 } from "lucide-react";
-import { DepartmentSidebar } from "@/features/org-structure/components/DepartmentSidebar";
+import { NodeSidebar } from "@/features/org-structure/components/NodeSidebar";
 import { NewNodePopup } from "@/features/org-structure/components/NewNodePopup";
 import { OrgTreeCanvas } from "@/features/org-structure/components/OrgTreeCanvas";
 import { PendingNodePopup } from "@/features/org-structure/components/PendingNodePopup";
@@ -41,7 +41,7 @@ function hasPendingNodes(node: OrgNode | null): boolean {
 }
 
 export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
-  const newNodeTypeOptions: NewNodeType[] = ["DEPARTMENT", "TEAM", "PLANT", "LOCATION"];
+  const newNodeTypeOptions: NewNodeType[] = ["DEPARTMENT", "DIVISION", "TEAM", "PLANT", "LOCATION"];
   const {
     companyCode,
     orgStructure,
@@ -233,7 +233,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
             style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
             aria-hidden={!sidebarOpen}
           >
-            <DepartmentSidebar
+            <NodeSidebar
               open={sidebarOpen}
               onOpenChange={handleSidebarOpenChange}
               department={selectedDepartment}
@@ -250,7 +250,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
           style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
           aria-hidden={!sidebarOpen}
         >
-          <DepartmentSidebar
+          <NodeSidebar
             open={sidebarOpen}
             onOpenChange={handleSidebarOpenChange}
             department={selectedDepartment}

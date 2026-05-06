@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AppUser } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/services/client";
 import { createUserOnboarding, getCompanyUsers, updateUserStatus } from "@/services/user.service";
 import { USER_DEFAULT_PAGE_SIZE, USER_PAGE_SIZE_OPTIONS, USER_SEARCH_DEBOUNCE_MS } from "@/features/user-management/constants";
 import type { MemberStatusTab, UserOnboardingFormData, SortOrder } from "@/features/user-management/types";
@@ -40,11 +41,11 @@ export function useUserManagement() {
             description: "The user list was updated from the latest company data.",
           });
         }
-      } catch {
+      } catch (error) {
         setUsers([]);
         toast({
           title: "Unable to load users",
-          description: "Live user API failed. Please try again once the backend is available.",
+          description: getApiErrorMessage(error, "Live user API failed. Please try again once the backend is available."),
           variant: "destructive",
         });
       } finally {
@@ -150,7 +151,7 @@ export function useUserManagement() {
         description: response.message || `${userData.basic.name.trim()} was created as a pending user request.`,
       });
     } catch (error) {
-      const description = error instanceof Error ? error.message : "Unable to submit user onboarding.";
+      const description = getApiErrorMessage(error, "Unable to submit user onboarding.");
       toast({
         title: "Submission failed",
         description,
@@ -193,6 +194,10 @@ export function useUserManagement() {
 
       await updateUserStatus(member.id, action === "activate" ? "approve" : "reject", _remark ?? "");
       await loadUsers();
+      setViewingMember(null);
+      if (action === "activate") {
+        setStatusTab("active");
+      }
       toast({
         title: action === "activate" ? "User activated" : "User deactivated",
         description: `${member.name} was moved to ${action === "activate" ? "active" : "inactive"} users.`,
@@ -200,7 +205,7 @@ export function useUserManagement() {
     } catch (error) {
       toast({
         title: action === "activate" ? "Activation failed" : "Deactivation failed",
-        description: error instanceof Error ? error.message : "Unable to update user request.",
+        description: getApiErrorMessage(error, "Unable to update user request."),
         variant: "destructive",
       });
     }

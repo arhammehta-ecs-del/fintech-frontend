@@ -100,17 +100,16 @@ const getSelectedNodeClass = (
 
   return isSelected
     ? isRoot
-      ? "border-2 border-indigo-700 bg-indigo-700 text-white shadow-[0_14px_30px_rgba(15,23,42,0.16)] border-l-[4px] border-l-indigo-500"
+      ? "border border-indigo-200 bg-indigo-50/70 text-slate-800 shadow-[0_10px_22px_rgba(99,102,241,0.16)] border-l-[4px] border-l-indigo-400"
       : cn(
         "border-[rgb(53,83,233)] shadow-[0_0_0_3px_rgba(53,83,233,0.08)] bg-[rgb(53,83,233,0.02)] border-l-[4px]",
         borderLeftClass,
       )
     : cn(
-      appearance.defaultSurfaceClass,
+      isRoot ? "border border-indigo-100 bg-indigo-50/35 text-slate-800 shadow-[0_6px_16px_rgba(99,102,241,0.1)]" : appearance.defaultSurfaceClass,
       appearance.hoverBorderClass,
       "border-l-[4px]",
       borderLeftClass,
-      isRoot && "text-white",
     );
 };
 
@@ -223,23 +222,29 @@ export function UserOnboardingStepSelectNode({
                         <span
                           className={cn(
                             "absolute left-0 top-0 h-full w-[4px] rounded-r-full",
-                            isRoot ? "bg-indigo-500" : borderLeftClass,
+                            isRoot ? "bg-indigo-400" : borderLeftClass,
                           )}
                           aria-hidden="true"
                         />
                         <div className="mb-2 flex items-center justify-between">
                           <div className="flex items-center gap-2.5">
-                            <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold", isRoot ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600")}>
+                            <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold", isRoot ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600")}>
                               L{item.level}
                             </div>
-                            <span className={cn("text-[11px] font-bold uppercase tracking-[0.14em]", isRoot ? "text-white/80" : "text-slate-500")}>{item.node.nodeType}</span>
+                            {!isRoot ? (
+                              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{item.node.nodeType}</span>
+                            ) : null}
                           </div>
-                          <span className={cn("text-xs font-semibold", isRoot ? "text-white/80" : "text-slate-400")}>{isSelected ? "Selected" : "Select"}</span>
+                          <span className={cn("text-xs font-semibold", isRoot ? "text-slate-500" : "text-slate-400")}>{isSelected ? "Selected" : "Select"}</span>
                         </div>
-                        <div className={cn("flex items-center gap-2 rounded-xl border px-3 py-2", isRoot ? "border-white/30 bg-white/10" : "border-slate-200 bg-white")}>
+                        <div className={cn("flex items-center gap-2 rounded-xl border px-3 py-2", isRoot ? "border-indigo-200 bg-indigo-50/40" : "border-slate-200 bg-white")}>
                           <div className="min-w-0 flex-1">
-                            <div className={cn("truncate text-[13px] font-semibold", isRoot ? "text-white" : "text-slate-800")}>{item.node.name}</div>
-                            <div className={cn("truncate text-[10px]", isRoot ? "text-white/80" : "text-slate-500")}>{parentSubtitle || item.node.nodeType}</div>
+                            <div className={cn("truncate text-[13px] font-semibold", isRoot ? "text-slate-800" : "text-slate-800")}>{item.node.name}</div>
+                            {!isRoot ? (
+                              <div className={cn("truncate text-[10px]", "text-slate-500")}>
+                                {parentSubtitle || item.node.nodeType}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       </button>
@@ -272,7 +277,9 @@ export function UserOnboardingStepSelectNode({
                       key={node.id}
                       className={cn(
                         "relative flex items-start gap-3 overflow-hidden rounded-xl border border-l-[4px] bg-white px-4 py-3",
-                        appearance.defaultSurfaceClass,
+                        isRoot
+                          ? "border border-indigo-100 bg-indigo-50/35 shadow-[0_6px_16px_rgba(99,102,241,0.1)]"
+                          : appearance.defaultSurfaceClass,
                         borderLeftClass,
                       )}
                     >
@@ -280,11 +287,15 @@ export function UserOnboardingStepSelectNode({
                         {index + 1}
                       </div>
                       <div className="min-w-0">
-                        <div className={cn("truncate text-[16px] font-semibold", isRoot ? "text-white" : "text-slate-800")}>{node.name}</div>
-                        {breadcrumbByNodeId.get(node.id) ? (
-                          <div className={cn("truncate text-[10px] font-medium", isRoot ? "text-white/80" : "text-slate-500")}>{breadcrumbByNodeId.get(node.id)}</div>
+                        <div className={cn("truncate text-[16px] font-semibold", isRoot ? "text-slate-800" : "text-slate-800")}>{node.name}</div>
+                        {!isRoot && breadcrumbByNodeId.get(node.id) ? (
+                          <div className={cn("truncate text-[10px] font-medium", "text-slate-500")}>
+                            {breadcrumbByNodeId.get(node.id)}
+                          </div>
                         ) : null}
-                        <div className={cn("mt-0.5 text-[10px] uppercase tracking-[0.1em]", isRoot ? "text-white/80" : "text-slate-500")}>{node.nodeType}</div>
+                        {!isRoot ? (
+                          <div className="mt-0.5 text-[10px] uppercase tracking-[0.1em] text-slate-500">{node.nodeType}</div>
+                        ) : null}
                       </div>
                       <button
                         type="button"
@@ -292,7 +303,7 @@ export function UserOnboardingStepSelectNode({
                         className={cn(
                           "ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
                           isRoot
-                            ? "text-white/70 hover:bg-white/15 hover:text-white"
+                            ? "text-slate-500 hover:bg-indigo-100 hover:text-slate-700"
                             : "text-slate-400 hover:bg-slate-100 hover:text-slate-600",
                         )}
                         aria-label={`Remove ${node.name}`}

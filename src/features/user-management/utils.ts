@@ -6,6 +6,7 @@ import type {
   UserOnboardingPermissions,
   ValidationErrors,
 } from "@/features/user-management/types";
+import { formatRoleTokenLabel } from "@/features/user-management/roleLabels";
 
 const PERMISSION_ACTIONS = ["manager", "user", "viewer"] as const;
 
@@ -34,10 +35,7 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
             const accessType = bucketKey === "primary" ? "PRIMARY" : "SECONDARY";
             if (selectedActions.length === 0) return [];
 
-            const roleNameBase = subCategory
-              .split("_")
-              .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
-              .join(" ");
+            const roleNameBase = formatRoleTokenLabel(subCategory);
 
             return selectedActions.map((action) => ({
               roleCategory: category as UserOnboardingPermission["roleCategory"],
@@ -58,7 +56,7 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
       email: formData.basic.email.trim(),
       phone: formData.basic.phone.trim(),
       designation: formData.basic.designation.trim(),
-      employeeId: formData.basic.employeeId.trim(),
+      employeeId: formData.basic.employeeId.trim() ? formData.basic.employeeId.trim() : null,
       reportingManager: (formData.basic.reportingManagerEmail || formData.basic.reportingManager).trim(),
     },
     permissions: mappedPermissions,
@@ -241,7 +239,6 @@ export const validateUserOnboardingStep = (step: number, formData: UserOnboardin
     if (!phone.trim()) errors.phone = "Required";
     else if (!/^\d{10}$/.test(phone)) errors.phone = "Enter a valid 10-digit phone number";
     if (!designation.trim()) errors.designation = "Required";
-    if (!employeeId.trim()) errors.employeeId = "Required";
     if (!reportingManager.trim()) errors.reportingManager = "Required";
   }
 

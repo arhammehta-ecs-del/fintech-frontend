@@ -12,7 +12,7 @@ import type {
   PermissionCategory,
   ValidationErrors,
 } from "@/features/user-management/types";
-import { PERMISSION_ACTIONS, getPermissionActionLabel } from "@/features/user-management/roleLabels";
+import { PERMISSION_ACTIONS, formatRoleTokenLabel, getPermissionActionLabel } from "@/features/user-management/roleLabels";
 import { getNodeAccentBackground, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
 
 type StepAccessRightsProps = {
@@ -193,6 +193,7 @@ function PermissionRow({
   variant,
   selectedChoice,
   occupiedChoice,
+  hasPrimarySelection = true,
   onToggle,
 }: {
   category: string;
@@ -202,6 +203,7 @@ function PermissionRow({
   variant: "primary" | "secondary";
   selectedChoice?: ActivePermissionSelection | null;
   occupiedChoice?: ActivePermissionSelection | null;
+  hasPrimarySelection?: boolean;
   onToggle: (category: string, itemKey: string, action: PermissionAction) => void;
 }) {
   return (
@@ -219,7 +221,8 @@ function PermissionRow({
               String(occupiedChoice.itemKey) === String(itemKey) &&
               occupiedChoice.action === action;
             const isPrimaryDisabled = variant === "primary" && Boolean(selectedChoice) && !isSelected;
-            const shouldDisable = isPrimaryDisabled || isOccupied;
+            const isSecondaryBlocked = variant === "secondary" && !hasPrimarySelection;
+            const shouldDisable = isPrimaryDisabled || isOccupied || isSecondaryBlocked;
             const isFilled = checked[action] || isSelected;
             const theme = getPermissionActionTheme(action);
             const Icon = theme.Icon;
@@ -250,6 +253,19 @@ function PermissionRow({
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="top">PRIMARY</TooltipContent>
+                </Tooltip>
+              );
+            }
+
+            if (isSecondaryBlocked) {
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex" aria-label={`${label} ${action} disabled until primary is selected`}>
+                      {button}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Select one PRIMARY right first</TooltipContent>
                 </Tooltip>
               );
             }
@@ -321,20 +337,14 @@ export function UserOnboardingStepAccessRights({
       if (!acc.has(role.category)) acc.set(role.category, new Map());
       const mods = acc.get(role.category)!;
       if (!mods.has(role.subCategory)) {
-        const label = role.subCategory
-          .split("_")
-          .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
-          .join(" ");
+        const label = formatRoleTokenLabel(role.subCategory);
         mods.set(role.subCategory, label);
       }
       return acc;
     }, new Map<string, Map<string, string>>()),
     ([category, mods]) => ({
       categoryKey: category,
-      label: category
-        .split("_")
-        .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
-        .join(" "),
+      label: formatRoleTokenLabel(category),
       items: Array.from(mods, ([key, label]) => ({ key, label })),
     }),
   );
@@ -359,6 +369,9 @@ export function UserOnboardingStepAccessRights({
     const buckets = nodePermissions[node.id];
     if (!buckets) return null;
     const primaryChoice = getPrimarySelection(buckets.primary);
+    const primarySelectedNodePrimaryChoice =
+      primarySelectedNode ? getPrimarySelection(nodePermissions[primarySelectedNode.id]?.primary ?? createInitialPermissions(roles)) : null;
+    const hasAnyPrimarySelection = Boolean(primarySelectedNodePrimaryChoice);
     const occupiedPrimaryChoice = node.id === primarySelectedNode?.id ? primaryChoice : null;
 
     return bucketKeys.map((bucketKey) => (
@@ -390,6 +403,7 @@ export function UserOnboardingStepAccessRights({
                       variant={bucketKey}
                       selectedChoice={selectedChoice}
                       occupiedChoice={occupiedChoice}
+                      hasPrimarySelection={bucketKey === "secondary" ? hasAnyPrimarySelection : Boolean(primaryChoice)}
                       onToggle={(cat, key, action) => onTogglePermission(node.id, bucketKey, cat, key, action)}
                     />
                   );
@@ -462,76 +476,83 @@ export function UserOnboardingStepAccessRights({
                   style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                 >
                   {selectedNodes.map((node, index) => (
-                    <div
-                      key={node.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        onSetExpandedAccessNodeIds((current) => current.includes(node.id) ? current : [...current, node.id]);
-                        onSetPrimaryNodeId(node.id);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          onSetExpandedAccessNodeIds((current) => current.includes(node.id) ? current : [...current, node.id]);
-                          onSetPrimaryNodeId(node.id);
-                        }
-                      }}
-                      onDragOver={(event) => {
-                        event.preventDefault();
-                        if (draggedNodeId && draggedNodeId !== node.id) {
-                          setDropTargetNodeId(node.id);
-                        }
-                      }}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        if (draggedNodeId && draggedNodeId !== node.id) {
-                          onReorderSelectedNodes(draggedNodeId, node.id);
-                        }
-                        setDraggedNodeId(null);
-                        setDropTargetNodeId(null);
-                      }}
-                      onDoubleClick={() => onSetInfoNodeId(infoNodeId === node.id ? null : node.id)}
-                      className={cn(
-                        "snap-start relative flex shrink-0 items-center gap-3 overflow-hidden rounded-xl border border-l-[4px] bg-white px-4 py-3 text-left shadow-sm transition-all",
-                        getNodeBorderLeftClass(node, branchMetaMap),
-                        getNodeSurfaceClass(node, branchMetaMap),
-                        draggedNodeId === node.id ? "opacity-50" : "",
-                        dropTargetNodeId === node.id ? "border-[rgb(53,83,233)] ring-2 ring-[rgb(53,83,233)]/10" : "",
-                        expandedAccessNodeIds.includes(node.id) ? "ring-1 ring-[rgb(53,83,233)]/15" : "",
-                      )}
-                    >
-                      <button
-                        type="button"
-                        draggable
-                        aria-label={`Drag ${node.name} to reorder`}
-                        onClick={(event) => event.stopPropagation()}
-                        onDragStart={(event) => {
-                          event.stopPropagation();
-                          setDraggedNodeId(node.id);
-                        }}
-                        onDragEnd={() => {
-                          setDraggedNodeId(null);
-                          setDropTargetNodeId(null);
-                        }}
-                        className="inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600 active:cursor-grabbing"
-                      >
-                        <GripVertical className="h-4 w-4" />
-                      </button>
-                      <div className={cn("flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold", getNodeBadgeClass(node, branchMetaMap))}>
-                        P{index + 1}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <div className="truncate text-sm font-semibold text-slate-800">{node.name}</div>
+                    (() => {
+                      const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
+                      return (
+                        <div
+                          key={node.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            onSetExpandedAccessNodeIds((current) => current.includes(node.id) ? current : [...current, node.id]);
+                            onSetPrimaryNodeId(node.id);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              onSetExpandedAccessNodeIds((current) => current.includes(node.id) ? current : [...current, node.id]);
+                              onSetPrimaryNodeId(node.id);
+                            }
+                          }}
+                          onDragOver={(event) => {
+                            event.preventDefault();
+                            if (draggedNodeId && draggedNodeId !== node.id) {
+                              setDropTargetNodeId(node.id);
+                            }
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            if (draggedNodeId && draggedNodeId !== node.id) {
+                              onReorderSelectedNodes(draggedNodeId, node.id);
+                            }
+                            setDraggedNodeId(null);
+                            setDropTargetNodeId(null);
+                          }}
+                          onDoubleClick={() => onSetInfoNodeId(infoNodeId === node.id ? null : node.id)}
+                          className={cn(
+                            "snap-start relative flex shrink-0 items-center gap-3 overflow-hidden rounded-xl border border-l-[4px] bg-white px-4 py-3 text-left shadow-sm transition-all",
+                            getNodeBorderLeftClass(node, branchMetaMap),
+                            getNodeSurfaceClass(node, branchMetaMap),
+                            draggedNodeId === node.id ? "opacity-50" : "",
+                            dropTargetNodeId === node.id ? "border-[rgb(53,83,233)] ring-2 ring-[rgb(53,83,233)]/10" : "",
+                            expandedAccessNodeIds.includes(node.id) ? "ring-1 ring-[rgb(53,83,233)]/15" : "",
+                          )}
+                        >
+                          <button
+                            type="button"
+                            draggable
+                            aria-label={`Drag ${node.name} to reorder`}
+                            onClick={(event) => event.stopPropagation()}
+                            onDragStart={(event) => {
+                              event.stopPropagation();
+                              setDraggedNodeId(node.id);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedNodeId(null);
+                              setDropTargetNodeId(null);
+                            }}
+                            className="inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600 active:cursor-grabbing"
+                          >
+                            <GripVertical className="h-4 w-4" />
+                          </button>
+                          <div className={cn("flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold", getNodeBadgeClass(node, branchMetaMap))}>
+                            P{index + 1}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <div className="truncate text-sm font-semibold text-slate-800">{node.name}</div>
+                            </div>
+                            {!isRoot && breadcrumbByNodeId.get(node.id) ? (
+                              <div className="truncate text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(node.id)}</div>
+                            ) : null}
+                            {!isRoot ? (
+                              <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{node.nodeType}</div>
+                            ) : null}
+                          </div>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
                         </div>
-                        {breadcrumbByNodeId.get(node.id) ? (
-                          <div className="truncate text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(node.id)}</div>
-                        ) : null}
-                        <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{node.nodeType}</div>
-                      </div>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-                    </div>
+                      );
+                    })()
                   ))}
                 </div>
 
@@ -559,6 +580,7 @@ export function UserOnboardingStepAccessRights({
                     const infoNode = selectedNodes.find((node) => node.id === infoNodeId);
                     if (!infoNode) return null;
                     const infoIndex = selectedNodes.findIndex((node) => node.id === infoNodeId);
+                    const isInfoRoot = infoNode.nodeType.trim().toUpperCase() === "ROOT";
 
                     return (
                       <div className="space-y-3">
@@ -569,10 +591,12 @@ export function UserOnboardingStepAccessRights({
                             </div>
                             <div>
                               <div className="text-sm font-semibold text-slate-800">{infoNode.name}</div>
-                              {breadcrumbByNodeId.get(infoNode.id) ? (
+                              {!isInfoRoot && breadcrumbByNodeId.get(infoNode.id) ? (
                                 <div className="text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(infoNode.id)}</div>
                               ) : null}
-                              <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{infoNode.nodeType}</div>
+                              {!isInfoRoot ? (
+                                <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{infoNode.nodeType}</div>
+                              ) : null}
                             </div>
                           </div>
                           <button
@@ -591,11 +615,11 @@ export function UserOnboardingStepAccessRights({
                           </div>
                           <div className="rounded-lg bg-slate-50 px-3 py-2">
                             <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Node Type</div>
-                            <div className="mt-1 font-semibold text-slate-700">{infoNode.nodeType}</div>
+                            <div className="mt-1 font-semibold text-slate-700">{isInfoRoot ? "-" : infoNode.nodeType}</div>
                           </div>
                           <div className="rounded-lg bg-slate-50 px-3 py-2">
                             <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Node Path</div>
-                            <div className="mt-1 break-all font-semibold text-slate-700">{infoNode.nodePath || "-"}</div>
+                            <div className="mt-1 break-all font-semibold text-slate-700">{isInfoRoot ? "-" : (infoNode.nodePath || "-")}</div>
                           </div>
                         </div>
                       </div>
@@ -661,12 +685,14 @@ export function UserOnboardingStepAccessRights({
                       </div>
                       <div className="min-w-0">
                         <div className="truncate text-sm font-semibold text-slate-800">{primarySelectedNode.name}</div>
-                        {breadcrumbByNodeId.get(primarySelectedNode.id) ? (
+                        {primarySelectedNode.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(primarySelectedNode.id) ? (
                           <div className="truncate text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(primarySelectedNode.id)}</div>
                         ) : null}
-                        <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
-                          {primarySelectedNode.nodeType}
-                        </div>
+                        {primarySelectedNode.nodeType.trim().toUpperCase() !== "ROOT" ? (
+                          <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
+                            {primarySelectedNode.nodeType}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                     <ChevronRight className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", expandedAccessNodeIds.includes(primarySelectedNode.id) ? "rotate-90" : "")} />
@@ -727,12 +753,14 @@ export function UserOnboardingStepAccessRights({
                             </div>
                             <div className="min-w-0">
                               <div className="truncate text-sm font-semibold text-slate-800">{node.name}</div>
-                              {breadcrumbByNodeId.get(node.id) ? (
+                              {node.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(node.id) ? (
                                 <div className="truncate text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(node.id)}</div>
                               ) : null}
-                              <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
-                                {node.nodeType}
-                              </div>
+                              {node.nodeType.trim().toUpperCase() !== "ROOT" ? (
+                                <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
+                                  {node.nodeType}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                           <ChevronRight className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", isExpanded ? "rotate-90" : "")} />

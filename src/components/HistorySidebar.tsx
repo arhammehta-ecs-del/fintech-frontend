@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calendar, CheckCircle2, ChevronDown, Clock, History, ShieldCheck, X } from "lucide-react";
+import { Calendar, ChevronDown, Clock, History, ShieldCheck, X } from "lucide-react";
 
 export type HistoryStatus = "pending" | "approved";
 
@@ -19,6 +19,8 @@ export type HistoryEntry = {
   };
   approver?: {
     name: string;
+    email?: string;
+    date?: string;
     time: string;
   };
   status: HistoryStatus;
@@ -67,52 +69,55 @@ export const formatDateParts = (isoLike?: string) => {
 
 function StatusHeader({ item }: { item: HistoryEntry }) {
   return (
-    <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
+    <div className="mb-3 flex items-center border-b border-slate-100 pb-3">
       {item.status === "pending" ? (
         <div className="flex items-center gap-1.5 rounded border border-amber-200/50 bg-amber-50 px-2 py-1 text-amber-700">
           <Clock className="h-3 w-3" />
-          <span className="text-[10px] font-bold uppercase tracking-tight">Pending Approval</span>
+          <span className="text-[10px] font-bold uppercase tracking-tight">Pending Request</span>
         </div>
       ) : (
         <div className="flex items-center gap-1.5 rounded border border-emerald-200/50 bg-emerald-50 px-2 py-1 text-emerald-700">
           <ShieldCheck className="h-3 w-3" />
-          <span className="text-[10px] font-bold uppercase tracking-tight">Approved: {item.approver?.name ?? "Checker"}</span>
+          <span className="text-[10px] font-bold uppercase tracking-tight">Approved</span>
         </div>
       )}
-
-      <div className="flex items-center gap-1.5 text-slate-400">
-        {item.status === "approved" ? (
-          <span className="flex items-center gap-1 text-[10px] font-medium tracking-tight">
-            <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-            {item.approver?.time ?? "-"}
-          </span>
-        ) : (
-          <span className="text-[10px] font-medium tracking-tight text-amber-600/70">Awaiting</span>
-        )}
-      </div>
     </div>
   );
 }
 
-function InitiatorFooter({ initiator }: { initiator: HistoryEntry["initiator"] }) {
+function ActorFooter({ item }: { item: HistoryEntry }) {
+  const actor = item.status === "approved" && item.approver?.name
+    ? {
+      name: item.approver.name,
+      email: item.approver.email || item.initiator.email,
+      initials: getInitials(item.approver.name),
+      date: item.approver.date || item.initiator.date,
+      time: item.approver.time || item.initiator.time,
+    }
+    : {
+      name: item.initiator.name,
+      email: item.initiator.email,
+      initials: item.initiator.initials,
+      date: item.initiator.date,
+      time: item.initiator.time,
+    };
+
   return (
     <div className="-mx-4 -mb-4 mt-4 flex items-center justify-between rounded-b-[14px] border-t border-slate-100 bg-slate-50/50 px-4 pb-4 pt-3">
       <div className="flex items-center gap-2.5">
         <div className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-[9px] font-bold text-slate-600 shadow-sm">
-          {initiator.initials}
+          {actor.initials}
         </div>
         <div className="flex flex-col">
-          <span className="text-[11px] font-semibold leading-tight text-slate-900">{initiator.name}</span>
-          <span className="text-[9.5px] text-slate-500">{initiator.email}</span>
+          <span className="text-[11px] font-semibold leading-tight text-slate-900">{actor.name}</span>
+          <span className="text-[9.5px] text-slate-500">{actor.email}</span>
         </div>
       </div>
 
-      <div className="flex flex-col items-end gap-1">
-        <span className="text-[8.5px] font-bold uppercase tracking-widest text-slate-400">Initiated</span>
+      <div className="flex flex-col items-end">
         <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600">
-          <span className="flex items-center gap-1"><Calendar className="h-3 w-3 text-slate-400" /> {initiator.date}</span>
-          <span className="text-slate-300">-</span>
-          <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-slate-400" /> {initiator.time}</span>
+          <span className="flex items-center gap-1"><Calendar className="h-3 w-3 text-slate-400" /> {actor.date}</span>
+          <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-slate-400" /> {actor.time}</span>
         </div>
       </div>
     </div>
@@ -157,7 +162,7 @@ function MilestoneTimeline({ data }: { data: HistoryEntry[] }) {
                 <h4 className="mb-1.5 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
                 <p className="text-[11.5px] leading-relaxed text-slate-600">{item.details}</p>
               </div>
-              <InitiatorFooter initiator={item.initiator} />
+              <ActorFooter item={item} />
             </div>
           </div>
         ))}

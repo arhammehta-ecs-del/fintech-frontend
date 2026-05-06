@@ -14,6 +14,7 @@ type RolesApiResponse = {
 };
 
 export type RoleRecord = {
+  roleName: string;
   roleCode: string;
   category: string;
   subCategory: string;
@@ -38,6 +39,7 @@ export async function getCompanyRoles(companyCode: string): Promise<RoleRecord[]
 
   return roles
     .map((role) => ({
+      roleName: getPacketString(role.roleName),
       roleCode: `${getPacketString(role.subCategory).toUpperCase()}_${getPacketString(role.permissionLevel).toUpperCase()}`,
       category: getPacketString(role.category).toUpperCase(),
       subCategory: getPacketString(role.subCategory).toUpperCase(),

@@ -135,7 +135,7 @@ export default function WorkflowStepInputs({
 
           <div className="space-y-2 group">
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.14em] group-focus-within:text-blue-600 transition-colors">
-              Department
+              Node Name
             </label>
             <div className="relative">
               <div className="absolute left-4 top-1/2 -translate-y-1/2 transition-transform group-focus-within:scale-110">
@@ -143,7 +143,7 @@ export default function WorkflowStepInputs({
               </div>
               <Select value={wfNode} onValueChange={onSetWfNode}>
                 <SelectTrigger className="h-[50px] rounded-xl border-slate-200 bg-white pl-11 pr-10 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-50">
-                  <SelectValue placeholder="Select department" />
+                  <SelectValue placeholder="Select node name" />
                 </SelectTrigger>
                 <SelectContent>
                   {departmentOptions.map((option) => (

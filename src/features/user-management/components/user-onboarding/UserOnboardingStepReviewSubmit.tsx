@@ -4,14 +4,8 @@ import { Button } from "@/components/ui/button";
 import type { OrgNode } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
 import type { UserOnboardingFormData, NodePermissionBuckets, UserOnboardingPermissions } from "@/features/user-management/types";
-import { getPermissionActionLabelFromText } from "@/features/user-management/roleLabels";
+import { formatRoleTokenLabel, getPermissionActionLabelFromText } from "@/features/user-management/roleLabels";
 import { getNodeAccentBackground, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
-
-const formatKey = (key: string) =>
-  key
-    .split("_")
-    .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
 
 type StepReviewSubmitProps = {
   orgStructure: OrgNode | null;
@@ -230,7 +224,8 @@ function NodePermissionCard({
   onClose?: () => void;
 }) {
   const selectedSections = getSelectedSections(permissions);
-  const parentSubtitle = breadcrumbByNodeId.get(node.id) || "";
+  const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
+  const parentSubtitle = isRoot ? "" : breadcrumbByNodeId.get(node.id) || "";
 
   return (
     <div
@@ -249,16 +244,16 @@ function NodePermissionCard({
           <X className="h-3.5 w-3.5" />
         </button>
       ) : null}
-      <div className="mb-3 flex items-center gap-3">
-        <div className={cn("flex h-9 w-9 items-center justify-center rounded-full border text-xs font-bold", getNodeBadgeClass(node, branchMetaMap))}>
-          {badgeLabel}
+        <div className="mb-3 flex items-center gap-3">
+          <div className={cn("flex h-9 w-9 items-center justify-center rounded-full border text-xs font-bold", getNodeBadgeClass(node, branchMetaMap))}>
+            {badgeLabel}
+          </div>
+          <div>
+            <div className="text-[18px] font-semibold leading-tight text-slate-800">{node.name}</div>
+            {!isRoot && parentSubtitle ? <div className="text-[11px] font-medium text-slate-500">{parentSubtitle}</div> : null}
+            {!isRoot ? <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{node.nodeType}</div> : null}
+          </div>
         </div>
-        <div>
-          <div className="text-[18px] font-semibold leading-tight text-slate-800">{node.name}</div>
-          {parentSubtitle ? <div className="text-[11px] font-medium text-slate-500">{parentSubtitle}</div> : null}
-          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{node.nodeType}</div>
-        </div>
-      </div>
 
       <div className="space-y-2.5 rounded-xl bg-slate-50/30 p-3">
         {selectedSections.length === 0 ? (
@@ -267,13 +262,13 @@ function NodePermissionCard({
           selectedSections.map((section) => (
             <div key={`${node.id}-${section.categoryKey}`} className="space-y-2">
               <div className="border-b border-slate-200 pb-1 text-[11px] font-black uppercase tracking-widest text-slate-500">
-                {formatKey(section.categoryKey)}
+                {formatRoleTokenLabel(section.categoryKey)}
               </div>
               {section.selectedItems.map((item) => {
                 const orderedLabels = getOrderedPermissionLabels(item.activeRights);
                 return (
                   <div key={`${node.id}-${section.categoryKey}-${item.itemKey}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 text-sm leading-[1.35]">
-                    <span className="min-w-0 truncate pt-0.5 pr-1 font-medium text-slate-600">{formatKey(item.itemKey)}</span>
+                    <span className="min-w-0 truncate pt-0.5 pr-1 font-medium text-slate-600">{formatRoleTokenLabel(item.itemKey)}</span>
                     <span className="flex max-w-[360px] flex-wrap justify-end gap-2">
                       {orderedLabels.map((label) => {
                         const theme = getPermissionBadgeTheme(label);
@@ -504,7 +499,7 @@ export function UserOnboardingStepReviewSubmit({
                         onClose={() => setCollapsedFocusedNodeId(null)}
                       />
                     ) : (
-                      <button
+                  <button
                         type="button"
                         onClick={() => {
                           setCollapsedFocusedNodeId("primary");
@@ -521,10 +516,12 @@ export function UserOnboardingStepReviewSubmit({
                         </div>
                         <div className="min-w-0">
                           <div className="truncate text-xs font-semibold text-slate-700">{primaryNode.name}</div>
-                          {breadcrumbByNodeId.get(primaryNode.id) ? (
+                          {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(primaryNode.id) ? (
                             <div className="truncate text-[10px] font-medium text-slate-500">{breadcrumbByNodeId.get(primaryNode.id)}</div>
                           ) : null}
-                          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{primaryNode.nodeType}</div>
+                          {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" ? (
+                            <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{primaryNode.nodeType}</div>
+                          ) : null}
                         </div>
                         <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
                       </button>
@@ -574,10 +571,12 @@ export function UserOnboardingStepReviewSubmit({
                         </div>
                         <div className="min-w-0">
                           <div className="truncate text-xs font-semibold text-slate-700">{node.name}</div>
-                          {breadcrumbByNodeId.get(node.id) ? (
+                          {node.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(node.id) ? (
                             <div className="truncate text-[10px] font-medium text-slate-500">{breadcrumbByNodeId.get(node.id)}</div>
                           ) : null}
-                          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</div>
+                          {node.nodeType.trim().toUpperCase() !== "ROOT" ? (
+                            <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</div>
+                          ) : null}
                         </div>
                         <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
                       </button>

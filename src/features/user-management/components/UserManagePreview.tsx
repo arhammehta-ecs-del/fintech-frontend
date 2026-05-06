@@ -419,6 +419,7 @@ export function UserManagePreview({
   const secondaryByNode = groupByNode(secondaryItems);
   const primaryEntries = useMemo(() => Object.entries(primaryByNode), [primaryByNode]);
   const secondaryEntries = useMemo(() => Object.entries(secondaryByNode), [secondaryByNode]);
+  const hasGlobalAccess = primaryEntries.length === 0 && secondaryEntries.length === 0;
 
   const isRemarkValid = Boolean(pendingRemark.trim());
   const showRemarkError = remarkTouched && !isRemarkValid;
@@ -574,10 +575,17 @@ export function UserManagePreview({
             {isExpanded ? (
               <div className="space-y-6">
                 <div className="rounded-2xl border border-indigo-200 bg-[#DDE6FF] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
-                  <div className="grid items-stretch grid-cols-1 gap-3 xl:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
+                  <div
+                    className={cn(
+                      "grid items-stretch grid-cols-1 gap-3",
+                      hasGlobalAccess
+                        ? "xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]"
+                        : "xl:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]",
+                    )}
+                  >
                     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100/70">
-                      <div className="mb-3 border-b border-slate-200 pb-2 text-[12px] font-black uppercase tracking-widest text-slate-600">
-                        Basic Details
+                      <div className="mb-3 border-b border-slate-200 pb-2">
+                        <span className="text-[12px] font-black uppercase tracking-widest text-slate-600">Basic Details</span>
                       </div>
                       <div className="space-y-2.5 text-sm">
                         <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
@@ -613,28 +621,41 @@ export function UserManagePreview({
                       </div>
                     </div>
 
-                    <div className="flex h-full min-h-[248px] flex-col space-y-2.5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100/70">
-                      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                        <span className="h-2.5 w-2.5 rounded-full bg-[#4F46E5]" />
-                        <span className="text-[12px] font-extrabold uppercase tracking-widest text-[#4F46E5]">Primary Access</span>
-                      </div>
-                      {Object.keys(primaryByNode).length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-4 text-sm text-slate-400">
-                          No primary access configured.
+                    {hasGlobalAccess ? (
+                      <div className="flex h-full min-h-[248px] flex-col rounded-xl border border-emerald-200 bg-white p-4 shadow-sm ring-1 ring-emerald-100/70">
+                        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/30 p-4">
+                          <span className="inline-flex h-20 w-20 items-center justify-center rounded-3xl border border-emerald-200 bg-white text-emerald-700 shadow-[0_10px_24px_rgba(16,185,129,0.18)]">
+                            <ShieldCheck className="h-9 w-9" />
+                          </span>
+                          <span className="text-sm font-extrabold uppercase tracking-[0.12em] text-emerald-700">
+                            Global Access
+                          </span>
                         </div>
-                      ) : (
-                        Object.entries(primaryByNode).map(([key, group], idx) => (
-                          <NodeAccessCard
-                            key={key}
-                            nodeName={group.nodeName}
-                            parentSubtitle={group.parentSubtitle}
-                            nodeIndex={idx}
-                            categories={group.categories}
-                            isPrimary
-                          />
-                        ))
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-full min-h-[248px] flex-col space-y-2.5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100/70">
+                        <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-[#4F46E5]" />
+                          <span className="text-[12px] font-extrabold uppercase tracking-widest text-[#4F46E5]">Primary Access</span>
+                        </div>
+                        {Object.keys(primaryByNode).length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-4 text-sm text-slate-400">
+                            No primary access configured.
+                          </div>
+                        ) : (
+                          Object.entries(primaryByNode).map(([key, group], idx) => (
+                            <NodeAccessCard
+                              key={key}
+                              nodeName={group.nodeName}
+                              parentSubtitle={group.parentSubtitle}
+                              nodeIndex={idx}
+                              categories={group.categories}
+                              isPrimary
+                            />
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-3 rounded-xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100/70">
@@ -653,38 +674,45 @@ export function UserManagePreview({
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-slate-400" />
-                    <span className="text-[12px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
+                {!hasGlobalAccess ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-slate-400" />
+                      <span className="text-[12px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
+                    </div>
+                    {Object.keys(secondaryByNode).length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-sm text-slate-400">
+                        No secondary access assigned.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                        {Object.entries(secondaryByNode).map(([key, group], idx) => (
+                          <NodeAccessCard
+                            key={key}
+                            nodeName={group.nodeName}
+                            parentSubtitle={group.parentSubtitle}
+                            nodeIndex={idx}
+                            categories={group.categories}
+                            isPrimary={false}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {Object.keys(secondaryByNode).length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-sm text-slate-400">
-                      No secondary access assigned.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                      {Object.entries(secondaryByNode).map(([key, group], idx) => (
-                        <NodeAccessCard
-                          key={key}
-                          nodeName={group.nodeName}
-                          parentSubtitle={group.parentSubtitle}
-                          nodeIndex={idx}
-                          categories={group.categories}
-                          isPrimary={false}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                ) : null}
               </div>
             ) : (
               /* COLLAPSED — matches StepReviewSubmit collapsed style */
               <div className="space-y-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-3.5">
                 <div className="rounded-2xl border border-indigo-200 bg-[#DDE6FF] px-3 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
                   <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm ring-1 ring-slate-100/70">
-                    <div className="mb-2 border-b border-slate-200 pb-1.5 text-[11px] font-black uppercase tracking-widest text-slate-600">
-                      Basic Details
+                    <div className="mb-2 flex items-center justify-between border-b border-slate-200 pb-1.5">
+                      <span className="text-[11px] font-black uppercase tracking-widest text-slate-600">Basic Details</span>
+                      {hasGlobalAccess ? (
+                        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700">
+                          Global Access
+                        </span>
+                      ) : null}
                     </div>
                     <div className="space-y-1.5 text-sm">
                       <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
@@ -729,104 +757,106 @@ export function UserManagePreview({
                       </div>
                     </div>
                   </div>
-                  {/* Primary collapsed */}
-                  <div className="mt-3 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-blue-500" />
-                      <span className="text-[12px] font-black uppercase tracking-widest text-blue-600">Primary Access</span>
+                  {!hasGlobalAccess ? (
+                    <div className="mt-3 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-blue-500" />
+                        <span className="text-[12px] font-black uppercase tracking-widest text-blue-600">Primary Access</span>
+                      </div>
+                      {primaryEntries.length === 0 ? (
+                        <div className="text-xs text-slate-400">No primary access configured.</div>
+                      ) : (
+                        primaryEntries.map(([key, group], idx) => {
+                          const focused = collapsedFocusedKey === `p:${key}`;
+                          return (
+                            <div key={key}>
+                              {focused ? (
+                                <NodeAccessCard
+                                  nodeName={group.nodeName}
+                                  parentSubtitle={group.parentSubtitle}
+                                  nodeIndex={idx}
+                                  categories={group.categories}
+                                  isPrimary
+                                  onClose={() => setCollapsedFocusedKey(null)}
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setCollapsedFocusedKey(`p:${key}`)}
+                                  className={cn(
+                                    "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
+                                    getNodeEdgeBorderClass(idx, true),
+                                    getNodeHoverClass(idx, true),
+                                  )}
+                                >
+                                  <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", getNodeBadgeClass(idx, true))}>
+                                    P{idx + 1}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="truncate text-sm font-semibold text-slate-700">{group.nodeName}</div>
+                                    {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
+                                  </div>
+                                  <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
-                    {primaryEntries.length === 0 ? (
-                      <div className="text-xs text-slate-400">No primary access configured.</div>
-                    ) : (
-                      primaryEntries.map(([key, group], idx) => {
-                        const focused = collapsedFocusedKey === `p:${key}`;
-                        return (
-                          <div key={key}>
-                            {focused ? (
-                              <NodeAccessCard
-                                nodeName={group.nodeName}
-                                parentSubtitle={group.parentSubtitle}
-                                nodeIndex={idx}
-                                categories={group.categories}
-                                isPrimary
-                                onClose={() => setCollapsedFocusedKey(null)}
-                              />
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setCollapsedFocusedKey(`p:${key}`)}
-                                className={cn(
-                                  "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
-                                  getNodeEdgeBorderClass(idx, true),
-                                  getNodeHoverClass(idx, true),
-                                )}
-                              >
-                                <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", getNodeBadgeClass(idx, true))}>
-                                  P{idx + 1}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="truncate text-sm font-semibold text-slate-700">{group.nodeName}</div>
-                                  {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
-                                </div>
-                                <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                  ) : null}
                 </div>
 
-                {/* Secondary collapsed */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-slate-400" />
-                    <span className="text-[12px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
-                  </div>
-                  {secondaryEntries.length === 0 ? (
-                    <div className="text-xs text-slate-400">No secondary access assigned.</div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                      {secondaryEntries.map(([key, group], idx) => {
-                        const focused = collapsedFocusedKey === `s:${key}`;
-                        return (
-                          <div key={key}>
-                            {focused ? (
-                              <NodeAccessCard
-                                nodeName={group.nodeName}
-                                parentSubtitle={group.parentSubtitle}
-                                nodeIndex={idx}
-                                categories={group.categories}
-                                isPrimary={false}
-                                onClose={() => setCollapsedFocusedKey(null)}
-                              />
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setCollapsedFocusedKey(`s:${key}`)}
-                                className={cn(
-                                  "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
-                                  getNodeEdgeBorderClass(idx, false),
-                                  getNodeHoverClass(idx, false),
-                                )}
-                              >
-                                <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", getNodeBadgeClass(idx, false))}>
-                                  S{idx + 1}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="truncate text-sm font-semibold text-slate-700">{group.nodeName}</div>
-                                  {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
-                                </div>
-                                <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
+                {!hasGlobalAccess ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-slate-400" />
+                      <span className="text-[12px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
                     </div>
-                  )}
-                </div>
+                    {secondaryEntries.length === 0 ? (
+                      <div className="text-xs text-slate-400">No secondary access assigned.</div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                        {secondaryEntries.map(([key, group], idx) => {
+                          const focused = collapsedFocusedKey === `s:${key}`;
+                          return (
+                            <div key={key}>
+                              {focused ? (
+                                <NodeAccessCard
+                                  nodeName={group.nodeName}
+                                  parentSubtitle={group.parentSubtitle}
+                                  nodeIndex={idx}
+                                  categories={group.categories}
+                                  isPrimary={false}
+                                  onClose={() => setCollapsedFocusedKey(null)}
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setCollapsedFocusedKey(`s:${key}`)}
+                                  className={cn(
+                                    "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
+                                    getNodeEdgeBorderClass(idx, false),
+                                    getNodeHoverClass(idx, false),
+                                  )}
+                                >
+                                  <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", getNodeBadgeClass(idx, false))}>
+                                    S{idx + 1}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="truncate text-sm font-semibold text-slate-700">{group.nodeName}</div>
+                                    {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
+                                  </div>
+                                  <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
 
               </div>
             )}

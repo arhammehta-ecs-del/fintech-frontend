@@ -1,4 +1,5 @@
 import { Check, ChevronRight, Building2 } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -46,6 +47,13 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
     prevStep,
     handlePrimaryAction,
   } = useUserOnboardingForm({ open, onOpenChange, onSubmit });
+  const stepContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    if (Object.keys(errors).length === 0) return;
+    stepContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [errors, open, step]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -113,6 +121,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
 
           <Card className="flex min-h-0 flex-1 overflow-hidden border-slate-200 shadow-sm">
             <CardContent
+              ref={stepContainerRef}
               className={cn(
                 step === 4 ? "min-h-0 flex-1 overflow-hidden" : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden",
                 step === 1

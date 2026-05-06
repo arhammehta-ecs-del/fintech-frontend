@@ -7,7 +7,7 @@ type WorkflowStepSummaryProps = {
   wfName: string;
   wfAlias: string;
   moduleLabel: string;
-  departmentLabel: string;
+  nodeNameLabel: string;
   levels: WorkflowLevel[];
   visibleLevels: number;
 };
@@ -38,7 +38,7 @@ export default function WorkflowStepSummary({
   wfName,
   wfAlias,
   moduleLabel,
-  departmentLabel,
+  nodeNameLabel,
   levels,
   visibleLevels,
 }: WorkflowStepSummaryProps) {
@@ -49,7 +49,7 @@ export default function WorkflowStepSummary({
           <HorizontalInfo label="Workflow Name" value={wfName} icon={<Zap className="h-3 w-3.5 text-blue-500" />} />
           <HorizontalInfo label="Process Alias" value={wfAlias} icon={<Layers className="h-3 w-3.5 text-purple-500" />} className="pt-3 md:pl-6 md:pt-0" />
           <HorizontalInfo label="Module" value={moduleLabel} icon={<Briefcase className="h-3 w-3.5 text-indigo-500" />} className="pt-3 md:pl-6 md:pt-0" />
-          <HorizontalInfo label="Department" value={departmentLabel} icon={<Building2 className="h-3 w-3.5 text-emerald-500" />} className="pt-3 md:pl-6 md:pt-0" />
+          <HorizontalInfo label="Node Name" value={nodeNameLabel} icon={<Building2 className="h-3 w-3.5 text-emerald-500" />} className="pt-3 md:pl-6 md:pt-0" />
         </div>
       </div>
 

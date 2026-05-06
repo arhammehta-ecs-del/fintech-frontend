@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import HistorySidebar, { formatDateParts, getInitials, type HistoryEntry } from "@/components/HistorySidebar";
+import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/services/client";
 import { fetchOrgHistory } from "@/services/org.service";
 
 type OrgHistorySidebarProps = {
@@ -44,8 +46,8 @@ const mapOrgHistoryEntry = (item: unknown, subtitle: string, index: number): His
     day,
     action,
     details: nodeName
-      ? `${action} event recorded for node ${nodeName} in ${subtitle || "organisation structure"}.`
-      : `${action} event recorded for ${subtitle || "organisation structure"}.`,
+      ? `event recorded for node ${nodeName} in ${subtitle || "organisation structure"}.`
+      : `event recorded for ${subtitle || "organisation structure"}.`,
     initiator: {
       name: initiatorName,
       email: initiatorEmail,
@@ -59,6 +61,7 @@ const mapOrgHistoryEntry = (item: unknown, subtitle: string, index: number): His
 
 export default function OrgHistorySidebar({ isOpen, onClose, companyCode, subtitle }: OrgHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!isOpen || !companyCode.trim()) {
@@ -76,7 +79,8 @@ export default function OrgHistorySidebar({ isOpen, onClose, companyCode, subtit
           : [];
         setHistoryData(mappedHistory);
       } catch (error) {
-        console.error("Failed to fetch org history:", error);
+        const message = getApiErrorMessage(error, "Failed to fetch org history.");
+        toast({ title: "Unable to load org history", description: message, variant: "destructive" });
       }
     };
 
@@ -84,7 +88,7 @@ export default function OrgHistorySidebar({ isOpen, onClose, companyCode, subtit
     return () => {
       isMounted = false;
     };
-  }, [isOpen, companyCode, subtitle]);
+  }, [isOpen, companyCode, subtitle, toast]);
 
   return (
     <HistorySidebar
@@ -96,4 +100,3 @@ export default function OrgHistorySidebar({ isOpen, onClose, companyCode, subtit
     />
   );
 }
-

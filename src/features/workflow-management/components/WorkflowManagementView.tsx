@@ -1,173 +1,48 @@
-import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, Search, Settings, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { fetchWorkflows, updateWorkflowAction } from "@/services/workflow.service";
-import WorkflowConfigurationView from "@/features/workflow-management/components/WorkflowConfigurationView";
+import WorkflowOnboardingView from "@/features/workflow-management/components/WorkflowOnboardingView";
 import WorkflowHistorySidebar from "./WorkflowHistorySidebar";
 import { History } from "lucide-react";
 import WorkflowManageDialog from "./WorkflowManageDialog";
-
-type WorkflowStatus = "Active" | "Pending";
-
-export type WorkflowRecord = {
-  id: string;
-  name: string;
-  alias: string;
-  module: string;
-  department: string;
-  subModule: string;
-  nodePath: string;
-  levels: unknown;
-  approvalRemark?: string;
-  status: WorkflowStatus;
-};
-
-type RawWorkflowRecord = Record<string, unknown>;
-
-const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
-const toRecord = (value: unknown): RawWorkflowRecord =>
-  typeof value === "object" && value !== null ? (value as RawWorkflowRecord) : {};
-
-const getNodeLabelFromPath = (nodePath: string) => {
-  const segments = nodePath.split(".").map((segment) => segment.trim()).filter(Boolean);
-  const last = segments[segments.length - 1] || "";
-  return last
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-};
-
-const formatNodeType = (value: string) =>
-  value
-    .trim()
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-
-const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): WorkflowRecord => {
-  const record = toRecord(item);
-  const payload = toRecord(record.data);
-  const orgStructure = toRecord(record.orgStructure);
-
-  const id =
-    readString(record.id) ||
-    readString(record.workflowId) ||
-    readString(record.requestId) ||
-    readString(payload.id) ||
-    readString(payload.workflowId);
-  const name = readString(record.name) || readString(payload.name) || "Unknown";
-  const alias = readString(record.alias) || readString(payload.alias) || "-";
-  const moduleName = readString(record.module) || readString(payload.module) || "Unknown";
-  const nodePath =
-    readString(record.nodePath) ||
-    readString(orgStructure.nodePath) ||
-    readString(payload.nodePath);
-  const subModule = readString(record.subModule) || readString(payload.subModule);
-  const nodeType = readString(record.nodeType) || readString(orgStructure.nodeType) || readString(payload.nodeType);
-  const department =
-    readString(record.department) ||
-    (nodeType ? formatNodeType(nodeType) : "") ||
-    readString(orgStructure.nodeName) ||
-    (nodePath ? getNodeLabelFromPath(nodePath) : subModule || "Unknown");
-  const levels = record.levels ?? payload.levels ?? [];
-
-  return {
-    id,
-    name,
-    alias,
-    module: moduleName,
-    department,
-    subModule,
-    nodePath,
-    levels,
-    approvalRemark: readString(record.approvalRemark),
-    status,
-  };
-};
-
-
+import type { WorkflowPageSize } from "@/features/workflow-management/types/workflow.types";
+import { useWorkflowManagement } from "@/features/workflow-management/hooks/useWorkflowManagement";
+import { cn } from "@/lib/utils";
 
 const tabClassName =
   "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:shadow-sm";
-const WORKFLOW_PAGE_SIZE_OPTIONS = [10, 15, 25] as const;
-type WorkflowPageSize = (typeof WORKFLOW_PAGE_SIZE_OPTIONS)[number];
 
 export default function WorkflowManagementView() {
-  const [activeStatus, setActiveStatus] = useState<WorkflowStatus>("Active");
-  const [search, setSearch] = useState("");
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<WorkflowPageSize>(15);
-  const [historyWorkflow, setHistoryWorkflow] = useState<WorkflowRecord | null>(null);
-  const [manageWorkflow, setManageWorkflow] = useState<WorkflowRecord | null>(null);
+  const {
+    WORKFLOW_PAGE_SIZE_OPTIONS,
+    activeStatus,
+    setActiveStatus,
+    search,
+    setSearch,
+    addDialogOpen,
+    setAddDialogOpen,
+    pageSize,
+    setPageSize,
+    setPage,
+    historyWorkflow,
+    setHistoryWorkflow,
+    manageWorkflow,
+    setManageWorkflow,
+    filteredWorkflows,
+    paginatedWorkflows,
+    safePage,
+    totalPages,
+    statusCounts,
+    loadWorkflows,
+    handleWorkflowAction,
+  } = useWorkflowManagement();
 
-  const [workflows, setWorkflows] = useState<WorkflowRecord[]>([]);
-
-  const loadWorkflows = async () => {
-    const response = await fetchWorkflows();
-    if (!response?.data) return;
-
-    const activeWorkflows = Array.isArray(response.data.active)
-      ? response.data.active.map((w: unknown) => mapWorkflowRecord(w, "Active"))
-      : [];
-
-    const pendingWorkflows = Array.isArray(response.data.pending)
-      ? response.data.pending.map((w: unknown) => mapWorkflowRecord(w, "Pending"))
-      : [];
-
-    setWorkflows([...activeWorkflows, ...pendingWorkflows]);
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-    const safeLoadWorkflows = async () => {
-      try {
-        await loadWorkflows();
-      } catch (error) {
-        if (!isMounted) return;
-        console.error("Failed to fetch workflows:", error);
-      }
-    };
-    void safeLoadWorkflows();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const handleWorkflowAction = async (workflow: WorkflowRecord, action: "approve" | "reject", remark: string) => {
-    if (!workflow.id) {
-      console.error("Missing workflow id for action:", workflow);
-      return;
-    }
-    await updateWorkflowAction(workflow.id, action, remark);
-    await loadWorkflows();
-  };
-
-  const filteredWorkflows = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return workflows.filter((workflow) => {
-      if (workflow.status !== activeStatus) return false;
-      if (!query) return true;
-      return [workflow.name, workflow.alias, workflow.module, workflow.department]
-        .join(" ")
-        .toLowerCase()
-        .includes(query);
-    });
-  }, [activeStatus, search, workflows]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [activeStatus, search, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredWorkflows.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const paginatedWorkflows = useMemo(() => {
-    const start = (safePage - 1) * pageSize;
-    return filteredWorkflows.slice(start, start + pageSize);
-  }, [filteredWorkflows, safePage, pageSize]);
+  const visibleTabs = [
+    { id: "Active" as const, label: "Active", count: statusCounts.active },
+    ...(statusCounts.pending > 0 ? [{ id: "Pending" as const, label: "Pending", count: statusCounts.pending }] : []),
+  ];
 
   return (
     <div className="space-y-4">
@@ -178,7 +53,7 @@ export default function WorkflowManagementView() {
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by workflow, alias, module, or department..."
+              placeholder="Search by workflow, alias, module, or node name..."
               className="pl-9 pr-9"
             />
             {search ? (
@@ -195,22 +70,27 @@ export default function WorkflowManagementView() {
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex w-fit items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
-              <button
-                type="button"
-                data-active={activeStatus === "Active"}
-                className={tabClassName}
-                onClick={() => setActiveStatus("Active")}
-              >
-                Active
-              </button>
-              <button
-                type="button"
-                data-active={activeStatus === "Pending"}
-                className={tabClassName}
-                onClick={() => setActiveStatus("Pending")}
-              >
-                Pending
-              </button>
+              {visibleTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  data-active={activeStatus === tab.id}
+                  className={tabClassName}
+                  onClick={() => setActiveStatus(tab.id)}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span>{tab.label}</span>
+                    <span
+                      className={cn(
+                        "inline-flex min-w-7 items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                        activeStatus === tab.id ? "bg-white/15 text-white ring-1 ring-white/20" : "bg-white text-slate-500 border border-slate-200",
+                      )}
+                    >
+                      {tab.count}
+                    </span>
+                  </span>
+                </button>
+              ))}
             </div>
 
             <Button className="w-full lg:w-auto" onClick={() => setAddDialogOpen(true)}>
@@ -226,28 +106,30 @@ export default function WorkflowManagementView() {
           <div className="p-8 text-sm text-slate-500">No {activeStatus.toLowerCase()} workflows available.</div>
         ) : (
           <div>
-            <div className="grid grid-cols-1 gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-3 md:grid-cols-6 md:items-center">
+            <div className="grid grid-cols-1 gap-2 border-b border-slate-200 bg-slate-50/60 px-4 py-3 md:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.75fr)_minmax(110px,0.55fr)_minmax(96px,0.45fr)] md:items-center md:gap-x-4">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Workflow</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Alias</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Module</div>
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Department</div>
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 md:text-right">Status</div>
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 text-center">Manage</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Node Name</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Type</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Status</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 md:text-center">Manage</div>
             </div>
 
             <div className="divide-y divide-slate-100">
               {paginatedWorkflows.map((workflow) => (
-                <div key={workflow.id} className="grid grid-cols-1 gap-3 p-4 md:grid-cols-6 md:items-center">
+                <div key={workflow.id} className="grid grid-cols-1 gap-2 p-4 md:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.75fr)_minmax(110px,0.55fr)_minmax(96px,0.45fr)] md:items-center md:gap-x-4">
                   <div className="text-sm font-semibold text-slate-800">{workflow.name}</div>
                   <div className="text-sm text-slate-700">{workflow.alias}</div>
                   <div className="text-sm text-slate-700">{workflow.module}</div>
-                  <div className="text-sm text-slate-700">{workflow.department}</div>
-                  <div className="md:justify-self-end">
+                  <div className="text-sm text-slate-700">{workflow.nodeName}</div>
+                  <div className="text-sm text-slate-700">{workflow.nodeType}</div>
+                  <div>
                     <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
                       {workflow.status}
                     </span>
                   </div>
-                  <div className="flex justify-center">
+                  <div className="flex md:justify-center">
                     <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
@@ -325,7 +207,7 @@ export default function WorkflowManagementView() {
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-            <WorkflowConfigurationView
+            <WorkflowOnboardingView
               isOpen={addDialogOpen}
               onPublished={async () => {
                 await loadWorkflows();

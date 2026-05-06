@@ -52,6 +52,7 @@ export function CompanyOnboardingWizardContent({
     signatories,
     linkedSigIds,
     editingSignatoryIds,
+    editingSignatoryDrafts,
     signatoryToRemove,
     showNewSignatoryForm,
     newSig,
@@ -69,8 +70,10 @@ export function CompanyOnboardingWizardContent({
     handleGroupModeChange,
     handleGroupSelection,
     toggleLinkedSig,
-    updateSignatory,
-    toggleSignatoryEditing,
+    startSignatoryEditing,
+    updateSignatoryDraft,
+    cancelSignatoryEditing,
+    saveSignatoryEditing,
     next,
     prev,
     addSignatory,
@@ -170,6 +173,7 @@ export function CompanyOnboardingWizardContent({
               signatories={signatories}
               linkedSigIds={linkedSigIds}
               editingSignatoryIds={editingSignatoryIds}
+              editingSignatoryDrafts={editingSignatoryDrafts}
               totalSignatories={totalSignatories}
               showNewSignatoryForm={showNewSignatoryForm}
               newSig={newSig}
@@ -180,8 +184,10 @@ export function CompanyOnboardingWizardContent({
               onSetNewSig={setNewSig}
               onAddSignatory={addSignatory}
               onToggleLinkedSig={toggleLinkedSig}
-              onToggleSignatoryEditing={toggleSignatoryEditing}
-              onUpdateSignatory={updateSignatory}
+              onStartSignatoryEditing={startSignatoryEditing}
+              onUpdateSignatoryDraft={updateSignatoryDraft}
+              onCancelSignatoryEditing={cancelSignatoryEditing}
+              onSaveSignatoryEditing={saveSignatoryEditing}
               onRequestSignatoryRemove={setSignatoryToRemove}
             />
           ) : null}

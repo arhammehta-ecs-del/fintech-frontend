@@ -37,3 +37,35 @@ export const getPermissionActionLabelFromRoleName = (roleName: string) => {
 
   return roleName;
 };
+
+const ROLE_TOKEN_LABEL_ALIASES: Record<string, string> = {
+  TRANSACTIONAL: "Transactional",
+  OPERATIONAL: "Operational",
+  SYSTEM_ACCESS: "System Access",
+  ACCOUNTS: "Accounts",
+  PAYMENTS: "Payments",
+  PURCHASE: "Purchase",
+  PURCHASE_ORDER: "Purchase Order",
+  FIN_OPS: "Fin Ops",
+  MASTER: "Master",
+  MASTER_RECORDS: "Master Records",
+  ORG_STR: "Org Structure",
+  ORG_STRUCTURE: "Org Structure",
+  USER_ACC: "User Access",
+  USER_ACCESS: "User Access",
+  USER_MANAGEMENT: "User Access",
+  WORK_FLOW: "Workflow",
+  WORKFLOW: "Workflow",
+  WORKFLOW_CONFIG: "Workflow",
+};
+
+export const formatRoleTokenLabel = (value: string) => {
+  const normalized = value.trim().toUpperCase();
+  if (!normalized) return "";
+  const aliased = ROLE_TOKEN_LABEL_ALIASES[normalized];
+  if (aliased) return aliased;
+  return normalized
+    .split("_")
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(" ");
+};

@@ -3,8 +3,8 @@ import { BadgeCheck, Briefcase, Building2, CheckCircle2, GitBranch, Layers, Sett
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { WorkflowRecord } from "@/features/workflow-management/components/WorkflowManagementView";
-import type { WorkflowLevel } from "@/features/workflow-management/components/configuration/types";
+import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
+import type { WorkflowLevel } from "@/features/workflow-management/components/onboarding/types";
 import { APPROVAL_OPTIONS } from "@/features/workflow-management/constants";
 
 type WorkflowManageDialogProps = {
@@ -101,9 +101,9 @@ function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
         <div className="flex flex-col gap-1 pt-3 md:pl-6 md:pt-0">
           <div className="flex items-center gap-2">
             <Building2 className="h-3 w-3.5 text-emerald-500" />
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Department</span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Node Type</span>
           </div>
-          <span className="max-w-[160px] truncate pl-5 text-xs font-bold text-slate-800">{workflow.department || "-"}</span>
+          <span className="max-w-[160px] truncate pl-5 text-xs font-bold text-slate-800">{workflow.nodeName || "-"}</span>
         </div>
       </div>
 

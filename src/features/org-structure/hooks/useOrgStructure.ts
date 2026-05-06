@@ -1,6 +1,8 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import type { OrgNode } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
+import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/services/client";
 import { createNewOrgNode, getCompanyOrgStructure, updateOrgNodeAction } from "@/services/org.service";
 import { collectNodeTrail, findOrgNodeById, findParentNodeById, flattenOrg } from "@/features/org-structure/orgNode.utils";
 import type { DepartmentSidebarDepartment, NewNodeType } from "@/features/org-structure/types";
@@ -12,6 +14,7 @@ const ZOOM_STEP = 0.1;
 
 export function useOrgStructure() {
   const { currentUser, orgStructure, setOrgStructure } = useAppContext();
+  const { toast } = useToast();
   const [selectedDepartment, setSelectedDepartment] = useState<DepartmentSidebarDepartment | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [orgLoading, setOrgLoading] = useState(false);
@@ -37,9 +40,11 @@ export function useOrgStructure() {
     try {
       const structure = await getCompanyOrgStructure(nextCompanyCode);
       setOrgStructure(structure);
-    } catch {
+    } catch (error) {
       setOrgStructure(null);
-      setOrgError("Unable to fetch organization structure.");
+      const message = getApiErrorMessage(error, "Unable to fetch organization structure.");
+      setOrgError(message);
+      toast({ title: "Unable to load organization structure", description: message, variant: "destructive" });
     } finally {
       setOrgLoading(false);
     }
@@ -62,10 +67,12 @@ export function useOrgStructure() {
         const structure = await getCompanyOrgStructure(companyCode);
         if (cancelled) return;
         setOrgStructure(structure);
-      } catch {
+      } catch (error) {
         if (!cancelled) {
           setOrgStructure(null);
-          setOrgError("Unable to fetch organization structure.");
+          const message = getApiErrorMessage(error, "Unable to fetch organization structure.");
+          setOrgError(message);
+          toast({ title: "Unable to load organization structure", description: message, variant: "destructive" });
         }
       } finally {
         if (!cancelled) {
@@ -79,7 +86,7 @@ export function useOrgStructure() {
     return () => {
       cancelled = true;
     };
-  }, [companyCode, setOrgStructure]);
+  }, [companyCode, setOrgStructure, toast]);
 
   useEffect(() => {
     if (!orgStructure) {
@@ -202,6 +209,7 @@ export function useOrgStructure() {
   const canZoomIn = zoom < MAX_ZOOM;
 
   const handleOpenNewNodePopup = (node: OrgNode) => {
+    if (node.status?.trim().toUpperCase() === "PENDING") return;
     setNewNodeParent(node);
     setIsNewNodePopupOpen(true);
   };
@@ -220,8 +228,8 @@ export function useOrgStructure() {
         },
       });
       await loadOrgForCompanyCode(companyCode);
-    } catch {
-      setOrgError("Failed to create node. Please try again.");
+    } catch (error) {
+      setOrgError(getApiErrorMessage(error, "Failed to create node. Please try again."));
     }
 
     setIsNewNodePopupOpen(false);
@@ -302,8 +310,8 @@ export function useOrgStructure() {
       await updateOrgNodeAction(nodeId, "approve", cleanedRemark);
       setPendingNodeForReview(null);
       await loadOrgForCompanyCode(companyCode);
-    } catch {
-      setOrgError("Failed to approve node. Please try again.");
+    } catch (error) {
+      setOrgError(getApiErrorMessage(error, "Failed to approve node. Please try again."));
     }
   };
 
@@ -324,8 +332,8 @@ export function useOrgStructure() {
       await updateOrgNodeAction(nodeId, "reject", cleanedRemark);
       setPendingNodeForReview(null);
       await loadOrgForCompanyCode(companyCode);
-    } catch {
-      setOrgError("Failed to reject node. Please try again.");
+    } catch (error) {
+      setOrgError(getApiErrorMessage(error, "Failed to reject node. Please try again."));
     }
   };
 

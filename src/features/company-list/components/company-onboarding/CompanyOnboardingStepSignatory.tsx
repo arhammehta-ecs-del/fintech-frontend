@@ -14,6 +14,7 @@ type StepSignatoryProps = {
   signatories: SignatoryForm[];
   linkedSigIds: Set<string>;
   editingSignatoryIds: Set<string>;
+  editingSignatoryDrafts: Record<string, SignatoryForm>;
   totalSignatories: number;
   showNewSignatoryForm: boolean;
   newSig: Omit<SignatoryForm, "id" | "source">;
@@ -24,8 +25,10 @@ type StepSignatoryProps = {
   onSetNewSig: (updater: (current: Omit<SignatoryForm, "id" | "source">) => Omit<SignatoryForm, "id" | "source">) => void;
   onAddSignatory: () => void;
   onToggleLinkedSig: (sig: SignatoryWithId) => void;
-  onToggleSignatoryEditing: (id: string) => void;
-  onUpdateSignatory: (id: string, key: keyof SignatoryForm, value: string) => void;
+  onStartSignatoryEditing: (id: string) => void;
+  onUpdateSignatoryDraft: (id: string, key: keyof SignatoryForm, value: string) => void;
+  onCancelSignatoryEditing: (id: string) => void;
+  onSaveSignatoryEditing: (id: string) => void;
   onRequestSignatoryRemove: (signatory: SignatoryForm) => void;
 };
 
@@ -36,6 +39,7 @@ export function CompanyOnboardingStepSignatory({
   signatories,
   linkedSigIds,
   editingSignatoryIds,
+  editingSignatoryDrafts,
   totalSignatories,
   showNewSignatoryForm,
   newSig,
@@ -46,8 +50,10 @@ export function CompanyOnboardingStepSignatory({
   onSetNewSig,
   onAddSignatory,
   onToggleLinkedSig,
-  onToggleSignatoryEditing,
-  onUpdateSignatory,
+  onStartSignatoryEditing,
+  onUpdateSignatoryDraft,
+  onCancelSignatoryEditing,
+  onSaveSignatoryEditing,
   onRequestSignatoryRemove,
 }: StepSignatoryProps) {
   return (
@@ -166,7 +172,7 @@ export function CompanyOnboardingStepSignatory({
                   {sig.source === "existing" ? <p className="text-xs text-muted-foreground">Existing group signatory</p> : null}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => onToggleSignatoryEditing(sig.id)} className="text-muted-foreground hover:text-foreground">
+                  <button type="button" onClick={() => onStartSignatoryEditing(sig.id)} className="text-muted-foreground hover:text-foreground">
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button type="button" onClick={() => onRequestSignatoryRemove(sig)} className="text-muted-foreground hover:text-destructive">
@@ -179,27 +185,35 @@ export function CompanyOnboardingStepSignatory({
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Name</Label>
-                    <Input value={sig.fullName} onChange={(event) => onUpdateSignatory(sig.id, "fullName", event.target.value)} />
+                    <Input value={editingSignatoryDrafts[sig.id]?.fullName ?? sig.fullName} onChange={(event) => onUpdateSignatoryDraft(sig.id, "fullName", event.target.value)} />
                     {errors[`signatory-${index}-fullName`] ? <p className="text-sm text-destructive">{errors[`signatory-${index}-fullName`]}</p> : null}
                   </div>
                   <div className="space-y-2">
                     <Label>Email</Label>
-                    <Input value={sig.email} onChange={(event) => onUpdateSignatory(sig.id, "email", event.target.value)} />
+                    <Input value={editingSignatoryDrafts[sig.id]?.email ?? sig.email} onChange={(event) => onUpdateSignatoryDraft(sig.id, "email", event.target.value)} />
                     {errors[`signatory-${index}-email`] ? <p className="text-sm text-destructive">{errors[`signatory-${index}-email`]}</p> : null}
                   </div>
                   <div className="space-y-2">
                     <Label>Phone</Label>
-                    <Input value={sig.phone} onChange={(event) => onUpdateSignatory(sig.id, "phone", event.target.value)} />
+                    <Input value={editingSignatoryDrafts[sig.id]?.phone ?? sig.phone} onChange={(event) => onUpdateSignatoryDraft(sig.id, "phone", event.target.value)} />
                     {errors[`signatory-${index}-phone`] ? <p className="text-sm text-destructive">{errors[`signatory-${index}-phone`]}</p> : null}
                   </div>
                   <div className="space-y-2">
                     <Label>Designation</Label>
-                    <Input value={sig.designation} onChange={(event) => onUpdateSignatory(sig.id, "designation", event.target.value)} />
+                    <Input value={editingSignatoryDrafts[sig.id]?.designation ?? sig.designation} onChange={(event) => onUpdateSignatoryDraft(sig.id, "designation", event.target.value)} />
                     {errors[`signatory-${index}-designation`] ? <p className="text-sm text-destructive">{errors[`signatory-${index}-designation`]}</p> : null}
                   </div>
                   <div className="space-y-2">
                     <Label>Employee ID</Label>
-                    <Input value={sig.employeeId} onChange={(event) => onUpdateSignatory(sig.id, "employeeId", event.target.value)} />
+                    <Input value={editingSignatoryDrafts[sig.id]?.employeeId ?? sig.employeeId} onChange={(event) => onUpdateSignatoryDraft(sig.id, "employeeId", event.target.value)} />
+                  </div>
+                  <div className="flex gap-2 sm:col-span-2">
+                    <Button type="button" className="w-full sm:w-auto" onClick={() => onSaveSignatoryEditing(sig.id)}>
+                      Save
+                    </Button>
+                    <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => onCancelSignatoryEditing(sig.id)}>
+                      Cancel
+                    </Button>
                   </div>
                 </div>
               ) : (

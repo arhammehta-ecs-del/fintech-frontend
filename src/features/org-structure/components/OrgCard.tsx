@@ -36,6 +36,7 @@ export function OrgCard({
   const accentBackgroundClass = getNodeAccentBackground(branchIndex, branchDepth, isRoot);
   const accentBorderClass = getNodeAccentBorderLeft(branchIndex, branchDepth, isRoot);
   const plusButtonAccentClass = getPlusButtonAccentClass(accentBackgroundClass);
+  const isPendingNode = node.status?.trim().toUpperCase() === "PENDING";
 
   return (
     <div className="group relative">
@@ -69,21 +70,23 @@ export function OrgCard({
         </div>
       </button>
 
-      <button
-        type="button"
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          onCreateNode(node);
-        }}
-        className={cn(
-          "absolute right-0 top-0 z-20 flex h-8 w-8 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 opacity-0 shadow-[0_6px_14px_rgba(15,23,42,0.16)] transition group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25",
-          plusButtonAccentClass,
-        )}
-        aria-label={`Add child node under ${node.name}`}
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </button>
+      {!isPendingNode ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onCreateNode(node);
+          }}
+          className={cn(
+            "absolute right-0 top-0 z-20 flex h-8 w-8 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 opacity-0 shadow-[0_6px_14px_rgba(15,23,42,0.16)] transition group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25",
+            plusButtonAccentClass,
+          )}
+          aria-label={`Add child node under ${node.name}`}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
     </div>
   );
 }

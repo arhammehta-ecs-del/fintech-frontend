@@ -33,6 +33,7 @@ export default function CompanyListToolbar({
   onOpenOnboarding,
 }: CompanyListToolbarProps) {
   const columns = DEFAULT_COLUMNS;
+  const visibleStatusTabs = STATUS_TABS.filter((option) => option.id === "active" || statusCounts[option.id] > 0);
 
   return (
     <>
@@ -79,7 +80,7 @@ export default function CompanyListToolbar({
 
         <div className="flex w-full flex-wrap items-center gap-2 self-start sm:w-auto sm:self-end">
           <div className="inline-flex rounded-full border border-slate-200 bg-white p-1.5 shadow-sm">
-            {STATUS_TABS.map((option) => (
+            {visibleStatusTabs.map((option) => (
               <button
                 key={option.id}
                 type="button"

@@ -112,7 +112,7 @@ function UserRow({ user }: { user: TeamMember }) {
   );
 }
 
-function DepartmentSidebarContent({
+function NodeSidebarContent({
   department,
   breadcrumbs,
   roster,
@@ -191,7 +191,7 @@ function DepartmentSidebarContent({
   );
 }
 
-export function DepartmentSidebar({
+export function NodeSidebar({
   open,
   onOpenChange,
   department,
@@ -214,7 +214,7 @@ export function DepartmentSidebar({
       style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
       aria-hidden={!open}
     >
-      <DepartmentSidebarContent
+      <NodeSidebarContent
         department={department}
         breadcrumbs={breadcrumbs}
         roster={roster}
@@ -225,4 +225,4 @@ export function DepartmentSidebar({
   );
 }
 
-export default DepartmentSidebar;
+export default NodeSidebar;

@@ -58,7 +58,7 @@ export function CompanyOnboardingStepCompanyDetails({
         {errors.legalName ? <p className="text-sm text-destructive">{errors.legalName}</p> : null}
       </div>
       <div className="space-y-2">
-        <Label>Company Name</Label>
+        <Label>Company Name <span className="text-slate-400"></span></Label>
         <Input value={companyName} onChange={(event) => onCompanyNameChange(event.target.value)} />
         {errors.companyName ? <p className="text-sm text-destructive">{errors.companyName}</p> : null}
       </div>
