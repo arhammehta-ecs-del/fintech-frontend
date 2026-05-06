@@ -81,12 +81,7 @@ export default function WorkflowStepSummary({
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-end gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-        <Settings2 className="h-3.5 w-3.5" />
-        Ready to Publish
-        <Rocket className="h-3.5 w-3.5 text-blue-600" />
-        <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
-      </div>
+      
     </div>
   );
 }

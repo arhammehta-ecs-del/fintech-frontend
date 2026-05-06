@@ -59,7 +59,7 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
       phone: formData.basic.phone.trim(),
       designation: formData.basic.designation.trim(),
       employeeId: formData.basic.employeeId.trim(),
-      reportingManager: formData.basic.reportingManager.trim(),
+      reportingManager: (formData.basic.reportingManagerEmail || formData.basic.reportingManager).trim(),
     },
     permissions: mappedPermissions,
   };
@@ -127,6 +127,8 @@ export const createInitialUserOnboardingFormData = (): UserOnboardingFormData =>
     designation: "ceo",
     employeeId: "EMP-10294",
     reportingManager: "aamm@gmail.com",
+    reportingManagerName: "",
+    reportingManagerEmail: "",
   },
   permissions: createInitialPermissions([]),
   nodeSelections: [],

@@ -27,6 +27,8 @@ export type UserOnboardingFormData = {
     designation: string;
     employeeId: string;
     reportingManager: string;
+    reportingManagerName: string;
+    reportingManagerEmail: string;
   };
   permissions: UserOnboardingPermissions;
   nodeSelections: Array<{

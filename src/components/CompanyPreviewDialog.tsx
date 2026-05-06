@@ -328,6 +328,9 @@ export function CompanyPreviewDialog({
                             <SignatoryDetailRow label="Email" value={displayValue(signatory.email)} />
                             <SignatoryDetailRow label="Phone" value={displayValue(signatory.phone)} />
                             <SignatoryDetailRow label="Designation" value={displayValue(signatory.designation)} />
+                            {signatory.employeeId?.trim() ? (
+                              <SignatoryDetailRow label="Employee ID" value={displayValue(signatory.employeeId)} />
+                            ) : null}
                           </div>
                         </div>
                       ))

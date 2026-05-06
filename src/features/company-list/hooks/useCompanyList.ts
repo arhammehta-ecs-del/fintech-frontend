@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { Company, CompanyStatus, GroupCompany } from "@/contexts/AppContext";
 import { getAllCompanies, updateCompanyOnboardingAction } from "@/services/company.service";
@@ -44,6 +44,35 @@ export function useCompanyList() {
   const statusFilter: CompanyStatus =
     selectedStatusTab === "inactive" ? "Inactive" : selectedStatusTab === "pending" ? "Pending" : "Approved";
 
+  const refreshCompanies = useCallback(async (showLoader = false) => {
+    if (showLoader) setIsLoading(true);
+    try {
+      setError(null);
+      const nextGroups = await getAllCompanies();
+      setGroups(nextGroups);
+      setExpanded(new Set(nextGroups.map((group) => group.id)));
+      setSelectedCompany((previous) => {
+        if (!previous) return previous;
+        for (const group of nextGroups) {
+          const matching = group.subsidiaries.find((company) => company.id === previous.id);
+          if (matching) return matching;
+        }
+        return previous;
+      });
+    } catch (err) {
+      const statusMatch = err instanceof Error ? err.message.match(/Request failed:\s*(\d{3})/) : null;
+      const statusCode = statusMatch ? Number(statusMatch[1]) : null;
+      if (statusCode === 401 || statusCode === 403) {
+        navigate("/login", { replace: true });
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Failed to load companies");
+      setGroups([]);
+    } finally {
+      if (showLoader) setIsLoading(false);
+    }
+  }, [navigate]);
+
   const statusCounts = useMemo(() => {
     return groups.reduce(
       (counts, group) => {
@@ -62,30 +91,8 @@ export function useCompanyList() {
     let ignore = false;
 
     async function loadCompanies() {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const nextGroups = await getAllCompanies();
-        if (!ignore) {
-          setGroups(nextGroups);
-          setExpanded(new Set(nextGroups.map((group) => group.id)));
-        }
-      } catch (err) {
-        if (!ignore) {
-          const statusMatch = err instanceof Error ? err.message.match(/Request failed:\s*(\d{3})/) : null;
-          const statusCode = statusMatch ? Number(statusMatch[1]) : null;
-          if (statusCode === 401 || statusCode === 403) {
-            navigate("/login", { replace: true });
-            return;
-          }
-          setError(err instanceof Error ? err.message : "Failed to load companies");
-          setGroups([]);
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoading(false);
-        }
-      }
+      if (ignore) return;
+      await refreshCompanies(true);
     }
 
     void loadCompanies();
@@ -93,7 +100,7 @@ export function useCompanyList() {
     return () => {
       ignore = true;
     };
-  }, [navigate]);
+  }, [refreshCompanies]);
 
   const selectedGroupInfo = useMemo(() => getSelectedGroupInfo(groups, selectedCompany), [groups, selectedCompany]);
 
@@ -146,17 +153,10 @@ export function useCompanyList() {
   };
 
   const executeCompanyAction = async (companyId: string, isActive: boolean, remark: string) => {
-    const nextStatus: CompanyStatus = isActive ? "Approved" : "Inactive";
     const actionLabel = isActive ? "approved" : "rejected";
 
     await updateCompanyOnboardingAction(companyId, isActive ? "approve" : "reject", remark);
-    updateSpecificCompany(companyId, (company) => ({
-      ...company,
-      status: nextStatus,
-    }));
-    setSelectedCompany((previous) =>
-      previous && previous.id === companyId ? { ...previous, status: nextStatus } : previous,
-    );
+    await refreshCompanies();
     toast({
       title: `Company ${actionLabel}`,
       description: `The company request has been ${actionLabel} successfully.`,
@@ -238,6 +238,7 @@ export function useCompanyList() {
     handleSaveCompany,
     handleToggleCompanyActive,
     toggleColumn,
+    refreshCompanies,
     remarkDialogOpen,
     setRemarkDialogOpen,
     pendingAction,

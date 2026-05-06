@@ -101,20 +101,6 @@ const replaceCompanyInGroups = (groups: GroupCompany[], updatedCompany: CompanyU
     ),
   }));
 
-const updateCompanyStatusInGroups = (
-  groups: GroupCompany[],
-  companyId: string,
-  nextStatus: CompanyStatus,
-) =>
-  groups.map((group) => ({
-    ...group,
-    subsidiaries: group.subsidiaries.map((company) =>
-      company.id === companyId
-        ? { ...company, status: nextStatus }
-        : company,
-    ),
-  }));
-
 // Exported functions
 export default function Dashboard() {
   const [groups, setGroups] = useState<GroupCompany[]>([]);
@@ -186,9 +172,9 @@ export default function Dashboard() {
   };
 
   const executeCompanyAction = async (companyId: string, isActive: boolean, remark: string) => {
-    const nextStatus: CompanyStatus = isActive ? "Approved" : "Inactive";
     await updateCompanyOnboardingAction(companyId, isActive ? "approve" : "reject", remark);
-    setGroups((prevGroups) => updateCompanyStatusInGroups(prevGroups, companyId, nextStatus));
+    const companyGroups = await getAllCompanies();
+    setGroups(companyGroups);
     setSelectedCompanyLocalId((previousCompanyId) => {
       if (previousCompanyId !== companyId) return previousCompanyId;
       return companyId;

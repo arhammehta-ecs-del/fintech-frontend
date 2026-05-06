@@ -28,6 +28,7 @@ export function CompanyOnboardingWizardContent({
   embedded = false,
   open = true,
   onOpenChange,
+  onSubmitted,
 }: CompanyOnboardingWizardContentProps = {}) {
   const {
     groups,
@@ -93,7 +94,7 @@ export function CompanyOnboardingWizardContent({
     setShowNewSignatoryForm,
     setNewSigErrors,
     setNewSig,
-  } = useCompanyOnboardingWizard({ embedded, open, onOpenChange });
+  } = useCompanyOnboardingWizard({ embedded, open, onOpenChange, onSubmitted });
 
   const content = (
     <form

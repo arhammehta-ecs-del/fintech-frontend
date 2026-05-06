@@ -15,6 +15,7 @@ export type CompanyOnboardingWizardContentProps = {
   embedded?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onSubmitted?: () => void | Promise<void>;
 };
 
 export type OnboardingFormState = {

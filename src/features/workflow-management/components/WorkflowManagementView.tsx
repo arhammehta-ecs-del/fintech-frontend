@@ -20,7 +20,7 @@ export type WorkflowRecord = {
   department: string;
   subModule: string;
   nodePath: string;
-  levels: Record<string, unknown>;
+  levels: unknown;
   approvalRemark?: string;
   status: WorkflowStatus;
 };
@@ -40,22 +40,39 @@ const getNodeLabelFromPath = (nodePath: string) => {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 };
 
+const formatNodeType = (value: string) =>
+  value
+    .trim()
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): WorkflowRecord => {
   const record = toRecord(item);
   const payload = toRecord(record.data);
+  const orgStructure = toRecord(record.orgStructure);
 
-  const id = readString(record.id) || `wf-${Math.random()}`;
+  const id =
+    readString(record.id) ||
+    readString(record.workflowId) ||
+    readString(record.requestId) ||
+    readString(payload.id) ||
+    readString(payload.workflowId);
   const name = readString(record.name) || readString(payload.name) || "Unknown";
   const alias = readString(record.alias) || readString(payload.alias) || "-";
   const moduleName = readString(record.module) || readString(payload.module) || "Unknown";
-  const nodePath = readString(record.nodePath) || readString(payload.nodePath);
+  const nodePath =
+    readString(record.nodePath) ||
+    readString(orgStructure.nodePath) ||
+    readString(payload.nodePath);
   const subModule = readString(record.subModule) || readString(payload.subModule);
-  const department = nodePath ? getNodeLabelFromPath(nodePath) : subModule || "Unknown";
-  const rawLevels = payload.levels;
-  const levels =
-    typeof rawLevels === "object" && rawLevels !== null
-      ? (rawLevels as Record<string, unknown>)
-      : {};
+  const nodeType = readString(record.nodeType) || readString(orgStructure.nodeType) || readString(payload.nodeType);
+  const department =
+    readString(record.department) ||
+    (nodeType ? formatNodeType(nodeType) : "") ||
+    readString(orgStructure.nodeName) ||
+    (nodePath ? getNodeLabelFromPath(nodePath) : subModule || "Unknown");
+  const levels = record.levels ?? payload.levels ?? [];
 
   return {
     id,
@@ -121,6 +138,10 @@ export default function WorkflowManagementView() {
   }, []);
 
   const handleWorkflowAction = async (workflow: WorkflowRecord, action: "approve" | "reject", remark: string) => {
+    if (!workflow.id) {
+      console.error("Missing workflow id for action:", workflow);
+      return;
+    }
     await updateWorkflowAction(workflow.id, action, remark);
     await loadWorkflows();
   };
@@ -304,7 +325,13 @@ export default function WorkflowManagementView() {
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-            <WorkflowConfigurationView isOpen={addDialogOpen} />
+            <WorkflowConfigurationView
+              isOpen={addDialogOpen}
+              onPublished={async () => {
+                await loadWorkflows();
+                setAddDialogOpen(false);
+              }}
+            />
           </div>
         </DialogContent>
       </Dialog>

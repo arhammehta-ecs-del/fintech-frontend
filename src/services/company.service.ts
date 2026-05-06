@@ -64,6 +64,7 @@ type RawCompanyListItem = {
     designation?: string | null;
     email?: string | null;
     phone?: string | null;
+    employeeId?: string | null;
   } | null>
   | null;
   requesterName?: string | null;
@@ -84,6 +85,7 @@ type RawSignatory = {
   designation?: string | null;
   email?: string | null;
   phone?: string | null;
+  employeeId?: string | null;
 };
 
 type RawCompanyGroup = {
@@ -141,8 +143,9 @@ const mapSignatories = (signatories: Array<RawSignatory | null> | null | undefin
       designation: getPacketString(signatory.designation),
       email: getPacketString(signatory.email),
       phone: getPacketString(signatory.phone),
+      employeeId: getPacketString(signatory.employeeId),
     }))
-    .filter((signatory) => Boolean(signatory.fullName || signatory.email || signatory.phone || signatory.designation)) ?? [];
+    .filter((signatory) => Boolean(signatory.fullName || signatory.email || signatory.phone || signatory.designation || signatory.employeeId)) ?? [];
 
 const mapCompany = (
   company: RawCompanyListItem,

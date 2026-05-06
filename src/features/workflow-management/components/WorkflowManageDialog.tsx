@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BadgeCheck, Briefcase, Building2, CheckCircle2, FileCode2, GitBranch, Layers, Settings2, UserCheck, X, Zap } from "lucide-react";
+import { BadgeCheck, Briefcase, Building2, CheckCircle2, GitBranch, Layers, Settings2, UserCheck, X, Zap } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,16 +14,6 @@ type WorkflowManageDialogProps = {
   onSubmitAction: (workflow: WorkflowRecord, action: "approve" | "reject", remark: string) => Promise<void>;
 };
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[120px_12px_1fr] items-start gap-x-2 text-sm">
-      <span className="text-slate-500">{label}</span>
-      <span className="text-slate-400">:</span>
-      <span className="font-medium text-slate-900 break-words">{value || "-"}</span>
-    </div>
-  );
-}
-
 const fromApiApprover = (value: string) => {
   const normalized = value.trim().toUpperCase();
   if (normalized === "REPORTING_MANAGER") return "reporting_manager";
@@ -32,10 +22,35 @@ const fromApiApprover = (value: string) => {
   return value.trim().toLowerCase();
 };
 
-const toSummaryLevels = (levels: Record<string, unknown> | undefined): WorkflowLevel[] => {
+const toSummaryLevels = (levels: unknown): WorkflowLevel[] => {
+  if (Array.isArray(levels)) {
+    return levels
+      .map((entry, index) => {
+        const levelRecord = typeof entry === "object" && entry !== null ? (entry as Record<string, unknown>) : {};
+        const approver1Raw = typeof levelRecord.approver1 === "string" ? levelRecord.approver1 : "";
+        const approver2Raw = typeof levelRecord.approver2 === "string" ? levelRecord.approver2 : "";
+        const typeRaw = typeof levelRecord.approverType === "string"
+          ? levelRecord.approverType.toUpperCase()
+          : typeof levelRecord.type === "string"
+            ? levelRecord.type.toUpperCase()
+            : "AND";
+        const type = typeRaw === "OR" ? "OR" : "AND";
+
+        const approvals = [{ option: fromApiApprover(approver1Raw) }];
+        if (approver2Raw.trim()) approvals.push({ option: fromApiApprover(approver2Raw) });
+
+        return {
+          id: typeof levelRecord.level === "number" ? levelRecord.level : index + 1,
+          type,
+          approvals,
+        };
+      })
+      .filter((level) => level.approvals.some((approval) => approval.option));
+  }
+
   if (!levels || typeof levels !== "object") return [];
 
-  const levelEntries = Object.entries(levels)
+  const levelEntries = Object.entries(levels as Record<string, unknown>)
     .sort(([left], [right]) => Number(left.replace(/[^\d]/g, "")) - Number(right.replace(/[^\d]/g, "")));
 
   return levelEntries.map(([key, value], index) => {
@@ -53,7 +68,7 @@ const toSummaryLevels = (levels: Record<string, unknown> | undefined): WorkflowL
       type,
       approvals,
     };
-  });
+  }).filter((level) => level.approvals.some((approval) => approval.option));
 };
 
 function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
@@ -128,11 +143,7 @@ function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-end gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-        <Settings2 className="h-3.5 w-3.5" />
-        Ready to Publish
-        <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
-      </div>
+     
     </div>
   );
 }
@@ -170,7 +181,7 @@ export default function WorkflowManageDialog({ open, workflow, onClose, onSubmit
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="w-[min(92vw,44rem)] max-w-[44rem] p-0">
+      <DialogContent showCloseButton={false} className="w-[min(92vw,44rem)] max-w-[44rem] p-0">
         <DialogHeader className="border-b border-slate-200 bg-slate-50/40 px-6 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -194,21 +205,6 @@ export default function WorkflowManageDialog({ open, workflow, onClose, onSubmit
         </DialogHeader>
 
         <div className="space-y-4 px-6 py-5">
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-              <FileCode2 className="h-4 w-4" />
-              Workflow Details
-            </div>
-            <div className="space-y-2.5">
-              <DetailRow label="Alias" value={workflow.alias || "-"} />
-              <DetailRow label="Module" value={workflow.module || "-"} />
-              <DetailRow label="Sub Module" value={workflow.subModule || "-"} />
-              <DetailRow label="Department" value={workflow.department || "-"} />
-              <DetailRow label="Node Path" value={workflow.nodePath || "-"} />
-              <DetailRow label="Workflow ID" value={workflow.id} />
-            </div>
-          </div>
-
           <SummaryPreview workflow={workflow} />
 
           {isPending ? (

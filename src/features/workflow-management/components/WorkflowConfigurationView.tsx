@@ -12,6 +12,7 @@ import type { ModuleGroup, WorkflowLevel, WorkflowStep } from "@/features/workfl
 
 type WorkflowConfigurationViewProps = {
   isOpen?: boolean;
+  onPublished?: () => void | Promise<void>;
 };
 
 const formatTokenLabel = (value: string) =>
@@ -42,7 +43,7 @@ const toApiApprover = (value: string) => {
   return value.trim().toUpperCase();
 };
 
-export default function WorkflowConfigurationView({ isOpen = false }: WorkflowConfigurationViewProps) {
+export default function WorkflowConfigurationView({ isOpen = false, onPublished }: WorkflowConfigurationViewProps) {
   const { currentUser } = useAppContext();
 
   const [step, setStep] = useState<WorkflowStep>(1);
@@ -326,7 +327,7 @@ export default function WorkflowConfigurationView({ isOpen = false }: WorkflowCo
         nodePath: wfNode.trim(),
         levels: payloadLevels,
       });
-      window.alert("Workflow Published!");
+      await onPublished?.();
     } catch {
       setErrorMsg("Failed to publish workflow. Please try again.");
     }

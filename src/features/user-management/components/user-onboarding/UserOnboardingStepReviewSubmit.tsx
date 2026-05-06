@@ -31,29 +31,31 @@ type BranchMeta = {
   branchDepth: number;
 };
 
-const formatPathSegment = (segment: string) =>
-  segment
-    .trim()
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .split(" ")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+const buildNodeBreadcrumbMap = (root: OrgNode | null) => {
+  const map = new Map<string, string>();
+  if (!root) return map;
 
-const getNodeParentSubtitle = (nodePath?: string) => {
-  const rawSegments = (nodePath || "").split(".").map((segment) => segment.trim()).filter(Boolean);
-  if (rawSegments.length <= 1) return "";
-  const segments = rawSegments.map(formatPathSegment);
-  const parentSegments = segments.slice(0, -1);
-  if (parentSegments.length === 0) return "";
-  const trimmedParents = parentSegments.length > 1 ? parentSegments.slice(1) : parentSegments;
-  return trimmedParents.join(" > ");
+  const nodeLabel = (node: OrgNode) => {
+    const name = typeof node.name === "string" ? node.name.trim() : "";
+    if (name) return name;
+    const type = typeof node.nodeType === "string" ? node.nodeType.trim() : "";
+    return type || "Unnamed Node";
+  };
+
+  const walk = (node: OrgNode, trail: string[]) => {
+    const nextTrail = [...trail, nodeLabel(node)].filter(Boolean);
+    map.set(node.id, nextTrail.join(" > "));
+    node.children.forEach((child) => walk(child, nextTrail));
+  };
+
+  walk(root, []);
+  return map;
 };
 
 const CATEGORY_ORDER = ["TRANSACTIONAL", "OPERATIONAL", "SYSTEM_ACCESS"];
 
 const BRANCH_BADGE_BY_ACCENT: Record<string, string> = {
+  "bg-slate-400": "border-indigo-300 bg-indigo-50 text-indigo-700",
   "bg-orange-500": "border-orange-300 bg-orange-50 text-orange-700",
   "bg-orange-300": "border-orange-200 bg-orange-50 text-orange-600",
   "bg-orange-200": "border-orange-200 bg-orange-50 text-orange-600",
@@ -78,7 +80,6 @@ const BRANCH_BADGE_BY_ACCENT: Record<string, string> = {
   "bg-cyan-300": "border-cyan-200 bg-cyan-50 text-cyan-600",
   "bg-cyan-200": "border-cyan-200 bg-cyan-50 text-cyan-600",
   "bg-cyan-100": "border-cyan-200 bg-cyan-50 text-cyan-600",
-  "bg-slate-400": "border-slate-300 bg-slate-100 text-slate-700",
 };
 
 const BRANCH_HOVER_BY_ACCENT: Record<string, string> = {
@@ -216,6 +217,7 @@ function NodePermissionCard({
   badgeLabel,
   permissions,
   branchMetaMap,
+  breadcrumbByNodeId,
   emptyText,
   onClose,
 }: {
@@ -223,11 +225,12 @@ function NodePermissionCard({
   badgeLabel: string;
   permissions: UserOnboardingPermissions;
   branchMetaMap: Map<string, BranchMeta>;
+  breadcrumbByNodeId: Map<string, string>;
   emptyText: string;
   onClose?: () => void;
 }) {
   const selectedSections = getSelectedSections(permissions);
-  const parentSubtitle = getNodeParentSubtitle(node.nodePath);
+  const parentSubtitle = breadcrumbByNodeId.get(node.id) || "";
 
   return (
     <div
@@ -317,7 +320,13 @@ export function UserOnboardingStepReviewSubmit({
   onSetExpandedAccessNodeIds,
   onSetIsReviewAccessExpanded,
 }: StepReviewSubmitProps) {
+  const reportingManagerName = basic.reportingManagerName || basic.reportingManager || "-";
+  const reportingManagerEmail =
+    basic.reportingManagerEmail ||
+    (basic.reportingManager.includes("@") ? basic.reportingManager : "") ||
+    "-";
   const branchMetaMap = buildBranchMetaMap(orgStructure);
+  const breadcrumbByNodeId = useMemo(() => buildNodeBreadcrumbMap(orgStructure), [orgStructure]);
   const [collapsedFocusedNodeId, setCollapsedFocusedNodeId] = useState<"primary" | string | null>(null);
   const primaryNode = primaryNodeId ? selectedNodes.find((node) => node.id === primaryNodeId) ?? null : null;
   const primaryPermissions = primaryNode ? nodePermissions[primaryNode.id]?.primary ?? {} : {};
@@ -394,6 +403,7 @@ export function UserOnboardingStepReviewSubmit({
                         badgeLabel="P1"
                         permissions={primaryPermissions}
                         branchMetaMap={branchMetaMap}
+                        breadcrumbByNodeId={breadcrumbByNodeId}
                         emptyText="No primary access configured."
                       />
                     ) : (
@@ -409,12 +419,12 @@ export function UserOnboardingStepReviewSubmit({
                     <div className="flex min-w-0 items-center gap-1">
                       <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
                       <span className="shrink-0 text-slate-400">:</span>
-                      <span className="min-w-0 truncate font-semibold text-slate-900">{basic.reportingManager || "-"}</span>
+                      <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerName}</span>
                     </div>
                     <div className="flex min-w-0 items-center gap-1">
                       <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
                       <span className="shrink-0 text-slate-400">:</span>
-                      <span className="min-w-0 truncate font-semibold text-slate-900">-</span>
+                      <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerEmail}</span>
                     </div>
                   </div>
                 </div>
@@ -438,6 +448,7 @@ export function UserOnboardingStepReviewSubmit({
                         badgeLabel={`S${selectedNodes.findIndex((n) => n.id === node.id) + 1}`}
                         permissions={nodePermissions[node.id].secondary}
                         branchMetaMap={branchMetaMap}
+                        breadcrumbByNodeId={breadcrumbByNodeId}
                         emptyText="No secondary access assigned."
                       />
                     ))}
@@ -463,16 +474,16 @@ export function UserOnboardingStepReviewSubmit({
 
                 <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100/70">
                   <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-6 lg:whitespace-nowrap">
-                    <div className="flex min-w-0 items-center gap-1">
-                      <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
-                      <span className="shrink-0 text-slate-400">:</span>
-                      <span className="min-w-0 truncate font-semibold text-slate-900">{basic.reportingManager || "-"}</span>
-                    </div>
-                    <div className="flex min-w-0 items-center gap-1">
-                      <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
-                      <span className="shrink-0 text-slate-400">:</span>
-                      <span className="min-w-0 truncate font-semibold text-slate-900">-</span>
-                    </div>
+                  <div className="flex min-w-0 items-center gap-1">
+                    <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
+                    <span className="shrink-0 text-slate-400">:</span>
+                    <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerName}</span>
+                  </div>
+                  <div className="flex min-w-0 items-center gap-1">
+                    <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
+                    <span className="shrink-0 text-slate-400">:</span>
+                    <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerEmail}</span>
+                  </div>
                   </div>
                 </div>
 
@@ -488,6 +499,7 @@ export function UserOnboardingStepReviewSubmit({
                         badgeLabel="P1"
                         permissions={primaryPermissions}
                         branchMetaMap={branchMetaMap}
+                        breadcrumbByNodeId={breadcrumbByNodeId}
                         emptyText="No primary access configured."
                         onClose={() => setCollapsedFocusedNodeId(null)}
                       />
@@ -509,8 +521,8 @@ export function UserOnboardingStepReviewSubmit({
                         </div>
                         <div className="min-w-0">
                           <div className="truncate text-xs font-semibold text-slate-700">{primaryNode.name}</div>
-                          {getNodeParentSubtitle(primaryNode.nodePath) ? (
-                            <div className="truncate text-[10px] font-medium text-slate-500">{getNodeParentSubtitle(primaryNode.nodePath)}</div>
+                          {breadcrumbByNodeId.get(primaryNode.id) ? (
+                            <div className="truncate text-[10px] font-medium text-slate-500">{breadcrumbByNodeId.get(primaryNode.id)}</div>
                           ) : null}
                           <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{primaryNode.nodeType}</div>
                         </div>
@@ -539,6 +551,7 @@ export function UserOnboardingStepReviewSubmit({
                         badgeLabel={`S${selectedNodes.findIndex((n) => n.id === node.id) + 1}`}
                         permissions={nodePermissions[node.id].secondary}
                         branchMetaMap={branchMetaMap}
+                        breadcrumbByNodeId={breadcrumbByNodeId}
                         emptyText="No secondary access assigned."
                         onClose={() => setCollapsedFocusedNodeId(null)}
                       />
@@ -561,8 +574,8 @@ export function UserOnboardingStepReviewSubmit({
                         </div>
                         <div className="min-w-0">
                           <div className="truncate text-xs font-semibold text-slate-700">{node.name}</div>
-                          {getNodeParentSubtitle(node.nodePath) ? (
-                            <div className="truncate text-[10px] font-medium text-slate-500">{getNodeParentSubtitle(node.nodePath)}</div>
+                          {breadcrumbByNodeId.get(node.id) ? (
+                            <div className="truncate text-[10px] font-medium text-slate-500">{breadcrumbByNodeId.get(node.id)}</div>
                           ) : null}
                           <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</div>
                         </div>

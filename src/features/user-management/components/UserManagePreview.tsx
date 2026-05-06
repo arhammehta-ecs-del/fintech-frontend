@@ -144,12 +144,8 @@ const getParentSubtitleFromPath = (nodePath?: string) => {
     .split(".")
     .map((segment) => segment.trim())
     .filter(Boolean);
-  if (rawSegments.length <= 1) return "";
-  const formattedSegments = rawSegments.map(formatPathSegment);
-  const parentSegments = formattedSegments.slice(0, -1);
-  if (parentSegments.length === 0) return "";
-  const trimmedParents = parentSegments.length > 1 ? parentSegments.slice(1) : parentSegments;
-  return trimmedParents.join(" > ");
+  if (rawSegments.length === 0) return "";
+  return rawSegments.map(formatPathSegment).join(" > ");
 };
 
 function groupByNode(items: NonNullable<AppUser["accessDetails"]>): GroupedByNode {

@@ -192,7 +192,7 @@ export function useUserManagement() {
       }
 
       await updateUserStatus(member.id, action === "activate" ? "approve" : "reject", _remark ?? "");
-      updateUsersStatus(new Set([member.id]), action === "activate" ? "Active" : "Inactive");
+      await loadUsers();
       toast({
         title: action === "activate" ? "User activated" : "User deactivated",
         description: `${member.name} was moved to ${action === "activate" ? "active" : "inactive"} users.`,

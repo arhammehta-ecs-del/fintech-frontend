@@ -23,27 +23,29 @@ type BranchMeta = {
   branchDepth: number;
 };
 
-const formatPathSegment = (segment: string) =>
-  segment
-    .trim()
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .split(" ")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+const buildNodeBreadcrumbMap = (root: OrgNode | null) => {
+  const map = new Map<string, string>();
+  if (!root) return map;
 
-const getNodeParentSubtitle = (nodePath?: string) => {
-  const rawSegments = (nodePath || "").split(".").map((segment) => segment.trim()).filter(Boolean);
-  if (rawSegments.length <= 1) return "";
-  const segments = rawSegments.map(formatPathSegment);
-  const parentSegments = segments.slice(0, -1);
-  if (parentSegments.length === 0) return "";
-  const trimmedParents = parentSegments.length > 1 ? parentSegments.slice(1) : parentSegments;
-  return trimmedParents.join(" > ");
+  const nodeLabel = (node: OrgNode) => {
+    const name = typeof node.name === "string" ? node.name.trim() : "";
+    if (name) return name;
+    const type = typeof node.nodeType === "string" ? node.nodeType.trim() : "";
+    return type || "Unnamed Node";
+  };
+
+  const walk = (node: OrgNode, trail: string[]) => {
+    const nextTrail = [...trail, nodeLabel(node)].filter(Boolean);
+    map.set(node.id, nextTrail.join(" > "));
+    node.children.forEach((child) => walk(child, nextTrail));
+  };
+
+  walk(root, []);
+  return map;
 };
 
 const BRANCH_BADGE_BY_ACCENT: Record<string, string> = {
+  "bg-slate-400": "border-indigo-300 bg-indigo-50 text-indigo-700",
   "bg-orange-500": "border-orange-300 bg-orange-50 text-orange-700",
   "bg-orange-300": "border-orange-200 bg-orange-50 text-orange-600",
   "bg-orange-200": "border-orange-200 bg-orange-50 text-orange-600",
@@ -68,7 +70,6 @@ const BRANCH_BADGE_BY_ACCENT: Record<string, string> = {
   "bg-cyan-300": "border-cyan-200 bg-cyan-50 text-cyan-600",
   "bg-cyan-200": "border-cyan-200 bg-cyan-50 text-cyan-600",
   "bg-cyan-100": "border-cyan-200 bg-cyan-50 text-cyan-600",
-  "bg-slate-400": "border-slate-300 bg-slate-100 text-slate-700",
 };
 
 const isPendingNode = (node: OrgNode) => node.status?.trim().toUpperCase() === "PENDING";
@@ -176,6 +177,7 @@ export function UserOnboardingStepSelectNode({
 }: StepSelectNodeProps) {
   const filteredStructure = useMemo(() => filterPendingNodes(orgStructure), [orgStructure]);
   const branchMetaMap = useMemo(() => buildBranchMetaMap(filteredStructure), [filteredStructure]);
+  const breadcrumbByNodeId = useMemo(() => buildNodeBreadcrumbMap(filteredStructure), [filteredStructure]);
   const selectedNodeIds = useMemo(() => new Set(selectedNodes.map((node) => node.id)), [selectedNodes]);
 
   const flowNodes = useMemo(() => getFlowNodes(filteredStructure, branchMetaMap), [branchMetaMap, filteredStructure]);
@@ -204,7 +206,7 @@ export function UserOnboardingStepSelectNode({
                   const isFocusedSelection = selectedNodeId === item.node.id;
                   const appearance = getBranchAppearance(item.branchIndex, item.branchDepth, isRoot);
                   const borderLeftClass = getNodeBorderLeftClass(item.branchIndex, item.branchDepth, isRoot);
-                  const parentSubtitle = getNodeParentSubtitle(item.node.nodePath);
+                  const parentSubtitle = breadcrumbByNodeId.get(item.node.id) || "";
 
                   return (
                     <div key={item.node.id} style={{ paddingLeft: `${item.depth * 20}px` }}>
@@ -278,16 +280,21 @@ export function UserOnboardingStepSelectNode({
                         {index + 1}
                       </div>
                       <div className="min-w-0">
-                        <div className="truncate text-[16px] font-semibold text-slate-800">{node.name}</div>
-                        {getNodeParentSubtitle(node.nodePath) ? (
-                          <div className="truncate text-[10px] font-medium text-slate-500">{getNodeParentSubtitle(node.nodePath)}</div>
+                        <div className={cn("truncate text-[16px] font-semibold", isRoot ? "text-white" : "text-slate-800")}>{node.name}</div>
+                        {breadcrumbByNodeId.get(node.id) ? (
+                          <div className={cn("truncate text-[10px] font-medium", isRoot ? "text-white/80" : "text-slate-500")}>{breadcrumbByNodeId.get(node.id)}</div>
                         ) : null}
-                        <div className="mt-0.5 text-[10px] uppercase tracking-[0.1em] text-slate-500">{node.nodeType}</div>
+                        <div className={cn("mt-0.5 text-[10px] uppercase tracking-[0.1em]", isRoot ? "text-white/80" : "text-slate-500")}>{node.nodeType}</div>
                       </div>
                       <button
                         type="button"
                         onClick={() => onRemoveNode(node.id)}
-                        className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                        className={cn(
+                          "ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                          isRoot
+                            ? "text-white/70 hover:bg-white/15 hover:text-white"
+                            : "text-slate-400 hover:bg-slate-100 hover:text-slate-600",
+                        )}
                         aria-label={`Remove ${node.name}`}
                       >
                         <X className="h-4 w-4" />

@@ -10,6 +10,7 @@ export function useCompanyOnboardingWizard({
   embedded = false,
   open = true,
   onOpenChange,
+  onSubmitted,
 }: CompanyOnboardingWizardContentProps = {}) {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -364,6 +365,7 @@ export function useCompanyOnboardingWizard({
 
     try {
       const response = await createCompanyOnboarding(payload, gstDocumentFile);
+      await onSubmitted?.();
       toast({
         title: "Onboarding submitted",
         description: response.message || "The onboarding request was submitted successfully.",

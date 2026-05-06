@@ -9,6 +9,7 @@ export interface Signatory {
   designation: string;
   email: string;
   phone: string;
+  employeeId?: string;
 }
 
 export interface Company {

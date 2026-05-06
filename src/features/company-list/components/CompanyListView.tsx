@@ -43,6 +43,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     handleSaveCompany,
     handleToggleCompanyActive,
     toggleColumn,
+    refreshCompanies,
     remarkDialogOpen,
     setRemarkDialogOpen,
     pendingAction,
@@ -108,7 +109,12 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
         onSave={handleSaveCompany}
         onToggleActive={handleToggleCompanyActive}
       />
-      <CompanyOnboardingWizardRenderer embedded open={isOnboardingOpen} onOpenChange={setIsOnboardingOpen} />
+      <CompanyOnboardingWizardRenderer
+        embedded
+        open={isOnboardingOpen}
+        onOpenChange={setIsOnboardingOpen}
+        onSubmitted={() => refreshCompanies()}
+      />
 
       <RemarkDialog
         open={remarkDialogOpen}

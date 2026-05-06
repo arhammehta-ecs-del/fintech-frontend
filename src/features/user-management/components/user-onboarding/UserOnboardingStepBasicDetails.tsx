@@ -81,7 +81,7 @@ function ReportingManagerField({
   options: ReportingManagerOption[];
   currentValue: string;
   error?: string;
-  onSelect: (value: string) => void;
+  onSelect: (option: ReportingManagerOption) => void;
 }) {
   const [open, setOpen] = useState(false);
   const currentValueNormalized = currentValue.trim().toLowerCase();
@@ -122,7 +122,7 @@ function ReportingManagerField({
                       key={option.id}
                       value={`${option.name} ${option.email} ${option.designation ?? ""}`.trim()}
                       onSelect={() => {
-                        onSelect(option.email);
+                        onSelect(option);
                         setOpen(false);
                       }}
                       className="mx-1 my-0.5 rounded-md px-2.5 py-2"
@@ -223,9 +223,11 @@ export function UserOnboardingStepBasicDetails({
           <ReportingManagerField
             options={reportingManagerOptions}
             currentValue={basic.reportingManager}
-            onSelect={(value) => {
+            onSelect={(option) => {
               onClearError("reportingManager");
-              onBasicChange("reportingManager", value);
+              onBasicChange("reportingManager", option.email);
+              onBasicChange("reportingManagerName", option.name);
+              onBasicChange("reportingManagerEmail", option.email);
             }}
             error={errors.reportingManager}
           />

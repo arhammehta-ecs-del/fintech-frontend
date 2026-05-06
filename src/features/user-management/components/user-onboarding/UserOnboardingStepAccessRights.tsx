@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Eye, GripVertical, Maximize2, Minimize2, Pencil, ShieldCheck, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { OrgNode } from "@/contexts/AppContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -48,27 +48,29 @@ type BranchMeta = {
   branchDepth: number;
 };
 
-const formatPathSegment = (segment: string) =>
-  segment
-    .trim()
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .split(" ")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+const buildNodeBreadcrumbMap = (root: OrgNode | null) => {
+  const map = new Map<string, string>();
+  if (!root) return map;
 
-const getNodeParentSubtitle = (nodePath?: string) => {
-  const rawSegments = (nodePath || "").split(".").map((segment) => segment.trim()).filter(Boolean);
-  if (rawSegments.length <= 1) return "";
-  const segments = rawSegments.map(formatPathSegment);
-  const parentSegments = segments.slice(0, -1);
-  if (parentSegments.length === 0) return "";
-  const trimmedParents = parentSegments.length > 1 ? parentSegments.slice(1) : parentSegments;
-  return trimmedParents.join(" > ");
+  const nodeLabel = (node: OrgNode) => {
+    const name = typeof node.name === "string" ? node.name.trim() : "";
+    if (name) return name;
+    const type = typeof node.nodeType === "string" ? node.nodeType.trim() : "";
+    return type || "Unnamed Node";
+  };
+
+  const walk = (node: OrgNode, trail: string[]) => {
+    const nextTrail = [...trail, nodeLabel(node)].filter(Boolean);
+    map.set(node.id, nextTrail.join(" > "));
+    node.children.forEach((child) => walk(child, nextTrail));
+  };
+
+  walk(root, []);
+  return map;
 };
 
 const BRANCH_BADGE_BY_ACCENT: Record<string, string> = {
+  "bg-slate-400": "border-indigo-300 bg-indigo-50 text-indigo-700",
   "bg-orange-500": "border-orange-300 bg-orange-50 text-orange-700",
   "bg-orange-300": "border-orange-200 bg-orange-50 text-orange-600",
   "bg-orange-200": "border-orange-200 bg-orange-50 text-orange-600",
@@ -93,6 +95,34 @@ const BRANCH_BADGE_BY_ACCENT: Record<string, string> = {
   "bg-cyan-300": "border-cyan-200 bg-cyan-50 text-cyan-600",
   "bg-cyan-200": "border-cyan-200 bg-cyan-50 text-cyan-600",
   "bg-cyan-100": "border-cyan-200 bg-cyan-50 text-cyan-600",
+};
+
+const BRANCH_SURFACE_BY_ACCENT: Record<string, string> = {
+  "bg-slate-400": "border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50/70",
+  "bg-orange-500": "border-orange-200 bg-orange-50/50 hover:bg-orange-50/70",
+  "bg-orange-300": "border-orange-200 bg-orange-50/50 hover:bg-orange-50/70",
+  "bg-orange-200": "border-orange-200 bg-orange-50/50 hover:bg-orange-50/70",
+  "bg-orange-100": "border-orange-200 bg-orange-50/50 hover:bg-orange-50/70",
+  "bg-sky-500": "border-sky-200 bg-sky-50/50 hover:bg-sky-50/70",
+  "bg-sky-300": "border-sky-200 bg-sky-50/50 hover:bg-sky-50/70",
+  "bg-sky-200": "border-sky-200 bg-sky-50/50 hover:bg-sky-50/70",
+  "bg-sky-100": "border-sky-200 bg-sky-50/50 hover:bg-sky-50/70",
+  "bg-emerald-500": "border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50/70",
+  "bg-emerald-300": "border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50/70",
+  "bg-emerald-200": "border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50/70",
+  "bg-emerald-100": "border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50/70",
+  "bg-rose-500": "border-rose-200 bg-rose-50/50 hover:bg-rose-50/70",
+  "bg-rose-300": "border-rose-200 bg-rose-50/50 hover:bg-rose-50/70",
+  "bg-rose-200": "border-rose-200 bg-rose-50/50 hover:bg-rose-50/70",
+  "bg-rose-100": "border-rose-200 bg-rose-50/50 hover:bg-rose-50/70",
+  "bg-amber-500": "border-amber-200 bg-amber-50/50 hover:bg-amber-50/70",
+  "bg-amber-300": "border-amber-200 bg-amber-50/50 hover:bg-amber-50/70",
+  "bg-amber-200": "border-amber-200 bg-amber-50/50 hover:bg-amber-50/70",
+  "bg-amber-100": "border-amber-200 bg-amber-50/50 hover:bg-amber-50/70",
+  "bg-cyan-500": "border-cyan-200 bg-cyan-50/50 hover:bg-cyan-50/70",
+  "bg-cyan-300": "border-cyan-200 bg-cyan-50/50 hover:bg-cyan-50/70",
+  "bg-cyan-200": "border-cyan-200 bg-cyan-50/50 hover:bg-cyan-50/70",
+  "bg-cyan-100": "border-cyan-200 bg-cyan-50/50 hover:bg-cyan-50/70",
 };
 
 const buildBranchMetaMap = (root: OrgNode | null): Map<string, BranchMeta> => {
@@ -127,6 +157,9 @@ const getNodeBorderLeftClass = (node: OrgNode, branchMetaMap: Map<string, Branch
 
 const getNodeBadgeClass = (node: OrgNode, branchMetaMap: Map<string, BranchMeta>) =>
   BRANCH_BADGE_BY_ACCENT[getNodeAccentClass(node, branchMetaMap)] ?? "border-slate-200 bg-slate-50 text-slate-700";
+
+const getNodeSurfaceClass = (node: OrgNode, branchMetaMap: Map<string, BranchMeta>) =>
+  BRANCH_SURFACE_BY_ACCENT[getNodeAccentClass(node, branchMetaMap)] ?? "border-slate-200 bg-white hover:bg-slate-50/60";
 
 const getPermissionActionTheme = (action: PermissionAction) => {
   if (action === "manager") {
@@ -245,6 +278,7 @@ export function UserOnboardingStepAccessRights({
   onTogglePermission,
 }: StepAccessRightsProps) {
   const branchMetaMap = buildBranchMetaMap(orgStructure);
+  const breadcrumbByNodeId = useMemo(() => buildNodeBreadcrumbMap(orgStructure), [orgStructure]);
   const primarySelectedNode = selectedNodes.find((node) => node.id === primaryNodeId) ?? selectedNodes[0] ?? null;
   const secondarySelectedNodes = selectedNodes;
   const selectedNodeIndexMap = new Map(selectedNodes.map((node, index) => [node.id, index + 1] as const));
@@ -461,9 +495,10 @@ export function UserOnboardingStepAccessRights({
                       className={cn(
                         "snap-start relative flex shrink-0 items-center gap-3 overflow-hidden rounded-xl border border-l-[4px] bg-white px-4 py-3 text-left shadow-sm transition-all",
                         getNodeBorderLeftClass(node, branchMetaMap),
+                        getNodeSurfaceClass(node, branchMetaMap),
                         draggedNodeId === node.id ? "opacity-50" : "",
                         dropTargetNodeId === node.id ? "border-[rgb(53,83,233)] ring-2 ring-[rgb(53,83,233)]/10" : "",
-                        expandedAccessNodeIds.includes(node.id) ? "border-slate-300 bg-slate-50/80" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/60",
+                        expandedAccessNodeIds.includes(node.id) ? "ring-1 ring-[rgb(53,83,233)]/15" : "",
                       )}
                     >
                       <button
@@ -490,8 +525,8 @@ export function UserOnboardingStepAccessRights({
                         <div className="flex items-center gap-2">
                           <div className="truncate text-sm font-semibold text-slate-800">{node.name}</div>
                         </div>
-                        {getNodeParentSubtitle(node.nodePath) ? (
-                          <div className="truncate text-[11px] font-medium text-slate-500">{getNodeParentSubtitle(node.nodePath)}</div>
+                        {breadcrumbByNodeId.get(node.id) ? (
+                          <div className="truncate text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(node.id)}</div>
                         ) : null}
                         <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{node.nodeType}</div>
                       </div>
@@ -534,8 +569,8 @@ export function UserOnboardingStepAccessRights({
                             </div>
                             <div>
                               <div className="text-sm font-semibold text-slate-800">{infoNode.name}</div>
-                              {getNodeParentSubtitle(infoNode.nodePath) ? (
-                                <div className="text-[11px] font-medium text-slate-500">{getNodeParentSubtitle(infoNode.nodePath)}</div>
+                              {breadcrumbByNodeId.get(infoNode.id) ? (
+                                <div className="text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(infoNode.id)}</div>
                               ) : null}
                               <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{infoNode.nodeType}</div>
                             </div>
@@ -626,8 +661,8 @@ export function UserOnboardingStepAccessRights({
                       </div>
                       <div className="min-w-0">
                         <div className="truncate text-sm font-semibold text-slate-800">{primarySelectedNode.name}</div>
-                        {getNodeParentSubtitle(primarySelectedNode.nodePath) ? (
-                          <div className="truncate text-[11px] font-medium text-slate-500">{getNodeParentSubtitle(primarySelectedNode.nodePath)}</div>
+                        {breadcrumbByNodeId.get(primarySelectedNode.id) ? (
+                          <div className="truncate text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(primarySelectedNode.id)}</div>
                         ) : null}
                         <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
                           {primarySelectedNode.nodeType}
@@ -692,8 +727,8 @@ export function UserOnboardingStepAccessRights({
                             </div>
                             <div className="min-w-0">
                               <div className="truncate text-sm font-semibold text-slate-800">{node.name}</div>
-                              {getNodeParentSubtitle(node.nodePath) ? (
-                                <div className="truncate text-[11px] font-medium text-slate-500">{getNodeParentSubtitle(node.nodePath)}</div>
+                              {breadcrumbByNodeId.get(node.id) ? (
+                                <div className="truncate text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(node.id)}</div>
                               ) : null}
                               <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
                                 {node.nodeType}

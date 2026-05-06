@@ -1,6 +1,6 @@
 import { Briefcase, Building2, Layers, Zap } from "lucide-react";
 import type { ReactNode } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ModuleGroup } from "./types";
 
 type WorkflowStepInputsProps = {
@@ -61,7 +61,13 @@ export default function WorkflowStepInputs({
   onSetWfModule,
   onSetWfNode,
 }: WorkflowStepInputsProps) {
-  const flatModuleOptions = moduleGroups.flatMap((group) => group.options);
+  const moduleGroupOrder = ["TRANSACTIONAL", "OPERATIONAL", "SYSTEM_ACCESS"];
+  const orderedModuleGroups = [
+    ...moduleGroups
+      .filter((group) => moduleGroupOrder.includes(group.categoryKey))
+      .sort((a, b) => moduleGroupOrder.indexOf(a.categoryKey) - moduleGroupOrder.indexOf(b.categoryKey)),
+    ...moduleGroups.filter((group) => !moduleGroupOrder.includes(group.categoryKey)),
+  ];
 
   return (
     <div className="h-full overflow-auto p-6 custom-scrollbar">
@@ -106,10 +112,20 @@ export default function WorkflowStepInputs({
                   <SelectValue placeholder="Select module" />
                 </SelectTrigger>
                 <SelectContent>
-                  {flatModuleOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
+                  {orderedModuleGroups.map((group, groupIndex) => (
+                    <SelectGroup key={group.categoryKey}>
+                      <SelectLabel className="px-2 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                        {group.categoryLabel}
+                      </SelectLabel>
+                      {group.options.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                      {groupIndex < orderedModuleGroups.length - 1 ? (
+                        <SelectSeparator className="mx-1 my-1 bg-slate-200" />
+                      ) : null}
+                    </SelectGroup>
                   ))}
                 </SelectContent>
               </Select>
