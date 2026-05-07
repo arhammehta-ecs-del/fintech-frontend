@@ -36,9 +36,11 @@ export const collectNodeOptions = (node: OrgNode | null): Array<{ label: string;
 
   const nodes: Array<{ label: string; value: string }> = [];
   const walk = (current: OrgNode) => {
+    const normalizedStatus = (current.status || "Active").toLowerCase();
+    const isActiveNode = normalizedStatus === "active";
     const normalized = current.name.trim();
     const normalizedPath = current.nodePath.trim();
-    if (normalized && normalizedPath && current.nodeType.toUpperCase() !== "ROOT") {
+    if (isActiveNode && normalized && normalizedPath && current.nodeType.toUpperCase() !== "ROOT") {
       nodes.push({ label: normalized, value: normalizedPath });
     }
     current.children.forEach(walk);

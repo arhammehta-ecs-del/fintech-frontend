@@ -1,18 +1,16 @@
-import { Briefcase, Building2, Layers, Zap } from "lucide-react";
+import { Briefcase, Building2, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ModuleGroup } from "./types";
 
 type WorkflowStepInputsProps = {
   wfName: string;
-  wfAlias: string;
   wfModule: string;
   wfNode: string;
   moduleGroups: ModuleGroup[];
   departmentOptions: Array<{ value: string; label: string }>;
   showMetaErrors: boolean;
   onSetWfName: (value: string) => void;
-  onSetWfAlias: (value: string) => void;
   onSetWfModule: (value: string) => void;
   onSetWfNode: (value: string) => void;
 };
@@ -50,14 +48,12 @@ function InputField({
 
 export default function WorkflowStepInputs({
   wfName,
-  wfAlias,
   wfModule,
   wfNode,
   moduleGroups,
   departmentOptions,
   showMetaErrors,
   onSetWfName,
-  onSetWfAlias,
   onSetWfModule,
   onSetWfNode,
 }: WorkflowStepInputsProps) {
@@ -87,16 +83,6 @@ export default function WorkflowStepInputs({
               onChange={onSetWfName}
             />
             {showMetaErrors && !wfName.trim() ? <p className="mt-1 text-xs font-semibold text-red-500">Required</p> : null}
-          </div>
-
-          <div>
-            <InputField
-              label="Process Alias"
-              value={wfAlias}
-              placeholder="e.g. PO_GLOBAL_V1"
-              icon={<Layers className="h-4 w-4 text-purple-500" />}
-              onChange={onSetWfAlias}
-            />
           </div>
 
           <div className="space-y-2 group">

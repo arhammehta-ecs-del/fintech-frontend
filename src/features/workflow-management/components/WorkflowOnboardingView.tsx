@@ -28,7 +28,6 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
     selectedModuleLabel,
     selectedNodeNameLabel,
     setWfName,
-    setWfAlias,
     setWfModule,
     setWfNode,
     updateLevelApprover,
@@ -50,14 +49,12 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
           {step === 1 ? (
             <WorkflowStepInputs
               wfName={wfName}
-              wfAlias={wfAlias}
               wfModule={wfModule}
               wfNode={wfNode}
               moduleGroups={moduleGroups}
               departmentOptions={departmentOptions}
               showMetaErrors={showMetaErrors}
               onSetWfName={setWfName}
-              onSetWfAlias={setWfAlias}
               onSetWfModule={setWfModule}
               onSetWfNode={setWfNode}
             />

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calendar, ChevronDown, Clock, History, ShieldCheck, X } from "lucide-react";
+import { Calendar, ChevronDown, CircleX, Clock, History, ShieldCheck, X } from "lucide-react";
 
 export type HistoryStatus = "pending" | "approved";
 
@@ -46,6 +46,17 @@ const toTitleCase = (value: string) =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 
+type EventTone = "approved" | "pending" | "rejected" | "inactive";
+
+const getEventTone = (action: string, fallbackStatus: HistoryStatus): EventTone => {
+  const normalized = action.trim().toLowerCase();
+  if (normalized.includes("reject")) return "rejected";
+  if (normalized.includes("inactive") || normalized.includes("deactivate")) return "inactive";
+  if (normalized.includes("pending") || normalized.includes("initiate")) return "pending";
+  if (normalized.includes("approve") || normalized.includes("active")) return "approved";
+  return fallbackStatus === "pending" ? "pending" : "approved";
+};
+
 export const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "NA";
@@ -69,19 +80,28 @@ export const formatDateParts = (isoLike?: string) => {
 
 
 function StatusHeader({ item }: { item: HistoryEntry }) {
+  const tone = getEventTone(item.action, item.status);
+  const badgeClassName =
+    tone === "pending"
+      ? "border-amber-200/50 bg-amber-50 text-amber-700"
+      : tone === "rejected"
+        ? "border-rose-200/50 bg-rose-50 text-rose-700"
+        : tone === "inactive"
+          ? "border-slate-300/70 bg-slate-100 text-slate-700"
+          : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
+
   return (
     <div className="mb-3 flex items-center border-b border-slate-100 pb-3">
-      {item.status === "pending" ? (
-        <div className="flex items-center gap-1.5 rounded border border-amber-200/50 bg-amber-50 px-2 py-1 text-amber-700">
+      <div className={`flex items-center gap-1.5 rounded border px-2 py-1 ${badgeClassName}`}>
+        {tone === "pending" ? (
           <Clock className="h-3 w-3" />
-          <span className="text-[10px] font-bold uppercase tracking-tight">Pending Request</span>
-        </div>
-      ) : (
-        <div className="flex items-center gap-1.5 rounded border border-emerald-200/50 bg-emerald-50 px-2 py-1 text-emerald-700">
+        ) : tone === "rejected" ? (
+          <CircleX className="h-3 w-3" />
+        ) : (
           <ShieldCheck className="h-3 w-3" />
-          <span className="text-[10px] font-bold uppercase tracking-tight">Approved</span>
-        </div>
-      )}
+        )}
+        <span className="text-[10px] font-bold uppercase tracking-tight">{item.action}</span>
+      </div>
     </div>
   );
 }
