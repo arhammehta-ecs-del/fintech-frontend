@@ -2,6 +2,7 @@ import type { DragEvent } from "react";
 import type { Company, GroupCompany } from "@/contexts/AppContext";
 import { ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import type { DragPayload, VisibleColumn } from "@/features/company-list/types";
 import { formatDisplayDate } from "@/features/company-list/utils";
 import SortableSubsidiaryRow from "@/features/company-list/components/SortableSubsidiaryRow";
@@ -70,7 +71,19 @@ export default function SortableGroupBody({
         </td>
         {visibleColumns.has("groupName") && (
           <td className="px-4 py-3 text-sm font-medium text-foreground">
-            {group.groupName} ({group.subsidiaries.length})
+            <div className="flex flex-col">
+              <span>
+                {group.groupName} ({group.subsidiaries.length})
+              </span>
+              {group.code ? (
+                <Badge
+                  variant="outline"
+                  className="mt-1 w-fit border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600"
+                >
+                  {group.code}
+                </Badge>
+              ) : null}
+            </div>
           </td>
         )}
         {visibleColumns.has("companyName") && (

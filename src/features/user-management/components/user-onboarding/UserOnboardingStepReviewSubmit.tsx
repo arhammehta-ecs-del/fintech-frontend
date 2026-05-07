@@ -3,8 +3,8 @@ import { ChevronRight, Eye, Expand, Minimize2, Pencil, ShieldCheck, X } from "lu
 import { Button } from "@/components/ui/button";
 import type { OrgNode } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
-import type { UserOnboardingFormData, NodePermissionBuckets, UserOnboardingPermissions } from "@/features/user-management/types";
-import { formatRoleTokenLabel, getPermissionActionLabelFromText } from "@/features/user-management/roleLabels";
+import type { UserOnboardingFormData, NodePermissionBuckets, NodePermissionScopeBuckets, PermissionAction, UserOnboardingPermissions } from "@/features/user-management/types";
+import { formatRoleTokenLabel, getPermissionActionFromText, getPermissionActionLabelFromText } from "@/features/user-management/roleLabels";
 import { getNodeAccentBackground, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
 
 type StepReviewSubmitProps = {
@@ -13,6 +13,8 @@ type StepReviewSubmitProps = {
   selectedNodes: OrgNode[];
   primaryNodeId: string | null;
   nodePermissions: Record<string, NodePermissionBuckets>;
+  nodePermissionScopes: Record<string, NodePermissionScopeBuckets>;
+  selectedWorkflow: string;
   expandedAccessNodeIds: string[];
   isReviewAccessExpanded: boolean;
   reviewAccessNodeRefs: MutableRefObject<Record<string, HTMLDivElement | null>>;
@@ -161,7 +163,14 @@ const getPermissionBadgeTheme = (label: string) => {
 
 type SelectedPermissionSection = {
   categoryKey: string;
-  selectedItems: Array<{ itemKey: string; activeRights: string[] }>;
+  selectedItems: Array<{ itemKey: string; activeRights: string[]; activeScopeByAction: Partial<Record<PermissionAction, string>> }>;
+};
+
+const formatScopeLabel = (value: string) => {
+  const normalized = value.trim().toUpperCase();
+  if (normalized === "ALL_CHILD") return "All Child";
+  if (normalized === "IMMEDIATE_CHILD") return "Immediate Child";
+  return "Node";
 };
 
 const getOrderedPermissionLabels = (activeRights: string[]) => {
@@ -169,7 +178,10 @@ const getOrderedPermissionLabels = (activeRights: string[]) => {
   return ["Checker", "Maker", "Viewer"].filter((label) => labels.has(label));
 };
 
-const getSelectedSections = (permissions: UserOnboardingPermissions): SelectedPermissionSection[] => {
+const getSelectedSections = (
+  permissions: UserOnboardingPermissions,
+  permissionScopes: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>,
+): SelectedPermissionSection[] => {
   const sections = Object.entries(permissions)
     .map(([categoryKey, items]) => {
       const selectedItems = Object.entries(items)
@@ -178,6 +190,7 @@ const getSelectedSections = (permissions: UserOnboardingPermissions): SelectedPe
           activeRights: Object.entries(rights as Record<string, boolean>)
             .filter(([, value]) => value)
             .map(([key]) => key),
+          activeScopeByAction: permissionScopes?.[categoryKey]?.[itemKey] ?? {},
         }))
         .filter((entry) => entry.activeRights.length > 0);
 
@@ -213,6 +226,7 @@ function NodePermissionCard({
   branchMetaMap,
   breadcrumbByNodeId,
   emptyText,
+  permissionScopes,
   onClose,
 }: {
   node: OrgNode;
@@ -221,9 +235,10 @@ function NodePermissionCard({
   branchMetaMap: Map<string, BranchMeta>;
   breadcrumbByNodeId: Map<string, string>;
   emptyText: string;
+  permissionScopes: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>;
   onClose?: () => void;
 }) {
-  const selectedSections = getSelectedSections(permissions);
+  const selectedSections = getSelectedSections(permissions, permissionScopes);
   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
   const parentSubtitle = isRoot ? "" : breadcrumbByNodeId.get(node.id) || "";
 
@@ -273,13 +288,18 @@ function NodePermissionCard({
                       {orderedLabels.map((label) => {
                         const theme = getPermissionBadgeTheme(label);
                         const BadgeIcon = theme.Icon;
+                        const action = getPermissionActionFromText(label);
+                        const scopeLabel =
+                          action && section.categoryKey.trim().toUpperCase() === "SYSTEM_ACCESS"
+                            ? formatScopeLabel(item.activeScopeByAction[action] ?? "NODE")
+                            : null;
                         return (
                           <span
                             key={`${node.id}-${section.categoryKey}-${item.itemKey}-${label}`}
                             className={cn("inline-flex min-w-[96px] items-center justify-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium", theme.className)}
                           >
                             <BadgeIcon className="h-3.5 w-3.5 shrink-0" />
-                            {label}
+                            {scopeLabel ? `${label} - ${scopeLabel}` : label}
                           </span>
                         );
                       })}
@@ -311,6 +331,8 @@ export function UserOnboardingStepReviewSubmit({
   selectedNodes,
   primaryNodeId,
   nodePermissions,
+  nodePermissionScopes,
+  selectedWorkflow,
   isReviewAccessExpanded,
   onSetExpandedAccessNodeIds,
   onSetIsReviewAccessExpanded,
@@ -327,7 +349,7 @@ export function UserOnboardingStepReviewSubmit({
   const primaryPermissions = primaryNode ? nodePermissions[primaryNode.id]?.primary ?? {} : {};
   const secondaryNodesWithRights = selectedNodes.filter((node) => {
     const buckets = nodePermissions[node.id];
-    return buckets && getSelectedSections(buckets.secondary).length > 0;
+    return buckets && getSelectedSections(buckets.secondary, nodePermissionScopes[node.id]?.secondary ?? {}).length > 0;
   });
   const primaryRightsCount = countSelectedRights(primaryPermissions);
   const secondaryRightsCount = secondaryNodesWithRights.reduce(
@@ -384,6 +406,7 @@ export function UserOnboardingStepReviewSubmit({
                       <BasicDetailRow label="Phone" value={basic.phone} />
                       <BasicDetailRow label="Designation" value={basic.designation} />
                       {basic.employeeId?.trim() ? <BasicDetailRow label="Employee ID" value={basic.employeeId} /> : null}
+                      {selectedWorkflow.trim() ? <BasicDetailRow label="Workflow" value={selectedWorkflow} /> : null}
                     </div>
                   </div>
 
@@ -397,6 +420,7 @@ export function UserOnboardingStepReviewSubmit({
                         node={primaryNode}
                         badgeLabel="P1"
                         permissions={primaryPermissions}
+                        permissionScopes={nodePermissionScopes[primaryNode.id]?.primary ?? {}}
                         branchMetaMap={branchMetaMap}
                         breadcrumbByNodeId={breadcrumbByNodeId}
                         emptyText="No primary access configured."
@@ -442,6 +466,7 @@ export function UserOnboardingStepReviewSubmit({
                         node={node}
                         badgeLabel={`S${selectedNodes.findIndex((n) => n.id === node.id) + 1}`}
                         permissions={nodePermissions[node.id].secondary}
+                        permissionScopes={nodePermissionScopes[node.id]?.secondary ?? {}}
                         branchMetaMap={branchMetaMap}
                         breadcrumbByNodeId={breadcrumbByNodeId}
                         emptyText="No secondary access assigned."
@@ -464,6 +489,7 @@ export function UserOnboardingStepReviewSubmit({
                     <BasicDetailRow label="Phone" value={basic.phone} />
                     <BasicDetailRow label="Designation" value={basic.designation} />
                     {basic.employeeId?.trim() ? <BasicDetailRow label="Employee ID" value={basic.employeeId} /> : null}
+                    {selectedWorkflow.trim() ? <BasicDetailRow label="Workflow" value={selectedWorkflow} /> : null}
                   </div>
                 </div>
 
@@ -493,6 +519,7 @@ export function UserOnboardingStepReviewSubmit({
                         node={primaryNode}
                         badgeLabel="P1"
                         permissions={primaryPermissions}
+                        permissionScopes={nodePermissionScopes[primaryNode.id]?.primary ?? {}}
                         branchMetaMap={branchMetaMap}
                         breadcrumbByNodeId={breadcrumbByNodeId}
                         emptyText="No primary access configured."
@@ -547,6 +574,7 @@ export function UserOnboardingStepReviewSubmit({
                         node={node}
                         badgeLabel={`S${selectedNodes.findIndex((n) => n.id === node.id) + 1}`}
                         permissions={nodePermissions[node.id].secondary}
+                        permissionScopes={nodePermissionScopes[node.id]?.secondary ?? {}}
                         branchMetaMap={branchMetaMap}
                         breadcrumbByNodeId={breadcrumbByNodeId}
                         emptyText="No secondary access assigned."

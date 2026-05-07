@@ -295,7 +295,7 @@ export function CompanyPreviewDialog({
                   <div className="p-5">
                     <div className="mb-4 border-b border-border/60 pb-3">
                       <h4 className="text-sm font-semibold text-foreground">Company Details</h4>
-                      <p className="mt-0.5 text-xs text-muted-foreground">Legal and registration data</p>
+                      
                     </div>
                     <div className="space-y-0.5">
                       <DetailRow label="Company Code" value={companyCode ? <CodePill value={companyCode} /> : "—"} />
@@ -313,7 +313,7 @@ export function CompanyPreviewDialog({
               <Card className="overflow-hidden border-border/70 bg-background shadow-sm">
                 <div className="p-5">
                   <div className="mb-4 border-b border-border/60 pb-3">
-                    <h4 className="text-sm font-semibold text-foreground">New Signatory</h4>
+                    <h4 className="text-sm font-semibold text-foreground">New Signatories</h4>
                   </div>
 
                   <div className="space-y-3">

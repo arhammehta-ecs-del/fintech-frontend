@@ -1,4 +1,5 @@
 import { ChevronRight, Rocket } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import WorkflowStepper from "@/features/workflow-management/components/onboarding/WorkflowStepper";
 import WorkflowStepInputs from "@/features/workflow-management/components/onboarding/WorkflowStepInputs";
 import WorkflowStepLevels from "@/features/workflow-management/components/onboarding/WorkflowStepLevels";
@@ -22,6 +23,8 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
     wfNode,
     moduleGroups,
     departmentOptions,
+    workflowOptions,
+    selectedWorkflowId,
     levels,
     isRMUsedGlobally,
     currentLevelComplete,
@@ -30,6 +33,7 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
     setWfName,
     setWfModule,
     setWfNode,
+    setSelectedWorkflowId,
     updateLevelApprover,
     addApproverToLevel,
     removeApproverFromLevel,
@@ -101,16 +105,33 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
           Back
         </button>
 
-        <button
-          type="button"
-          onClick={handleNext}
-          className={`flex items-center gap-2 rounded-xl px-8 py-3 text-sm font-semibold text-white shadow-sm transition-all active:scale-95 ${
-            step === 3 ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"
-          }`}
-        >
-          {step === 1 ? "Next Step" : step === 2 ? "Generate Summary" : "Publish Workflow"}
-          {step < 3 ? <ChevronRight className="h-4 w-4" /> : <Rocket className="h-4 w-4" />}
-        </button>
+        <div className="flex items-center gap-2">
+          {step === 3 ? (
+            <Select value={selectedWorkflowId || "__none__"} onValueChange={(value) => setSelectedWorkflowId(value === "__none__" ? "" : value)}>
+              <SelectTrigger className="h-11 w-[220px] border-blue-200 text-blue-700">
+                <SelectValue placeholder="Select Workflow" />
+              </SelectTrigger>
+              <SelectContent side="top" align="end">
+                <SelectItem value="__none__">No Workflow</SelectItem>
+                {workflowOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleNext}
+            className={`flex min-w-[184px] items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all active:scale-95 ${
+              step === 3 ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"
+            }`}
+          >
+            {step === 1 ? "Next Step" : step === 2 ? "Generate Summary" : "Publish Workflow"}
+            {step < 3 ? <ChevronRight className="h-4 w-4" /> : <Rocket className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
 
       <style

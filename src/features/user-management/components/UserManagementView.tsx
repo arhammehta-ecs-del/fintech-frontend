@@ -36,6 +36,7 @@ export function UserManagementView() {
     setPage,
     addDialogOpen,
     setAddDialogOpen,
+    handleOpenAddUserDialog,
     viewingMember,
     setViewingMember,
     editingMember,
@@ -85,7 +86,7 @@ export function UserManagementView() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+            <Button size="sm" onClick={() => void handleOpenAddUserDialog()}>
               <UserPlus className="mr-1.5 h-4 w-4" />
               Add User
             </Button>

@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { NEW_MEMBER_STEPS } from "@/features/user-management/constants";
 import { useUserOnboardingForm } from "./useUserOnboardingForm";
@@ -22,6 +23,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
   const {
     orgStructure,
     roles,
+    workflowOptions,
     step,
     formData,
     errors,
@@ -31,14 +33,17 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
     expandedAccessNodeIds,
     primaryNodeId,
     nodePermissions,
+    nodePermissionScopes,
     infoNodeId,
     isReviewAccessExpanded,
     reviewAccessNodeRefs,
     clearError,
     updateBasic,
+    setSelectedWorkflow,
     removeSelectedNode,
     handleNodeSelect,
     togglePermission,
+    setPermissionScope,
     reorderSelectedNodes,
     setExpandedAccessNodeIds,
     setPrimaryNodeId,
@@ -164,11 +169,13 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
                   primaryNodeId={primaryNodeId}
                   infoNodeId={infoNodeId}
                   nodePermissions={nodePermissions}
+                  nodePermissionScopes={nodePermissionScopes}
                   onSetExpandedAccessNodeIds={setExpandedAccessNodeIds}
                   onSetPrimaryNodeId={setPrimaryNodeId}
                   onReorderSelectedNodes={reorderSelectedNodes}
                   onSetInfoNodeId={setInfoNodeId}
                   onTogglePermission={togglePermission}
+                  onSetPermissionScope={setPermissionScope}
                 />
               ) : null}
 
@@ -179,6 +186,8 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
                   selectedNodes={selectedNodes}
                   primaryNodeId={primaryNodeId}
                   nodePermissions={nodePermissions}
+                  nodePermissionScopes={nodePermissionScopes}
+                  selectedWorkflow={formData.selectedWorkflow}
                   expandedAccessNodeIds={expandedAccessNodeIds}
                   isReviewAccessExpanded={isReviewAccessExpanded}
                   reviewAccessNodeRefs={reviewAccessNodeRefs}
@@ -195,10 +204,31 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
                 {step === 1 ? "Cancel" : "Back"}
               </Button>
 
-              <Button type="submit" className="w-full bg-[rgb(53,83,233)] text-white hover:bg-[rgb(53,83,233)]/90 sm:w-auto">
-                {step === 4 ? (onSubmit ? "Confirm & Create User" : "Close Preview") : "Continue"}
-                {step < 4 ? <ChevronRight className="ml-2 h-4 w-4" /> : null}
-              </Button>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                {step === 4 ? (
+                  <Select
+                    value={formData.selectedWorkflowId || "__none__"}
+                    onValueChange={(value) => setSelectedWorkflow(value === "__none__" ? "" : value)}
+                  >
+                    <SelectTrigger className="h-11 w-full min-w-[240px] border-[rgb(53,83,233)]/30 text-[rgb(53,83,233)] sm:w-[280px]">
+                      <SelectValue placeholder="Select Workflow" />
+                    </SelectTrigger>
+                    <SelectContent side="top" align="end">
+                      <SelectItem value="__none__">No Workflow</SelectItem>
+                      {workflowOptions.map((workflowOption) => (
+                        <SelectItem key={workflowOption.id} value={workflowOption.id}>
+                          {workflowOption.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
+
+                <Button type="submit" className="w-full bg-[rgb(53,83,233)] text-white hover:bg-[rgb(53,83,233)]/90 sm:w-auto">
+                  {step === 4 ? (onSubmit ? "Confirm & Create User" : "Close Preview") : "Continue"}
+                  {step < 4 ? <ChevronRight className="ml-2 h-4 w-4" /> : null}
+                </Button>
+              </div>
             </div>
           </DialogFooter>
         </form>

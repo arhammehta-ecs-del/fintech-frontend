@@ -5,6 +5,7 @@ export type MemberStatusTab = "active" | "pending" | "inactive";
 export type SortOrder = "asc" | "desc";
 
 export type PermissionAction = "manager" | "user" | "viewer";
+export type SystemAccessScope = "NODE" | "IMMEDIATE_CHILD" | "ALL_CHILD";
 
 export type PermissionCategory = string;
 
@@ -17,6 +18,11 @@ export type UserOnboardingPermissions = Record<string, Record<string, Permission
 export type NodePermissionBuckets = {
   primary: UserOnboardingPermissions;
   secondary: UserOnboardingPermissions;
+};
+
+export type NodePermissionScopeBuckets = {
+  primary: Record<string, Record<string, Partial<Record<PermissionAction, SystemAccessScope>>>>;
+  secondary: Record<string, Record<string, Partial<Record<PermissionAction, SystemAccessScope>>>>;
 };
 
 export type UserOnboardingFormData = {
@@ -35,9 +41,20 @@ export type UserOnboardingFormData = {
     nodeId: string;
     nodeName: string;
     nodePath: string;
+    immediateChildren: Array<{
+      nodeName: string;
+      nodePath: string;
+    }>;
+    allChildren: Array<{
+      nodeName: string;
+      nodePath: string;
+    }>;
     permissions: NodePermissionBuckets;
+    permissionScopes: NodePermissionScopeBuckets;
   }>;
   primaryNodeId: string | null;
+  selectedWorkflow: string;
+  selectedWorkflowId: string;
 };
 
 export type ValidationErrors = Record<string, string>;

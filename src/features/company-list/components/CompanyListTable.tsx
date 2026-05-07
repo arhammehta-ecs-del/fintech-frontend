@@ -77,6 +77,7 @@ export default function CompanyListTable({
                 company={row.company}
                 groupId={row.groupId}
                 groupLabel={row.groupName}
+                groupCode={row.groupCode}
                 visibleColumns={visibleColumns}
                 showStatusColumn={showStatusColumn}
                 onManage={onOpenCompany}

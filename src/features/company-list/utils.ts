@@ -135,6 +135,7 @@ export const buildIndependentDisplayRows = (filteredGroups: GroupCompany[]): Dis
         company,
         groupId: group.id,
         groupName: "Independent",
+        groupCode: group.code,
         isIndependent: true,
       })),
     );
@@ -147,6 +148,7 @@ export const buildAllDisplayRows = (filteredGroups: GroupCompany[]): DisplayRow[
         company,
         groupId: group.id,
         groupName: isUngroupedGroup(group) ? "Independent" : group.groupName,
+        groupCode: group.code,
         isIndependent: isUngroupedGroup(group),
       })),
     )

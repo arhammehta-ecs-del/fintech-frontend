@@ -246,7 +246,6 @@ export function useCompanyOnboardingWizard({
       }
     } else if (step === 1) {
       if (!legalName.trim()) nextErrors.legalName = "Required";
-      if (!gstin.trim()) nextErrors.gstin = "Required";
       if (!incDate.trim()) nextErrors.incDate = "Required";
       else if (incDate > todayDateInputValue) nextErrors.incDate = "Date cannot be later than today";
       if (!address.trim()) nextErrors.address = "Required";
@@ -386,7 +385,7 @@ export function useCompanyOnboardingWizard({
           },
       company: {
         name: legalName.trim().toUpperCase(),
-        gst: gstin.trim().toUpperCase(),
+        gst: gstin.trim() ? gstin.trim().toUpperCase() : null,
         brand: companyName.trim() ? companyName.trim() : null,
         ieCode: ieCode.trim() || null,
         registeredAt: incDate,

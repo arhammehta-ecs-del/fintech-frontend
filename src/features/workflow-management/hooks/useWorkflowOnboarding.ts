@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
 import { getCompanyOrgStructure } from "@/services/org.service";
 import { getCompanyRoles } from "@/services/role.service";
+import { fetchCompanyNodes } from "@/services/user.service";
 import { createWorkflow } from "@/services/workflow.service";
 import type { ModuleGroup, WorkflowStep } from "@/features/workflow-management/components/onboarding/types";
 import { collectNodeOptions, createResetLevels, getCategoryLabel, INITIAL_LEVELS, formatTokenLabel, toApiApprover } from "@/features/workflow-management/utils/workflowOnboarding.utils";
@@ -29,6 +30,8 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
 
   const [moduleGroups, setModuleGroups] = useState<ModuleGroup[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [workflowOptions, setWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
   const [levels, setLevels] = useState(INITIAL_LEVELS);
 
   const isWorkflowMetaComplete = [wfName, wfModule, wfNode].every((value) => Boolean(String(value).trim()));
@@ -123,6 +126,35 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
 
   useEffect(() => {
     if (!isOpen) return;
+    let ignore = false;
+
+    fetchCompanyNodes("WORK_FLOW")
+      .then((nodes) => {
+        if (ignore) return;
+        const options = nodes
+          .flatMap((node) => node.workflows)
+          .map((workflow) => {
+            const id = workflow.id.trim();
+            const name = workflow.name.trim();
+            const alias = workflow.alias?.trim();
+            if (!id || !name) return null;
+            return { id, label: alias ? `${name} (${alias})` : name };
+          })
+          .filter((option): option is { id: string; label: string } => Boolean(option));
+
+        setWorkflowOptions(Array.from(new Map(options.map((option) => [option.id, option])).values()));
+      })
+      .catch(() => {
+        if (!ignore) setWorkflowOptions([]);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     setStep(1);
     setVisibleLevels(1);
     setErrorMsg("");
@@ -131,6 +163,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
     setWfAlias("");
     setWfModule("");
     setWfNode("");
+    setSelectedWorkflowId("");
     setLevels(createResetLevels());
   }, [isOpen]);
 
@@ -273,6 +306,8 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
     wfNode,
     moduleGroups,
     departmentOptions,
+    workflowOptions,
+    selectedWorkflowId,
     levels,
     isRMUsedGlobally,
     currentLevelComplete,
@@ -282,6 +317,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
     setWfAlias,
     setWfModule,
     setWfNode,
+    setSelectedWorkflowId,
     updateLevelApprover,
     addApproverToLevel,
     removeApproverFromLevel,

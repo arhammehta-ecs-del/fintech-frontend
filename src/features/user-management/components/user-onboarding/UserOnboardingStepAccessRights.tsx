@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Eye, GripVertical, Maximize2, Minimize2, Pencil, ShieldCheck, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Eye, GripVertical, Maximize2, Minimize2, Pencil, ShieldCheck, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { OrgNode } from "@/contexts/AppContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -7,9 +7,11 @@ import type { RoleRecord } from "@/services/role.service";
 import type {
   UserOnboardingFormData,
   NodePermissionBuckets,
+  NodePermissionScopeBuckets,
   PermissionAction,
   PermissionBucket,
   PermissionCategory,
+  SystemAccessScope,
   ValidationErrors,
 } from "@/features/user-management/types";
 import { PERMISSION_ACTIONS, formatRoleTokenLabel, getPermissionActionLabel } from "@/features/user-management/roleLabels";
@@ -24,6 +26,7 @@ type StepAccessRightsProps = {
   primaryNodeId: string | null;
   infoNodeId: string | null;
   nodePermissions: Record<string, NodePermissionBuckets>;
+  nodePermissionScopes: Record<string, NodePermissionScopeBuckets>;
   onSetExpandedAccessNodeIds: (ids: string[] | ((current: string[]) => string[])) => void;
   onSetPrimaryNodeId: (nodeId: string) => void;
   onReorderSelectedNodes: (draggedNodeId: string, targetNodeId: string) => void;
@@ -35,6 +38,14 @@ type StepAccessRightsProps = {
     item: string,
     action: PermissionAction,
   ) => void;
+  onSetPermissionScope: (
+    nodeId: string,
+    bucket: keyof NodePermissionScopeBuckets,
+    category: string,
+    item: string,
+    action: PermissionAction,
+    scope: SystemAccessScope,
+  ) => void;
 };
 
 type ActivePermissionSelection = {
@@ -42,6 +53,17 @@ type ActivePermissionSelection = {
   itemKey: string;
   action: PermissionAction;
 };
+
+const SYSTEM_ACCESS_SCOPE_ITEMS = new Set([
+  "ORG_STR",
+  "ORG_STRUCTURE",
+  "USER_ACC",
+  "USER_ACCESS",
+  "USER_MANAGEMENT",
+  "WORK_FLOW",
+  "WORKFLOW",
+  "WORKFLOW_CONFIG",
+]);
 
 type BranchMeta = {
   branchIndex: number | null;
@@ -194,7 +216,12 @@ function PermissionRow({
   selectedChoice,
   occupiedChoice,
   hasPrimarySelection = true,
+  scopeByAction = {},
+  showScopePicker = false,
+  scopeExpanded = false,
   onToggle,
+  onScopeChange,
+  onToggleScopeExpanded,
 }: {
   category: string;
   itemKey: string;
@@ -204,11 +231,58 @@ function PermissionRow({
   selectedChoice?: ActivePermissionSelection | null;
   occupiedChoice?: ActivePermissionSelection | null;
   hasPrimarySelection?: boolean;
+  scopeByAction?: Partial<Record<PermissionAction, SystemAccessScope>>;
+  showScopePicker?: boolean;
+  scopeExpanded?: boolean;
   onToggle: (category: string, itemKey: string, action: PermissionAction) => void;
+  onScopeChange?: (category: string, itemKey: string, action: PermissionAction, scope: SystemAccessScope) => void;
+  onToggleScopeExpanded?: (category: string, itemKey: string) => void;
 }) {
+  const selectedByAction: Record<PermissionAction, boolean> = {
+    manager: Boolean(
+      selectedChoice?.categoryKey === category &&
+      String(selectedChoice.itemKey) === String(itemKey) &&
+      selectedChoice.action === "manager",
+    ) || checked.manager,
+    user: Boolean(
+      selectedChoice?.categoryKey === category &&
+      String(selectedChoice.itemKey) === String(itemKey) &&
+      selectedChoice.action === "user",
+    ) || checked.user,
+    viewer: Boolean(
+      selectedChoice?.categoryKey === category &&
+      String(selectedChoice.itemKey) === String(itemKey) &&
+      selectedChoice.action === "viewer",
+    ) || checked.viewer,
+  };
+
+  const scopeRows: Array<{ value: SystemAccessScope; label: string }> = [
+    { value: "ALL_CHILD", label: "ALL CHILD" },
+    { value: "NODE", label: "NODE" },
+    { value: "IMMEDIATE_CHILD", label: "IMMEDIATE CHILD" },
+  ];
+
   return (
-    <div className="grid grid-cols-4 items-center border-b border-slate-100 px-4 py-2.5 transition-colors hover:bg-slate-50/50 last:border-b-0">
-      <div className="text-sm font-medium text-slate-700">{label}</div>
+    <div className="border-b border-slate-100 transition-colors hover:bg-slate-50/50 last:border-b-0">
+      <div className="grid grid-cols-4 items-center px-4 py-2.5">
+      <div className="space-y-1.5">
+        <button
+          type="button"
+          onClick={() => {
+            if (!showScopePicker) return;
+            onToggleScopeExpanded?.(category, itemKey);
+          }}
+          className={cn(
+            "inline-flex items-center gap-2 text-sm font-medium text-slate-700",
+            showScopePicker ? "cursor-pointer" : "cursor-default",
+          )}
+        >
+          {showScopePicker ? (
+            <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", scopeExpanded ? "rotate-180" : "")} />
+          ) : null}
+          <span>{label}</span>
+        </button>
+      </div>
       {PERMISSION_ACTIONS.map((action) => (
         <div key={action} className="flex justify-center">
           {(() => {
@@ -274,6 +348,52 @@ function PermissionRow({
           })()}
         </div>
       ))}
+      </div>
+
+      {showScopePicker && scopeExpanded ? (
+        <div className="space-y-1 pb-2.5 pl-4 pr-4">
+          {scopeRows.map((row) => (
+            <div key={`${itemKey}-${row.value}`} className="grid grid-cols-4 items-center">
+              <div className="inline-flex items-center justify-end gap-2 pr-4 text-[12px] font-bold uppercase tracking-[0.11em] text-slate-500">
+                <span className="text-slate-300">+</span>
+                <span>{row.label}</span>
+              </div>
+              {PERMISSION_ACTIONS.map((action) => {
+                const isEnabled = selectedByAction[action];
+                const isActive = isEnabled && (scopeByAction[action] ?? "NODE") === row.value;
+
+                return (
+                  <div key={`${itemKey}-${row.value}-${action}`} className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isEnabled) return;
+                        onScopeChange?.(category, itemKey, action, row.value);
+                      }}
+                      disabled={!isEnabled}
+                      aria-label={`${label} ${action} ${row.label}`}
+                      className={cn(
+                        "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all",
+                        isActive
+                          ? "border-[rgb(79,70,229)]"
+                          : "border-slate-300",
+                        !isEnabled ? "cursor-not-allowed opacity-50" : "hover:border-[rgb(79,70,229)]/60",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-2.5 w-2.5 rounded-full",
+                          isActive ? "bg-[rgb(79,70,229)]" : "bg-transparent",
+                        )}
+                      />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -287,11 +407,13 @@ export function UserOnboardingStepAccessRights({
   primaryNodeId,
   infoNodeId,
   nodePermissions,
+  nodePermissionScopes,
   onSetExpandedAccessNodeIds,
   onSetPrimaryNodeId,
   onReorderSelectedNodes,
   onSetInfoNodeId,
   onTogglePermission,
+  onSetPermissionScope,
 }: StepAccessRightsProps) {
   const branchMetaMap = buildBranchMetaMap(orgStructure);
   const breadcrumbByNodeId = useMemo(() => buildNodeBreadcrumbMap(orgStructure), [orgStructure]);
@@ -300,6 +422,7 @@ export function UserOnboardingStepAccessRights({
   const selectedNodeIndexMap = new Map(selectedNodes.map((node, index) => [node.id, index + 1] as const));
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const [dropTargetNodeId, setDropTargetNodeId] = useState<string | null>(null);
+  const [expandedScopeRows, setExpandedScopeRows] = useState<string[]>([]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -393,6 +516,12 @@ export function UserOnboardingStepAccessRights({
                   const currentItem = buckets[bucketKey][categoryKey]?.[item.key] ?? { manager: false, user: false, viewer: false };
                   const selectedChoice = bucketKey === "primary" ? primaryChoice : null;
                   const occupiedChoice = bucketKey === "secondary" ? occupiedPrimaryChoice : null;
+                  const scopeValues = nodePermissionScopes[node.id]?.[bucketKey]?.[categoryKey]?.[item.key] ?? {};
+                  const showScopePicker =
+                    categoryKey.trim().toUpperCase() === "SYSTEM_ACCESS" &&
+                    SYSTEM_ACCESS_SCOPE_ITEMS.has(item.key.trim().toUpperCase());
+                  const scopeRowKey = `${node.id}::${bucketKey}::${categoryKey}::${item.key}`;
+
                   return (
                     <PermissionRow
                       key={item.key}
@@ -404,7 +533,34 @@ export function UserOnboardingStepAccessRights({
                       selectedChoice={selectedChoice}
                       occupiedChoice={occupiedChoice}
                       hasPrimarySelection={bucketKey === "secondary" ? hasAnyPrimarySelection : Boolean(primaryChoice)}
-                      onToggle={(cat, key, action) => onTogglePermission(node.id, bucketKey, cat, key, action)}
+                      scopeByAction={scopeValues}
+                      showScopePicker={showScopePicker}
+                      scopeExpanded={expandedScopeRows.includes(scopeRowKey)}
+                      onToggle={(cat, key, action) => {
+                        const nextValue = !currentItem[action];
+                          onTogglePermission(node.id, bucketKey, cat, key, action);
+
+                        if (!showScopePicker) return;
+
+                        if (nextValue) {
+                          onSetPermissionScope(node.id, bucketKey, cat, key, action, "ALL_CHILD");
+                          setExpandedScopeRows((current) => (current.includes(scopeRowKey) ? current : [...current, scopeRowKey]));
+                        } else {
+                          const remainingCount = PERMISSION_ACTIONS.filter((permAction) =>
+                            permAction === action ? false : Boolean(currentItem[permAction]),
+                          ).length;
+                          if (remainingCount === 0) {
+                            setExpandedScopeRows((current) => current.filter((id) => id !== scopeRowKey));
+                          }
+                        }
+                      }}
+                      onScopeChange={(cat, key, action, scope) => onSetPermissionScope(node.id, bucketKey, cat, key, action, scope)}
+                      onToggleScopeExpanded={(cat, key) => {
+                        const rowKey = `${node.id}::${bucketKey}::${cat}::${key}`;
+                        setExpandedScopeRows((current) =>
+                          current.includes(rowKey) ? current.filter((id) => id !== rowKey) : [...current, rowKey],
+                        );
+                      }}
                     />
                   );
                 })}

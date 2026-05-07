@@ -13,6 +13,7 @@ export type FlatCompanyRow = {
   company: Company;
   groupId: string;
   groupName: string;
+  groupCode: string;
   isIndependent: boolean;
 };
 

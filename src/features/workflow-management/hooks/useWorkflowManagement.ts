@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
+import { fetchCompanyNodes } from "@/services/user.service";
 import { fetchWorkflows, updateWorkflowAction } from "@/services/workflow.service";
 import type { WorkflowPageSize, WorkflowRecord, WorkflowStatus } from "@/features/workflow-management/types/workflow.types";
 import { WORKFLOW_PAGE_SIZE_OPTIONS } from "@/features/workflow-management/types/workflow.types";
@@ -70,6 +71,20 @@ export function useWorkflowManagement() {
     }
   };
 
+  const handleOpenAddWorkflowDialog = async () => {
+    try {
+      await fetchCompanyNodes("WORK_FLOW");
+    } catch (error) {
+      toast({
+        title: "Unable to pre-load workflow nodes",
+        description: getApiErrorMessage(error, "Continuing with workflow onboarding."),
+        variant: "destructive",
+      });
+    } finally {
+      setAddDialogOpen(true);
+    }
+  };
+
   const filteredWorkflows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return workflows.filter((workflow) => {
@@ -120,6 +135,7 @@ export function useWorkflowManagement() {
     setSearch,
     addDialogOpen,
     setAddDialogOpen,
+    handleOpenAddWorkflowDialog,
     page,
     setPage,
     pageSize,

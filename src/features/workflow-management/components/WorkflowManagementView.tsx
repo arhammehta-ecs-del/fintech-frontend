@@ -29,6 +29,7 @@ export default function WorkflowManagementView() {
     setSearch,
     addDialogOpen,
     setAddDialogOpen,
+    handleOpenAddWorkflowDialog,
     pageSize,
     setPageSize,
     setPage,
@@ -99,7 +100,7 @@ export default function WorkflowManagementView() {
               ))}
             </div>
 
-            <Button className="w-full lg:w-auto" onClick={() => setAddDialogOpen(true)}>
+            <Button className="w-full lg:w-auto" onClick={() => void handleOpenAddWorkflowDialog()}>
               <Plus className="mr-2 h-4 w-4" />
               Add Workflow
             </Button>

@@ -86,7 +86,19 @@ export default function SortableSubsidiaryRow({
           </td>
         )}
         {visibleColumns.has("code") && (
-          <td className="px-4 py-3 text-sm text-muted-foreground">{sub.legalName}</td>
+          <td className="px-4 py-3 text-sm text-muted-foreground">
+            <div className="flex flex-col">
+              <span>{sub.legalName}</span>
+              {sub.companyCode ? (
+                <Badge
+                  variant="outline"
+                  className="mt-1 w-fit border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600"
+                >
+                  {sub.companyCode}
+                </Badge>
+              ) : null}
+            </div>
+          </td>
         )}
         {visibleColumns.has("createdDate") && (
           <td className="px-4 py-3 text-sm text-muted-foreground">{formatDisplayDate(sub.incorporationDate)}</td>

@@ -3,12 +3,25 @@ import type { UserOnboardingPayload, UserOnboardingPermission } from "@/services
 import type { OrgNode } from "@/contexts/AppContext";
 import type {
   UserOnboardingFormData,
+  SystemAccessScope,
   UserOnboardingPermissions,
   ValidationErrors,
 } from "@/features/user-management/types";
 import { formatRoleTokenLabel } from "@/features/user-management/roleLabels";
 
 const PERMISSION_ACTIONS = ["manager", "user", "viewer"] as const;
+const SYSTEM_ACCESS_SCOPE_ITEMS = new Set([
+  "ORG_STR",
+  "ORG_STRUCTURE",
+  "USER_ACC",
+  "USER_ACCESS",
+  "USER_MANAGEMENT",
+  "WORK_FLOW",
+  "WORKFLOW",
+  "WORKFLOW_CONFIG",
+]);
+
+const normalizeScopeKey = (value: string) => value.trim().toUpperCase();
 
 export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): UserOnboardingPayload => {
   const selectedNodeEntries =
@@ -19,9 +32,15 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
           nodeId: "",
           nodeName: "",
           nodePath: "",
+          immediateChildren: [],
+          allChildren: [],
           permissions: {
             primary: createInitialPermissions([]),
             secondary: formData.permissions,
+          },
+          permissionScopes: {
+            primary: {},
+            secondary: {},
           },
         },
       ];
@@ -34,17 +53,33 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
             const selectedActions = PERMISSION_ACTIONS.filter((action) => rights[action]);
             const accessType = bucketKey === "primary" ? "PRIMARY" : "SECONDARY";
             if (selectedActions.length === 0) return [];
-
             const roleNameBase = formatRoleTokenLabel(subCategory);
 
-            return selectedActions.map((action) => ({
-              roleCategory: category as UserOnboardingPermission["roleCategory"],
-              roleSubCategory: subCategory,
-              roleName: `${roleNameBase} ${action[0].toUpperCase()}${action.slice(1)}`,
-              nodeName: nodeEntry.nodeName,
-              nodePath: nodeEntry.nodePath,
-              accessType,
-            }));
+            return selectedActions.flatMap((action) => {
+              const scope =
+                nodeEntry.permissionScopes?.[bucketKey as "primary" | "secondary"]?.[category]?.[subCategory]?.[action] ?? "NODE";
+              const targets =
+                category.trim().toUpperCase() === "SYSTEM_ACCESS" && SYSTEM_ACCESS_SCOPE_ITEMS.has(normalizeScopeKey(subCategory))
+                  ? scope === "IMMEDIATE_CHILD"
+                    ? (nodeEntry.immediateChildren.length > 0 ? nodeEntry.immediateChildren : [{ nodeName: nodeEntry.nodeName, nodePath: nodeEntry.nodePath }])
+                    : scope === "ALL_CHILD"
+                      ? (nodeEntry.allChildren.length > 0 ? nodeEntry.allChildren : [{ nodeName: nodeEntry.nodeName, nodePath: nodeEntry.nodePath }])
+                      : [{ nodeName: nodeEntry.nodeName, nodePath: nodeEntry.nodePath }]
+                  : [{ nodeName: nodeEntry.nodeName, nodePath: nodeEntry.nodePath }];
+
+              return targets.map((target) => ({
+                roleCategory: category as UserOnboardingPermission["roleCategory"],
+                roleSubCategory: subCategory,
+                roleName: `${roleNameBase} ${action[0].toUpperCase()}${action.slice(1)}`,
+                nodeName: target.nodeName,
+                nodePath: target.nodePath,
+                accessCategory:
+                  category.trim().toUpperCase() === "SYSTEM_ACCESS" && SYSTEM_ACCESS_SCOPE_ITEMS.has(normalizeScopeKey(subCategory))
+                    ? scope
+                    : null,
+                accessType,
+              }));
+            });
           }),
         ),
     ),
@@ -60,6 +95,7 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
       reportingManager: (formData.basic.reportingManagerEmail || formData.basic.reportingManager).trim(),
     },
     permissions: mappedPermissions,
+    workflowId: formData.selectedWorkflowId.trim() || null,
   };
 };
 
@@ -78,6 +114,20 @@ export const createInitialPermissions = (roles: RoleRecord[]): UserOnboardingPer
   }
 
   return permissions;
+};
+
+export const createInitialPermissionScopes = (roles: RoleRecord[]) => {
+  const scopes: Record<string, Record<string, Partial<Record<"manager" | "user" | "viewer", SystemAccessScope>>>> = {};
+
+  for (const role of roles) {
+    const cat = role.category;
+    const sub = role.subCategory;
+    if (!scopes[cat]) scopes[cat] = {};
+    if (scopes[cat][sub]) continue;
+    scopes[cat][sub] = { manager: "NODE", user: "NODE", viewer: "NODE" };
+  }
+
+  return scopes;
 };
 
 export const getInitials = (name: string) =>
@@ -131,6 +181,8 @@ export const createInitialUserOnboardingFormData = (): UserOnboardingFormData =>
   permissions: createInitialPermissions([]),
   nodeSelections: [],
   primaryNodeId: null,
+  selectedWorkflow: "",
+  selectedWorkflowId: "",
 });
 
 export const parseSlashDate = (value: string): Date | null => {

@@ -73,7 +73,7 @@ export function CompanyOnboardingStepCompanyDetails({
         {errors.incDate ? <p className="text-sm text-destructive">{errors.incDate}</p> : null}
       </div>
       <div className="space-y-2">
-        <Label>GST</Label>
+        <Label>GST (Optional)</Label>
         <Input value={gstin} onChange={(event) => onGstinChange(event.target.value.toUpperCase())} />
         {errors.gstin ? <p className="text-sm text-destructive">{errors.gstin}</p> : null}
         <div className="space-y-2 pt-1">

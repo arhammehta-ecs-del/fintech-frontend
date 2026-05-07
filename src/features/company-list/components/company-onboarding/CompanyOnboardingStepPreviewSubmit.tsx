@@ -55,7 +55,7 @@ export function CompanyOnboardingStepPreviewSubmit({
               <p className="flex items-start gap-1">
                 <span className="w-28 shrink-0 font-medium tracking-wide text-slate-500">GST</span>
                 <span className="font-medium tracking-wide text-slate-500">:</span>
-                <span className="font-semibold text-slate-900">{payloadPreview.company.gst}</span>
+                <span className="font-semibold text-slate-900">{payloadPreview.company.gst || "-"}</span>
               </p>
               <p className="flex items-start gap-1">
                 <span className="w-28 shrink-0 font-medium tracking-wide text-slate-500">GST Document</span>

@@ -3,9 +3,12 @@ import { useAppContext, type OrgNode } from "@/contexts/AppContext";
 import type { RoleRecord } from "@/services/role.service";
 import { getCompanyRoles } from "@/services/role.service";
 import { getCompanyOrgStructure } from "@/services/org.service";
+import { fetchCompanyNodes } from "@/services/user.service";
 import type {
   UserOnboardingFormData,
   NodePermissionBuckets,
+  NodePermissionScopeBuckets,
+  SystemAccessScope,
   UserOnboardingPermissions,
   PermissionAction,
   ValidationErrors,
@@ -13,6 +16,7 @@ import type {
 import {
   createInitialUserOnboardingFormData,
   createInitialPermissions,
+  createInitialPermissionScopes,
   findOrgNode,
   validateUserOnboardingStep,
 } from "@/features/user-management/utils";
@@ -27,6 +31,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   const { orgStructure: contextOrgStructure, currentUser, users } = useAppContext();
   const companyCode = currentUser?.companyCode ?? "";
   const [roles, setRoles] = useState<RoleRecord[]>([]);
+  const [workflowOptions, setWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [localOrgStructure, setLocalOrgStructure] = useState<OrgNode | null>(null);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState(createInitialUserOnboardingFormData);
@@ -36,6 +41,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   const [expandedAccessNodeIds, setExpandedAccessNodeIds] = useState<string[]>([]);
   const [primaryNodeId, setPrimaryNodeId] = useState<string | null>(null);
   const [nodePermissions, setNodePermissions] = useState<Record<string, NodePermissionBuckets>>({});
+  const [nodePermissionScopes, setNodePermissionScopes] = useState<Record<string, NodePermissionScopeBuckets>>({});
   const [infoNodeId, setInfoNodeId] = useState<string | null>(null);
   const [isReviewAccessExpanded, setIsReviewAccessExpanded] = useState(true);
   const reviewAccessNodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -66,6 +72,38 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
 
   useEffect(() => {
     if (!open) return;
+    let ignore = false;
+    fetchCompanyNodes("USER_ACC")
+      .then((nodes) => {
+        if (ignore) return;
+        const options = nodes
+          .flatMap((node) => node.workflows)
+          .map((workflow) => {
+            const id = workflow.id.trim();
+            const name = workflow.name.trim();
+            const alias = workflow.alias?.trim();
+            if (!id || !name) return null;
+            return {
+              id,
+              label: alias ? `${name} (${alias})` : name,
+            };
+          })
+          .filter((option): option is { id: string; label: string } => Boolean(option));
+
+        const uniqueById = Array.from(new Map(options.map((option) => [option.id, option])).values());
+        setWorkflowOptions(uniqueById);
+      })
+      .catch(() => {
+        if (!ignore) setWorkflowOptions([]);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     setStep(1);
     setFormData(createInitialUserOnboardingFormData());
     setErrors({});
@@ -74,6 +112,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
     setExpandedAccessNodeIds([]);
     setPrimaryNodeId(null);
     setNodePermissions({});
+    setNodePermissionScopes({});
     setInfoNodeId(null);
     setIsReviewAccessExpanded(true);
   }, [open, orgStructure]);
@@ -120,6 +159,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
       setExpandedAccessNodeIds([]);
       setPrimaryNodeId(null);
       setNodePermissions({});
+      setNodePermissionScopes({});
       return;
     }
 
@@ -144,6 +184,21 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
       return current.filter(id => selectedNodes.some(node => node.id === id));
     });
   }, [selectedNodes]);
+
+  useEffect(() => {
+    if (selectedNodes.length === 0) return;
+
+    setNodePermissionScopes((current) => {
+      const next: Record<string, NodePermissionScopeBuckets> = {};
+      for (const node of selectedNodes) {
+        next[node.id] = current[node.id] ?? {
+          primary: createInitialPermissionScopes(roles),
+          secondary: createInitialPermissionScopes(roles),
+        };
+      }
+      return next;
+    });
+  }, [roles, selectedNodes]);
 
   const clearError = (key: string) => {
     setErrors((current) => {
@@ -210,6 +265,15 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
     }));
   };
 
+  const setSelectedWorkflow = (workflowId: string) => {
+    const selectedOption = workflowOptions.find((option) => option.id === workflowId);
+    setFormData((current) => ({
+      ...current,
+      selectedWorkflowId: workflowId,
+      selectedWorkflow: selectedOption?.label ?? "",
+    }));
+  };
+
   const togglePermission = (
     nodeId: string,
     bucket: keyof NodePermissionBuckets,
@@ -256,6 +320,40 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
                 },
               },
             }),
+        },
+      };
+    });
+  };
+
+  const setPermissionScope = (
+    nodeId: string,
+    bucket: keyof NodePermissionScopeBuckets,
+    category: string,
+    item: string,
+    action: PermissionAction,
+    scope: SystemAccessScope,
+  ) => {
+    clearError("accessRights");
+    setNodePermissionScopes((current) => {
+      const currentScopes = current[nodeId] ?? {
+        primary: createInitialPermissionScopes(roles),
+        secondary: createInitialPermissionScopes(roles),
+      };
+
+      return {
+        ...current,
+        [nodeId]: {
+          ...currentScopes,
+          [bucket]: {
+            ...currentScopes[bucket],
+            [category]: {
+              ...(currentScopes[bucket][category] ?? {}),
+              [item]: {
+                ...((currentScopes[bucket][category] ?? {})[item] ?? {}),
+                [action]: scope,
+              },
+            },
+          },
         },
       };
     });
@@ -371,6 +469,22 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
         ...formData,
         permissions: firstSelectedNodeId ? (nodePermissions[firstSelectedNodeId]?.secondary ?? fallbackPermissions) : fallbackPermissions,
         nodeSelections: selectedNodes.map((node) => ({
+          immediateChildren: node.children
+            .filter((child) => child.status?.trim().toUpperCase() !== "PENDING")
+            .map((child) => ({ nodeName: child.name, nodePath: child.nodePath })),
+          allChildren: (() => {
+            const descendants: Array<{ nodeName: string; nodePath: string }> = [];
+            const walk = (current: OrgNode) => {
+              current.children
+                .filter((child) => child.status?.trim().toUpperCase() !== "PENDING")
+                .forEach((child) => {
+                  descendants.push({ nodeName: child.name, nodePath: child.nodePath });
+                  walk(child);
+                });
+            };
+            walk(node);
+            return descendants;
+          })(),
           nodeId: node.id,
           nodeName: node.name,
           nodePath: node.nodePath,
@@ -378,8 +492,14 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
             primary: createInitialPermissions(roles),
             secondary: fallbackPermissions,
           },
+          permissionScopes: nodePermissionScopes[node.id] ?? {
+            primary: createInitialPermissionScopes(roles),
+            secondary: createInitialPermissionScopes(roles),
+          },
         })),
         primaryNodeId,
+        selectedWorkflow: formData.selectedWorkflow,
+        selectedWorkflowId: formData.selectedWorkflowId,
       };
 
       await onSubmit(payloadFormData);
@@ -391,6 +511,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   return {
     orgStructure,
     roles,
+    workflowOptions,
     step,
     setStep,
     formData,
@@ -402,14 +523,17 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
     expandedAccessNodeIds,
     primaryNodeId,
     nodePermissions,
+    nodePermissionScopes,
     infoNodeId,
     isReviewAccessExpanded,
     reviewAccessNodeRefs,
     clearError,
     updateBasic,
+    setSelectedWorkflow,
     removeSelectedNode,
     handleNodeSelect,
     togglePermission,
+    setPermissionScope,
     reorderSelectedNodes,
     setExpandedAccessNodeIds,
     setPrimaryNodeId,

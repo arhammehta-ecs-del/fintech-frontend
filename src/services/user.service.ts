@@ -7,6 +7,7 @@ export type UserOnboardingPermission = {
   roleName: string;
   nodeName: string;
   nodePath: string;
+  accessCategory?: "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null;
   accessType?: "PRIMARY" | "SECONDARY";
 };
 
@@ -20,6 +21,7 @@ export type UserOnboardingPayload = {
     reportingManager: string;
   };
   permissions: UserOnboardingPermission[];
+  workflowId?: string | null;
 };
 
 type UserOnboardingResponse = {
@@ -51,7 +53,27 @@ type CompanyUsersResponse = {
   data?: CompanyUsersPayload;
 };
 
+type CompanyNodeWorkflow = {
+  id: string;
+  name: string;
+  alias?: string;
+};
+
+type CompanyNodeWithWorkflows = {
+  nodeName: string;
+  nodePath: string;
+  nodeType: string;
+  workflows: CompanyNodeWorkflow[];
+};
+
+type CompanyNodesResponse = {
+  message?: string;
+  code?: number;
+  data?: Array<Record<string, unknown>>;
+};
+
 const COMPANY_USERS_PATH = "/api/v1/company-settings/user/fetch-all-users";
+const COMPANY_NODES_PATH = "/api/v1/company-settings/user/fetch-company-nodes";
 const NEW_USER_ONBOARD_PATH = "/api/v1/company-settings/user/initiate";
 const USER_STATUS_UPDATE_PATH = "/api/v1/company-settings/user/action";
 const USER_HISTORY_PATH = "/api/v1/company-settings/user/fetch-history";
@@ -231,6 +253,34 @@ export async function fetchUserHistory(email: string, companyCode: string) {
       email,
       companyCode,
     }),
+  });
+}
+
+export async function fetchCompanyNodes(subCategory: string): Promise<CompanyNodeWithWorkflows[]> {
+  const payload = await apiFetch<CompanyNodesResponse>(COMPANY_NODES_PATH, {
+    method: "POST",
+    body: JSON.stringify({
+      subCategory,
+    }),
+  });
+
+  const rows = Array.isArray(payload.data) ? payload.data : [];
+
+  return rows.map((row) => {
+    const record = toRecord(row);
+    const workflowsRaw = Array.isArray(record.workflows) ? (record.workflows as RawUserRecord[]) : [];
+    const workflows = workflowsRaw.map((workflow) => ({
+      id: readString(workflow.id).trim(),
+      name: readString(workflow.name).trim(),
+      alias: readString(workflow.alias).trim() || undefined,
+    }));
+
+    return {
+      nodeName: readString(record.nodeName).trim(),
+      nodePath: readString(record.nodePath).trim(),
+      nodeType: readString(record.nodeType).trim(),
+      workflows,
+    };
   });
 }
 

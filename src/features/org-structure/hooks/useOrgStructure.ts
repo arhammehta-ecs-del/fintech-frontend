@@ -4,6 +4,7 @@ import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
 import { createNewOrgNode, getCompanyOrgStructure, updateOrgNodeAction } from "@/services/org.service";
+import { fetchCompanyNodes } from "@/services/user.service";
 import { collectNodeTrail, findOrgNodeById, findParentNodeById, flattenOrg } from "@/features/org-structure/orgNode.utils";
 import type { DepartmentSidebarDepartment, NewNodeType } from "@/features/org-structure/types";
 
@@ -25,6 +26,7 @@ export function useOrgStructure() {
   const [zoom, setZoom] = useState(1);
   const [isNewNodePopupOpen, setIsNewNodePopupOpen] = useState(false);
   const [newNodeParent, setNewNodeParent] = useState<OrgNode | null>(null);
+  const [newNodeWorkflowOptions, setNewNodeWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [pendingNodeForReview, setPendingNodeForReview] = useState<OrgNode | null>(null);
   const treeScrollRef = useRef<HTMLDivElement | null>(null);
   const bottomScrollRef = useRef<HTMLDivElement | null>(null);
@@ -208,13 +210,34 @@ export function useOrgStructure() {
   const canZoomOut = zoom > MIN_ZOOM;
   const canZoomIn = zoom < MAX_ZOOM;
 
-  const handleOpenNewNodePopup = (node: OrgNode) => {
+  const handleOpenNewNodePopup = async (node: OrgNode) => {
     if (node.status?.trim().toUpperCase() === "PENDING") return;
+    try {
+      const nodes = await fetchCompanyNodes("ORG_STR");
+      const options = nodes
+        .flatMap((item) => item.workflows)
+        .map((workflow) => {
+          const id = workflow.id.trim();
+          const name = workflow.name.trim();
+          const alias = workflow.alias?.trim();
+          if (!id || !name) return null;
+          return { id, label: alias ? `${name} (${alias})` : name };
+        })
+        .filter((option): option is { id: string; label: string } => Boolean(option));
+      setNewNodeWorkflowOptions(Array.from(new Map(options.map((option) => [option.id, option])).values()));
+    } catch (error) {
+      setNewNodeWorkflowOptions([]);
+      toast({
+        title: "Unable to pre-load organization nodes",
+        description: getApiErrorMessage(error, "Continuing to add node."),
+        variant: "destructive",
+      });
+    }
     setNewNodeParent(node);
     setIsNewNodePopupOpen(true);
   };
 
-  const handleCreateNode = async (name: string, nodeType: NewNodeType) => {
+  const handleCreateNode = async (name: string, nodeType: NewNodeType, workflowId?: string) => {
     if (!newNodeParent || !companyCode) return;
 
     try {
@@ -222,6 +245,7 @@ export function useOrgStructure() {
         companyCode,
         newNodeName: name,
         nodeType,
+        workflowId: workflowId?.trim() || null,
         parentNode: {
           nodeName: newNodeParent.name,
           nodePath: newNodeParent.nodePath,
@@ -365,6 +389,7 @@ export function useOrgStructure() {
     setCanvasWidth,
     setIsNewNodePopupOpen,
     setNewNodeParent,
+    newNodeWorkflowOptions,
     setPendingNodeForReview,
     handleOpenNewNodePopup,
     handleCreateNode,

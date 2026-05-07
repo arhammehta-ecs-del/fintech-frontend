@@ -3,7 +3,7 @@ import type { AppUser } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
-import { createUserOnboarding, getCompanyUsers, updateUserStatus } from "@/services/user.service";
+import { createUserOnboarding, fetchCompanyNodes, getCompanyUsers, updateUserStatus } from "@/services/user.service";
 import { USER_DEFAULT_PAGE_SIZE, USER_PAGE_SIZE_OPTIONS, USER_SEARCH_DEBOUNCE_MS } from "@/features/user-management/constants";
 import type { MemberStatusTab, UserOnboardingFormData, SortOrder } from "@/features/user-management/types";
 import { buildUserOnboardingPayload } from "@/features/user-management/utils";
@@ -161,6 +161,20 @@ export function useUserManagement() {
     }
   };
 
+  const handleOpenAddUserDialog = async () => {
+    try {
+      await fetchCompanyNodes("USER_ACC");
+    } catch (error) {
+      toast({
+        title: "Unable to pre-load user nodes",
+        description: getApiErrorMessage(error, "Continuing with onboarding."),
+        variant: "destructive",
+      });
+    } finally {
+      setAddDialogOpen(true);
+    }
+  };
+
   const handleSaveEdit = () => {
     if (!editingMember) return;
 
@@ -265,6 +279,7 @@ export function useUserManagement() {
     setPageSize,
     addDialogOpen,
     setAddDialogOpen,
+    handleOpenAddUserDialog,
     viewingMember,
     setViewingMember,
     editingMember,

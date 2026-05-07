@@ -12,6 +12,7 @@ type StandaloneCompanyRowProps = {
   company: Company;
   groupId: string;
   groupLabel: string;
+  groupCode: string;
   visibleColumns: Set<VisibleColumn>;
   showStatusColumn: boolean;
   onManage: (company: Company, editing?: boolean) => void;
@@ -26,6 +27,7 @@ export default function StandaloneCompanyRow({
   company,
   groupId,
   groupLabel,
+  groupCode,
   visibleColumns,
   showStatusColumn,
   onManage,
@@ -70,7 +72,19 @@ export default function StandaloneCompanyRow({
           </button>
         </td>
         {visibleColumns.has("groupName") && (
-          <td className="px-4 py-3 text-sm text-muted-foreground">{groupLabel}</td>
+          <td className="px-4 py-3 text-sm text-muted-foreground">
+            <div className="flex flex-col">
+              <span>{groupLabel}</span>
+              {groupCode ? (
+                <Badge
+                  variant="outline"
+                  className="mt-1 w-fit border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600"
+                >
+                  {groupCode}
+                </Badge>
+              ) : null}
+            </div>
+          </td>
         )}
         {visibleColumns.has("companyName") && (
           <td className="px-4 py-3 text-sm font-medium text-foreground">
@@ -85,7 +99,19 @@ export default function StandaloneCompanyRow({
           </td>
         )}
         {visibleColumns.has("code") && (
-          <td className="px-4 py-3 text-sm text-muted-foreground">{company.legalName}</td>
+          <td className="px-4 py-3 text-sm text-muted-foreground">
+            <div className="flex flex-col">
+              <span>{company.legalName}</span>
+              {company.companyCode ? (
+                <Badge
+                  variant="outline"
+                  className="mt-1 w-fit border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600"
+                >
+                  {company.companyCode}
+                </Badge>
+              ) : null}
+            </div>
+          </td>
         )}
         {visibleColumns.has("createdDate") && (
           <td className="px-4 py-3 text-sm text-muted-foreground">{formatDisplayDate(company.incorporationDate)}</td>

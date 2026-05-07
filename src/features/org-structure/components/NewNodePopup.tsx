@@ -14,8 +14,9 @@ type NewNodePopupProps = {
   parentNodeName: string;
   parentNodeTrail?: string[];
   nodeTypes: NewNodeType[];
+  workflowOptions?: Array<{ id: string; label: string }>;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (name: string, nodeType: NewNodeType) => void;
+  onConfirm: (name: string, nodeType: NewNodeType, workflowId?: string) => void;
 };
 
 function formatNodeTypeLabel(nodeType: string) {
@@ -39,11 +40,13 @@ export function NewNodePopup({
   parentNodeName,
   parentNodeTrail = [],
   nodeTypes,
+  workflowOptions = [],
   onOpenChange,
   onConfirm,
 }: NewNodePopupProps) {
   const [name, setName] = useState("");
   const [nodeType, setNodeType] = useState<NewNodeType>("");
+  const [workflowId, setWorkflowId] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const displayParentNodeName = parentNodeName.trim() || "New Node";
   const displayTrail = parentNodeTrail.length > 0 ? parentNodeTrail : [displayParentNodeName];
@@ -53,12 +56,13 @@ export function NewNodePopup({
     if (!open) return;
     setName("");
     setNodeType("");
+    setWorkflowId("");
     window.setTimeout(() => inputRef.current?.focus(), 50);
   }, [open]);
 
   const handleConfirm = () => {
     if (!name.trim()) return;
-    onConfirm(toTitleCase(name).trim(), nodeType);
+    onConfirm(toTitleCase(name).trim(), nodeType, workflowId || undefined);
   };
 
   return (
@@ -144,6 +148,27 @@ export function NewNodePopup({
                   {nodeTypes.map((type) => (
                     <SelectItem key={type} value={type}>
                       {formatNodeTypeLabel(type)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2.5">
+            <Label className="text-[15px] font-medium text-slate-900">
+              Select Workflow
+            </Label>
+            <div>
+              <Select value={workflowId || "__none__"} onValueChange={(value) => setWorkflowId(value === "__none__" ? "" : value)}>
+                <SelectTrigger id="workflow-id" className="h-10 rounded-xl border-slate-200 px-3.5 text-[15px] shadow-sm">
+                  <SelectValue placeholder="Select workflow (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No Workflow</SelectItem>
+                  {workflowOptions.map((workflowOption) => (
+                    <SelectItem key={workflowOption.id} value={workflowOption.id}>
+                      {workflowOption.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

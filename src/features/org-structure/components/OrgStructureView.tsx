@@ -55,6 +55,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     zoom,
     isNewNodePopupOpen,
     newNodeParent,
+    newNodeWorkflowOptions,
     treeScrollRef,
     bottomScrollRef,
     graphContentRef,
@@ -280,6 +281,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         parentNodeName={newNodeParent?.name ?? ""}
         parentNodeTrail={newNodeParentTrail}
         nodeTypes={newNodeTypeOptions}
+        workflowOptions={newNodeWorkflowOptions}
         onOpenChange={(open) => {
           startTransition(() => {
             setIsNewNodePopupOpen(open);

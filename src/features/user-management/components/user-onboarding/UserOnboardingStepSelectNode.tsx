@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import type { ValidationErrors } from "@/features/user-management/types";
 import {
   getBranchAppearance,
-  getNodeAccentBackground,
   getNodeAccentBorderLeft,
 } from "@/features/org-structure/nodeTheme.utils";
 
@@ -44,34 +43,6 @@ const buildNodeBreadcrumbMap = (root: OrgNode | null) => {
   return map;
 };
 
-const BRANCH_BADGE_BY_ACCENT: Record<string, string> = {
-  "bg-slate-400": "border-indigo-300 bg-indigo-50 text-indigo-700",
-  "bg-orange-500": "border-orange-300 bg-orange-50 text-orange-700",
-  "bg-orange-300": "border-orange-200 bg-orange-50 text-orange-600",
-  "bg-orange-200": "border-orange-200 bg-orange-50 text-orange-600",
-  "bg-orange-100": "border-orange-200 bg-orange-50 text-orange-600",
-  "bg-sky-500": "border-sky-300 bg-sky-50 text-sky-700",
-  "bg-sky-300": "border-sky-200 bg-sky-50 text-sky-600",
-  "bg-sky-200": "border-sky-200 bg-sky-50 text-sky-600",
-  "bg-sky-100": "border-sky-200 bg-sky-50 text-sky-600",
-  "bg-emerald-500": "border-emerald-300 bg-emerald-50 text-emerald-700",
-  "bg-emerald-300": "border-emerald-200 bg-emerald-50 text-emerald-600",
-  "bg-emerald-200": "border-emerald-200 bg-emerald-50 text-emerald-600",
-  "bg-emerald-100": "border-emerald-200 bg-emerald-50 text-emerald-600",
-  "bg-rose-500": "border-rose-300 bg-rose-50 text-rose-700",
-  "bg-rose-300": "border-rose-200 bg-rose-50 text-rose-600",
-  "bg-rose-200": "border-rose-200 bg-rose-50 text-rose-600",
-  "bg-rose-100": "border-rose-200 bg-rose-50 text-rose-600",
-  "bg-amber-500": "border-amber-300 bg-amber-50 text-amber-700",
-  "bg-amber-300": "border-amber-200 bg-amber-50 text-amber-600",
-  "bg-amber-200": "border-amber-200 bg-amber-50 text-amber-600",
-  "bg-amber-100": "border-amber-200 bg-amber-50 text-amber-600",
-  "bg-cyan-500": "border-cyan-300 bg-cyan-50 text-cyan-700",
-  "bg-cyan-300": "border-cyan-200 bg-cyan-50 text-cyan-600",
-  "bg-cyan-200": "border-cyan-200 bg-cyan-50 text-cyan-600",
-  "bg-cyan-100": "border-cyan-200 bg-cyan-50 text-cyan-600",
-};
-
 const isPendingNode = (node: OrgNode) => node.status?.trim().toUpperCase() === "PENDING";
 
 const filterPendingNodes = (node: OrgNode | null): OrgNode | null => {
@@ -82,9 +53,6 @@ const filterPendingNodes = (node: OrgNode | null): OrgNode | null => {
     children: node.children.map((child) => filterPendingNodes(child)).filter((child): child is OrgNode => Boolean(child)),
   };
 };
-
-const getBadgeClassByAccent = (accentClass: string) =>
-  BRANCH_BADGE_BY_ACCENT[accentClass] ?? "border-slate-200 bg-slate-50 text-slate-700";
 
 const getNodeBorderLeftClass = (branchIndex: number | null, branchDepth: number, isRoot: boolean) =>
   isRoot ? "border-l-indigo-500" : getNodeAccentBorderLeft(branchIndex, branchDepth, isRoot);
@@ -140,7 +108,6 @@ type FlowNode = {
   branchIndex: number | null;
   branchDepth: number;
   depth: number;
-  level: number;
 };
 
 const getFlowNodes = (root: OrgNode | null, branchMetaMap: Map<string, BranchMeta>): FlowNode[] => {
@@ -161,7 +128,6 @@ const getFlowNodes = (root: OrgNode | null, branchMetaMap: Map<string, BranchMet
       branchIndex: meta.branchIndex,
       branchDepth: meta.branchDepth,
       depth,
-      level: index + 1,
     };
   });
 };
@@ -228,9 +194,6 @@ export function UserOnboardingStepSelectNode({
                         />
                         <div className="mb-2 flex items-center justify-between">
                           <div className="flex items-center gap-2.5">
-                            <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold", isRoot ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600")}>
-                              L{item.level}
-                            </div>
                             {!isRoot ? (
                               <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{item.node.nodeType}</span>
                             ) : null}
@@ -269,7 +232,6 @@ export function UserOnboardingStepSelectNode({
                   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
                   const meta = branchMetaMap.get(node.id) ?? { branchIndex: null, branchDepth: 0 };
                   const appearance = getBranchAppearance(meta.branchIndex, meta.branchDepth, isRoot);
-                  const edgeBg = getNodeAccentBackground(meta.branchIndex, meta.branchDepth, isRoot);
                   const borderLeftClass = getNodeBorderLeftClass(meta.branchIndex, meta.branchDepth, isRoot);
 
                   return (
@@ -283,9 +245,6 @@ export function UserOnboardingStepSelectNode({
                         borderLeftClass,
                       )}
                     >
-                      <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold", getBadgeClassByAccent(edgeBg))}>
-                        {index + 1}
-                      </div>
                       <div className="min-w-0">
                         <div className={cn("truncate text-[16px] font-semibold", isRoot ? "text-slate-800" : "text-slate-800")}>{node.name}</div>
                         {!isRoot && breadcrumbByNodeId.get(node.id) ? (
