@@ -94,8 +94,9 @@ export default function WorkflowHistorySidebar({ isOpen, onClose, workflow }: Wo
     <HistorySidebar
       isOpen={isOpen}
       onClose={onClose}
-      title="Workflow Audit Trail"
+      title="Workflow history"
       subtitle={workflow?.name || "Unknown Workflow"}
+      showSystemGenerated={false}
       data={historyData}
     />
   );

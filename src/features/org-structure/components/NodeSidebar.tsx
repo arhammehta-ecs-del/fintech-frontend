@@ -4,124 +4,14 @@ import type { DepartmentSidebarDepartment } from "@/features/org-structure/types
 
 export type { DepartmentSidebarDepartment };
 
-type TeamMember = {
-  initials: string;
-  name: string;
-  designation: string;
-  reportees?: number;
-  depth?: number;
-};
-
-type DepartmentRoster = {
-  lead: {
-    initials: string;
-    name: string;
-    designation: string;
-    reportees: number;
-  };
-  groups: Array<{
-    label: string;
-    users: TeamMember[];
-  }>;
-};
-
-function buildFallbackRoster(department: DepartmentSidebarDepartment): DepartmentRoster {
-  const groups =
-    department.children?.length
-      ? department.children.map((child) => ({
-          label: child.name.toUpperCase(),
-          users: [
-            {
-              initials: child.name.slice(0, 1).toUpperCase(),
-              name: child.name,
-              designation: child.nodeType ?? "Department Node",
-              reportees: child.childCount,
-              depth: 0,
-            },
-          ],
-        }))
-      : [];
-
-  return {
-    lead: {
-      initials: department.name
-        .split(/\s+/)
-        .map((part) => part[0] ?? "")
-        .join("")
-        .slice(0, 2)
-        .toUpperCase(),
-      name: department.name,
-      designation: department.nodeType ?? "Lead",
-      reportees: department.childCount ?? 0,
-    },
-    groups,
-  };
-}
-
-function Avatar({ initials, large = false }: { initials: string; large?: boolean }) {
-  return (
-    <div
-      className={cn(
-        "flex items-center justify-center rounded-full bg-[#f4efe6] font-medium text-[#7a6f61]",
-        large ? "h-12 w-12 text-xl" : "h-10 w-10 text-lg",
-      )}
-    >
-      <span>{initials}</span>
-    </div>
-  );
-}
-
-function LeadCard({ roster }: { roster: DepartmentRoster["lead"] }) {
-  return (
-    <div className="rounded-[16px] bg-[#2e69ad] px-4 py-4 text-white shadow-[0_14px_28px_rgba(46,105,173,0.2)]">
-      <div className="flex items-center gap-4">
-        <Avatar initials={roster.initials} large />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-[15px] font-semibold">{roster.name}</p>
-              <p className="mt-0.5 text-[12px] text-white/75">{roster.designation}</p>
-            </div>
-            <button
-              type="button"
-              className="shrink-0 rounded-full bg-[#23558f] px-3 py-1 text-xs font-medium text-white/85 transition hover:bg-[#1d4979]"
-            >
-              {roster.reportees} reportees {"›"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function UserRow({ user }: { user: TeamMember }) {
-  return (
-    <div
-      className="flex items-center gap-4 py-3"
-      style={{ paddingLeft: `${(user.depth ?? 0) * 28}px` }}
-    >
-      <Avatar initials={user.initials} />
-      <div className="min-w-0">
-        <p className="truncate text-[15px] font-semibold text-slate-900">{user.name}</p>
-        <p className="mt-0.5 text-[12px] text-[#87837d]">
-          {user.designation}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function NodeSidebarContent({
   department,
   breadcrumbs,
-  roster,
   onClose,
   onOpenHistory,
 }: {
   department: DepartmentSidebarDepartment | null;
   breadcrumbs: string[];
-  roster: DepartmentRoster | null;
   onClose: () => void;
   onOpenHistory: () => void;
 }) {
@@ -141,9 +31,6 @@ function NodeSidebarContent({
               ))}
             </div>
           ) : null}
-          <h2 className="mt-3 text-[24px] font-medium leading-none tracking-[-0.03em] text-[#1b1b1b] lg:text-[28px]">
-            {department?.name ?? "Organisation"}
-          </h2>
         </div>
 
         <div className="flex items-center gap-2">
@@ -167,26 +54,7 @@ function NodeSidebarContent({
         </div>
       </div>
 
-      {department && roster ? (
-        <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6">
-          <LeadCard roster={roster.lead} />
-
-          {roster.groups.map((group) => (
-            <section key={group.label} className="mt-8">
-              <p className="mb-2 text-[11px] font-medium tracking-[0.18em] text-[#a29f96]">{group.label}</p>
-              <div className="space-y-1">
-                {group.users.map((user) => (
-                  <UserRow key={`${group.label}-${user.name}`} user={user} />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      ) : (
-        <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-400">
-          Select a node to inspect the organisation panel.
-        </div>
-      )}
+      <div className="flex-1" />
     </div>
   );
 }
@@ -203,7 +71,6 @@ export function NodeSidebar({
   onOpenHistory: () => void;
 }) {
   const breadcrumbs = department?.breadcrumbs?.length ? department.breadcrumbs : [department?.name ?? "Organisation"];
-  const roster = department ? buildFallbackRoster(department) : null;
 
   return (
     <aside
@@ -217,7 +84,6 @@ export function NodeSidebar({
       <NodeSidebarContent
         department={department}
         breadcrumbs={breadcrumbs}
-        roster={roster}
         onClose={() => onOpenChange(false)}
         onOpenHistory={onOpenHistory}
       />

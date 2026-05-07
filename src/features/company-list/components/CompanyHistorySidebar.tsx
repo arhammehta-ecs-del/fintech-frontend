@@ -111,8 +111,9 @@ export default function CompanyHistorySidebar({ isOpen, onClose, company }: Comp
     <HistorySidebar
       isOpen={isOpen}
       onClose={onClose}
-      title="Audit Trail"
+      title="Company history"
       subtitle={company?.companyName || "Unknown Entity"}
+      showSystemGenerated={false}
       data={historyData}
     />
   );

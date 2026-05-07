@@ -82,7 +82,7 @@ export default function UserTable({
               </button>
             </td>
             <td className="px-4 py-4 text-sm text-slate-700">{member.designation || "—"}</td>
-            <td className="px-4 py-4 text-sm text-slate-600">{member.department || "—"}</td>
+            <td className="px-4 py-4 text-sm text-slate-600">{member.department || ""}</td>
             <td className="px-4 py-4 font-mono text-sm text-slate-600">{maskContactNumber(member.phone)}</td>
             <td className="px-4 py-4">
               <div className="flex items-center justify-center gap-3">

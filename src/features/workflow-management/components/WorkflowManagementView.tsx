@@ -14,6 +14,12 @@ import { cn } from "@/lib/utils";
 const tabClassName =
   "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:shadow-sm";
 
+const statusBadgeClassName: Record<string, string> = {
+  Active: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  Pending: "border-amber-200 bg-amber-50 text-amber-700",
+  Inactive: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
 export default function WorkflowManagementView() {
   const {
     WORKFLOW_PAGE_SIZE_OPTIONS,
@@ -125,7 +131,12 @@ export default function WorkflowManagementView() {
                   <div className="text-sm text-slate-700">{workflow.nodeName}</div>
                   <div className="text-sm text-slate-700">{workflow.nodeType}</div>
                   <div>
-                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                    <span
+                      className={cn(
+                        "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
+                        statusBadgeClassName[workflow.status] ?? "border-slate-200 bg-slate-50 text-slate-700",
+                      )}
+                    >
                       {workflow.status}
                     </span>
                   </div>

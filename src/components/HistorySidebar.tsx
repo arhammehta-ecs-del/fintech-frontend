@@ -31,6 +31,7 @@ export type HistorySidebarProps = {
   onClose: () => void;
   title?: string;
   subtitle: string;
+  showSystemGenerated?: boolean;
   data: HistoryEntry[];
 };
 
@@ -171,7 +172,7 @@ function MilestoneTimeline({ data }: { data: HistoryEntry[] }) {
   );
 }
 
-export function HistorySidebar({ isOpen, onClose, title = "Audit Trail", subtitle, data }: HistorySidebarProps) {
+export function HistorySidebar({ isOpen, onClose, title = "Audit Trail", subtitle, showSystemGenerated = true, data }: HistorySidebarProps) {
   const [expandedYears, setExpandedYears] = useState(new Set<string>([(new Date().getFullYear()).toString()]));
   const [expandedMonths, setExpandedMonths] = useState(new Set<string>());
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
@@ -280,8 +281,12 @@ export function HistorySidebar({ isOpen, onClose, title = "Audit Trail", subtitl
               <h3 className="text-[15px] font-bold leading-tight text-slate-900">{title}</h3>
               <div className="mt-0.5 flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-slate-600">{toTitleCase(subtitle || "Unknown Entity")}</span>
-                <span className="h-1 w-1 rounded-full bg-slate-300" />
-                <span className="text-[10px] text-slate-400">System generated</span>
+                {showSystemGenerated ? (
+                  <>
+                    <span className="h-1 w-1 rounded-full bg-slate-300" />
+                    <span className="text-[10px] text-slate-400">System generated</span>
+                  </>
+                ) : null}
               </div>
             </div>
           </div>

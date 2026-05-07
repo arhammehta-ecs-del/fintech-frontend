@@ -72,7 +72,7 @@ export default function OrgHistorySidebar({ isOpen, onClose, companyCode, subtit
     let isMounted = true;
     const loadHistory = async () => {
       try {
-        const response = await fetchOrgHistory(companyCode.trim().toUpperCase());
+        const response = await fetchOrgHistory(companyCode.trim().toUpperCase(), subtitle);
         if (!isMounted) return;
         const mappedHistory = Array.isArray(response?.data)
           ? response.data.map((item: unknown, index: number) => mapOrgHistoryEntry(item, subtitle, index))
@@ -94,8 +94,9 @@ export default function OrgHistorySidebar({ isOpen, onClose, companyCode, subtit
     <HistorySidebar
       isOpen={isOpen}
       onClose={onClose}
-      title="Org Audit Trail"
+      title="Org history"
       subtitle={subtitle || "Organisation Structure"}
+      showSystemGenerated={false}
       data={historyData}
     />
   );

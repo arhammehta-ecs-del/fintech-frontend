@@ -120,8 +120,9 @@ export default function UserHistorySidebar({ isOpen, onClose, user }: UserHistor
     <HistorySidebar
       isOpen={isOpen}
       onClose={onClose}
-      title="User Audit Trail"
+      title="User history"
       subtitle={user?.name || "Unknown User"}
+      showSystemGenerated={false}
       data={historyData}
     />
   );

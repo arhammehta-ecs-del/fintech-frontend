@@ -76,7 +76,7 @@ export function CompanyOnboardingStepPreviewSubmit({
               <p className="flex items-start gap-1">
                 <span className="w-28 shrink-0 font-medium tracking-wide text-slate-500">IE Code</span>
                 <span className="font-medium tracking-wide text-slate-500">:</span>
-                <span className="font-semibold text-slate-900">{payloadPreview.company.ieCode}</span>
+                <span className="font-semibold text-slate-900">{payloadPreview.company.ieCode || "-"}</span>
               </p>
               <p className="flex items-start gap-1">
                 <span className="w-28 shrink-0 font-medium tracking-wide text-slate-500">Registration Date</span>
@@ -114,7 +114,7 @@ export function CompanyOnboardingStepPreviewSubmit({
                     <p className="min-w-0">
                       <span className="font-medium tracking-wide text-slate-500">Designation:</span> <span className="font-semibold text-slate-900">{sig.designation}</span>
                     </p>
-                    {sig.employeeId ? (
+                    {sig.employeeId.trim() ? (
                       <p className="min-w-0 sm:col-span-2">
                         <span className="font-medium tracking-wide text-slate-500">Employee ID:</span> <span className="font-semibold text-slate-900">{sig.employeeId}</span>
                       </p>

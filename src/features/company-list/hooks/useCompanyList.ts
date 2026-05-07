@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import type { Company, CompanyStatus, GroupCompany } from "@/contexts/AppContext";
 import { getAllCompanies, updateCompanyOnboardingAction } from "@/services/company.service";
 import { getApiErrorMessage } from "@/services/client";
@@ -19,7 +19,6 @@ const EMPTY_STATUS_COUNTS = {
 
 export function useCompanyList() {
   const location = useLocation();
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [groups, setGroups] = useState<GroupCompany[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -64,7 +63,8 @@ export function useCompanyList() {
       const statusMatch = err instanceof Error ? err.message.match(/Request failed:\s*(\d{3})/) : null;
       const statusCode = statusMatch ? Number(statusMatch[1]) : null;
       if (statusCode === 401 || statusCode === 403) {
-        navigate("/login", { replace: true });
+        setError(null);
+        setGroups([]);
         return;
       }
       setError(err instanceof Error ? err.message : "Failed to load companies");
@@ -72,7 +72,7 @@ export function useCompanyList() {
     } finally {
       if (showLoader) setIsLoading(false);
     }
-  }, [navigate]);
+  }, []);
 
   const statusCounts = useMemo(() => {
     return groups.reduce(

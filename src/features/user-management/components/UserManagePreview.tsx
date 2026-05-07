@@ -376,7 +376,7 @@ export function UserManagePreview({
     createdAt: displayOrFallback(formattedCreatedAt === "-" && rawCreatedAt ? rawCreatedAt : formattedCreatedAt, "—"),
     designation: displayOrFallback(member.basicDetails?.designation || member.designation, "—"),
     department: displayOrFallback(member.department, "—"),
-    employeeId: displayOrFallback(member.basicDetails?.employeeId || member.employeeId, "—"),
+    employeeId: (member.basicDetails?.employeeId || member.employeeId || "").trim(),
     reportingManager: displayOrFallback(
       member.basicDetails?.reportingManagerName || member.basicDetails?.reportingManager || member.manager?.name,
       "—",
@@ -613,11 +613,13 @@ export function UserManagePreview({
                           <span className="text-slate-400">:</span>
                           <span className="font-semibold text-slate-900">{formattedDesignation || "-"}</span>
                         </div>
-                        <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
-                          <span className="text-slate-500">Employee ID</span>
-                          <span className="text-slate-400">:</span>
-                          <span className="font-semibold text-slate-900">{userData.employeeId || "-"}</span>
-                        </div>
+                        {userData.employeeId ? (
+                          <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
+                            <span className="text-slate-500">Employee ID</span>
+                            <span className="text-slate-400">:</span>
+                            <span className="font-semibold text-slate-900">{userData.employeeId}</span>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 
@@ -735,11 +737,13 @@ export function UserManagePreview({
                         <span className="text-slate-400">:</span>
                         <span className="font-semibold text-slate-900">{formattedDesignation || "-"}</span>
                       </div>
-                      <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
-                        <span className="text-slate-500">Employee ID</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900">{userData.employeeId || "-"}</span>
-                      </div>
+                      {userData.employeeId ? (
+                        <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
+                          <span className="text-slate-500">Employee ID</span>
+                          <span className="text-slate-400">:</span>
+                          <span className="font-semibold text-slate-900">{userData.employeeId}</span>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 

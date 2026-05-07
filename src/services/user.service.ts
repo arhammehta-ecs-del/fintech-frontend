@@ -147,7 +147,7 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
     readString(basicDetails.reportingManagerEmail) || readString(record.manager && typeof record.manager === "object" ? (record.manager as RawUserRecord).email : ""),
     "not-available@example.com",
   );
-  const employeeId = readNonEmptyString(readString(record.employeeId) || readString(basicDetails.employeeId), "EMP-0001");
+  const employeeId = readString(record.employeeId || basicDetails.employeeId).trim();
   const initiatorName = readString(basicDetails.initiatorName).trim();
   const initiatorEmail = readString(basicDetails.initiatorEmail).trim();
   const initiatedAt = readString(basicDetails.initiatedDate).trim();

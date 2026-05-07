@@ -209,7 +209,7 @@ export function UserOnboardingStepBasicDetails({
           error={errors.designation}
         />
         <InputGroup
-          label="Employee ID (Optional)"
+          label="Employee ID"
           icon={<IdCard size={18} />}
           value={basic.employeeId}
           onChange={(value) => {

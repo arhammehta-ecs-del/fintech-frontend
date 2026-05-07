@@ -383,7 +383,7 @@ export function UserOnboardingStepReviewSubmit({
                       <BasicDetailRow label="Email" value={basic.email} />
                       <BasicDetailRow label="Phone" value={basic.phone} />
                       <BasicDetailRow label="Designation" value={basic.designation} />
-                      <BasicDetailRow label="Employee ID" value={basic.employeeId} />
+                      {basic.employeeId?.trim() ? <BasicDetailRow label="Employee ID" value={basic.employeeId} /> : null}
                     </div>
                   </div>
 
@@ -463,7 +463,7 @@ export function UserOnboardingStepReviewSubmit({
                     <BasicDetailRow label="Email" value={basic.email} />
                     <BasicDetailRow label="Phone" value={basic.phone} />
                     <BasicDetailRow label="Designation" value={basic.designation} />
-                    <BasicDetailRow label="Employee ID" value={basic.employeeId} />
+                    {basic.employeeId?.trim() ? <BasicDetailRow label="Employee ID" value={basic.employeeId} /> : null}
                   </div>
                 </div>
 

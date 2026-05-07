@@ -304,10 +304,13 @@ export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNo
   }
 }
 
-export async function fetchOrgHistory(companyCode: string) {
+export async function fetchOrgHistory(companyCode: string, nodeName: string) {
 
   return apiFetch<any>(ORG_HISTORY_PATH, {
     method: "POST",
-    body: JSON.stringify({ companyCode })
+    body: JSON.stringify({
+      companyCode: companyCode.trim().toUpperCase(),
+      nodeName: nodeName.trim(),
+    })
   });
 }

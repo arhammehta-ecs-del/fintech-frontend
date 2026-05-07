@@ -388,7 +388,7 @@ export function useCompanyOnboardingWizard({
         name: legalName.trim().toUpperCase(),
         gst: gstin.trim().toUpperCase(),
         brand: companyName.trim() ? companyName.trim() : null,
-        ieCode: ieCode.trim(),
+        ieCode: ieCode.trim() || null,
         registeredAt: incDate,
         address: address.trim(),
       },
