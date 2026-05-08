@@ -2,12 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
-import { getCompanyOrgStructure } from "@/services/org.service";
 import { getCompanyRoles } from "@/services/role.service";
 import { fetchCompanyNodes } from "@/services/user.service";
 import { createWorkflow } from "@/services/workflow.service";
 import type { ModuleGroup, WorkflowStep } from "@/features/workflow-management/components/onboarding/types";
-import { collectNodeOptions, createResetLevels, getCategoryLabel, INITIAL_LEVELS, formatTokenLabel, toApiApprover } from "@/features/workflow-management/utils/workflowOnboarding.utils";
+import { createResetLevels, getCategoryLabel, INITIAL_LEVELS, formatTokenLabel, toApiApprover } from "@/features/workflow-management/utils/workflowOnboarding.utils";
 
 type UseWorkflowOnboardingOptions = {
   isOpen?: boolean;
@@ -70,13 +69,14 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
   }, [errorMsg]);
 
   useEffect(() => {
+    if (!isOpen) return;
     const companyCode = currentUser?.companyCode?.trim().toUpperCase();
     if (!companyCode) return;
 
     let ignore = false;
     const loadWorkflowDependencies = async () => {
       try {
-        const [roles, orgTree] = await Promise.all([getCompanyRoles(companyCode), getCompanyOrgStructure(companyCode)]);
+        const [roles, nodes] = await Promise.all([getCompanyRoles(companyCode), fetchCompanyNodes("WORK_FLOW")]);
         if (ignore) return;
 
         const groupedModules = Array.from(
@@ -107,30 +107,18 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
         setModuleGroups(groupedModules);
         setWfModule((current) => (groupedModules.some((group) => group.options.some((option) => option.value === current)) ? current : ""));
 
-        const nextDepartments = collectNodeOptions(orgTree);
+        const nextDepartments = Array.from(
+          nodes.reduce((acc, node) => {
+            const label = node.nodeName.trim();
+            const value = node.nodePath.trim();
+            if (!label || !value) return acc;
+            if (!acc.has(value)) acc.set(value, { label, value });
+            return acc;
+          }, new Map<string, { label: string; value: string }>())
+            .values(),
+        );
         setDepartmentOptions(nextDepartments);
         setWfNode((current) => (nextDepartments.some((option) => option.value === current) ? current : ""));
-      } catch (error) {
-        if (ignore) return;
-        const message = getApiErrorMessage(error, "Unable to load workflow dependencies.");
-        setErrorMsg(message);
-        toast({ title: "Unable to load workflow dependencies", description: message, variant: "destructive" });
-      }
-    };
-
-    void loadWorkflowDependencies();
-    return () => {
-      ignore = true;
-    };
-  }, [currentUser?.companyCode, toast]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    let ignore = false;
-
-    fetchCompanyNodes("WORK_FLOW")
-      .then((nodes) => {
-        if (ignore) return;
         const options = nodes
           .flatMap((node) => node.workflows)
           .map((workflow) => {
@@ -143,15 +131,21 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
           .filter((option): option is { id: string; label: string } => Boolean(option));
 
         setWorkflowOptions(Array.from(new Map(options.map((option) => [option.id, option])).values()));
-      })
-      .catch(() => {
-        if (!ignore) setWorkflowOptions([]);
-      });
+      } catch (error) {
+        if (ignore) return;
+        const message = getApiErrorMessage(error, "Unable to load workflow dependencies.");
+        setErrorMsg(message);
+        setDepartmentOptions([]);
+        setWorkflowOptions([]);
+        toast({ title: "Unable to load workflow dependencies", description: message, variant: "destructive" });
+      }
+    };
 
+    void loadWorkflowDependencies();
     return () => {
       ignore = true;
     };
-  }, [isOpen]);
+  }, [currentUser?.companyCode, isOpen, toast]);
 
   useEffect(() => {
     if (!isOpen) return;

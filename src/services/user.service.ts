@@ -86,6 +86,14 @@ const readNonEmptyString = (value: unknown, fallback: string) => {
   const raw = readString(value).trim();
   return raw || fallback;
 };
+const normalizeAccessCategory = (value: unknown): "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null => {
+  const normalized = readString(value).trim().toUpperCase();
+  if (!normalized) return null;
+  if (normalized === "ALL_CHILD") return "ALL_CHILD";
+  if (normalized === "IMMEDIATE_CHILD") return "IMMEDIATE_CHILD";
+  if (normalized === "NODE") return "NODE";
+  return null;
+};
 
 
 const mapAccessDetails = (record: RawUserRecord, status: AppUser["status"]): NonNullable<AppUser["accessDetails"]> => {
@@ -116,16 +124,13 @@ const mapAccessDetails = (record: RawUserRecord, status: AppUser["status"]): Non
   }
 
   const mappedEntries = entriesWithType.map(({ entry, accessType: detectedType }) => ({
-    roleCategory:
-      readString(entry.roleCategory).trim().toUpperCase() === "OPERATIONAL"
-        ? "OPERATIONAL"
-        : readString(entry.roleCategory).trim().toUpperCase() === "SYSTEM_ACCESS"
-          ? "SYSTEM_ACCESS"
-          : "TRANSACTIONAL",
-    roleSubCategory: readNonEmptyString(entry.roleSubCategory, "USER_ACC"),
-    roleName: readNonEmptyString(entry.roleName, "User Access Viewer"),
-    nodeName: readNonEmptyString(entry.nodeName, "Default Node"),
-    nodePath: readNonEmptyString(entry.nodePath, "DEFAULT.ROOT.NODE"),
+    roleCategory: readString(entry.roleCategory).trim().toUpperCase(),
+    roleSubCategory: readString(entry.roleSubCategory).trim(),
+    roleName: readString(entry.roleName).trim(),
+    nodeName: readString(entry.nodeName).trim(),
+    nodePath: readString(entry.nodePath).trim(),
+    nodeType: readString(entry.nodeType).trim(),
+    accessCategory: normalizeAccessCategory(entry.accessCategory),
     accessType: detectedType
       ? detectedType
       : readString(entry.accessType).trim().toUpperCase() === "SECONDARY"

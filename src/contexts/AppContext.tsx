@@ -82,11 +82,13 @@ export interface AppUser {
     reportingManagerEmail?: string;
   };
   accessDetails?: Array<{
-    roleCategory: "TRANSACTIONAL" | "OPERATIONAL" | "SYSTEM_ACCESS";
+    roleCategory: string;
     roleSubCategory: string;
     roleName: string;
     nodeName: string;
     nodePath: string;
+    nodeType?: string;
+    accessCategory?: "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null;
     accessType?: "PRIMARY" | "SECONDARY";
   }>;
 }

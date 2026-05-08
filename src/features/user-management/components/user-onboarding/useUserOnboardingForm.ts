@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppContext, type OrgNode } from "@/contexts/AppContext";
 import type { RoleRecord } from "@/services/role.service";
 import { getCompanyRoles } from "@/services/role.service";
-import { getCompanyOrgStructure } from "@/services/org.service";
 import { fetchCompanyNodes } from "@/services/user.service";
 import type {
   UserOnboardingFormData,
@@ -28,7 +27,7 @@ type UseUserOnboardingFormOptions = {
 };
 
 export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserOnboardingFormOptions) {
-  const { orgStructure: contextOrgStructure, currentUser, users } = useAppContext();
+  const { currentUser, users } = useAppContext();
   const companyCode = currentUser?.companyCode ?? "";
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [workflowOptions, setWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
@@ -46,19 +45,56 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   const [isReviewAccessExpanded, setIsReviewAccessExpanded] = useState(true);
   const reviewAccessNodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Use context org if already loaded, otherwise fetch independently
-  const orgStructure = contextOrgStructure ?? localOrgStructure;
+  const orgStructure = localOrgStructure;
 
-  // Fetch org structure when dialog opens (in case context hasn't loaded it)
-  useEffect(() => {
-    if (!open) return;
-    if (contextOrgStructure) return; // already have it from context
-    let ignore = false;
-    getCompanyOrgStructure(companyCode).then((data) => {
-      if (!ignore) setLocalOrgStructure(data);
+  const toNodeType = (value: string) => {
+    const normalized = value.trim().toUpperCase();
+    if (normalized === "ROOT" || normalized === "DIVISION" || normalized === "DEPARTMENT" || normalized === "TEAM" || normalized === "PLANT" || normalized === "LOCATION") {
+      return normalized;
+    }
+    return "DEPARTMENT";
+  };
+
+  const buildOrgTreeFromCompanyNodes = (rows: Array<{ nodeName: string; nodePath: string; nodeType: string }>): OrgNode | null => {
+    if (rows.length === 0) return null;
+
+    const byPath = new Map<string, OrgNode>();
+    rows.forEach((row) => {
+      const nodePath = row.nodePath.trim();
+      if (!nodePath) return;
+      byPath.set(nodePath, {
+        id: nodePath,
+        name: row.nodeName.trim() || "Unnamed Node",
+        nodePath,
+        nodeType: toNodeType(row.nodeType),
+        status: "Active",
+        children: [],
+      });
     });
-    return () => { ignore = true; };
-  }, [open, companyCode, contextOrgStructure]);
+
+    const roots: OrgNode[] = [];
+    byPath.forEach((node, nodePath) => {
+      const segments = nodePath.split(".").map((segment) => segment.trim()).filter(Boolean);
+      const parentPath = segments.length > 1 ? segments.slice(0, -1).join(".") : null;
+      if (!parentPath) {
+        roots.push(node);
+        return;
+      }
+      const parent = byPath.get(parentPath);
+      if (parent) {
+        parent.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+
+    const sortBranch = (nodes: OrgNode[]) => {
+      nodes.sort((a, b) => a.nodePath.localeCompare(b.nodePath, undefined, { numeric: true, sensitivity: "base" }));
+      nodes.forEach((node) => sortBranch(node.children));
+    };
+    sortBranch(roots);
+    return roots.find((node) => node.nodeType === "ROOT") ?? roots[0] ?? null;
+  };
 
   // Fetch live roles when dialog opens
   useEffect(() => {
@@ -76,6 +112,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
     fetchCompanyNodes("USER_ACC")
       .then((nodes) => {
         if (ignore) return;
+        setLocalOrgStructure(buildOrgTreeFromCompanyNodes(nodes));
         const options = nodes
           .flatMap((node) => node.workflows)
           .map((workflow) => {
@@ -94,13 +131,16 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
         setWorkflowOptions(uniqueById);
       })
       .catch(() => {
-        if (!ignore) setWorkflowOptions([]);
+        if (!ignore) {
+          setWorkflowOptions([]);
+          setLocalOrgStructure(null);
+        }
       });
 
     return () => {
       ignore = true;
     };
-  }, [open]);
+  }, [open, companyCode]);
 
   useEffect(() => {
     if (!open) return;

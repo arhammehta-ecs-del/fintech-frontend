@@ -58,6 +58,10 @@ const displayOrFallback = (value: string | undefined, fallback: string) => {
   const cleaned = (value || "").trim();
   return cleaned ? cleaned : fallback;
 };
+const isNotAvailableValue = (value?: string) => {
+  const normalized = (value || "").trim().toUpperCase();
+  return !normalized || normalized === "N/A" || normalized === "NA" || normalized === "-";
+};
 
 const pickFirst = (obj: Record<string, unknown>, keys: string[]) => {
   for (const key of keys) {
@@ -126,7 +130,12 @@ type GroupedByNode = Record<string, {
   nodeName: string;
   nodeType: string; // derived from nodePath depth or fallback ""
   parentSubtitle: string;
-  categories: Record<string, Array<{ roleSubCategory: string; roleName: string }>>;
+  categories: Record<string, Array<{
+    roleSubCategory: string;
+    roleName: string;
+    nodeType?: string;
+    accessCategory?: "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null;
+  }>>;
 }>;
 
 const formatPathSegment = (segment: string) =>
@@ -167,6 +176,8 @@ function groupByNode(items: NonNullable<AppUser["accessDetails"]>): GroupedByNod
     result[key].categories[cat].push({
       roleSubCategory: item.roleSubCategory,
       roleName: item.roleName,
+      nodeType: item.nodeType,
+      accessCategory: item.accessCategory ?? "NODE",
     });
   }
   return result;
@@ -224,7 +235,11 @@ function NodeAccessCard({
   nodeName: string;
   parentSubtitle?: string;
   nodeIndex: number;
-  categories: Record<string, Array<{ roleSubCategory: string; roleName: string }>>;
+  categories: Record<string, Array<{
+    roleSubCategory: string;
+    roleName: string;
+    accessCategory?: "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null;
+  }>>;
   isPrimary: boolean;
   onClose?: () => void;
 }) {
@@ -234,15 +249,24 @@ function NodeAccessCard({
 
   const presentCats = CATEGORY_ORDER.filter((cat) => (categories[cat]?.length ?? 0) > 0);
   const getBadgeStyle = (label: string) => {
+    if (label === "Global Access") return "bg-emerald-50 text-emerald-700";
     if (label === "Checker") return "bg-violet-50 text-violet-700";
     if (label === "Maker") return "bg-amber-50 text-amber-700";
     return "bg-slate-100 text-slate-600";
   };
 
   const getBadgeIcon = (label: string) => {
+    if (label === "Global Access") return ShieldCheck;
     if (label === "Checker") return ShieldCheck;
     if (label === "Maker") return Pencil;
     return Eye;
+  };
+
+  const formatScopeLabel = (value?: string | null) => {
+    const normalized = (value || "").trim().toUpperCase();
+    if (normalized === "ALL_CHILD") return "All Child";
+    if (normalized === "IMMEDIATE_CHILD") return "Immediate Child";
+    return "Node";
   };
 
   return (
@@ -283,9 +307,13 @@ function NodeAccessCard({
         ) : presentCats.map((cat) => {
           const rows = categories[cat] ?? [];
           const groupedRows = rows.reduce<Map<string, Set<string>>>((acc, row) => {
-            const key = row.roleSubCategory || "UNKNOWN";
+            const key = row.roleSubCategory || row.nodeType || "ROOT";
             const labels = acc.get(key) ?? new Set<string>();
-            labels.add(getPermissionActionLabelFromRoleName(row.roleName || "Viewer"));
+            const isGlobalAccessRoleMissing = !row.roleName.trim() && !row.roleSubCategory.trim();
+            const actionLabel = isGlobalAccessRoleMissing
+              ? "Global Access"
+              : getPermissionActionLabelFromRoleName(row.roleName || "Viewer");
+            labels.add(`${actionLabel}::${formatScopeLabel(row.accessCategory)}`);
             acc.set(key, labels);
             return acc;
           }, new Map());
@@ -293,9 +321,9 @@ function NodeAccessCard({
           if (cat === "SYSTEM_ACCESS" && groupedRows.has("USER_MANAGEMENT")) {
             const labels = groupedRows.get("USER_MANAGEMENT");
             if (labels) {
-              labels.add("Checker");
-              labels.add("Maker");
-              labels.add("Viewer");
+              labels.add("Checker::Node");
+              labels.add("Maker::Node");
+              labels.add("Viewer::Node");
             }
           }
 
@@ -305,20 +333,23 @@ function NodeAccessCard({
                 {formatKey(cat)}
               </div>
               {Array.from(groupedRows.entries()).map(([roleSubCategory, labels], i) => {
-                const orderedLabels = ["Checker", "Maker", "Viewer"].filter((label) => labels.has(label));
+                const orderedBadgeTokens = ["Global Access", "Checker", "Maker", "Viewer"].flatMap((label) =>
+                  Array.from(labels).filter((token) => token.startsWith(`${label}::`)),
+                );
                 return (
                   <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-7 text-[15px] leading-[1.35]">
                     <span className="min-w-0 truncate pt-0.5 pr-1 font-medium text-slate-600">{formatKey(roleSubCategory)}</span>
                     <span className="flex max-w-[360px] flex-wrap justify-end gap-2">
-                      {orderedLabels.map((label) => {
-                        const BadgeIcon = getBadgeIcon(label);
+                      {orderedBadgeTokens.map((token) => {
+                        const [label, scope] = token.split("::");
+                        const BadgeIcon = getBadgeIcon(label || "Viewer");
                         return (
                           <span
-                            key={`${roleSubCategory}-${label}`}
-                            className={cn("inline-flex min-w-[96px] items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium", getBadgeStyle(label))}
+                            key={`${roleSubCategory}-${token}`}
+                            className={cn("inline-flex min-w-[96px] items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium", getBadgeStyle(label || "Viewer"))}
                           >
                             <BadgeIcon className="h-3.5 w-3.5 shrink-0" />
-                            {label}
+                            {`${label || "Viewer"} - ${scope || "Node"}`}
                           </span>
                         );
                       })}
@@ -419,7 +450,26 @@ export function UserManagePreview({
   const secondaryByNode = groupByNode(secondaryItems);
   const primaryEntries = useMemo(() => Object.entries(primaryByNode), [primaryByNode]);
   const secondaryEntries = useMemo(() => Object.entries(secondaryByNode), [secondaryByNode]);
-  const hasGlobalAccess = primaryEntries.length === 0 && secondaryEntries.length === 0;
+  const hasGlobalAccessByEmptyAccess = primaryEntries.length === 0 && secondaryEntries.length === 0;
+  const shouldShowGlobalManagerBadge =
+    isNotAvailableValue(userData.reportingManager) && isNotAvailableValue(userData.reportingManagerEmail);
+  const hasGlobalAccessByPacketShape =
+    shouldShowGlobalManagerBadge &&
+    primaryItems.length > 0 &&
+    primaryItems.every((item) => {
+      const missingRoleMeta = !(item.roleCategory || "").trim() && !(item.roleSubCategory || "").trim() && !(item.roleName || "").trim();
+      const isRoot = (item.nodeType || "").trim().toUpperCase() === "ROOT";
+      const allChild = (item.accessCategory || "").trim().toUpperCase() === "ALL_CHILD";
+      return missingRoleMeta && isRoot && allChild;
+    }) &&
+    secondaryItemsRaw.length === 0;
+  const hasGlobalAccess = hasGlobalAccessByEmptyAccess || hasGlobalAccessByPacketShape;
+  const globalAccessNode = hasGlobalAccessByPacketShape ? primaryItems[0] : null;
+  const globalAccessScopeLabel = ((globalAccessNode?.accessCategory || "").trim().toUpperCase() === "ALL_CHILD"
+    ? "All Child"
+    : (globalAccessNode?.accessCategory || "").trim().toUpperCase() === "IMMEDIATE_CHILD"
+      ? "Immediate Child"
+      : "Node");
 
   const isRemarkValid = Boolean(pendingRemark.trim());
   const showRemarkError = remarkTouched && !isRemarkValid;
@@ -579,15 +629,15 @@ export function UserManagePreview({
                     className={cn(
                       "grid items-stretch grid-cols-1 gap-3",
                       hasGlobalAccess
-                        ? "xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]"
-                        : "xl:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]",
+                        ? "xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)]"
+                        : "xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]",
                     )}
                   >
-                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100/70">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm ring-1 ring-slate-100/70">
                       <div className="mb-3 border-b border-slate-200 pb-2">
                         <span className="text-[12px] font-black uppercase tracking-widest text-slate-600">Basic Details</span>
                       </div>
-                      <div className="space-y-2.5 text-sm">
+                      <div className="space-y-2 text-sm">
                         <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
                           <span className="text-slate-500">Name</span>
                           <span className="text-slate-400">:</span>
@@ -624,14 +674,29 @@ export function UserManagePreview({
                     </div>
 
                     {hasGlobalAccess ? (
-                      <div className="flex h-full min-h-[248px] flex-col rounded-xl border border-emerald-200 bg-white p-4 shadow-sm ring-1 ring-emerald-100/70">
-                        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/30 p-4">
-                          <span className="inline-flex h-20 w-20 items-center justify-center rounded-3xl border border-emerald-200 bg-white text-emerald-700 shadow-[0_10px_24px_rgba(16,185,129,0.18)]">
+                      <div className="flex h-full min-h-[262px] flex-col rounded-xl border border-emerald-200 bg-white p-3.5 shadow-sm ring-1 ring-emerald-100/70">
+                        <div className="flex flex-1 flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/30 p-4">
+                          <span className="inline-flex h-20 w-20 items-center justify-center rounded-2xl border border-emerald-200 bg-white text-emerald-700 shadow-[0_10px_24px_rgba(16,185,129,0.18)]">
                             <ShieldCheck className="h-9 w-9" />
                           </span>
                           <span className="text-sm font-extrabold uppercase tracking-[0.12em] text-emerald-700">
                             Global Access
                           </span>
+                          {globalAccessNode ? (
+                            <div className="rounded-lg border border-emerald-200 bg-white/70 p-3 text-sm">
+                              <div className="grid grid-cols-[110px_10px_1fr] items-center gap-x-2">
+                                <span className="text-slate-500">Node Name</span>
+                                <span className="text-slate-400">:</span>
+                                <span className="font-semibold text-slate-900">{globalAccessNode.nodeName || "-"}</span>
+                              </div>
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className="text-slate-500">Access Category</span>
+                                <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold leading-none text-emerald-700">
+                                  {globalAccessScopeLabel}
+                                </span>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     ) : (
@@ -660,20 +725,22 @@ export function UserManagePreview({
                     )}
                   </div>
 
-                  <div className="mt-3 rounded-xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100/70">
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-8 lg:whitespace-nowrap">
-                      <div className="flex min-w-0 items-center gap-1">
-                        <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
-                        <span className="shrink-0 text-slate-400">:</span>
-                        <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManager || "-"}</span>
-                      </div>
-                      <div className="flex min-w-0 items-center gap-1">
-                        <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
-                        <span className="shrink-0 text-slate-400">:</span>
-                        <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>
+                  {!shouldShowGlobalManagerBadge ? (
+                    <div className="mt-3 rounded-xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100/70">
+                      <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2 lg:gap-6 lg:whitespace-nowrap">
+                        <div className="flex min-w-0 items-center gap-1">
+                          <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
+                          <span className="shrink-0 text-slate-400">:</span>
+                          <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManager || "-"}</span>
+                        </div>
+                        <div className="flex min-w-0 items-center gap-1">
+                          <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
+                          <span className="shrink-0 text-slate-400">:</span>
+                          <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
 
                 {!hasGlobalAccess ? (
@@ -747,20 +814,22 @@ export function UserManagePreview({
                     </div>
                   </div>
 
-                  <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100/70">
-                    <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-6 lg:whitespace-nowrap">
-                      <div className="flex min-w-0 items-center gap-1">
-                        <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
-                        <span className="shrink-0 text-slate-400">:</span>
-                        <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManager || "-"}</span>
-                      </div>
-                      <div className="flex min-w-0 items-center gap-1">
-                        <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
-                        <span className="shrink-0 text-slate-400">:</span>
-                        <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>
+                  {!shouldShowGlobalManagerBadge ? (
+                    <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100/70">
+                      <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-2 lg:gap-4 lg:whitespace-nowrap">
+                        <div className="flex min-w-0 items-center gap-1">
+                          <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
+                          <span className="shrink-0 text-slate-400">:</span>
+                          <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManager || "-"}</span>
+                        </div>
+                        <div className="flex min-w-0 items-center gap-1">
+                          <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
+                          <span className="shrink-0 text-slate-400">:</span>
+                          <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : null}
                   {!hasGlobalAccess ? (
                     <div className="mt-3 space-y-1.5">
                       <div className="flex items-center gap-2">
