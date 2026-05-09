@@ -41,6 +41,7 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
     readString(orgStructure.nodePath) ||
     readString(payload.nodePath);
   const subModule = readString(record.subModule) || readString(payload.subModule);
+  const moduleDisplayName = subModule || moduleName;
   const nodeType = readString(record.nodeType) || readString(orgStructure.nodeType) || readString(payload.nodeType);
   const nodeName =
     readString(record.nodeName) ||
@@ -53,7 +54,7 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
     id,
     name,
     alias,
-    module: moduleName,
+    module: moduleDisplayName,
     nodeName,
     nodeType: nodeType ? formatNodeType(nodeType) : "-",
     subModule,

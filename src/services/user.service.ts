@@ -166,14 +166,13 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   const phone = readNonEmptyString(readString(record.phone) || readString(basicDetails.phone), "9999999999");
   const onboardingDate =
     readString(record.onboardingDate) || readString(basicDetails.companyOnboardingDate) || readString(basicDetails.createdAt);
-  const reportingManagerName = readNonEmptyString(
-    readString(basicDetails.reportingManagerName) || readString(basicDetails.reportingManager),
-    "Not available",
-  );
-  const reportingManagerEmail = readNonEmptyString(
-    readString(basicDetails.reportingManagerEmail) || readString(record.manager && typeof record.manager === "object" ? (record.manager as RawUserRecord).email : ""),
-    "not-available@example.com",
-  );
+  const reportingManagerName = (
+    readString(basicDetails.reportingManagerName) || readString(basicDetails.reportingManager)
+  ).trim();
+  const reportingManagerEmail = (
+    readString(basicDetails.reportingManagerEmail) ||
+    readString(record.manager && typeof record.manager === "object" ? (record.manager as RawUserRecord).email : "")
+  ).trim();
   const employeeId = readString(record.employeeId || basicDetails.employeeId).trim();
   const initiatorName = readString(basicDetails.initiatorName).trim();
   const initiatorEmail = readString(basicDetails.initiatorEmail).trim();
@@ -196,7 +195,7 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
     phone,
     companyId: typeof record.companyId === "string" ? record.companyId : undefined,
     onboardingDate: onboardingDate || undefined,
-    manager: reportingManagerName
+    manager: reportingManagerName || reportingManagerEmail
       ? {
         name: reportingManagerName,
         email: reportingManagerEmail,

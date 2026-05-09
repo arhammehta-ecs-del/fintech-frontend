@@ -60,7 +60,7 @@ const displayOrFallback = (value: string | undefined, fallback: string) => {
 };
 const isNotAvailableValue = (value?: string) => {
   const normalized = (value || "").trim().toUpperCase();
-  return !normalized || normalized === "N/A" || normalized === "NA" || normalized === "-";
+  return !normalized || normalized === "N/A" || normalized === "NA" || normalized === "-" || normalized === "—";
 };
 
 const pickFirst = (obj: Record<string, unknown>, keys: string[]) => {
@@ -395,6 +395,10 @@ export function UserManagePreview({
   const formattedJoiningDate = formatDateLabel(rawJoiningDate);
   const rawCreatedAt = pickFirst(memberRecord, ["createdAt"]) || pickFirst(basicDetailsRecord, ["createdAt"]);
   const formattedCreatedAt = formatLooseDateLabel(rawCreatedAt);
+  const rawReportingManagerName =
+    member.basicDetails?.reportingManagerName || member.basicDetails?.reportingManager || member.manager?.name || "";
+  const rawReportingManagerEmail =
+    member.basicDetails?.reportingManagerEmail || member.manager?.email || pickFirst(basicDetailsRecord, ["reportingManagerEmail"]);
 
   const userData = {
     name: displayOrFallback(member.basicDetails?.name || member.name, "—"),
@@ -408,14 +412,8 @@ export function UserManagePreview({
     designation: displayOrFallback(member.basicDetails?.designation || member.designation, "—"),
     department: displayOrFallback(member.department, "—"),
     employeeId: (member.basicDetails?.employeeId || member.employeeId || "").trim(),
-    reportingManager: displayOrFallback(
-      member.basicDetails?.reportingManagerName || member.basicDetails?.reportingManager || member.manager?.name,
-      "—",
-    ),
-    reportingManagerEmail: displayOrFallback(
-      member.basicDetails?.reportingManagerEmail || member.manager?.email || pickFirst(basicDetailsRecord, ["reportingManagerEmail"]),
-      "—",
-    ),
+    reportingManager: displayOrFallback(rawReportingManagerName, "—"),
+    reportingManagerEmail: displayOrFallback(rawReportingManagerEmail, "—"),
   };
 
   const formattedDesignation = formatDesignation(userData.designation);
@@ -452,15 +450,14 @@ export function UserManagePreview({
   const secondaryEntries = useMemo(() => Object.entries(secondaryByNode), [secondaryByNode]);
   const hasGlobalAccessByEmptyAccess = primaryEntries.length === 0 && secondaryEntries.length === 0;
   const shouldShowGlobalManagerBadge =
-    isNotAvailableValue(userData.reportingManager) && isNotAvailableValue(userData.reportingManagerEmail);
+    isNotAvailableValue(rawReportingManagerName) && isNotAvailableValue(rawReportingManagerEmail);
   const hasGlobalAccessByPacketShape =
     shouldShowGlobalManagerBadge &&
     primaryItems.length > 0 &&
     primaryItems.every((item) => {
-      const missingRoleMeta = !(item.roleCategory || "").trim() && !(item.roleSubCategory || "").trim() && !(item.roleName || "").trim();
       const isRoot = (item.nodeType || "").trim().toUpperCase() === "ROOT";
       const allChild = (item.accessCategory || "").trim().toUpperCase() === "ALL_CHILD";
-      return missingRoleMeta && isRoot && allChild;
+      return isRoot && allChild;
     }) &&
     secondaryItemsRaw.length === 0;
   const hasGlobalAccess = hasGlobalAccessByEmptyAccess || hasGlobalAccessByPacketShape;
@@ -812,6 +809,20 @@ export function UserManagePreview({
                         </div>
                       ) : null}
                     </div>
+                    {hasGlobalAccess && globalAccessNode ? (
+                      <div className="mt-2.5 rounded-lg border border-emerald-200 bg-emerald-50/30 p-2.5 text-xs">
+                        <div className="grid grid-cols-[92px_10px_1fr] items-center gap-x-2">
+                          <span className="text-slate-500">Node Name</span>
+                          <span className="text-slate-400">:</span>
+                          <span className="font-semibold text-slate-900">{globalAccessNode.nodeName || "-"}</span>
+                        </div>
+                        <div className="mt-1.5 grid grid-cols-[92px_10px_1fr] items-center gap-x-2">
+                          <span className="text-slate-500">Access Category</span>
+                          <span className="text-slate-400">:</span>
+                          <span className="font-semibold text-emerald-700">{globalAccessScopeLabel}</span>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   {!shouldShowGlobalManagerBadge ? (
