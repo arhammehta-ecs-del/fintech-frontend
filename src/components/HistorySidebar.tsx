@@ -10,6 +10,7 @@ export type HistoryEntry = {
   day: string;
   action: string;
   details: string;
+  remarks?: string;
   timestampMissing?: boolean;
   showActor?: boolean;
   eligibleApprovers?: Array<{
@@ -39,6 +40,12 @@ export type HistorySidebarProps = {
   subtitle: string;
   showSystemGenerated?: boolean;
   data: HistoryEntry[];
+  dockOffset?: {
+    top: number;
+    left: number;
+  };
+  splitView?: boolean;
+  panelWidth?: number;
 };
 
 const MONTHS = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
@@ -219,6 +226,11 @@ function MilestoneTimeline({ data }: { data: HistoryEntry[] }) {
               <div className="mb-2 px-1">
                 <h4 className="mb-1.5 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
                 <p className="text-[11.5px] leading-relaxed text-slate-600">{item.details}</p>
+                {item.remarks ? (
+                  <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600">
+                    <span className="font-medium text-slate-700">Remarks:</span> {item.remarks}
+                  </p>
+                ) : null}
                 {item.eligibleApprovers && item.eligibleApprovers.length > 0 ? (
                   <div
                     className={[
@@ -261,10 +273,21 @@ function MilestoneTimeline({ data }: { data: HistoryEntry[] }) {
   );
 }
 
-export function HistorySidebar({ isOpen, onClose, title = "Audit Trail", subtitle, showSystemGenerated = true, data }: HistorySidebarProps) {
+export function HistorySidebar({
+  isOpen,
+  onClose,
+  title = "Audit Trail",
+  subtitle,
+  showSystemGenerated = true,
+  data,
+  dockOffset,
+  splitView = false,
+  panelWidth = 560,
+}: HistorySidebarProps) {
   const [expandedYears, setExpandedYears] = useState(new Set<string>([(new Date().getFullYear()).toString()]));
   const [expandedMonths, setExpandedMonths] = useState(new Set<string>());
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
+  const effectiveOffset = dockOffset ?? shellOffset;
 
   const structuredHistory = useMemo(() => {
     const grouped = data.reduce<Record<string, Record<string, HistoryEntry[]>>>((acc, item) => {
@@ -324,6 +347,11 @@ export function HistorySidebar({ isOpen, onClose, title = "Audit Trail", subtitl
   }, [isOpen, structuredHistory]);
 
   useEffect(() => {
+    if (dockOffset) {
+      setShellOffset(dockOffset);
+      return;
+    }
+
     const syncShellOffset = () => {
       const topBar = document.querySelector("header");
       const sideBar = document.querySelector("aside");
@@ -334,8 +362,22 @@ export function HistorySidebar({ isOpen, onClose, title = "Audit Trail", subtitl
 
     syncShellOffset();
     window.addEventListener("resize", syncShellOffset);
-    return () => window.removeEventListener("resize", syncShellOffset);
-  }, []);
+    const topBar = document.querySelector("header");
+    const sideBar = document.querySelector("aside");
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncShellOffset) : null;
+
+    if (resizeObserver && topBar) resizeObserver.observe(topBar);
+    if (resizeObserver && sideBar) resizeObserver.observe(sideBar);
+    topBar?.addEventListener("transitionend", syncShellOffset);
+    sideBar?.addEventListener("transitionend", syncShellOffset);
+
+    return () => {
+      window.removeEventListener("resize", syncShellOffset);
+      topBar?.removeEventListener("transitionend", syncShellOffset);
+      sideBar?.removeEventListener("transitionend", syncShellOffset);
+      resizeObserver?.disconnect();
+    };
+  }, [dockOffset]);
 
   const toggleYear = (year: string) => {
     const next = new Set(expandedYears);
@@ -351,24 +393,43 @@ export function HistorySidebar({ isOpen, onClose, title = "Audit Trail", subtitl
     setExpandedMonths(next);
   };
 
-  if (!isOpen) return null;
+  if (!isOpen && !splitView) return null;
+  const dockedWidth = splitView ? (isOpen ? panelWidth : 0) : panelWidth;
 
   return (
     <div
-      className="fixed bottom-0 right-0 z-30 flex justify-end font-sans"
-      style={{ top: `${shellOffset.top}px`, left: `${shellOffset.left}px` }}
+      className={[
+        "fixed bottom-0 right-0 z-[60] flex min-h-0 justify-end overflow-hidden font-sans transition-[width,height] duration-300 ease-in-out",
+        splitView && !isOpen ? "pointer-events-none" : "pointer-events-auto",
+      ].join(" ")}
+      style={
+        splitView
+          ? { top: `${effectiveOffset.top}px`, width: `${dockedWidth}px`, height: `calc(100vh - ${effectiveOffset.top}px)` }
+          : { top: `${effectiveOffset.top}px`, left: `${effectiveOffset.left}px` }
+      }
     >
-      <div className="absolute inset-0" onClick={onClose} />
+      {!splitView ? <div className="absolute inset-0" onClick={onClose} /> : null}
 
-      <div className="relative flex h-full w-full max-w-[560px] flex-col border-l border-slate-200 bg-slate-50 shadow-2xl animate-in slide-in-from-right duration-300 ease-out">
-        <div className="sticky top-0 z-50 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
+      <div
+        className={[
+          "relative flex h-full w-full min-h-0 flex-col overflow-hidden bg-white animate-in slide-in-from-right duration-300 ease-out",
+          splitView ? "border-l border-slate-200 shadow-none" : "max-w-[560px] border-l border-slate-200 shadow-2xl",
+          splitView && !isOpen ? "opacity-0" : "opacity-100",
+        ].join(" ")}
+      >
+        <div
+          className={[
+            "sticky top-0 z-50 flex items-center justify-between border-b border-slate-200 bg-white px-6 pb-4",
+            splitView ? "pt-8" : "pt-6",
+          ].join(" ")}
+        >
           <div className="flex items-center gap-4">
-            <div className="rounded-lg border border-slate-200 bg-slate-100 p-2 text-slate-600">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 shadow-sm">
               <History className="h-5 w-5" />
             </div>
             <div>
               <h3 className="text-[15px] font-bold leading-tight text-slate-900">{title}</h3>
-              <div className="mt-0.5 flex items-center gap-2">
+              <div className="mt-1 flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-slate-600">{toTitleCase(subtitle || "Unknown Entity")}</span>
                 {showSystemGenerated ? (
                   <>
@@ -381,14 +442,17 @@ export function HistorySidebar({ isOpen, onClose, title = "Audit Trail", subtitl
           </div>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:bg-slate-100 hover:text-slate-900"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:bg-slate-100 hover:text-slate-900"
             aria-label="Close audit trail"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
+        <div
+          className="custom-scrollbar flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-6 pr-3"
+          style={{ scrollbarGutter: "stable", WebkitOverflowScrolling: "touch" }}
+        >
           {Object.entries(structuredHistory)
             .sort((a, b) => Number(b[0]) - Number(a[0]))
             .map(([year, months], index, array) => {

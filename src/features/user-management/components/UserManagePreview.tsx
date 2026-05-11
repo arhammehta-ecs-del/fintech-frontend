@@ -8,6 +8,7 @@ import {
   Maximize2,
   Minimize2,
   Pencil,
+  History,
   ShieldCheck,
   UserCheck,
   X,
@@ -142,7 +143,16 @@ const getParentSubtitleFromPath = (nodePath?: string) => {
     .map((segment) => segment.trim())
     .filter(Boolean);
   if (rawSegments.length === 0) return "";
-  return rawSegments.map(formatPathSegment).join(" > ");
+
+  const root = rawSegments[0] ? formatPathSegment(rawSegments[0]) : "";
+  const remaining = rawSegments.slice(1).filter((segment) => segment.toUpperCase() !== "ROOT");
+  if (remaining.length === 0) return root;
+  if (remaining.length <= 3) {
+    return [root, ...remaining.map(formatPathSegment)].filter(Boolean).join(" > ");
+  }
+
+  const tail = remaining.slice(-3).map(formatPathSegment);
+  return [root, "...", ...tail].filter(Boolean).join(" > ");
 };
 
 function groupByNode(items: NonNullable<AppUser["accessDetails"]>): GroupedByNode {
@@ -360,11 +370,17 @@ export function UserManagePreview({
   onApprovePending,
   onRejectPending,
   onToggleActiveStatus,
+  onClose,
+  onToggleHistory,
+  isHistoryOpen = false,
 }: {
   member: AppUser;
   onApprovePending?: (member: AppUser, remark?: string) => void;
   onRejectPending?: (member: AppUser, remark?: string) => void;
   onToggleActiveStatus?: (member: AppUser, isActive: boolean) => void;
+  onClose?: () => void;
+  onToggleHistory?: () => void;
+  isHistoryOpen?: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [collapsedFocusedKey, setCollapsedFocusedKey] = useState<string | null>(null);
@@ -403,6 +419,8 @@ export function UserManagePreview({
   const initiatorName = member.basicDetails?.initiatorName || "";
   const initiatorEmail = member.basicDetails?.initiatorEmail || "";
   const initiatedOnRaw = member.basicDetails?.initiatedDate || "";
+  const pendingWorkflowName = member.basicDetails?.workflowName || "";
+  const pendingWorkflowAlias = member.basicDetails?.alias || "";
   const resolvedInitiatorName = initiatorName || INITIATOR_FALLBACK.name;
   const resolvedInitiatorEmail = initiatorEmail || INITIATOR_FALLBACK.email;
   const initiatedOn = formatToIst(initiatedOnRaw || INITIATOR_FALLBACK.initiatedAt);
@@ -495,10 +513,10 @@ export function UserManagePreview({
         : "border-emerald-200 bg-emerald-100 text-emerald-700";
 
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div className="flex h-full min-h-0 flex-col bg-white">
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="border-b border-slate-200 px-6 pt-6 pb-0">
+      <div className="shrink-0 border-b border-slate-200 px-6 pt-6 pb-0">
         {/* Name + avatar row — no EDIT here so it doesn't clash with dialog X */}
         <div className="flex items-start justify-between gap-4 pr-8">
           <div className="flex items-center gap-4">
@@ -521,36 +539,78 @@ export function UserManagePreview({
               </div>
             </div>
           </div>
-          {showActiveToggle ? (
-            <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm">
+          <div className="flex flex-col items-end gap-3">
+            {member.status === "Pending" ? (
+              <div className="flex items-center gap-2">
+                {onToggleHistory ? (
+                  <button
+                    type="button"
+                    onClick={onToggleHistory}
+                    className={cn(
+                      "inline-flex h-10 w-10 items-center justify-center rounded-xl border transition",
+                      isHistoryOpen
+                        ? "border-[rgb(53,83,233)] bg-[rgb(53,83,233)] text-white shadow-[0_4px_12px_rgba(53,83,233,0.24)]"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700",
+                    )}
+                    aria-label={isHistoryOpen ? "Close history sidebar" : "Open history sidebar"}
+                    aria-pressed={isHistoryOpen}
+                  >
+                    <History className="h-4 w-4" />
+                  </button>
+                ) : null}
+                {onClose ? (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                    aria-label="Close user preview"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+              </div>
+            ) : onClose ? (
               <button
                 type="button"
-                onClick={() => onToggleActiveStatus?.(member, true)}
-                className={cn(
-                  "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
-                  isActive
-                    ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
-                    : "text-slate-500 hover:text-slate-700",
-                )}
-                aria-pressed={isActive}
+                onClick={onClose}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                aria-label="Close user preview"
               >
-                Active
+                <X className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                onClick={() => onToggleActiveStatus?.(member, false)}
-                className={cn(
-                  "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
-                  !isActive
-                    ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
-                    : "text-slate-500 hover:text-slate-700",
-                )}
-                aria-pressed={!isActive}
-              >
-                Inactive
-              </button>
-            </div>
-          ) : null}
+            ) : null}
+
+            {showActiveToggle ? (
+              <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => onToggleActiveStatus?.(member, true)}
+                  className={cn(
+                    "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
+                    isActive
+                      ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
+                      : "text-slate-500 hover:text-slate-700",
+                  )}
+                  aria-pressed={isActive}
+                >
+                  Active
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToggleActiveStatus?.(member, false)}
+                  className={cn(
+                    "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
+                    !isActive
+                      ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
+                      : "text-slate-500 hover:text-slate-700",
+                  )}
+                  aria-pressed={!isActive}
+                >
+                  Inactive
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {member.status === "Pending" ? (
@@ -571,6 +631,18 @@ export function UserManagePreview({
                 <span className="text-slate-500">Initiated</span>
                 <span className="font-medium text-slate-700">{initiatedOn || formatToIst(INITIATOR_FALLBACK.initiatedAt)}</span>
               </span>
+              {pendingWorkflowName.trim() ? (
+                <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                  <span className="text-slate-500">Workflow</span>
+                  <span className="font-medium text-slate-700 truncate">{pendingWorkflowName}</span>
+                </span>
+              ) : null}
+              {pendingWorkflowAlias.trim() ? (
+                <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                  <span className="text-slate-500">Alias</span>
+                  <span className="font-medium text-slate-700 truncate">{pendingWorkflowAlias}</span>
+                </span>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -579,7 +651,7 @@ export function UserManagePreview({
       </div>
 
       {/* ── Content ────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-6">
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
             <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
@@ -948,7 +1020,7 @@ export function UserManagePreview({
       </div>
 
       {member.status === "Pending" ? (
-        <div className="border-t border-slate-200 bg-white px-6 py-4">
+        <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4">
           <div className="flex items-center justify-end gap-3">
             {pendingDecision !== "approve" ? (
               <button

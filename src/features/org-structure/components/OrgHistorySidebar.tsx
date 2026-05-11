@@ -10,6 +10,11 @@ type OrgHistorySidebarProps = {
   companyCode: string;
   subtitle: string;
   nodeName?: string;
+  dockOffset?: {
+    top: number;
+    left: number;
+  };
+  splitView?: boolean;
 };
 
 type RawHistoryRecord = Record<string, unknown>;
@@ -64,6 +69,7 @@ const mapOrgHistoryEntry = (item: unknown, subtitle: string, index: number): His
   const isPendingAction = normalizedAction.includes("initiate") || normalizedAction.includes("pending");
   const isApprovedAction = normalizedAction.includes("approve");
   const eligibleApprovers = mapEligibleApprovers(record);
+  const remarks = readString(record.remarks);
   const details = eligibleApprovers.length > 0
     ? "Eligible approvers listed below."
     : nodeName
@@ -77,6 +83,7 @@ const mapOrgHistoryEntry = (item: unknown, subtitle: string, index: number): His
     day,
     action,
     details,
+    remarks: remarks || undefined,
     timestampMissing: !hasCreatedAt,
     eligibleApprovers,
     initiator: {
@@ -99,7 +106,15 @@ const mapOrgHistoryEntry = (item: unknown, subtitle: string, index: number): His
   };
 };
 
-export default function OrgHistorySidebar({ isOpen, onClose, companyCode, subtitle, nodeName = "" }: OrgHistorySidebarProps) {
+export default function OrgHistorySidebar({
+  isOpen,
+  onClose,
+  companyCode,
+  subtitle,
+  nodeName = "",
+  dockOffset,
+  splitView = false,
+}: OrgHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
   const { toast } = useToast();
 
@@ -141,6 +156,8 @@ export default function OrgHistorySidebar({ isOpen, onClose, companyCode, subtit
       subtitle={subtitle || "Organisation Structure"}
       showSystemGenerated={false}
       data={historyData}
+      dockOffset={dockOffset}
+      splitView={splitView}
     />
   );
 }

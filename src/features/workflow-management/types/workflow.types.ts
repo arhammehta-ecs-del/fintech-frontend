@@ -7,12 +7,18 @@ export type WorkflowRecord = {
   name: string;
   alias: string;
   module: string;
+  rawModule?: string;
   nodeName: string;
   nodeType: string;
   subModule: string;
   nodePath: string;
   levels: unknown;
   approvalRemark?: string;
+  initiatorName?: string;
+  initiatorEmail?: string;
+  initiatedDate?: string;
+  workflowName?: string;
+  workflowAlias?: string;
   status: WorkflowStatus;
 };
 

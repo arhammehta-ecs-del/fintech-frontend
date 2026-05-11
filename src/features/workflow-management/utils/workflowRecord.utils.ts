@@ -19,19 +19,52 @@ export const formatSnakeCaseLabel = (value: string) =>
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
+export const formatWorkflowPath = (nodePath: string) =>
+  nodePath
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter((segment) => Boolean(segment) && segment.toUpperCase() !== "ROOT")
+    .map((segment) => formatSnakeCaseLabel(segment))
+    .join(" > ");
+
+export const getWorkflowPathPreview = (nodePath: string) => {
+  const segments = nodePath
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter((segment) => Boolean(segment) && segment.toUpperCase() !== "ROOT");
+
+  if (segments.length <= 1) return "";
+
+  const parentSegment = segments[segments.length - 2];
+  return parentSegment ? formatSnakeCaseLabel(parentSegment) : "";
+};
+
 export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): WorkflowRecord => {
   const record = toRecord(item);
   const payload = toRecord(record.data);
   const orgStructure = toRecord(record.orgStructure);
+  const initiator = toRecord(record.initiator);
+  const rawModule = readString(record.module) || readString(payload.module);
+  const subModule = readString(record.subModule) || readString(payload.subModule);
+  const nodePath =
+    readString(record.nodePath) ||
+    readString(orgStructure.nodePath) ||
+    readString(payload.nodePath);
 
   const id =
     readString(record.id) ||
-    readString(record.levelsHash) ||
     readString(record.workflowId) ||
     readString(record.requestId) ||
-    readString(payload.id) ||
-    readString(payload.levelsHash) ||
-    readString(payload.workflowId);
+    [
+      readString(record.levelsHash) || readString(payload.levelsHash),
+      rawModule || "module",
+      subModule || "sub-module",
+      nodePath || "node-path",
+      readString(record.name) || readString(payload.name) || "workflow",
+      status,
+    ]
+      .filter(Boolean)
+      .join("|");
   const levelsHash =
     readString(record.levelsHash) ||
     readString(payload.levelsHash) ||
@@ -44,11 +77,6 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
   const name = readString(record.name) || readString(payload.name) || "Unknown";
   const alias = readString(record.alias) || readString(payload.alias) || "-";
   const moduleName = readString(record.module) || readString(payload.module) || "Unknown";
-  const nodePath =
-    readString(record.nodePath) ||
-    readString(orgStructure.nodePath) ||
-    readString(payload.nodePath);
-  const subModule = readString(record.subModule) || readString(payload.subModule);
   const moduleDisplayName = subModule ? formatSnakeCaseLabel(subModule) : moduleName;
   const nodeType = readString(record.nodeType) || readString(orgStructure.nodeType) || readString(payload.nodeType);
   const nodeName =
@@ -65,12 +93,28 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
     name,
     alias,
     module: moduleDisplayName,
+    rawModule,
     nodeName,
     nodeType: nodeType ? formatSnakeCaseLabel(nodeType) : "-",
     subModule,
     nodePath,
     levels,
     approvalRemark: readString(record.approvalRemark),
+    initiatorName:
+      readString(record.initiatorName) ||
+      readString(payload.initiatorName) ||
+      readString(initiator.name),
+    initiatorEmail:
+      readString(record.initiatorEmail) ||
+      readString(payload.initiatorEmail) ||
+      readString(initiator.email),
+    initiatedDate:
+      readString(record.initiatedDate) ||
+      readString(record.initiatedAt) ||
+      readString(payload.initiatedDate) ||
+      readString(payload.initiatedAt),
+    workflowName: readString(record.workflowName) || readString(payload.workflowName),
+    workflowAlias: readString(record.alias) || readString(payload.alias),
     status,
   };
 };

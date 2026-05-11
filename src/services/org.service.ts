@@ -134,6 +134,12 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
   const requestedAt =
     getString(record, ["requestedAt", "initiatedAt", "initiatedDate", "createdAt", "requestedOn", "requestDate"], "") ||
     getString(requestData, ["requestedAt", "initiatedAt", "initiatedDate", "createdAt", "requestedOn", "requestDate"], "");
+  const workflowName =
+    getString(record, ["workflowName"], "") ||
+    getString(requestData, ["workflowName"], "");
+  const alias =
+    getString(record, ["alias"], "") ||
+    getString(requestData, ["alias"], "");
 
   if (!newNodeName || !nodeType) return null;
 
@@ -154,6 +160,8 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
     requestedByName: requestedByName || undefined,
     requestedByEmail: requestedByEmail || undefined,
     requestedAt: requestedAt || undefined,
+    workflowName: workflowName || undefined,
+    alias: alias || undefined,
     status: "Pending",
     children: [],
   };

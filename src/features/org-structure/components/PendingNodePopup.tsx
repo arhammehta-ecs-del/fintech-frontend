@@ -11,6 +11,12 @@ type PendingNodePopupProps = {
   onApprove: (node: OrgNode, remark: string) => void;
   onReject: (node: OrgNode, remark: string) => void;
   onOpenHistory?: (node: OrgNode) => void;
+  isHistoryOpen?: boolean;
+  dockOffset?: {
+    top: number;
+    left: number;
+  };
+  historyPanelWidth?: number;
 };
 
 const getNodeIcon = (nodeType: string) => {
@@ -36,7 +42,17 @@ const formatRequestedAtToIst = (value?: string) => {
 
 const REMARK_MAX_LENGTH = 100;
 
-export function PendingNodePopup({ open, node, onClose, onApprove, onReject, onOpenHistory }: PendingNodePopupProps) {
+export function PendingNodePopup({
+  open,
+  node,
+  onClose,
+  onApprove,
+  onReject,
+  onOpenHistory,
+  isHistoryOpen = false,
+  dockOffset,
+  historyPanelWidth = 560,
+}: PendingNodePopupProps) {
   const [remark, setRemark] = useState("");
   const [remarkError, setRemarkError] = useState("");
 
@@ -53,6 +69,8 @@ export function PendingNodePopup({ open, node, onClose, onApprove, onReject, onO
   const requesterName = node.requestedByName?.trim() || "Not available";
   const requesterEmail = node.requestedByEmail?.trim() || "Not available";
   const requestedOn = formatRequestedAtToIst(node.requestedAt);
+  const workflowName = node.workflowName?.trim() || "";
+  const workflowAlias = node.alias?.trim() || "";
   const nodePathSegments = node.nodePath.split(".").filter(Boolean);
 
   const validateAndRun = (action: "approve" | "reject") => {
@@ -70,8 +88,23 @@ export function PendingNodePopup({ open, node, onClose, onApprove, onReject, onO
     onReject(node, cleanedRemark);
   };
 
+  const topOffset = dockOffset?.top ?? 56;
+  const leftOffset = dockOffset?.left ?? 0;
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+    <div
+      className={cn("fixed inset-0 z-[100] flex p-4 sm:p-6", isHistoryOpen ? "items-stretch justify-start" : "items-center justify-center")}
+      style={
+        isHistoryOpen
+          ? {
+              top: `${topOffset}px`,
+              left: `${leftOffset}px`,
+              width: `calc(100vw - ${leftOffset}px - ${historyPanelWidth}px)`,
+              height: `calc(100vh - ${topOffset}px)`,
+            }
+          : undefined
+      }
+    >
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" 
@@ -79,7 +112,12 @@ export function PendingNodePopup({ open, node, onClose, onApprove, onReject, onO
       />
 
       {/* Content */}
-      <div className="relative w-full max-w-md overflow-hidden rounded-[28px] bg-white shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-in zoom-in-95 fade-in duration-300">
+      <div
+        className={cn(
+          "relative w-full overflow-hidden rounded-[28px] bg-white shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-in zoom-in-95 fade-in duration-300",
+          isHistoryOpen ? "mx-auto my-auto max-h-full max-w-md" : "max-w-md",
+        )}
+      >
         {/* Header Section */}
         <div className="relative bg-amber-50/50 px-6 pb-5 pt-5">
           <div className="absolute right-4 top-4 flex items-center gap-2">
@@ -145,20 +183,42 @@ export function PendingNodePopup({ open, node, onClose, onApprove, onReject, onO
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Initiator Info</p>
-            <div className="mt-2.5 space-y-1.5 text-[13px] leading-relaxed">
-              <div className="flex items-center gap-2">
-                <User size={13} className="shrink-0 text-slate-400" />
-                <p className="truncate text-slate-600">{requesterName}</p>
+            <div className="grid gap-2 md:grid-cols-[1fr_0.85fr]">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Initiator Info</p>
+                <div className="mt-2.5 space-y-1.5 text-[13px] leading-relaxed">
+                  <div className="flex items-center gap-2">
+                    <User size={13} className="shrink-0 text-slate-400" />
+                    <p className="truncate text-slate-600">{requesterName}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Mail size={13} className="shrink-0 text-slate-400" />
+                    <p className="truncate text-slate-500">{requesterEmail}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock3 size={13} className="shrink-0 text-slate-400" />
+                    <p className="text-slate-500">{requestedOn}</p>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Mail size={13} className="shrink-0 text-slate-400" />
-                <p className="truncate text-slate-500">{requesterEmail}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock3 size={13} className="shrink-0 text-slate-400" />
-                <p className="text-slate-500">{requestedOn}</p>
-              </div>
+
+              {workflowName || workflowAlias ? (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workflow</p>
+                  <div className="mt-2.5 space-y-1 text-[13px]">
+                    <div className="grid grid-cols-[52px_10px_1fr] items-center">
+                      <span className="text-slate-500">Name</span>
+                      <span className="text-slate-400">:</span>
+                      <span className="truncate font-medium text-slate-700">{workflowName || "—"}</span>
+                    </div>
+                    <div className="grid grid-cols-[52px_10px_1fr] items-center">
+                      <span className="text-slate-500">Alias</span>
+                      <span className="text-slate-400">:</span>
+                      <span className="truncate font-medium text-slate-700">{workflowAlias || "—"}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 

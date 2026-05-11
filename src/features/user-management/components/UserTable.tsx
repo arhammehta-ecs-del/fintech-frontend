@@ -36,6 +36,24 @@ const getPrimaryNodeMeta = (member: AppUser) => {
   };
 };
 
+const formatPathSegment = (segment: string) =>
+  segment
+    .trim()
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const formatNodePathAfterRoot = (nodePath: string) => {
+  const segments = nodePath
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter((segment) => Boolean(segment) && segment.toUpperCase() !== "ROOT");
+
+  if (segments.length <= 1) return "";
+
+  return segments.map(formatPathSegment).join(" > ");
+};
+
 export default function UserTable({
   isLoading,
   currentMembers,
@@ -108,12 +126,13 @@ export default function UserTable({
             <td className="px-4 py-4 text-sm text-slate-600">
               {(() => {
                 const { departmentLabel, primaryNodePath, showPath } = getPrimaryNodeMeta(member);
+                const formattedPath = showPath ? formatNodePathAfterRoot(primaryNodePath) : "";
                 return (
                   <div className="min-w-0">
                     <p className="truncate text-sm text-slate-700">{departmentLabel || "—"}</p>
-                    {showPath ? (
+                    {formattedPath ? (
                       <p className="mt-1 inline-flex max-w-full truncate rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700">
-                        {primaryNodePath}
+                        {formattedPath}
                       </p>
                     ) : null}
                   </div>
@@ -126,15 +145,17 @@ export default function UserTable({
                 <div className="flex items-center justify-center gap-3">
                   {historyOpenForUser ? (
                     <>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                        onClick={() => setHistoryOpenForUser(member)}
-                        aria-label={`View history for ${member.name || member.email}`}
-                      >
-                        <History className="h-4 w-4" />
-                      </Button>
+                      {member.status !== "Pending" ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                          onClick={() => setHistoryOpenForUser(member)}
+                          aria-label={`View history for ${member.name || member.email}`}
+                        >
+                          <History className="h-4 w-4" />
+                        </Button>
+                      ) : null}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -147,20 +168,22 @@ export default function UserTable({
                     </>
                   ) : (
                     <>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                            onClick={() => setHistoryOpenForUser(member)}
-                            aria-label={`View history for ${member.name || member.email}`}
-                          >
-                            <History className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">View History</TooltipContent>
-                      </Tooltip>
+                      {member.status !== "Pending" ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                              onClick={() => setHistoryOpenForUser(member)}
+                              aria-label={`View history for ${member.name || member.email}`}
+                            >
+                              <History className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">View History</TooltipContent>
+                        </Tooltip>
+                      ) : null}
 
                       <Tooltip>
                         <TooltipTrigger asChild>

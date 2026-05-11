@@ -1,18 +1,39 @@
-import { useEffect, useState } from "react";
-import { BadgeCheck, Briefcase, Building2, CheckCircle2, GitBranch, Layers, Settings2, UserCheck, X, Zap } from "lucide-react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { BadgeCheck, Briefcase, Building2, Calendar, CheckCircle2, GitBranch, History, Layers, Mail, Settings2, UserCheck, X, Zap } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 import type { WorkflowLevel } from "@/features/workflow-management/components/onboarding/types";
 import { APPROVAL_OPTIONS } from "@/features/workflow-management/constants";
-import { formatSnakeCaseLabel } from "@/features/workflow-management/utils/workflowRecord.utils";
+import { formatSnakeCaseLabel, formatWorkflowPath } from "@/features/workflow-management/utils/workflowRecord.utils";
+import { cn } from "@/lib/utils";
 
 type WorkflowManageDialogProps = {
   open: boolean;
   workflow: WorkflowRecord | null;
   onClose: () => void;
   onSubmitAction: (workflow: WorkflowRecord, action: "approve" | "reject", remark: string) => Promise<void>;
+  onToggleHistory?: () => void;
+  isHistoryOpen?: boolean;
+  overlayClassName?: string;
+  contentClassName?: string;
+  contentStyle?: CSSProperties;
+};
+
+const formatToIst = (value?: string) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(parsed);
 };
 
 const fromApiApprover = (value: string) => {
@@ -77,7 +98,7 @@ function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
         <div className="min-w-0 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
@@ -124,6 +145,13 @@ function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
           <div className="mt-2 min-h-[2.5rem] pl-8 text-sm font-semibold leading-snug text-slate-900 break-words">
             {workflow.nodeName || "-"}
           </div>
+          {workflow.nodePath ? (
+            <div className="mt-2 pl-8">
+              <div className="inline-flex max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700">
+                {formatWorkflowPath(workflow.nodePath)}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -168,7 +196,17 @@ function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
   );
 }
 
-export default function WorkflowManageDialog({ open, workflow, onClose, onSubmitAction }: WorkflowManageDialogProps) {
+export default function WorkflowManageDialog({
+  open,
+  workflow,
+  onClose,
+  onSubmitAction,
+  onToggleHistory,
+  isHistoryOpen = false,
+  overlayClassName,
+  contentClassName,
+  contentStyle,
+}: WorkflowManageDialogProps) {
   const [remark, setRemark] = useState("");
   const [remarkTouched, setRemarkTouched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -186,6 +224,11 @@ export default function WorkflowManageDialog({ open, workflow, onClose, onSubmit
   const isPending = workflow.status === "Pending";
   const isRemarkValid = Boolean(remark.trim());
   const showRemarkError = remarkTouched && !isRemarkValid;
+  const initiatorName = workflow.initiatorName?.trim() || "";
+  const initiatorEmail = workflow.initiatorEmail?.trim() || "";
+  const initiatedOn = formatToIst(workflow.initiatedDate);
+  const pendingWorkflowName = workflow.workflowName?.trim() || "";
+  const pendingWorkflowAlias = workflow.workflowAlias?.trim() || "";
 
   const handleAction = async (action: "approve" | "reject") => {
     setRemarkTouched(true);
@@ -201,7 +244,12 @@ export default function WorkflowManageDialog({ open, workflow, onClose, onSubmit
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent showCloseButton={false} className="w-[min(92vw,44rem)] max-w-[44rem] p-0">
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName={overlayClassName}
+        className={cn("w-[min(92vw,44rem)] max-w-[44rem] p-0", contentClassName)}
+        style={contentStyle}
+      >
         <DialogHeader className="border-b border-slate-200 bg-slate-50/40 px-6 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -212,15 +260,72 @@ export default function WorkflowManageDialog({ open, workflow, onClose, onSubmit
                   {workflow.status}
                 </span>
               </div>
+              {isPending ? (
+                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2 text-[12px]">
+                    {initiatorName ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                        <UserCheck size={12} className="text-slate-400" />
+                        <span className="text-slate-500">By</span>
+                        <span className="font-medium text-slate-700">{initiatorName}</span>
+                      </span>
+                    ) : null}
+                    {initiatorEmail ? (
+                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                        <Mail size={12} className="text-slate-400" />
+                        <span className="text-slate-500">Email</span>
+                        <span className="truncate font-medium text-slate-700">{initiatorEmail}</span>
+                      </span>
+                    ) : null}
+                    {initiatedOn ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                        <Calendar size={12} className="text-slate-400" />
+                        <span className="text-slate-500">Initiated</span>
+                        <span className="font-medium text-slate-700">{initiatedOn}</span>
+                      </span>
+                    ) : null}
+                    {pendingWorkflowName ? (
+                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                        <span className="text-slate-500">Workflow</span>
+                        <span className="truncate font-medium text-slate-700">{pendingWorkflowName}</span>
+                      </span>
+                    ) : null}
+                    {pendingWorkflowAlias ? (
+                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                        <span className="text-slate-500">Alias</span>
+                        <span className="truncate font-medium text-slate-700">{pendingWorkflowAlias}</span>
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-              aria-label="Close manage dialog"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              {isPending && onToggleHistory ? (
+                <button
+                  type="button"
+                  onClick={onToggleHistory}
+                  className={cn(
+                    "inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white transition",
+                    isHistoryOpen
+                      ? "border-[rgb(53,83,233)] bg-[rgb(53,83,233)] text-white shadow-[0_4px_12px_rgba(53,83,233,0.24)]"
+                      : "text-slate-500 hover:bg-slate-50",
+                  )}
+                  aria-label={isHistoryOpen ? "Close workflow history" : "Open workflow history"}
+                  aria-pressed={isHistoryOpen}
+                >
+                  <History className="h-4 w-4" />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                aria-label="Close manage dialog"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </DialogHeader>
 

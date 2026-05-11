@@ -9,7 +9,7 @@ import OrgHistorySidebar from "@/features/org-structure/components/OrgHistorySid
 import { useOrgStructure } from "@/features/org-structure/hooks/useOrgStructure";
 import { collectNodeTrail } from "@/features/org-structure/orgNode.utils";
 import { cn } from "@/lib/utils";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import type { NewNodeType } from "@/features/org-structure/types";
 
@@ -82,6 +82,38 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [showPending, setShowPending] = useState(true);
   const [isOrgHistoryOpen, setIsOrgHistoryOpen] = useState(false);
   const [historyNodeName, setHistoryNodeName] = useState("");
+  const [historyViewContext, setHistoryViewContext] = useState<"active" | "pending">("active");
+  const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
+  const historyLayoutOffset =
+    isOrgHistoryOpen && historyViewContext === "pending" ? { top: 0, left: 0 } : shellOffset;
+
+  useEffect(() => {
+    const syncShellOffset = () => {
+      const topBar = document.querySelector("header");
+      const sideBar = document.querySelector("aside");
+      const top = topBar ? Math.ceil(topBar.getBoundingClientRect().height) : 56;
+      const left = sideBar ? Math.ceil(sideBar.getBoundingClientRect().width) : 0;
+      setShellOffset({ top, left });
+    };
+
+    syncShellOffset();
+    window.addEventListener("resize", syncShellOffset);
+    const topBar = document.querySelector("header");
+    const sideBar = document.querySelector("aside");
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncShellOffset) : null;
+
+    if (resizeObserver && topBar) resizeObserver.observe(topBar);
+    if (resizeObserver && sideBar) resizeObserver.observe(sideBar);
+    topBar?.addEventListener("transitionend", syncShellOffset);
+    sideBar?.addEventListener("transitionend", syncShellOffset);
+
+    return () => {
+      window.removeEventListener("resize", syncShellOffset);
+      topBar?.removeEventListener("transitionend", syncShellOffset);
+      sideBar?.removeEventListener("transitionend", syncShellOffset);
+      resizeObserver?.disconnect();
+    };
+  }, []);
 
   const displayedStructure = useMemo(() => {
     if (showPending || !orgStructure) return orgStructure;
@@ -242,6 +274,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
               department={selectedDepartment}
               onOpenHistory={() => {
                 setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
+                setHistoryViewContext("active");
                 setIsOrgHistoryOpen(true);
               }}
             />
@@ -262,6 +295,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
             department={selectedDepartment}
             onOpenHistory={() => {
               setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
+              setHistoryViewContext("active");
               setIsOrgHistoryOpen(true);
             }}
           />
@@ -307,19 +341,26 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         onClose={() => setPendingNodeForReview(null)}
         onApprove={handleApproveNode}
         onReject={handleRejectNode}
+        isHistoryOpen={isOrgHistoryOpen}
+        dockOffset={historyLayoutOffset}
         onOpenHistory={(node) => {
-          setPendingNodeForReview(null);
           setHistoryNodeName(node.name.trim());
+          setHistoryViewContext("pending");
           setIsOrgHistoryOpen(true);
         }}
       />
 
       <OrgHistorySidebar
         isOpen={isOrgHistoryOpen}
-        onClose={() => setIsOrgHistoryOpen(false)}
+        onClose={() => {
+          setIsOrgHistoryOpen(false);
+          setHistoryViewContext("active");
+        }}
         companyCode={companyCode}
         subtitle={selectedDepartment?.name || companyName}
         nodeName={historyNodeName}
+        dockOffset={historyLayoutOffset}
+        splitView
       />
     </div>
   );

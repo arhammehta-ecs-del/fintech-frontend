@@ -9,6 +9,12 @@ export type WorkflowHistorySidebarProps = {
   isOpen: boolean;
   onClose: () => void;
   workflow: WorkflowRecord | null;
+  dockOffset?: {
+    top: number;
+    left: number;
+  };
+  splitView?: boolean;
+  panelWidth?: number;
 };
 
 type RawHistoryRecord = Record<string, unknown>;
@@ -56,6 +62,7 @@ const mapWorkflowHistoryEntry = (item: unknown, workflowName: string, index: num
   const normalizedAction = action.toLowerCase();
   const isPendingAction = normalizedAction.includes("initiate") || normalizedAction.includes("pending");
   const isApprovedAction = normalizedAction.includes("approve");
+  const remarks = readString(record.remarks);
 
   return {
     id: readString(record.id) || readString(record.workflowId) || `${createdAt || "history"}-${index}`,
@@ -64,6 +71,7 @@ const mapWorkflowHistoryEntry = (item: unknown, workflowName: string, index: num
     day,
     action,
     details: level !== null ? `Level ${level} ${action.toLowerCase()} for ${subjectName}.` : `Event recorded for ${subjectName}.`,
+    remarks: remarks || undefined,
     initiator: {
       name: initiatorName,
       email: initiatorEmail,
@@ -84,7 +92,14 @@ const mapWorkflowHistoryEntry = (item: unknown, workflowName: string, index: num
   };
 };
 
-export default function WorkflowHistorySidebar({ isOpen, onClose, workflow }: WorkflowHistorySidebarProps) {
+export default function WorkflowHistorySidebar({
+  isOpen,
+  onClose,
+  workflow,
+  dockOffset,
+  splitView = Boolean(dockOffset),
+  panelWidth,
+}: WorkflowHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
   const { toast } = useToast();
 
@@ -98,10 +113,13 @@ export default function WorkflowHistorySidebar({ isOpen, onClose, workflow }: Wo
     const loadHistory = async () => {
       try {
         const levelsHash = (workflow.levelsHash || workflow.id || "").trim();
+        const module = workflow.rawModule?.trim() || workflow.module?.trim() || null;
+        const subModule = workflow.subModule?.trim() || null;
+        const nodePath = workflow.nodePath?.trim() || null;
         if (!levelsHash) {
           throw new Error("Workflow levels hash is missing");
         }
-        const response = await fetchWorkflowHistory(levelsHash);
+        const response = await fetchWorkflowHistory({ levelsHash, module, subModule, nodePath });
         if (isMounted && response?.data) {
           const mappedHistory = Array.isArray(response.data)
             ? response.data.map((item, index) => mapWorkflowHistoryEntry(item, workflow.name, index))
@@ -128,6 +146,9 @@ export default function WorkflowHistorySidebar({ isOpen, onClose, workflow }: Wo
       subtitle={workflow?.name || "Unknown Workflow"}
       showSystemGenerated={false}
       data={historyData}
+      dockOffset={dockOffset}
+      splitView={splitView}
+      panelWidth={panelWidth}
     />
   );
 }

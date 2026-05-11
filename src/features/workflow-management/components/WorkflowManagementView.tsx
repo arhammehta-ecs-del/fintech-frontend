@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, ChevronLeft, ChevronRight, Filter, Plus, Search, Settings, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -19,6 +20,7 @@ import WorkflowManageDialog from "./WorkflowManageDialog";
 import type { WorkflowPageSize } from "@/features/workflow-management/types/workflow.types";
 import { useWorkflowManagement } from "@/features/workflow-management/hooks/useWorkflowManagement";
 import { cn } from "@/lib/utils";
+import { getWorkflowPathPreview } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 const tabClassName =
   "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:shadow-sm";
@@ -79,6 +81,9 @@ export default function WorkflowManagementView() {
     workflowFilters.length + aliasFilters.length + moduleFilters.length + nodeNameFilters.length + typeFilters.length;
   const hasAnyFilter = activeFilterCount > 0;
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [manageHistoryOpen, setManageHistoryOpen] = useState(false);
+  const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
+  const [viewportWidth, setViewportWidth] = useState(0);
   const [draftWorkflowFilters, setDraftWorkflowFilters] = useState<string[]>(workflowFilters);
   const [draftAliasFilters, setDraftAliasFilters] = useState<string[]>(aliasFilters);
   const [draftModuleFilters, setDraftModuleFilters] = useState<string[]>(moduleFilters);
@@ -103,6 +108,57 @@ export default function WorkflowManagementView() {
     setDraftNodeNameFilters([]);
     setDraftTypeFilters([]);
   };
+
+  useEffect(() => {
+    if (!manageWorkflow) {
+      setManageHistoryOpen(false);
+    }
+  }, [manageWorkflow]);
+
+  useEffect(() => {
+    const syncShellOffset = () => {
+      const topBar = document.querySelector("header");
+      const sideBar = document.querySelector("aside");
+      const top = topBar ? Math.max(0, Math.floor(topBar.getBoundingClientRect().bottom)) : 56;
+      const left = sideBar ? Math.max(0, Math.floor(sideBar.getBoundingClientRect().right)) : 0;
+      setShellOffset({ top, left });
+      setViewportWidth(window.innerWidth);
+    };
+
+    syncShellOffset();
+    window.addEventListener("resize", syncShellOffset);
+    const topBar = document.querySelector("header");
+    const sideBar = document.querySelector("aside");
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncShellOffset) : null;
+
+    if (resizeObserver && topBar) resizeObserver.observe(topBar);
+    if (resizeObserver && sideBar) resizeObserver.observe(sideBar);
+    topBar?.addEventListener("transitionend", syncShellOffset);
+    sideBar?.addEventListener("transitionend", syncShellOffset);
+
+    return () => {
+      window.removeEventListener("resize", syncShellOffset);
+      topBar?.removeEventListener("transitionend", syncShellOffset);
+      sideBar?.removeEventListener("transitionend", syncShellOffset);
+      resizeObserver?.disconnect();
+    };
+  }, []);
+
+  const availableContentWidth = Math.max(0, viewportWidth - shellOffset.left);
+  const MIN_DIALOG_SPLIT_WIDTH = 860;
+  const MIN_HISTORY_WIDTH = 420;
+  const MAX_HISTORY_WIDTH = 560;
+  const computedHistoryPanelWidth = Math.max(
+    MIN_HISTORY_WIDTH,
+    Math.min(MAX_HISTORY_WIDTH, availableContentWidth - MIN_DIALOG_SPLIT_WIDTH),
+  );
+  const canUseSplitManageHistory =
+    manageWorkflow?.status === "Pending" &&
+    manageHistoryOpen &&
+    availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
+  const splitWorkflowDockOffset = canUseSplitManageHistory
+    ? { top: shellOffset.top, left: shellOffset.left }
+    : shellOffset;
 
   return (
     <div className="space-y-4">
@@ -317,7 +373,17 @@ export default function WorkflowManagementView() {
                   <div className="text-sm font-semibold text-slate-800">{workflow.name}</div>
                   <div className="text-sm text-slate-700">{workflow.alias}</div>
                   <div className="text-sm text-slate-700">{workflow.module}</div>
-                  <div className="text-sm text-slate-700">{workflow.nodeName}</div>
+                  <div className="min-w-0 text-sm text-slate-700">
+                    <p className="truncate text-sm text-slate-700">{workflow.nodeName || "—"}</p>
+                    {workflow.nodePath ? (() => {
+                      const pathPreview = getWorkflowPathPreview(workflow.nodePath, 3);
+                      return pathPreview ? (
+                        <p className="mt-1 inline-flex max-w-full truncate rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700">
+                          {pathPreview}
+                        </p>
+                      ) : null;
+                    })() : null}
+                  </div>
                   <div className="text-sm text-slate-700">{workflow.nodeType}</div>
                   <div>
                     <span
@@ -331,15 +397,17 @@ export default function WorkflowManagementView() {
                   </div>
                   <div className="flex md:justify-center">
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                        onClick={() => setHistoryWorkflow(workflow)}
-                        aria-label={`View history for ${workflow.name}`}
-                      >
-                        <History className="h-4 w-4" />
-                      </Button>
+                      {workflow.status !== "Pending" ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                          onClick={() => setHistoryWorkflow(workflow)}
+                          aria-label={`View history for ${workflow.name}`}
+                        >
+                          <History className="h-4 w-4" />
+                        </Button>
+                      ) : null}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -417,16 +485,70 @@ export default function WorkflowManagementView() {
           </div>
         </DialogContent>
       </Dialog>
+      {manageWorkflow && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed z-[49] bg-black/30 backdrop-blur-sm"
+              style={
+                canUseSplitManageHistory
+                  ? {
+                      top: `${shellOffset.top}px`,
+                      left: `${shellOffset.left}px`,
+                      width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
+                      height: `calc(100vh - ${shellOffset.top}px)`,
+                    }
+                  : {
+                      top: "0px",
+                      left: "0px",
+                      width: "100vw",
+                      height: "100vh",
+                    }
+              }
+            />,
+            document.body,
+          )
+        : null}
       <WorkflowHistorySidebar
-        isOpen={!!historyWorkflow}
-        onClose={() => setHistoryWorkflow(null)}
-        workflow={historyWorkflow}
+        isOpen={!!historyWorkflow || manageHistoryOpen}
+        onClose={() => {
+          if (manageHistoryOpen) {
+            setManageHistoryOpen(false);
+            return;
+          }
+          setHistoryWorkflow(null);
+        }}
+        workflow={manageHistoryOpen ? manageWorkflow : historyWorkflow}
+        dockOffset={canUseSplitManageHistory ? splitWorkflowDockOffset : shellOffset}
+        splitView={canUseSplitManageHistory}
+        panelWidth={computedHistoryPanelWidth}
       />
       <WorkflowManageDialog
         open={!!manageWorkflow}
         workflow={manageWorkflow}
-        onClose={() => setManageWorkflow(null)}
+        onClose={() => {
+          setManageHistoryOpen(false);
+          setManageWorkflow(null);
+        }}
         onSubmitAction={handleWorkflowAction}
+        onToggleHistory={manageWorkflow?.status === "Pending" ? () => setManageHistoryOpen((current) => !current) : undefined}
+        isHistoryOpen={canUseSplitManageHistory}
+        overlayClassName={canUseSplitManageHistory ? "hidden" : undefined}
+        contentClassName={
+          canUseSplitManageHistory
+            ? "flex h-full max-h-none w-auto max-w-none flex-col overflow-hidden rounded-none p-0"
+            : undefined
+        }
+        contentStyle={
+          canUseSplitManageHistory
+            ? {
+                top: `${shellOffset.top}px`,
+                left: `${shellOffset.left}px`,
+                width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
+                height: `calc(100vh - ${shellOffset.top}px)`,
+                transform: "translate(0, 0)",
+              }
+            : undefined
+        }
       />
     </div>
   );

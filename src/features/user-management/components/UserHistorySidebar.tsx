@@ -10,6 +10,12 @@ type UserHistorySidebarProps = {
   isOpen: boolean;
   onClose: () => void;
   user: AppUser | null;
+  dockOffset?: {
+    top: number;
+    left: number;
+  };
+  splitView?: boolean;
+  panelWidth?: number;
 };
 
 type RawHistoryRecord = Record<string, unknown>;
@@ -98,6 +104,7 @@ const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number
   const showActor = Boolean(readString(initiator.name) || readString(initiator.email));
   const eligibleApproversDetail = formatEligibleApproversDetail(record);
   const eligibleApprovers = mapEligibleApprovers(record);
+  const remarks = readString(record.remarks);
   const defaultDetails =
     level !== null
       ? `Level ${level} ${eventPhrase} recorded for ${targetEmail}.`
@@ -114,6 +121,7 @@ const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number
     day,
     action,
     details: eligibleApproversDetail || defaultDetails,
+    remarks: remarks || undefined,
     timestampMissing: !hasCreatedAt,
     showActor,
     eligibleApprovers,
@@ -136,7 +144,14 @@ const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number
   };
 };
 
-export default function UserHistorySidebar({ isOpen, onClose, user }: UserHistorySidebarProps) {
+export default function UserHistorySidebar({
+  isOpen,
+  onClose,
+  user,
+  dockOffset,
+  splitView = Boolean(dockOffset),
+  panelWidth,
+}: UserHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
   const { currentUser } = useAppContext();
   const { toast } = useToast();
@@ -180,6 +195,9 @@ export default function UserHistorySidebar({ isOpen, onClose, user }: UserHistor
       subtitle={user?.name || "Unknown User"}
       showSystemGenerated={false}
       data={historyData}
+      dockOffset={dockOffset}
+      splitView={splitView}
+      panelWidth={panelWidth}
     />
   );
 }

@@ -48,6 +48,8 @@ export interface OrgNode {
   requestedByName?: string;
   requestedByEmail?: string;
   requestedAt?: string;
+  workflowName?: string;
+  alias?: string;
   disabled?: boolean;
   status?: "Active" | "Pending" | "Inactive";
   children: OrgNode[];
@@ -84,6 +86,8 @@ export interface AppUser {
     initiatorName?: string;
     initiatorEmail?: string;
     initiatedDate?: string;
+    workflowName?: string;
+    alias?: string;
   };
   accessDetails?: Array<{
     roleCategory: string;

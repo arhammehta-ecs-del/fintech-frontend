@@ -161,6 +161,8 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   const initiatorName = readString(basicDetails.initiatorName).trim();
   const initiatorEmail = readString(basicDetails.initiatorEmail).trim();
   const initiatedAt = readString(basicDetails.initiatedDate).trim();
+  const workflowName = readString(basicDetails.workflowName).trim();
+  const alias = readString(basicDetails.alias).trim();
   const backendId =
     readString(record.id) ||
     readString(record.userId) ||
@@ -198,6 +200,8 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
       initiatorName: initiatorName || "",
       initiatorEmail: initiatorEmail || "",
       initiatedDate: initiatedAt || "",
+      workflowName: workflowName || "",
+      alias: alias || "",
     },
     accessDetails: mapAccessDetails(record, status),
   };

@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { EyeOff, Users, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +11,7 @@ import UserPagination from "@/features/user-management/components/UserPagination
 import UserTable from "@/features/user-management/components/UserTable";
 import { useUserManagement } from "@/features/user-management/hooks/useUserManagement";
 import { UserManagePreview } from "./UserManagePreview";
+import UserHistorySidebar from "./UserHistorySidebar";
 import { RemarkDialog } from "@/components/RemarkDialog";
 
 export function UserManagementView() {
@@ -68,6 +71,80 @@ export function UserManagementView() {
     pendingAction,
     processUserStatusAction,
   } = useUserManagement();
+  const [historyOpenForMember, setHistoryOpenForMember] = useState(false);
+  const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
+  const [viewportWidth, setViewportWidth] = useState(0);
+
+  useEffect(() => {
+    if (!viewingMember) {
+      setHistoryOpenForMember(false);
+    }
+  }, [viewingMember]);
+
+  useEffect(() => {
+    if (!viewingMember) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    // Keep the page behind the manage dialog stable while still allowing
+    // internal scrolling in preview + history panes.
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [viewingMember]);
+
+  useEffect(() => {
+    const syncShellOffset = () => {
+      const topBar = document.querySelector("header");
+      const sideBar = document.querySelector("aside");
+      // Use the actual rendered edge positions to avoid 1px seams between
+      // split panes and the app chrome on fractional pixel layouts.
+      const top = topBar ? Math.max(0, Math.floor(topBar.getBoundingClientRect().bottom)) : 56;
+      const left = sideBar ? Math.max(0, Math.floor(sideBar.getBoundingClientRect().right)) : 0;
+      setShellOffset({ top, left });
+      setViewportWidth(window.innerWidth);
+    };
+
+    syncShellOffset();
+    window.addEventListener("resize", syncShellOffset);
+    const topBar = document.querySelector("header");
+    const sideBar = document.querySelector("aside");
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncShellOffset) : null;
+
+    if (resizeObserver && topBar) resizeObserver.observe(topBar);
+    if (resizeObserver && sideBar) resizeObserver.observe(sideBar);
+    topBar?.addEventListener("transitionend", syncShellOffset);
+    sideBar?.addEventListener("transitionend", syncShellOffset);
+
+    return () => {
+      window.removeEventListener("resize", syncShellOffset);
+      topBar?.removeEventListener("transitionend", syncShellOffset);
+      sideBar?.removeEventListener("transitionend", syncShellOffset);
+      resizeObserver?.disconnect();
+    };
+  }, []);
+
+  const availableContentWidth = Math.max(0, viewportWidth - shellOffset.left);
+  const MIN_DIALOG_SPLIT_WIDTH = 860;
+  const MIN_HISTORY_WIDTH = 420;
+  const MAX_HISTORY_WIDTH = 560;
+  const computedHistoryPanelWidth = Math.max(
+    MIN_HISTORY_WIDTH,
+    Math.min(MAX_HISTORY_WIDTH, availableContentWidth - MIN_DIALOG_SPLIT_WIDTH),
+  );
+  const canUseSplitHistory =
+    viewingMember?.status === "Pending" &&
+    historyOpenForMember &&
+    availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
+  const splitHistoryTopOverlap = 2;
+  const splitDockOffset = canUseSplitHistory
+    ? { top: Math.max(0, shellOffset.top - splitHistoryTopOverlap), left: shellOffset.left }
+    : shellOffset;
 
   return (
     <div className="space-y-4">
@@ -153,8 +230,56 @@ export function UserManagementView() {
 
       <UserOnboardingDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onSubmit={handleAddUser} />
 
-      <Dialog open={Boolean(viewingMember)} onOpenChange={(open) => !open && setViewingMember(null)}>
-        <DialogContent className="flex h-[92vh] w-[96vw] max-w-[1200px] flex-col overflow-hidden p-0">
+      {viewingMember && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed z-[49] bg-black/30 backdrop-blur-sm"
+              style={
+                canUseSplitHistory
+                  ? {
+                      top: `${shellOffset.top}px`,
+                      left: `${shellOffset.left}px`,
+                      width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
+                      height: `calc(100vh - ${shellOffset.top}px)`,
+                    }
+                  : {
+                      top: "0px",
+                      left: "0px",
+                      width: "100vw",
+                      height: "100vh",
+                    }
+              }
+            />,
+            document.body,
+          )
+        : null}
+
+      <Dialog modal={false} open={Boolean(viewingMember)} onOpenChange={(open) => !open && setViewingMember(null)}>
+        <DialogContent
+          showCloseButton={false}
+          overlayClassName="hidden"
+          onInteractOutside={(event) => {
+            if (canUseSplitHistory) {
+              event.preventDefault();
+            }
+          }}
+          className={
+            canUseSplitHistory
+              ? "flex flex-col overflow-hidden rounded-none p-0 max-w-none transition-all duration-300 ease-in-out"
+              : "flex h-[92vh] w-[96vw] max-w-[1200px] flex-col overflow-hidden p-0 transition-all duration-300 ease-in-out"
+          }
+          style={
+            canUseSplitHistory
+              ? {
+                  top: `${shellOffset.top}px`,
+                  left: `${shellOffset.left}px`,
+                  width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
+                  height: `calc(100vh - ${shellOffset.top}px)`,
+                  transform: "translate(0, 0)",
+                }
+              : undefined
+          }
+        >
           {viewingMember ? (
             <UserManagePreview
               member={viewingMember}
@@ -167,10 +292,26 @@ export function UserManagementView() {
                 }
                 handleDeactivateMember(member);
               }}
+              onClose={() => setViewingMember(null)}
+              onToggleHistory={
+                viewingMember.status === "Pending" ? () => setHistoryOpenForMember((current) => !current) : undefined
+              }
+              isHistoryOpen={historyOpenForMember}
             />
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {viewingMember?.status === "Pending" ? (
+        <UserHistorySidebar
+          isOpen={historyOpenForMember}
+          onClose={() => setHistoryOpenForMember(false)}
+          user={viewingMember}
+          dockOffset={splitDockOffset}
+          splitView={canUseSplitHistory}
+          panelWidth={computedHistoryPanelWidth}
+        />
+      ) : null}
 
       <Dialog open={Boolean(editingMember)} onOpenChange={(open) => !open && setEditingMember(null)}>
         {editingMember ? (

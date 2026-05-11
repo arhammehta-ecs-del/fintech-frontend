@@ -42,9 +42,16 @@ export async function updateWorkflowAction(levelsHash: string, action: string, r
   });
 }
 
-export async function fetchWorkflowHistory(levelsHash: string) {
+export type FetchWorkflowHistoryPayload = {
+  levelsHash: string;
+  module?: string | null;
+  subModule?: string | null;
+  nodePath?: string | null;
+};
+
+export async function fetchWorkflowHistory(payload: FetchWorkflowHistoryPayload) {
   return apiFetch<any>(WORKFLOW_HISTORY_PATH, {
     method: "POST",
-    body: JSON.stringify({ levelsHash }),
+    body: JSON.stringify(payload),
   });
 }
