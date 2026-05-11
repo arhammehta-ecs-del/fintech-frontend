@@ -58,12 +58,13 @@ export function useWorkflowManagement() {
   }, [toast]);
 
   const handleWorkflowAction = async (workflow: WorkflowRecord, action: "approve" | "reject", remark: string) => {
-    if (!workflow.id) {
-      console.error("Missing workflow id for action:", workflow);
+    const levelsHash = workflow.levelsHash?.trim() || workflow.workflowId?.trim() || workflow.id?.trim();
+    if (!levelsHash) {
+      console.error("Missing workflow levels hash for action:", workflow);
       return;
     }
     try {
-      await updateWorkflowAction(workflow.id, action, remark);
+      await updateWorkflowAction(levelsHash, action, remark);
       await loadWorkflows();
     } catch (error) {
       toast({

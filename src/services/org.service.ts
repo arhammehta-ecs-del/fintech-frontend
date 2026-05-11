@@ -5,7 +5,7 @@ type CreateOrgNodePayload = {
   companyCode: string;
   newNodeName: string;
   nodeType: string;
-  workflowId?: string | null;
+  levelsHash?: string | null;
   parentNode: {
     nodeName: string;
     nodePath: string;
@@ -252,7 +252,7 @@ export async function createNewOrgNode(payload: CreateOrgNodePayload) {
     companyCode: payload.companyCode.trim().toUpperCase(),
     nodeType: normalizeNodeTypeForApi(payload.nodeType),
     newNodeName: payload.newNodeName.trim(),
-    workflowId: payload.workflowId?.trim() || null,
+    levelsHash: payload.levelsHash?.trim() || null,
     parentNode: {
       nodeName: payload.parentNode.nodeName.trim(),
       nodePath: payload.parentNode.nodePath.trim(),

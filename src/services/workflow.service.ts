@@ -31,11 +31,11 @@ export async function fetchWorkflows() {
   });
 }
 
-export async function updateWorkflowAction(id: string, action: string, remark: string) {
+export async function updateWorkflowAction(levelsHash: string, action: string, remark: string) {
   return apiFetch<any>(WORKFLOW_ACTION_PATH, {
     method: "POST",
     body: JSON.stringify({
-      id,
+      levelsHash,
       action,
       remark,
     }),

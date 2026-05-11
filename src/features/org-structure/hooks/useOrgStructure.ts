@@ -237,7 +237,7 @@ export function useOrgStructure() {
     setIsNewNodePopupOpen(true);
   };
 
-  const handleCreateNode = async (name: string, nodeType: NewNodeType, workflowId?: string) => {
+  const handleCreateNode = async (name: string, nodeType: NewNodeType, selectedLevelsHash?: string) => {
     if (!newNodeParent || !companyCode) return;
 
     try {
@@ -245,7 +245,7 @@ export function useOrgStructure() {
         companyCode,
         newNodeName: name,
         nodeType,
-        workflowId: workflowId?.trim() || null,
+        levelsHash: selectedLevelsHash?.trim() || null,
         parentNode: {
           nodeName: newNodeParent.name,
           nodePath: newNodeParent.nodePath,

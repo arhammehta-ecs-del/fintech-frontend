@@ -16,7 +16,7 @@ type NewNodePopupProps = {
   nodeTypes: NewNodeType[];
   workflowOptions?: Array<{ id: string; label: string }>;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (name: string, nodeType: NewNodeType, workflowId?: string) => void;
+  onConfirm: (name: string, nodeType: NewNodeType, selectedLevelsHash?: string) => void;
 };
 
 function formatNodeTypeLabel(nodeType: string) {
@@ -46,7 +46,7 @@ export function NewNodePopup({
 }: NewNodePopupProps) {
   const [name, setName] = useState("");
   const [nodeType, setNodeType] = useState<NewNodeType>("");
-  const [workflowId, setWorkflowId] = useState("");
+  const [selectedLevelsHash, setSelectedLevelsHash] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const displayParentNodeName = parentNodeName.trim() || "New Node";
   const displayTrail = parentNodeTrail.length > 0 ? parentNodeTrail : [displayParentNodeName];
@@ -56,13 +56,13 @@ export function NewNodePopup({
     if (!open) return;
     setName("");
     setNodeType("");
-    setWorkflowId("");
+    setSelectedLevelsHash("");
     window.setTimeout(() => inputRef.current?.focus(), 50);
   }, [open]);
 
   const handleConfirm = () => {
     if (!name.trim()) return;
-    onConfirm(toTitleCase(name).trim(), nodeType, workflowId || undefined);
+    onConfirm(toTitleCase(name).trim(), nodeType, selectedLevelsHash || undefined);
   };
 
   return (
@@ -162,10 +162,10 @@ export function NewNodePopup({
             <Button variant="outline" className="h-10 rounded-xl px-5" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Select value={workflowId || "__none__"} onValueChange={(value) => setWorkflowId(value === "__none__" ? "" : value)}>
+            <Select value={selectedLevelsHash || "__none__"} onValueChange={(value) => setSelectedLevelsHash(value === "__none__" ? "" : value)}>
               <SelectTrigger id="workflow-id" className="h-10 w-full rounded-xl border-slate-200 bg-white px-3.5 text-[14px] shadow-sm sm:w-[260px]">
                 <SelectValue placeholder="Select workflow">
-                  {workflowId ? workflowOptions.find((option) => option.id === workflowId)?.label ?? "Select workflow" : "No Workflow"}
+                  {selectedLevelsHash ? workflowOptions.find((option) => option.id === selectedLevelsHash)?.label ?? "Select workflow" : "No Workflow"}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent side="top" align="end">

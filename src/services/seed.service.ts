@@ -327,19 +327,6 @@ const getCompanyOrgStructureWithRetry = async (
   return lastTree;
 };
 
-const readRecord = (value: unknown): Record<string, unknown> =>
-  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
-
-const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
-
-const extractOrgRequestId = (response: unknown) => {
-  const root = readRecord(response);
-  const rootId = readString(root.requestId) || readString(root.id);
-  if (rootId) return rootId;
-  const data = readRecord(root.data);
-  return readString(data.requestId) || readString(data.id);
-};
-
 const normalizePathSegment = (value: string) =>
   value
     .trim()
@@ -500,7 +487,7 @@ const createOrgNodeMatrix = async (
   void pendingOrgNodesPerCompany;
 
   const childrenPerParent = 2;
-  let tree = await getCompanyOrgStructure(companyCode);
+  const tree = await getCompanyOrgStructure(companyCode);
   const rootNode = tree;
   if (!rootNode) return;
 
@@ -519,7 +506,6 @@ const createOrgNodeMatrix = async (
 
   const existingPaths = new Set(flattenOrg(tree).map((node) => node.nodePath.toUpperCase()));
   let createdCount = 0;
-  let approvedCount = 0;
 
   for (const parentNode of deepestLevelParents) {
     for (let childIndex = 1; childIndex <= childrenPerParent; childIndex += 1) {
@@ -536,7 +522,7 @@ const createOrgNodeMatrix = async (
       }
 
       try {
-        const response = await createNewOrgNode({
+        await createNewOrgNode({
           companyCode,
           newNodeName: nodeName,
           nodeType: inferNodeTypeFromName(nodeName),
@@ -549,24 +535,6 @@ const createOrgNodeMatrix = async (
         summary.orgNodesCreated += 1;
         existingPaths.add(targetPath);
         onProgress?.(`Created org node ${createdCount} under ${parentNode.name}`);
-
-        const requestId = extractOrgRequestId(response);
-        if (requestId) {
-          try {
-            await wait(200);
-            await updateOrgNodeAction(requestId, "approve", "Seed auto-approval");
-            approvedCount += 1;
-            summary.orgNodesApproved += 1;
-            onProgress?.(`Approved org node ${approvedCount}/${createdCount} for ${companyCode}`);
-          } catch (error) {
-            summary.failedOrgNodes += 1;
-            pushError(
-              summary,
-              `Org node approve failed for ${companyCode} (${nodeName}): ${getApiErrorMessage(error, "Unknown error")}`,
-              onProgress,
-            );
-          }
-        }
       } catch (error) {
         summary.failedOrgNodes += 1;
         pushError(
@@ -691,7 +659,7 @@ const createUsersForCompany = async (
         reportingManager: reportingManagerEmail,
       },
       permissions: permissionFactory(index - 1),
-      workflowId: null,
+      levelsHash: null,
     };
 
     try {
