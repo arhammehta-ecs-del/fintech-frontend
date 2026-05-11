@@ -58,18 +58,6 @@ const displayOrFallback = (value: string | undefined, fallback: string) => {
   const cleaned = (value || "").trim();
   return cleaned ? cleaned : fallback;
 };
-const isNotAvailableValue = (value?: string) => {
-  const normalized = (value || "").trim().toUpperCase();
-  return !normalized || normalized === "N/A" || normalized === "NA" || normalized === "-" || normalized === "—";
-};
-
-const pickFirst = (obj: Record<string, unknown>, keys: string[]) => {
-  for (const key of keys) {
-    const value = obj[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "";
-};
 
 const formatToIst = (value?: string) => {
   if (!value?.trim()) return "";
@@ -385,33 +373,26 @@ export function UserManagePreview({
   const [remarkTouched, setRemarkTouched] = useState(false);
   const remarkCardRef = useRef<HTMLDivElement | null>(null);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const memberRecord = member as unknown as Record<string, unknown>;
-  const basicDetailsRecord =
-    typeof memberRecord.basicDetails === "object" && memberRecord.basicDetails !== null
-      ? (memberRecord.basicDetails as Record<string, unknown>)
-      : {};
 
-  const rawJoiningDate = member.basicDetails?.companyOnboardingDate || member.onboardingDate || "";
+  const rawJoiningDate = member.basicDetails?.companyOnboardingDate || "";
   const formattedJoiningDate = formatDateLabel(rawJoiningDate);
-  const rawCreatedAt = pickFirst(memberRecord, ["createdAt"]) || pickFirst(basicDetailsRecord, ["createdAt"]);
+  const rawCreatedAt = member.basicDetails?.createdAt || "";
   const formattedCreatedAt = formatLooseDateLabel(rawCreatedAt);
-  const rawReportingManagerName =
-    member.basicDetails?.reportingManagerName || member.basicDetails?.reportingManager || member.manager?.name || "";
-  const rawReportingManagerEmail =
-    member.basicDetails?.reportingManagerEmail || member.manager?.email || pickFirst(basicDetailsRecord, ["reportingManagerEmail"]);
+  const rawReportingManagerName = member.basicDetails?.reportingManagerName || "";
+  const rawReportingManagerEmail = member.basicDetails?.reportingManagerEmail || "";
 
   const userData = {
-    name: displayOrFallback(member.basicDetails?.name || member.name, "—"),
-    email: displayOrFallback(member.basicDetails?.email || member.email, "—"),
-    phone: displayOrFallback(member.basicDetails?.phone || member.phone, "—"),
+    name: displayOrFallback(member.basicDetails?.name, "—"),
+    email: displayOrFallback(member.basicDetails?.email, "—"),
+    phone: displayOrFallback(member.basicDetails?.phone, "—"),
     joiningDate: displayOrFallback(
       formattedJoiningDate === "-" && rawJoiningDate ? rawJoiningDate : formattedJoiningDate,
       "—",
     ),
     createdAt: displayOrFallback(formattedCreatedAt === "-" && rawCreatedAt ? rawCreatedAt : formattedCreatedAt, "—"),
-    designation: displayOrFallback(member.basicDetails?.designation || member.designation, "—"),
+    designation: displayOrFallback(member.basicDetails?.designation, "—"),
     department: displayOrFallback(member.department, "—"),
-    employeeId: (member.basicDetails?.employeeId || member.employeeId || "").trim(),
+    employeeId: (member.basicDetails?.employeeId || "").trim(),
     reportingManager: displayOrFallback(rawReportingManagerName, "—"),
     reportingManagerEmail: displayOrFallback(rawReportingManagerEmail, "—"),
   };
@@ -419,15 +400,9 @@ export function UserManagePreview({
   const formattedDesignation = formatDesignation(userData.designation);
   const formattedDepartment = cleanDisplayValue(userData.department);
 
-  const initiatorName =
-    pickFirst(memberRecord, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"]) ||
-    pickFirst(basicDetailsRecord, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"]);
-  const initiatorEmail =
-    pickFirst(memberRecord, ["requestedByEmail", "initiatorEmail", "requesterEmail", "createdByEmail"]) ||
-    pickFirst(basicDetailsRecord, ["requestedByEmail", "initiatorEmail", "requesterEmail", "createdByEmail"]);
-  const initiatedOnRaw =
-    pickFirst(memberRecord, ["requestedAt", "initiatedAt", "initiatedDate", "createdAt", "requestedOn", "requestDate"]) ||
-    pickFirst(basicDetailsRecord, ["requestedAt", "initiatedAt", "initiatedDate", "createdAt", "requestedOn", "requestDate"]);
+  const initiatorName = member.basicDetails?.initiatorName || "";
+  const initiatorEmail = member.basicDetails?.initiatorEmail || "";
+  const initiatedOnRaw = member.basicDetails?.initiatedDate || "";
   const resolvedInitiatorName = initiatorName || INITIATOR_FALLBACK.name;
   const resolvedInitiatorEmail = initiatorEmail || INITIATOR_FALLBACK.email;
   const initiatedOn = formatToIst(initiatedOnRaw || INITIATOR_FALLBACK.initiatedAt);
@@ -450,7 +425,7 @@ export function UserManagePreview({
   const secondaryEntries = useMemo(() => Object.entries(secondaryByNode), [secondaryByNode]);
   const hasGlobalAccessByEmptyAccess = primaryEntries.length === 0 && secondaryEntries.length === 0;
   const shouldShowGlobalManagerBadge =
-    isNotAvailableValue(rawReportingManagerName) && isNotAvailableValue(rawReportingManagerEmail);
+    !rawReportingManagerName.trim() && !rawReportingManagerEmail.trim();
   const hasGlobalAccessByPacketShape =
     shouldShowGlobalManagerBadge &&
     primaryItems.length > 0 &&

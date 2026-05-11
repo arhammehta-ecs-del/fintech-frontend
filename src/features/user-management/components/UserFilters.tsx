@@ -1,10 +1,18 @@
-import { ArrowUpDown, Filter, Search, X } from "lucide-react";
+import { useState } from "react";
+import type { ReactNode } from "react";
+import { ArrowUpDown, ChevronDown, Filter, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { MemberStatusTab, SortOrder } from "@/features/user-management/types";
 
@@ -25,14 +33,35 @@ type UserFiltersProps = {
   onStatusTabChange: (value: MemberStatusTab) => void;
   search: string;
   onSearchChange: (value: string) => void;
-  departmentFilter: string;
-  onDepartmentFilterChange: (value: string) => void;
-  roleFilter: string;
-  onRoleFilterChange: (value: string) => void;
+  designationFilters: string[];
+  onToggleDesignation: (value: string) => void;
+  departmentFilters: string[];
+  onToggleDepartment: (value: string) => void;
+  reportingManagerFilters: string[];
+  onToggleReportingManager: (value: string) => void;
+  primaryNodeFilters: string[];
+  onTogglePrimaryNode: (value: string) => void;
+  secondaryNodeFilters: string[];
+  onToggleSecondaryNode: (value: string) => void;
+  onboardingDateFrom: string;
+  onboardingDateTo: string;
+  onOnboardingDateFromChange: (value: string) => void;
+  onOnboardingDateToChange: (value: string) => void;
+  onClearAdvancedFilters: () => void;
+  onApplyAdvancedFilters: (filters: {
+    designationFilters: string[];
+    departmentFilters: string[];
+    reportingManagerFilters: string[];
+    primaryNodeFilters: string[];
+    secondaryNodeFilters: string[];
+  }) => void;
   sortOrder: SortOrder;
   onSortOrderChange: (value: SortOrder) => void;
   roles: string[];
   departments: string[];
+  reportingManagerOptions: string[];
+  primaryNodeOptions: string[];
+  secondaryNodeOptions: string[];
   statusCounts: Record<MemberStatusTab, number>;
 };
 
@@ -41,27 +70,81 @@ export default function UserFilters({
   onStatusTabChange,
   search,
   onSearchChange,
-  departmentFilter,
-  onDepartmentFilterChange,
-  roleFilter,
-  onRoleFilterChange,
+  designationFilters,
+  onToggleDesignation,
+  departmentFilters,
+  onToggleDepartment,
+  reportingManagerFilters,
+  onToggleReportingManager,
+  primaryNodeFilters,
+  onTogglePrimaryNode,
+  secondaryNodeFilters,
+  onToggleSecondaryNode,
+  onboardingDateFrom,
+  onboardingDateTo,
+  onOnboardingDateFromChange,
+  onOnboardingDateToChange,
+  onClearAdvancedFilters,
+  onApplyAdvancedFilters,
   onSortOrderChange,
   roles,
   departments,
+  reportingManagerOptions,
+  primaryNodeOptions,
+  secondaryNodeOptions,
   statusCounts,
 }: UserFiltersProps) {
   const visibleTabs = STATUS_TABS.filter((tab) => tab.id === "active" || statusCounts[tab.id] > 0);
+  const activeFilterCount =
+    designationFilters.length +
+    departmentFilters.length +
+    reportingManagerFilters.length +
+    primaryNodeFilters.length +
+    secondaryNodeFilters.length +
+    (onboardingDateFrom ? 1 : 0) +
+    (onboardingDateTo ? 1 : 0);
+  const hasAnyFilter = activeFilterCount > 0;
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draftDesignationFilters, setDraftDesignationFilters] = useState<string[]>(designationFilters);
+  const [draftDepartmentFilters, setDraftDepartmentFilters] = useState<string[]>(departmentFilters);
+  const [draftReportingManagerFilters, setDraftReportingManagerFilters] = useState<string[]>(reportingManagerFilters);
+  const [draftPrimaryNodeFilters, setDraftPrimaryNodeFilters] = useState<string[]>(primaryNodeFilters);
+  const [draftSecondaryNodeFilters, setDraftSecondaryNodeFilters] = useState<string[]>(secondaryNodeFilters);
+
+  const toggleValue = (current: string[], value: string) =>
+    current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+
+  const resetDraftFilters = () => {
+    setDraftDesignationFilters([]);
+    setDraftDepartmentFilters([]);
+    setDraftReportingManagerFilters([]);
+    setDraftPrimaryNodeFilters([]);
+    setDraftSecondaryNodeFilters([]);
+  };
+
+  const syncDraftFromApplied = () => {
+    setDraftDesignationFilters(designationFilters);
+    setDraftDepartmentFilters(departmentFilters);
+    setDraftReportingManagerFilters(reportingManagerFilters);
+    setDraftPrimaryNodeFilters(primaryNodeFilters);
+    setDraftSecondaryNodeFilters(secondaryNodeFilters);
+  };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+    <div className="rounded-3xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/60 p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-full lg:max-w-xl xl:max-w-2xl">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                onSearchChange(search.trim());
+              }
+            }}
             placeholder="Search by name, email, or designation..."
-            className="pl-9 pr-9"
+            className="h-12 rounded-xl border-slate-200 bg-white pl-10 pr-9 text-[15px] shadow-sm"
           />
           {search ? (
             <button
@@ -103,73 +186,129 @@ export default function UserFilters({
             ))}
           </div>
 
-          <Popover>
+          <Popover
+            open={filtersOpen}
+            onOpenChange={(nextOpen) => {
+              if (nextOpen) syncDraftFromApplied();
+              setFiltersOpen(nextOpen);
+            }}
+          >
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                className={cn((departmentFilter !== "all" || roleFilter !== "all") && "border-primary text-primary")}
+                className={cn(
+                  "h-12 rounded-xl border-slate-200 bg-white px-5 text-[15px] font-medium shadow-sm transition-all hover:border-slate-300",
+                  hasAnyFilter && "border-primary/40 bg-primary/[0.04] text-primary",
+                )}
               >
                 <Filter className="mr-2 h-4 w-4" />
                 Filters
+                {hasAnyFilter ? (
+                  <span className="ml-2 rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-80">
-              <div className="space-y-4">
+            <PopoverContent
+              align="end"
+              className="w-[460px] rounded-2xl border border-slate-200 bg-white p-0 shadow-[0_26px_60px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80"
+            >
+              <div className="border-b border-slate-200 bg-white px-5 py-3.5">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Filter members</p>
+                  <div>
+                    <p className="text-[14px] font-semibold tracking-[0.01em] text-slate-900">Filter Members</p>
+                    <p className="mt-0.5 text-[12px] text-slate-500">
+                      {hasAnyFilter ? `${activeFilterCount} filters applied` : "No filters applied"}
+                    </p>
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => {
-                      onDepartmentFilterChange("all");
-                      onRoleFilterChange("all");
-                    }}
+                    className="h-7 rounded-lg px-2.5 text-[12px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    onClick={resetDraftFilters}
                   >
-                    Reset
+                    Clear all
                   </Button>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <Label>Designation</Label>
-                  <Select value={roleFilter} onValueChange={onRoleFilterChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All designations" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All designations</SelectItem>
-                      {roles.map((role) => (
-                        <SelectItem key={role} value={role}>
-                          {role}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Department</Label>
-                  <Select value={departmentFilter} onValueChange={onDepartmentFilterChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All departments" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All departments</SelectItem>
-                      {departments.map((department) => (
-                        <SelectItem key={department} value={department}>
-                          {department}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="max-h-[62vh] space-y-3.5 overflow-y-auto bg-white px-5 py-3.5">
+                <FilterSection title="Identity">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <FilterDropdown
+                      title="Designation"
+                      placeholder="All designations"
+                      options={roles}
+                      selected={draftDesignationFilters}
+                      onToggle={(value) => setDraftDesignationFilters((current) => toggleValue(current, value))}
+                    />
+                    <FilterDropdown
+                      title="Department"
+                      placeholder="All departments"
+                      options={departments}
+                      selected={draftDepartmentFilters}
+                      onToggle={(value) => setDraftDepartmentFilters((current) => toggleValue(current, value))}
+                    />
+                    <FilterDropdown
+                      title="Primary Node"
+                      placeholder="All primary nodes"
+                      options={primaryNodeOptions}
+                      selected={draftPrimaryNodeFilters}
+                      onToggle={(value) => setDraftPrimaryNodeFilters((current) => toggleValue(current, value))}
+                    />
+                    <FilterDropdown
+                      title="Secondary Node"
+                      placeholder="All secondary nodes"
+                      options={secondaryNodeOptions}
+                      selected={draftSecondaryNodeFilters}
+                      onToggle={(value) => setDraftSecondaryNodeFilters((current) => toggleValue(current, value))}
+                    />
+                    <div className="md:col-span-2">
+                      <FilterDropdown
+                        title="Reporting Manager"
+                        placeholder="All reporting managers"
+                        options={reportingManagerOptions}
+                        selected={draftReportingManagerFilters}
+                        onToggle={(value) => setDraftReportingManagerFilters((current) => toggleValue(current, value))}
+                      />
+                    </div>
+                  </div>
+                </FilterSection>
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    syncDraftFromApplied();
+                    setFiltersOpen(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    onApplyAdvancedFilters({
+                      designationFilters: draftDesignationFilters,
+                      departmentFilters: draftDepartmentFilters,
+                      reportingManagerFilters: draftReportingManagerFilters,
+                      primaryNodeFilters: draftPrimaryNodeFilters,
+                      secondaryNodeFilters: draftSecondaryNodeFilters,
+                    });
+                    setFiltersOpen(false);
+                  }}
+                >
+                  Apply
+                </Button>
               </div>
             </PopoverContent>
           </Popover>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" aria-label="Sort members">
+              <Button variant="outline" size="icon" aria-label="Sort members" className="h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm">
                 <ArrowUpDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -180,6 +319,147 @@ export default function UserFilters({
           </DropdownMenu>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FilterDropdown({
+  title,
+  placeholder,
+  options,
+  selected,
+  onToggle,
+}: {
+  title: string;
+  placeholder: string;
+  options: string[];
+  selected: string[];
+  onToggle: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const searchInputId = `${title.replace(/\s+/g, "-").toLowerCase()}-search`;
+  const summaryLabel =
+    selected.length === 0
+      ? placeholder
+      : selected.length === 1
+        ? selected[0]
+        : `${selected.length} selected`;
+  const filteredOptions = options.filter((option) => option.toLowerCase().includes(searchTerm));
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{title}</Label>
+      <DropdownMenu
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (!nextOpen) {
+            setSearchTerm("");
+            setIsSearchExpanded(false);
+          }
+        }}
+      >
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "h-10 w-full justify-between rounded-lg border-slate-200 bg-white px-3 text-left text-[12px] font-medium hover:border-slate-300",
+              selected.length > 0 ? "border-blue-200 bg-blue-50/40 text-blue-800" : "text-slate-700",
+            )}
+          >
+            <span className="truncate">{summaryLabel}</span>
+            <span className="ml-2 inline-flex items-center gap-1.5">
+              {selected.length > 0 ? (
+                <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
+                  {selected.length}
+                </span>
+              ) : null}
+              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+            </span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[260px] border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
+          <div className="mt-1 flex items-center justify-between gap-2 px-1">
+            <DropdownMenuLabel className="p-0 text-[11px] uppercase tracking-[0.14em] text-slate-500">{title}</DropdownMenuLabel>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                if (isSearchExpanded) {
+                  setSearchTerm("");
+                  setIsSearchExpanded(false);
+                  return;
+                }
+                setIsSearchExpanded(true);
+              }}
+              className="h-9 w-9 rounded-lg border-slate-200 bg-slate-50 text-slate-600 shadow-none hover:border-slate-300 hover:bg-white"
+              aria-label={isSearchExpanded ? `Close ${title.toLowerCase()} search` : `Open ${title.toLowerCase()} search`}
+            >
+              {isSearchExpanded ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+            </Button>
+          </div>
+          <div
+            className={cn(
+              "overflow-hidden px-1 transition-all duration-250 ease-out",
+              isSearchExpanded ? "mt-2 max-h-12 opacity-100" : "max-h-0 opacity-0",
+            )}
+          >
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id={searchInputId}
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                onKeyDown={(event) => {
+                  // Prevent Radix DropdownMenu typeahead from stealing focus on first key press.
+                  event.stopPropagation();
+                  if (event.key === "Escape") {
+                    setSearchTerm("");
+                    setIsSearchExpanded(false);
+                  }
+                }}
+                placeholder={`Search ${title.toLowerCase()}...`}
+                className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] shadow-none"
+                autoComplete="off"
+                autoFocus={isSearchExpanded}
+              />
+            </div>
+          </div>
+          {filteredOptions.length === 0 ? (
+            <div className="px-2 py-2 text-[12px] text-slate-400">No options available</div>
+          ) : (
+            <div className="mt-2 max-h-56 overflow-y-auto">
+              {filteredOptions.map((option) => (
+                <DropdownMenuCheckboxItem
+                  key={option}
+                  checked={selected.includes(option)}
+                  onSelect={(event) => event.preventDefault()}
+                  onCheckedChange={() => onToggle(option)}
+                  className="text-[13px]"
+                >
+                  {option}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </div>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+function FilterSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/45 p-3 shadow-[0_2px_8px_rgba(148,163,184,0.1)]">
+      <p className="border-b border-slate-200 pb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-700">{title}</p>
+      <div className="space-y-2.5">{children}</div>
     </div>
   );
 }

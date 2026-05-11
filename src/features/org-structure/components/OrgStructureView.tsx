@@ -1,5 +1,6 @@
 import { startTransition } from "react";
 import { Building2 } from "lucide-react";
+import type { OrgNode } from "@/contexts/AppContext";
 import { NodeSidebar } from "@/features/org-structure/components/NodeSidebar";
 import { NewNodePopup } from "@/features/org-structure/components/NewNodePopup";
 import { OrgTreeCanvas } from "@/features/org-structure/components/OrgTreeCanvas";
@@ -80,6 +81,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
 
   const [showPending, setShowPending] = useState(true);
   const [isOrgHistoryOpen, setIsOrgHistoryOpen] = useState(false);
+  const [historyNodeName, setHistoryNodeName] = useState("");
 
   const displayedStructure = useMemo(() => {
     if (showPending || !orgStructure) return orgStructure;
@@ -238,7 +240,10 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
               open={sidebarOpen}
               onOpenChange={handleSidebarOpenChange}
               department={selectedDepartment}
-              onOpenHistory={() => setIsOrgHistoryOpen(true)}
+              onOpenHistory={() => {
+                setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
+                setIsOrgHistoryOpen(true);
+              }}
             />
           </div>
         </section>
@@ -255,7 +260,10 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
             open={sidebarOpen}
             onOpenChange={handleSidebarOpenChange}
             department={selectedDepartment}
-            onOpenHistory={() => setIsOrgHistoryOpen(true)}
+            onOpenHistory={() => {
+              setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
+              setIsOrgHistoryOpen(true);
+            }}
           />
         </div>
 
@@ -299,6 +307,11 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         onClose={() => setPendingNodeForReview(null)}
         onApprove={handleApproveNode}
         onReject={handleRejectNode}
+        onOpenHistory={(node) => {
+          setPendingNodeForReview(null);
+          setHistoryNodeName(node.name.trim());
+          setIsOrgHistoryOpen(true);
+        }}
       />
 
       <OrgHistorySidebar
@@ -306,6 +319,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         onClose={() => setIsOrgHistoryOpen(false)}
         companyCode={companyCode}
         subtitle={selectedDepartment?.name || companyName}
+        nodeName={historyNodeName}
       />
     </div>
   );

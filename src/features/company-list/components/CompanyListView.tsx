@@ -21,12 +21,21 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     expanded,
     searchInput,
     setSearchInput,
+    groupNameFilters,
+    setGroupNameFilters,
+    companyNameFilters,
+    setCompanyNameFilters,
+    legalNameFilters,
+    setLegalNameFilters,
+    groupNameOptions,
+    companyNameOptions,
+    legalNameOptions,
+    visibleColumns,
     selectedCompany,
     isPreviewOpen,
     setIsPreviewOpen,
     isOnboardingOpen,
     setIsOnboardingOpen,
-    visibleColumns,
     statusCounts,
     isLoading,
     error,
@@ -36,13 +45,12 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     selectedGroupName,
     selectedGroupCode,
     displayRows,
-    handleSearchSubmit,
     handleClearSearch,
+    clearAdvancedFilters,
     toggleGroup,
     openModal,
     handleSaveCompany,
     handleToggleCompanyActive,
-    toggleColumn,
     refreshCompanies,
     remarkDialogOpen,
     setRemarkDialogOpen,
@@ -57,13 +65,20 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
       <CompanyListToolbar
         searchInput={searchInput}
         onSearchInputChange={setSearchInput}
-        onSearchSubmit={handleSearchSubmit}
         onClearSearch={handleClearSearch}
         selectedStatusTab={selectedStatusTab}
         onStatusTabChange={setSelectedStatusTab}
         statusCounts={statusCounts}
-        visibleColumns={visibleColumns}
-        onToggleColumn={toggleColumn}
+        groupNameFilters={groupNameFilters}
+        onSetGroupNameFilters={setGroupNameFilters}
+        companyNameFilters={companyNameFilters}
+        onSetCompanyNameFilters={setCompanyNameFilters}
+        legalNameFilters={legalNameFilters}
+        onSetLegalNameFilters={setLegalNameFilters}
+        groupNameOptions={groupNameOptions}
+        companyNameOptions={companyNameOptions}
+        legalNameOptions={legalNameOptions}
+        onClearAdvancedFilters={clearAdvancedFilters}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
       />
 

@@ -58,9 +58,12 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
             return selectedActions.flatMap((action) => {
               const scope =
                 nodeEntry.permissionScopes?.[bucketKey as "primary" | "secondary"]?.[category]?.[subCategory]?.[action] ?? "NODE";
+              const isPrimaryBucket = bucketKey === "primary";
               const targets =
                 category.trim().toUpperCase() === "SYSTEM_ACCESS" && SYSTEM_ACCESS_SCOPE_ITEMS.has(normalizeScopeKey(subCategory))
-                  ? scope === "IMMEDIATE_CHILD"
+                  ? isPrimaryBucket
+                    ? [{ nodeName: nodeEntry.nodeName, nodePath: nodeEntry.nodePath }]
+                    : scope === "IMMEDIATE_CHILD"
                     ? (nodeEntry.immediateChildren.length > 0 ? nodeEntry.immediateChildren : [{ nodeName: nodeEntry.nodeName, nodePath: nodeEntry.nodePath }])
                     : scope === "ALL_CHILD"
                       ? (nodeEntry.allChildren.length > 0 ? nodeEntry.allChildren : [{ nodeName: nodeEntry.nodeName, nodePath: nodeEntry.nodePath }])
@@ -95,7 +98,7 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
       reportingManager: (formData.basic.reportingManagerEmail || formData.basic.reportingManager).trim(),
     },
     permissions: mappedPermissions,
-    workflowId: formData.selectedWorkflowId.trim() || null,
+    levelsHash: formData.selectedWorkflowLevelsHash.trim() || null,
   };
 };
 
@@ -182,7 +185,7 @@ export const createInitialUserOnboardingFormData = (): UserOnboardingFormData =>
   nodeSelections: [],
   primaryNodeId: null,
   selectedWorkflow: "",
-  selectedWorkflowId: "",
+  selectedWorkflowLevelsHash: "",
 });
 
 export const parseSlashDate = (value: string): Date | null => {

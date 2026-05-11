@@ -54,15 +54,20 @@ export type UserOnboardingFormData = {
   }>;
   primaryNodeId: string | null;
   selectedWorkflow: string;
-  selectedWorkflowId: string;
+  selectedWorkflowLevelsHash: string;
 };
 
 export type ValidationErrors = Record<string, string>;
 
 export type UserManagementFilters = {
   search: string;
-  departmentFilter: string;
-  roleFilter: string;
+  designationFilters: string[];
+  departmentFilters: string[];
+  accessCategoryFilters: string[];
+  accessScopeFilters: string[];
+  roleTypeFilters: string[];
+  onboardingDateFrom: string;
+  onboardingDateTo: string;
   sortOrder: SortOrder;
 };
 

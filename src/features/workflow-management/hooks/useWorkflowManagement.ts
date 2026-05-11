@@ -10,6 +10,11 @@ export function useWorkflowManagement() {
   const { toast } = useToast();
   const [activeStatus, setActiveStatus] = useState<WorkflowStatus>("Active");
   const [search, setSearch] = useState("");
+  const [workflowFilters, setWorkflowFilters] = useState<string[]>([]);
+  const [aliasFilters, setAliasFilters] = useState<string[]>([]);
+  const [moduleFilters, setModuleFilters] = useState<string[]>([]);
+  const [nodeNameFilters, setNodeNameFilters] = useState<string[]>([]);
+  const [typeFilters, setTypeFilters] = useState<string[]>([]);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<WorkflowPageSize>(15);
@@ -74,17 +79,57 @@ export function useWorkflowManagement() {
     setAddDialogOpen(true);
   };
 
+  const statusScopedWorkflows = useMemo(
+    () => workflows.filter((workflow) => workflow.status === activeStatus),
+    [activeStatus, workflows],
+  );
+
+  const workflowOptions = useMemo(
+    () => Array.from(new Set(statusScopedWorkflows.map((workflow) => workflow.name).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [statusScopedWorkflows],
+  );
+  const aliasOptions = useMemo(
+    () => Array.from(new Set(statusScopedWorkflows.map((workflow) => workflow.alias).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [statusScopedWorkflows],
+  );
+  const moduleOptions = useMemo(
+    () => Array.from(new Set(statusScopedWorkflows.map((workflow) => workflow.module).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [statusScopedWorkflows],
+  );
+  const nodeNameOptions = useMemo(
+    () => Array.from(new Set(statusScopedWorkflows.map((workflow) => workflow.nodeName).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [statusScopedWorkflows],
+  );
+  const typeOptions = useMemo(
+    () => Array.from(new Set(statusScopedWorkflows.map((workflow) => workflow.nodeType).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [statusScopedWorkflows],
+  );
+
+  const clearColumnFilters = () => {
+    setWorkflowFilters([]);
+    setAliasFilters([]);
+    setModuleFilters([]);
+    setNodeNameFilters([]);
+    setTypeFilters([]);
+  };
+
   const filteredWorkflows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return workflows.filter((workflow) => {
       if (workflow.status !== activeStatus) return false;
+      const matchesWorkflow = workflowFilters.length === 0 || workflowFilters.includes(workflow.name);
+      const matchesAlias = aliasFilters.length === 0 || aliasFilters.includes(workflow.alias);
+      const matchesModule = moduleFilters.length === 0 || moduleFilters.includes(workflow.module);
+      const matchesNodeName = nodeNameFilters.length === 0 || nodeNameFilters.includes(workflow.nodeName);
+      const matchesType = typeFilters.length === 0 || typeFilters.includes(workflow.nodeType);
+      if (!(matchesWorkflow && matchesAlias && matchesModule && matchesNodeName && matchesType)) return false;
       if (!query) return true;
       return [workflow.name, workflow.alias, workflow.module, workflow.nodeName, workflow.nodeType]
         .join(" ")
         .toLowerCase()
         .includes(query);
     });
-  }, [activeStatus, search, workflows]);
+  }, [activeStatus, aliasFilters, moduleFilters, nodeNameFilters, search, typeFilters, workflowFilters, workflows]);
 
   const statusCounts = useMemo(
     () =>
@@ -107,7 +152,7 @@ export function useWorkflowManagement() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeStatus, search, pageSize]);
+  }, [activeStatus, search, pageSize, workflowFilters, aliasFilters, moduleFilters, nodeNameFilters, typeFilters]);
 
   const totalPages = Math.max(1, Math.ceil(filteredWorkflows.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -122,6 +167,22 @@ export function useWorkflowManagement() {
     setActiveStatus,
     search,
     setSearch,
+    workflowFilters,
+    setWorkflowFilters,
+    aliasFilters,
+    setAliasFilters,
+    moduleFilters,
+    setModuleFilters,
+    nodeNameFilters,
+    setNodeNameFilters,
+    typeFilters,
+    setTypeFilters,
+    workflowOptions,
+    aliasOptions,
+    moduleOptions,
+    nodeNameOptions,
+    typeOptions,
+    clearColumnFilters,
     addDialogOpen,
     setAddDialogOpen,
     handleOpenAddWorkflowDialog,

@@ -2,6 +2,8 @@ export type WorkflowStatus = "Active" | "Pending";
 
 export type WorkflowRecord = {
   id: string;
+  workflowId?: string;
+  levelsHash?: string;
   name: string;
   alias: string;
   module: string;

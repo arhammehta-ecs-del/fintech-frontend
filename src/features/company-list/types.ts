@@ -48,11 +48,20 @@ export type CompanyListTableProps = {
 export type CompanyListToolbarProps = {
   searchInput: string;
   onSearchInputChange: (value: string) => void;
-  onSearchSubmit: () => void;
   onClearSearch: () => void;
+  selectedStatusTab: StatusTab;
+  onStatusTabChange: (value: StatusTab) => void;
   statusCounts: Record<"active" | "pending" | "inactive", number>;
-  visibleColumns: Set<VisibleColumn>;
-  onToggleColumn: (column: VisibleColumn, checked: boolean) => void;
+  groupNameFilters: string[];
+  onSetGroupNameFilters: (updater: (current: string[]) => string[]) => void;
+  companyNameFilters: string[];
+  onSetCompanyNameFilters: (updater: (current: string[]) => string[]) => void;
+  legalNameFilters: string[];
+  onSetLegalNameFilters: (updater: (current: string[]) => string[]) => void;
+  groupNameOptions: string[];
+  companyNameOptions: string[];
+  legalNameOptions: string[];
+  onClearAdvancedFilters: () => void;
   onOpenOnboarding: () => void;
 };
 

@@ -40,21 +40,82 @@ export const DEFAULT_SEED_CONFIG: SeedConfig = {
   pendingOrgNodesPerCompany: 5,
 };
 
-const FIRST_NAMES = [
-  "Arjun", "Priya", "Rohan", "Sneha", "Vikram", "Ananya", "Karan",
-  "Divya", "Rahul", "Meera", "Aditya", "Pooja", "Nikhil", "Shreya",
-  "Amit", "Kavya", "Siddharth", "Neha", "Varun", "Ishaan",
-] as const;
-
-const LAST_NAMES = [
-  "Sharma", "Patel", "Singh", "Kumar", "Mehta", "Joshi", "Gupta",
-  "Verma", "Nair", "Iyer", "Reddy", "Shah", "Malhotra", "Kapoor",
-  "Chopra", "Bose", "Das", "Rao", "Pillai", "Mishra",
-] as const;
-
-const DESIGNATIONS = [
-  "Analyst", "Executive", "Manager", "Associate",
-  "Consultant", "Officer", "Coordinator", "Specialist",
+const SEED_COMPANY_NAMES = [
+  "Nexora",
+  "Zyntex",
+  "Veltro",
+  "Quorbit",
+  "Flarix",
+  "Drovex",
+  "Pylonix",
+  "Cravos",
+  "Trellix",
+  "Snappix",
+  "Glowbit",
+  "Vortiq",
+  "Blynco",
+  "Zephira",
+  "Clustr",
+  "Prixon",
+  "Nuvelo",
+  "Driftix",
+  "Sparkra",
+  "Omniq",
+  "Hexova",
+  "Lumiq",
+  "Traxon",
+  "Bytora",
+  "Fluxio",
+  "Cyphex",
+  "Wavora",
+  "Gridly",
+  "Plexio",
+  "Zircon",
+  "Kryptex",
+  "Novaris",
+  "Synkro",
+  "Pixlora",
+  "Datalyx",
+  "Cloudra",
+  "Veloxa",
+  "Quantix",
+  "Boltify",
+  "Neoflux",
+  "Strixo",
+  "Morphiq",
+  "Zentrax",
+  "Pulsar",
+  "Orbify",
+  "Tachyon",
+  "Glitchex",
+  "Nucliq",
+  "Axiomix",
+  "Vyntra",
+  "Solvix",
+  "Promptly",
+  "Codexa",
+  "Infyra",
+  "Logiqo",
+  "Dataplex",
+  "Appriva",
+  "Softriq",
+  "Devlora",
+  "Techvio",
+  "Scalrix",
+  "Linkova",
+  "Apexio",
+  "Cryptova",
+  "Nethryx",
+  "Stackify",
+  "Binarix",
+  "Cortexa",
+  "Pivotix",
+  "Flowbit",
+  "Pingora",
+  "Meshify",
+  "Hubrix",
+  "Loopix",
+  "Taskova",
 ] as const;
 
 const SEED_NODE_NAMES = [
@@ -303,15 +364,32 @@ const normalizeDomainSegment = (value: string) =>
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
 
-const randomItem = <T,>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)] as T;
-
 const randomDigits = (length: number) =>
   Array.from({ length }, () => String(Math.floor(Math.random() * 10))).join("");
 
-const createCompanySeedPayload = (index: number, signatoriesPerCompany: number): OnboardingPayload => {
+const getSeedCompanyBaseName = (index: number) => {
+  const base = SEED_COMPANY_NAMES[index % SEED_COMPANY_NAMES.length];
+  const cycle = Math.floor(index / SEED_COMPANY_NAMES.length);
+  return cycle === 0 ? base : `${base}${cycle + 1}`;
+};
+
+const getCompanyEmailDomain = (companyName: string, companyCode: string) => {
+  const rawDomain = normalizeDomainSegment(companyName) || normalizeDomainSegment(companyCode) || "seed-company";
+  return `${rawDomain}.com`;
+};
+
+const shouldSeedIndependentCompany = (index: number) => (index + 1) % 4 === 0;
+
+const createCompanySeedPayload = (
+  index: number,
+  signatoriesPerCompany: number,
+  isIndependent = false,
+): OnboardingPayload => {
   const companyIndex = pad(index + 1);
-  const companyLabel = `SEED COMPANY ${companyIndex}`;
-  const groupLabel = `SEED GROUP ${Math.ceil((index + 1) / 5)}`;
+  const companyLabel = getSeedCompanyBaseName(index);
+  const companyCode = `${normalizePathSegment(companyLabel)}${companyIndex}`;
+  const companyDomain = getCompanyEmailDomain(companyLabel, companyCode);
+  const groupLabel = isIndependent ? "Independent" : `SEED GROUP ${Math.ceil((index + 1) / 5)}`;
 
   return {
     group: {
@@ -330,8 +408,8 @@ const createCompanySeedPayload = (index: number, signatoriesPerCompany: number):
     signatories: Array.from({ length: signatoriesPerCompany }, (_, signatoryIndex) => {
       const signatoryLabel = signatoryIndex + 1;
       return {
-        name: `Seed Signatory ${companyIndex}-${signatoryLabel}`,
-        email: `seed.signatory.${companyIndex}.${signatoryLabel}@example.com`,
+        name: `Signatory ${signatoryLabel}`,
+        email: `s${signatoryLabel}@${companyDomain}`,
         phone: `900000${pad(index + 1)}${pad(signatoryLabel)}`,
         designation: signatoryLabel === 1 ? "Operations Manager" : "Finance Manager",
         employeeId: `SIG-${companyIndex}-${signatoryLabel}`,
@@ -374,56 +452,38 @@ const pushError = (summary: SeedSummary, message: string, onProgress?: (message:
 
 const getPreferredReportingManagerEmail = (
   companyUsers: Awaited<ReturnType<typeof getCompanyUsers>>,
-  companyIndex: number,
+  companyCode: string,
+  companyBrand: string,
 ) => {
-  const seededSignatoryEmail = `seed.signatory.${pad(companyIndex + 1)}.1@example.com`.toLowerCase();
+  const seededSignatoryEmail = `s1@${getCompanyEmailDomain(companyBrand, companyCode)}`.toLowerCase();
   const activeUsers = companyUsers.filter((user) => user.status !== "Pending" && user.status !== "Inactive");
   const seededSignatory = activeUsers.find((user) => user.email.trim().toLowerCase() === seededSignatoryEmail);
   if (seededSignatory?.email) return seededSignatory.email.trim().toLowerCase();
 
   const globalAccessUser = activeUsers.find((user) => {
     const details = user.basicDetails;
-    const managerName = details?.reportingManagerName?.trim().toUpperCase();
-    const managerEmail = details?.reportingManagerEmail?.trim().toUpperCase();
-    return managerName === "N/A" && managerEmail === "N/A";
+    const managerName = details?.reportingManagerName?.trim().toUpperCase() ?? "";
+    const managerEmail = details?.reportingManagerEmail?.trim().toUpperCase() ?? "";
+    return (!managerName && !managerEmail) || (managerName === "N/A" && managerEmail === "N/A");
   });
   if (globalAccessUser?.email) return globalAccessUser.email.trim().toLowerCase();
 
   return activeUsers[0]?.email?.trim().toLowerCase() ?? "";
 };
 
-const generateRandomUser = (
+const generateSeedUser = (
   companyCode: string,
   companyBrand: string,
-  existingEmailSet: Set<string>,
+  userNumber: number,
 ): { name: string; email: string; phone: string; designation: string; employeeId: string } => {
-  const firstName = randomItem(FIRST_NAMES);
-  const lastName = randomItem(LAST_NAMES);
-  const name = `${firstName} ${lastName}`;
-
-  const rawDomain = normalizeDomainSegment(companyBrand) || normalizeDomainSegment(companyCode) || "seed-company";
-  const companyDomain = `${rawDomain}.com`;
-
-  const baseLocalPart = `${firstName}.${lastName}`.toLowerCase();
-  let localPart = baseLocalPart;
-  let email = `${localPart}@${companyDomain}`;
-  let suffix = 2;
-  while (existingEmailSet.has(email)) {
-    localPart = `${baseLocalPart}${suffix}`;
-    email = `${localPart}@${companyDomain}`;
-    suffix += 1;
-  }
-
-  const phone = `9${randomDigits(9)}`;
-  const designation = randomItem(DESIGNATIONS);
-  const employeeId = `EMP-${normalizePathSegment(companyCode).slice(0, 8)}-${randomDigits(3)}`;
-
+  const companyDomain = getCompanyEmailDomain(companyBrand, companyCode);
+  const email = `u${userNumber}@${companyDomain}`;
   return {
-    name,
+    name: `User ${userNumber}`,
     email,
-    phone,
-    designation,
-    employeeId,
+    phone: `9${randomDigits(9)}`,
+    designation: "Executive",
+    employeeId: `EMP-${normalizePathSegment(companyCode).slice(0, 8)}-${pad(userNumber)}`,
   };
 };
 
@@ -466,7 +526,7 @@ const createOrgNodeMatrix = async (
       const seedNameIndex = (createdCount + childIndex - 1) % SEED_NODE_NAMES.length;
       const mappedName = SEED_NODE_NAMES[seedNameIndex];
       const baseNodeName = mappedName;
-      let nodeName = baseNodeName;
+      let nodeName: string = baseNodeName;
       let suffix = 2;
       let targetPath = `${parentNode.nodePath}.${normalizePathSegment(nodeName)}`.toUpperCase();
       while (existingPaths.has(targetPath)) {
@@ -589,7 +649,6 @@ const buildUserPermissionsFactory = async (companyCode: string) => {
 
 const createUsersForCompany = async (
   companyCode: string,
-  companyIndex: number,
   companyBrand: string,
   targetUsersPerCompany: number,
   pendingUsersPerCompany: number,
@@ -603,25 +662,32 @@ const createUsersForCompany = async (
   const approvalsNeeded = Math.max(targetUsersPerCompany - safePendingUsers - signatoriesPerCompany, 0);
 
   let existingUsers = await getCompanyUsers(companyCode);
-  const reportingManagerEmail = getPreferredReportingManagerEmail(existingUsers, companyIndex);
+  const reportingManagerEmail = getPreferredReportingManagerEmail(existingUsers, companyCode, companyBrand);
   if (!reportingManagerEmail) {
     throw new Error(`No active reporting manager found in ${companyCode}. Approve company signatories first.`);
   }
 
-  const existingEmailSet = new Set(existingUsers.map((user) => user.email.trim().toLowerCase()));
+  const companyDomain = getCompanyEmailDomain(companyBrand, companyCode).toLowerCase();
+  const userEmailPattern = new RegExp(`^u(\\d+)@${companyDomain.replace(/\./g, "\\.")}$`);
+  const highestExistingUserIndex = existingUsers.reduce((max, user) => {
+    const email = user.email.trim().toLowerCase();
+    const match = email.match(userEmailPattern);
+    if (!match) return max;
+    return Math.max(max, Number(match[1]));
+  }, 0);
   const newlyCreatedEmails: string[] = [];
 
   for (let index = 1; index <= usersToCreate; index += 1) {
-    const randomUser = generateRandomUser(companyCode, companyBrand, existingEmailSet);
-    existingEmailSet.add(randomUser.email.toLowerCase());
+    const userNumber = highestExistingUserIndex + index;
+    const seededUser = generateSeedUser(companyCode, companyBrand, userNumber);
 
     const payload: UserOnboardingPayload = {
       basicDetails: {
-        name: randomUser.name,
-        email: randomUser.email,
-        phone: randomUser.phone,
-        designation: randomUser.designation,
-        employeeId: randomUser.employeeId,
+        name: seededUser.name,
+        email: seededUser.email,
+        phone: seededUser.phone,
+        designation: seededUser.designation,
+        employeeId: seededUser.employeeId,
         reportingManager: reportingManagerEmail,
       },
       permissions: permissionFactory(index - 1),
@@ -631,12 +697,12 @@ const createUsersForCompany = async (
     try {
       await createUserOnboarding(payload);
       summary.usersCreated += 1;
-      newlyCreatedEmails.push(randomUser.email.toLowerCase());
+      newlyCreatedEmails.push(seededUser.email.toLowerCase());
     } catch (error) {
       summary.failedUsers += 1;
       pushError(
         summary,
-        `User create failed for ${companyCode} (${randomUser.email}): ${getApiErrorMessage(error, "Unknown error")}`,
+        `User create failed for ${companyCode} (${seededUser.email}): ${getApiErrorMessage(error, "Unknown error")}`,
         onProgress,
       );
       continue;
@@ -669,12 +735,6 @@ const createUsersForCompany = async (
   onProgress?.(`Users completed for ${companyCode}`);
 };
 
-const getCompanyRefFromSeedIndex = async (companyIndex: number) => {
-  const seedPayload = createCompanySeedPayload(companyIndex, DEFAULT_SEED_CONFIG.signatoriesPerCompany);
-  const seedBrand = seedPayload.company.brand ?? seedPayload.company.name;
-  return findCompanyByBrandWithStatus(seedBrand, "Approved");
-};
-
 export async function seedCompanies(
   config: SeedConfig,
   onProgress?: (msg: string) => void,
@@ -687,7 +747,11 @@ export async function seedCompanies(
     const shouldApproveCompany = companyIndex < config.approvedCompanyCount;
     onProgress?.(`Starting company ${companyNumber}/${totalCompanies}`);
 
-    const companyPayload = createCompanySeedPayload(companyIndex, config.signatoriesPerCompany);
+    const companyPayload = createCompanySeedPayload(
+      companyIndex,
+      config.signatoriesPerCompany,
+      shouldSeedIndependentCompany(companyIndex),
+    );
     const seedBrand = companyPayload.company.brand ?? companyPayload.company.name;
 
     let existingApproved: Company | null = null;
@@ -782,11 +846,10 @@ export async function seedUsersForCompany(
   onProgress?: (msg: string) => void,
 ): Promise<SeedSummary> {
   const summary = defaultSummary();
-  const resolvedCompanyIndex = companyIndex ?? 0;
+  void companyIndex;
   onProgress?.(`Seeding users for ${companyCode} in current session...`);
   await createUsersForCompany(
     companyCode,
-    resolvedCompanyIndex,
     companyBrand,
     config.usersPerCompany,
     config.pendingUsersPerCompany,
@@ -805,7 +868,7 @@ export async function seedAllForCompany(
   onProgress?: (msg: string) => void,
 ): Promise<SeedSummary> {
   const summary = defaultSummary();
-  const resolvedCompanyIndex = companyIndex ?? 0;
+  void companyIndex;
   onProgress?.(`Seeding org + users for ${companyCode} in current session...`);
   await createOrgNodeMatrix(
     companyCode,
@@ -817,7 +880,6 @@ export async function seedAllForCompany(
   );
   await createUsersForCompany(
     companyCode,
-    resolvedCompanyIndex,
     companyBrand,
     config.usersPerCompany,
     config.pendingUsersPerCompany,
@@ -910,44 +972,5 @@ export async function approveAllPendingForCompany(
   addSummary(summary, orgSummary);
 
   onProgress?.(`Approve all completed for ${companyCode}`);
-  return summary;
-}
-
-export async function runFrontendSeed(
-  config: SeedConfig = DEFAULT_SEED_CONFIG,
-  onProgress?: (message: string) => void,
-): Promise<SeedSummary> {
-  const summary = defaultSummary();
-  const companySummary = await seedCompanies(config, onProgress);
-  addSummary(summary, companySummary);
-
-  for (let companyIndex = 0; companyIndex < config.approvedCompanyCount; companyIndex += 1) {
-    const companyRef = await getCompanyRefFromSeedIndex(companyIndex);
-    if (!companyRef?.companyCode) {
-      summary.failedCompanies += 1;
-      pushError(summary, `Approved company not found for seed index ${companyIndex + 1}`, onProgress);
-      continue;
-    }
-
-    try {
-      const perCompany = await seedAllForCompany(
-        companyRef.companyCode,
-        companyIndex,
-        companyRef.brand || companyRef.companyName,
-        config,
-        onProgress,
-      );
-      addSummary(summary, perCompany);
-    } catch (error) {
-      summary.failedUsers += 1;
-      summary.failedOrgNodes += 1;
-      pushError(
-        summary,
-        `Seed failed for ${companyRef.companyCode}: ${getApiErrorMessage(error, "Unknown error")}`,
-        onProgress,
-      );
-    }
-  }
-
   return summary;
 }

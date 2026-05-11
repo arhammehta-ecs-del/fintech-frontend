@@ -7,7 +7,6 @@ import { useToast } from "@/hooks/use-toast";
 import type { DisplayRow, StatusTab, VisibleColumn } from "@/features/company-list/types";
 import {
   buildAllDisplayRows,
-  filterGroupsByStatusAndSearch,
   getSelectedGroupInfo,
 } from "@/features/company-list/utils";
 
@@ -23,7 +22,9 @@ export function useCompanyList() {
   const [groups, setGroups] = useState<GroupCompany[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [searchInput, setSearchInput] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
+  const [groupNameFilters, setGroupNameFilters] = useState<string[]>([]);
+  const [companyNameFilters, setCompanyNameFilters] = useState<string[]>([]);
+  const [legalNameFilters, setLegalNameFilters] = useState<string[]>([]);
   const [selectedStatusTab, setSelectedStatusTab] = useState<StatusTab>(() => {
     const routeStatus = location.state?.statusFilter as CompanyStatus | undefined;
     if (routeStatus === "Approved") return "active";
@@ -114,19 +115,84 @@ export function useCompanyList() {
 
   const selectedGroupInfo = useMemo(() => getSelectedGroupInfo(groups, selectedCompany), [groups, selectedCompany]);
 
+  const statusScopedGroups = useMemo(
+    () =>
+      groups
+        .map((group) => ({
+          ...group,
+          subsidiaries: group.subsidiaries.filter((company) => company.status === statusFilter),
+        }))
+        .filter((group) => group.subsidiaries.length > 0),
+    [groups, statusFilter],
+  );
+
+  const groupNameOptions = useMemo(
+    () => Array.from(new Set(statusScopedGroups.map((group) => group.groupName).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [statusScopedGroups],
+  );
+  const companyNameOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(statusScopedGroups.flatMap((group) => group.subsidiaries.map((company) => company.companyName)).filter(Boolean)),
+      ).sort((a, b) => a.localeCompare(b)),
+    [statusScopedGroups],
+  );
+  const legalNameOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(statusScopedGroups.flatMap((group) => group.subsidiaries.map((company) => company.legalName)).filter(Boolean)),
+      ).sort((a, b) => a.localeCompare(b)),
+    [statusScopedGroups],
+  );
   const filteredGroups = useMemo(() => {
-    return filterGroupsByStatusAndSearch(groups, statusFilter, appliedSearch);
-  }, [appliedSearch, groups, statusFilter]);
+    const term = searchInput.trim().toLowerCase();
+    return statusScopedGroups
+      .map((group) => {
+        const groupNameMatch = groupNameFilters.length === 0 || groupNameFilters.includes(group.groupName);
+
+        const subsidiaries = group.subsidiaries.filter((company) => {
+          const matchesCompanyName = companyNameFilters.length === 0 || companyNameFilters.includes(company.companyName);
+          const matchesLegalName = legalNameFilters.length === 0 || legalNameFilters.includes(company.legalName);
+          if (!(groupNameMatch && matchesCompanyName && matchesLegalName)) return false;
+
+          if (!term) return true;
+          return [
+            group.groupName,
+            group.code,
+            company.companyName,
+            company.legalName,
+            company.brand ?? "",
+            company.gstin,
+            company.ieCode,
+            company.incorporationDate,
+            company.status,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(term);
+        });
+
+        return { ...group, subsidiaries };
+      })
+      .filter((group) => group.subsidiaries.length > 0);
+  }, [
+    searchInput,
+    statusScopedGroups,
+    groupNameFilters,
+    companyNameFilters,
+    legalNameFilters,
+  ]);
 
   const displayRows = useMemo<DisplayRow[]>(() => buildAllDisplayRows(filteredGroups), [filteredGroups]);
 
-  const handleSearchSubmit = () => {
-    setAppliedSearch(searchInput);
-  };
-
   const handleClearSearch = () => {
     setSearchInput("");
-    setAppliedSearch("");
+  };
+
+  const clearAdvancedFilters = () => {
+    setGroupNameFilters([]);
+    setCompanyNameFilters([]);
+    setLegalNameFilters([]);
   };
 
   const toggleGroup = (id: string) => {
@@ -228,6 +294,15 @@ export function useCompanyList() {
     expanded,
     searchInput,
     setSearchInput,
+    groupNameFilters,
+    setGroupNameFilters,
+    companyNameFilters,
+    setCompanyNameFilters,
+    legalNameFilters,
+    setLegalNameFilters,
+    groupNameOptions,
+    companyNameOptions,
+    legalNameOptions,
     statusFilter,
     selectedCompany,
     isPreviewOpen,
@@ -244,8 +319,8 @@ export function useCompanyList() {
     selectedGroupName: selectedGroupInfo.name,
     selectedGroupCode: selectedGroupInfo.code,
     displayRows,
-    handleSearchSubmit,
     handleClearSearch,
+    clearAdvancedFilters,
     toggleGroup,
     openModal,
     handleSaveCompany,

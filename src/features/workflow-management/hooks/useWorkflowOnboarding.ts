@@ -29,8 +29,8 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
 
   const [moduleGroups, setModuleGroups] = useState<ModuleGroup[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string }>>([]);
-  const [workflowOptions, setWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
+  const [workflowOptions, setWorkflowOptions] = useState<Array<{ levelsHash: string; label: string }>>([]);
+  const [selectedWorkflowLevelsHash, setSelectedWorkflowLevelsHash] = useState("");
   const [levels, setLevels] = useState(INITIAL_LEVELS);
 
   const isWorkflowMetaComplete = [wfName, wfModule, wfNode].every((value) => Boolean(String(value).trim()));
@@ -122,15 +122,15 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
         const options = nodes
           .flatMap((node) => node.workflows)
           .map((workflow) => {
-            const id = workflow.id.trim();
+            const levelsHash = workflow.levelsHash.trim();
             const name = workflow.name.trim();
             const alias = workflow.alias?.trim();
-            if (!id || !name) return null;
-            return { id, label: alias ? `${name} (${alias})` : name };
+            if (!levelsHash || !name) return null;
+            return { levelsHash, label: alias ? `${name} (${alias})` : name };
           })
-          .filter((option): option is { id: string; label: string } => Boolean(option));
+          .filter((option): option is { levelsHash: string; label: string } => Boolean(option));
 
-        setWorkflowOptions(Array.from(new Map(options.map((option) => [option.id, option])).values()));
+        setWorkflowOptions(Array.from(new Map(options.map((option) => [option.levelsHash, option])).values()));
       } catch (error) {
         if (ignore) return;
         const message = getApiErrorMessage(error, "Unable to load workflow dependencies.");
@@ -157,7 +157,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
     setWfAlias("");
     setWfModule("");
     setWfNode("");
-    setSelectedWorkflowId("");
+    setSelectedWorkflowLevelsHash("");
     setLevels(createResetLevels());
   }, [isOpen]);
 
@@ -274,6 +274,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
         subModule: wfModule.trim(),
         nodePath: wfNode.trim(),
         levels: payloadLevels,
+        levelsHash: selectedWorkflowLevelsHash.trim() || null,
       });
       await onPublished?.();
     } catch (error) {
@@ -301,7 +302,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
     moduleGroups,
     departmentOptions,
     workflowOptions,
-    selectedWorkflowId,
+    selectedWorkflowLevelsHash,
     levels,
     isRMUsedGlobally,
     currentLevelComplete,
@@ -311,7 +312,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
     setWfAlias,
     setWfModule,
     setWfNode,
-    setSelectedWorkflowId,
+    setSelectedWorkflowLevelsHash,
     updateLevelApprover,
     addApproverToLevel,
     removeApproverFromLevel,

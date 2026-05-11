@@ -17,6 +17,48 @@ type RawHistoryRecord = Record<string, unknown>;
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 const toRecord = (value: unknown): RawHistoryRecord =>
   typeof value === "object" && value !== null ? (value as RawHistoryRecord) : {};
+const readLevel = (value: unknown) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+};
+const toEventPhrase = (action: string) => {
+  const normalized = action.trim().toUpperCase();
+  if (normalized.includes("APPROVE")) return "approval";
+  if (normalized.includes("REJECT")) return "rejection";
+  if (normalized.includes("INITIATE") || normalized.includes("PENDING")) return "initiation";
+  return `${normalized.toLowerCase()} event`;
+};
+
+const formatEligibleApproversDetail = (record: RawHistoryRecord) => {
+  const eligibleApproversRaw = Array.isArray(record.eligibleapprovers) ? record.eligibleapprovers : [];
+  const eligibleApprovers = eligibleApproversRaw
+    .map((item) => toRecord(item))
+    .map((approver) => {
+      const name = readString(approver.name);
+      const email = readString(approver.email);
+      if (name && email) return `${name} (${email})`;
+      return name || email;
+    })
+    .filter(Boolean);
+
+  if (eligibleApprovers.length === 0) return "";
+  return "Eligible approvers listed below.";
+};
+
+const mapEligibleApprovers = (record: RawHistoryRecord) => {
+  const eligibleApproversRaw = Array.isArray(record.eligibleapprovers) ? record.eligibleapprovers : [];
+  return eligibleApproversRaw
+    .map((item) => toRecord(item))
+    .map((approver) => ({
+      name: readString(approver.name) || "Unknown",
+      email: readString(approver.email) || "no-email@example.com",
+    }))
+    .filter((approver) => approver.name || approver.email);
+};
 
 const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number): HistoryEntry => {
   const record = toRecord(item);
@@ -30,6 +72,10 @@ const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number
     readString(record.requestedAt);
   const actionRaw = readString(record.event) || readString(record.action) || readString(record.status);
   const action = actionRaw ? actionRaw.replace(/_/g, " ").toUpperCase() : "UPDATE";
+  const eventPhrase = toEventPhrase(action);
+  const targetEmail = readString(record.email) || fallbackEmail || "this user";
+  const level = readLevel(record.level);
+  const hasCreatedAt = Boolean(createdAt);
   const { year, month, day, date, time } = formatDateParts(createdAt);
 
   const initiatorName =
@@ -49,6 +95,13 @@ const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number
   const normalizedAction = action.toLowerCase();
   const isPendingAction = normalizedAction.includes("initiate") || normalizedAction.includes("pending");
   const isApprovedAction = normalizedAction.includes("approve");
+  const showActor = Boolean(readString(initiator.name) || readString(initiator.email));
+  const eligibleApproversDetail = formatEligibleApproversDetail(record);
+  const eligibleApprovers = mapEligibleApprovers(record);
+  const defaultDetails =
+    level !== null
+      ? `Level ${level} ${eventPhrase} recorded for ${targetEmail}.`
+      : `${eventPhrase.charAt(0).toUpperCase()}${eventPhrase.slice(1)} recorded for ${targetEmail}.`;
 
   return {
     id:
@@ -60,7 +113,10 @@ const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number
     month,
     day,
     action,
-    details: `event recorded for ${fallbackEmail || "this user"}.`,
+    details: eligibleApproversDetail || defaultDetails,
+    timestampMissing: !hasCreatedAt,
+    showActor,
+    eligibleApprovers,
     initiator: {
       name: initiatorName,
       email: initiatorEmail,

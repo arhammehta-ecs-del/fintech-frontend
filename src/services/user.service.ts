@@ -21,7 +21,7 @@ export type UserOnboardingPayload = {
     reportingManager: string;
   };
   permissions: UserOnboardingPermission[];
-  workflowId?: string | null;
+  levelsHash?: string | null;
 };
 
 type UserOnboardingResponse = {
@@ -54,7 +54,7 @@ type CompanyUsersResponse = {
 };
 
 type CompanyNodeWorkflow = {
-  id: string;
+  levelsHash: string;
   name: string;
   alias?: string;
 };
@@ -97,27 +97,16 @@ const normalizeAccessCategory = (value: unknown): "ALL_CHILD" | "IMMEDIATE_CHILD
 
 
 const mapAccessDetails = (record: RawUserRecord, status: AppUser["status"]): NonNullable<AppUser["accessDetails"]> => {
-  // Support both new format { primary: [...], secondary: [...] }
-  // and old format { accessDetails: [...] }
   const primaryArr = Array.isArray(record.primary)
     ? (record.primary as RawUserRecord[])
     : [];
   const secondaryArr = Array.isArray(record.secondary)
     ? (record.secondary as RawUserRecord[])
     : [];
-  const legacyArr = Array.isArray(record.accessDetails)
-    ? (record.accessDetails as RawUserRecord[]).filter(
-      (item): item is RawUserRecord => typeof item === "object" && item !== null,
-    )
-    : [];
-
-  const entriesWithType: Array<{ entry: RawUserRecord; accessType?: "PRIMARY" | "SECONDARY" }> =
-    primaryArr.length > 0 || secondaryArr.length > 0
-      ? [
-        ...primaryArr.map((entry) => ({ entry, accessType: "PRIMARY" as const })),
-        ...secondaryArr.map((entry) => ({ entry, accessType: "SECONDARY" as const })),
-      ]
-      : legacyArr.map((entry) => ({ entry, accessType: undefined }));
+  const entriesWithType: Array<{ entry: RawUserRecord; accessType: "PRIMARY" | "SECONDARY" }> = [
+    ...primaryArr.map((entry) => ({ entry, accessType: "PRIMARY" as const })),
+    ...secondaryArr.map((entry) => ({ entry, accessType: "SECONDARY" as const })),
+  ];
 
   if (entriesWithType.length === 0) {
     return [];
@@ -138,42 +127,37 @@ const mapAccessDetails = (record: RawUserRecord, status: AppUser["status"]): Non
         : "PRIMARY",
   }));
 
-
   return mappedEntries;
 };
 
 const getDepartmentFromAccessDetails = (record: RawUserRecord) => {
-  // New format: primary[] → secondary[] → legacy accessDetails[]
   const primaryArr = Array.isArray(record.primary) ? record.primary : [];
   const secondaryArr = Array.isArray(record.secondary) ? record.secondary : [];
-  const legacyArr = Array.isArray(record.accessDetails) ? record.accessDetails : [];
+  const firstPrimaryNode = primaryArr
+    .filter((item): item is RawUserRecord => typeof item === "object" && item !== null)
+    .map((item) => readString(item.nodeName).trim())
+    .find(Boolean);
 
-  const pool = primaryArr.length > 0 ? primaryArr
-    : secondaryArr.length > 0 ? secondaryArr
-      : legacyArr;
+  if (firstPrimaryNode) return firstPrimaryNode;
 
-  const first = pool.find(
-    (item): item is RawUserRecord => typeof item === "object" && item !== null,
-  );
-  return first && typeof first.nodeName === "string" ? first.nodeName : "";
+  const firstSecondaryNode = secondaryArr
+    .filter((item): item is RawUserRecord => typeof item === "object" && item !== null)
+    .map((item) => readString(item.nodeName).trim())
+    .find(Boolean);
+
+  return firstSecondaryNode || "";
 };
 
 const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUser => {
   const basicDetails = toRecord(record.basicDetails);
-  const name = readNonEmptyString(readString(record.name) || readString(basicDetails.name), "Not available");
-  const email = readNonEmptyString(readString(record.email) || readString(basicDetails.email), "no-email@example.com");
-  const designation = readNonEmptyString(readString(record.designation) || readString(basicDetails.designation), "Not available");
-  const phone = readNonEmptyString(readString(record.phone) || readString(basicDetails.phone), "9999999999");
-  const onboardingDate =
-    readString(record.onboardingDate) || readString(basicDetails.companyOnboardingDate) || readString(basicDetails.createdAt);
-  const reportingManagerName = (
-    readString(basicDetails.reportingManagerName) || readString(basicDetails.reportingManager)
-  ).trim();
-  const reportingManagerEmail = (
-    readString(basicDetails.reportingManagerEmail) ||
-    readString(record.manager && typeof record.manager === "object" ? (record.manager as RawUserRecord).email : "")
-  ).trim();
-  const employeeId = readString(record.employeeId || basicDetails.employeeId).trim();
+  const name = readNonEmptyString(readString(basicDetails.name), "Not available");
+  const email = readNonEmptyString(readString(basicDetails.email), "no-email@example.com");
+  const designation = readNonEmptyString(readString(basicDetails.designation), "Not available");
+  const phone = readNonEmptyString(readString(basicDetails.phone), "9999999999");
+  const onboardingDate = readString(basicDetails.createdAt) || readString(basicDetails.companyOnboardingDate);
+  const reportingManagerName = readString(basicDetails.reportingManagerName).trim();
+  const reportingManagerEmail = readString(basicDetails.reportingManagerEmail).trim();
+  const employeeId = readString(basicDetails.employeeId).trim();
   const initiatorName = readString(basicDetails.initiatorName).trim();
   const initiatorEmail = readString(basicDetails.initiatorEmail).trim();
   const initiatedAt = readString(basicDetails.initiatedDate).trim();
@@ -195,37 +179,25 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
     phone,
     companyId: typeof record.companyId === "string" ? record.companyId : undefined,
     onboardingDate: onboardingDate || undefined,
-    manager: reportingManagerName || reportingManagerEmail
-      ? {
-        name: reportingManagerName,
-        email: reportingManagerEmail,
-      }
-      : record.manager && typeof record.manager === "object"
-        ? {
-          name:
-            typeof (record.manager as RawUserRecord).name === "string"
-              ? ((record.manager as RawUserRecord).name as string)
-              : "",
-          email:
-            typeof (record.manager as RawUserRecord).email === "string"
-              ? ((record.manager as RawUserRecord).email as string)
-              : "",
-        }
-        : undefined,
+    manager: {
+      name: reportingManagerName,
+      email: reportingManagerEmail,
+    },
     status,
     basicDetails: {
       name,
       email,
       phone,
       companyOnboardingDate: onboardingDate || "",
+      createdAt: onboardingDate || "",
       designation,
       employeeId,
       reportingManager: reportingManagerName,
       reportingManagerName,
       reportingManagerEmail,
-      ...(initiatorName ? { initiatorName } : {}),
-      ...(initiatorEmail ? { initiatorEmail } : {}),
-      ...(initiatedAt ? { initiatedDate: initiatedAt } : {}),
+      initiatorName: initiatorName || "",
+      initiatorEmail: initiatorEmail || "",
+      initiatedDate: initiatedAt || "",
     },
     accessDetails: mapAccessDetails(record, status),
   };
@@ -274,7 +246,7 @@ export async function fetchCompanyNodes(subCategory: string): Promise<CompanyNod
     const record = toRecord(row);
     const workflowsRaw = Array.isArray(record.workflows) ? (record.workflows as RawUserRecord[]) : [];
     const workflows = workflowsRaw.map((workflow) => ({
-      id: readString(workflow.id).trim(),
+      levelsHash: readString(workflow.levelsHash).trim() || readString(workflow.id).trim(),
       name: readString(workflow.name).trim(),
       alias: readString(workflow.alias).trim() || undefined,
     }));

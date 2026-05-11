@@ -217,7 +217,7 @@ export function useOrgStructure() {
       const options = nodes
         .flatMap((item) => item.workflows)
         .map((workflow) => {
-          const id = workflow.id.trim();
+          const id = workflow.levelsHash.trim();
           const name = workflow.name.trim();
           const alias = workflow.alias?.trim();
           if (!id || !name) return null;

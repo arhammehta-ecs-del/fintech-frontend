@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X, CheckCircle2, XCircle, Building2, MapPin, Layers3, Briefcase, Boxes, Info, User, Mail, Clock3 } from "lucide-react";
+import { X, CheckCircle2, XCircle, Building2, MapPin, Layers3, Briefcase, Boxes, Info, User, Mail, Clock3, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrgNode } from "@/contexts/AppContext";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +10,7 @@ type PendingNodePopupProps = {
   onClose: () => void;
   onApprove: (node: OrgNode, remark: string) => void;
   onReject: (node: OrgNode, remark: string) => void;
+  onOpenHistory?: (node: OrgNode) => void;
 };
 
 const getNodeIcon = (nodeType: string) => {
@@ -35,7 +36,7 @@ const formatRequestedAtToIst = (value?: string) => {
 
 const REMARK_MAX_LENGTH = 100;
 
-export function PendingNodePopup({ open, node, onClose, onApprove, onReject }: PendingNodePopupProps) {
+export function PendingNodePopup({ open, node, onClose, onApprove, onReject, onOpenHistory }: PendingNodePopupProps) {
   const [remark, setRemark] = useState("");
   const [remarkError, setRemarkError] = useState("");
 
@@ -81,12 +82,25 @@ export function PendingNodePopup({ open, node, onClose, onApprove, onReject }: P
       <div className="relative w-full max-w-md overflow-hidden rounded-[28px] bg-white shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-in zoom-in-95 fade-in duration-300">
         {/* Header Section */}
         <div className="relative bg-amber-50/50 px-6 pb-5 pt-5">
-          <button
-            onClick={onClose}
-            className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-400 transition hover:bg-white hover:text-slate-600 shadow-sm"
-          >
-            <X size={18} />
-          </button>
+          <div className="absolute right-4 top-4 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenHistory) onOpenHistory(node);
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 transition hover:bg-white hover:text-slate-700 shadow-sm"
+              aria-label="View node history"
+              title="View node history"
+            >
+              <History size={16} />
+            </button>
+            <button
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-400 transition hover:bg-white hover:text-slate-600 shadow-sm"
+            >
+              <X size={18} />
+            </button>
+          </div>
 
           <div className="flex flex-col items-center gap-2.5 text-center">
             <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.13em] text-amber-700">

@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 import type { WorkflowLevel } from "@/features/workflow-management/components/onboarding/types";
 import { APPROVAL_OPTIONS } from "@/features/workflow-management/constants";
+import { formatSnakeCaseLabel } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 type WorkflowManageDialogProps = {
   open: boolean;
@@ -76,34 +77,53 @@ function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="mb-4 grid grid-cols-1 gap-4 divide-y divide-slate-200 md:grid-cols-4 md:gap-6 md:divide-y-0 md:divide-x">
-        <div className="flex flex-col gap-1">
+      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="min-w-0 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <div className="flex items-center gap-2">
-            <Zap className="h-3 w-3.5 text-blue-500" />
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Workflow Name</span>
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <Zap className="h-3.5 w-3.5" />
+            </span>
+            <span className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-400">Workflow Name</span>
           </div>
-          <span className="max-w-[160px] truncate pl-5 text-xs font-bold text-slate-800">{workflow.name || "-"}</span>
+          <div className="mt-2 min-h-[2.5rem] pl-8 text-sm font-semibold leading-snug text-slate-900 break-words">
+            {workflow.name || "-"}
+          </div>
         </div>
-        <div className="flex flex-col gap-1 pt-3 md:pl-6 md:pt-0">
+
+        <div className="min-w-0 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <div className="flex items-center gap-2">
-            <Layers className="h-3 w-3.5 text-purple-500" />
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Process Alias</span>
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
+              <Layers className="h-3.5 w-3.5" />
+            </span>
+            <span className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-400">Process Alias</span>
           </div>
-          <span className="max-w-[160px] truncate pl-5 text-xs font-bold text-slate-800">{workflow.alias || "-"}</span>
+          <div className="mt-2 min-h-[2.5rem] pl-8 text-sm font-semibold leading-snug text-slate-900 break-words">
+            {workflow.alias || "-"}
+          </div>
         </div>
-        <div className="flex flex-col gap-1 pt-3 md:pl-6 md:pt-0">
+
+        <div className="min-w-0 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <div className="flex items-center gap-2">
-            <Briefcase className="h-3 w-3.5 text-indigo-500" />
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Module</span>
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+              <Briefcase className="h-3.5 w-3.5" />
+            </span>
+            <span className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-400">Module</span>
           </div>
-          <span className="max-w-[160px] truncate pl-5 text-xs font-bold text-slate-800">{workflow.subModule || workflow.module || "-"}</span>
+          <div className="mt-2 min-h-[2.5rem] pl-8 text-sm font-semibold leading-snug text-slate-900 break-words">
+            {formatSnakeCaseLabel(workflow.subModule || workflow.module || "-")}
+          </div>
         </div>
-        <div className="flex flex-col gap-1 pt-3 md:pl-6 md:pt-0">
+
+        <div className="min-w-0 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <div className="flex items-center gap-2">
-            <Building2 className="h-3 w-3.5 text-emerald-500" />
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Node Type</span>
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+              <Building2 className="h-3.5 w-3.5" />
+            </span>
+            <span className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-400">Node Name</span>
           </div>
-          <span className="max-w-[160px] truncate pl-5 text-xs font-bold text-slate-800">{workflow.nodeName || "-"}</span>
+          <div className="mt-2 min-h-[2.5rem] pl-8 text-sm font-semibold leading-snug text-slate-900 break-words">
+            {workflow.nodeName || "-"}
+          </div>
         </div>
       </div>
 

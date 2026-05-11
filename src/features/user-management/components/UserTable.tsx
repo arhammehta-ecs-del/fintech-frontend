@@ -1,6 +1,7 @@
 import type { AppUser } from "@/contexts/AppContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ArrowUpDown, SlidersHorizontal, Users, History } from "lucide-react";
 import { maskContactNumber, getInitials, getAvatarColor } from "@/features/user-management/utils";
 import UserHistorySidebar from "./UserHistorySidebar";
@@ -11,6 +12,28 @@ type UserTableProps = {
   currentMembers: AppUser[];
   paginatedMembers: AppUser[];
   onView: (member: AppUser) => void;
+};
+
+const getPrimaryNodeMeta = (member: AppUser) => {
+  const primaryAccess = (member.accessDetails ?? []).find((entry) => entry.accessType === "PRIMARY");
+  if (!primaryAccess) {
+    return {
+      departmentLabel: member.department || "",
+      primaryNodePath: "",
+      showPath: false,
+    };
+  }
+
+  const nodeType = (primaryAccess.nodeType || "").trim().toUpperCase();
+  const nodePath = (primaryAccess.nodePath || "").trim();
+  const nodeName = (primaryAccess.nodeName || "").trim();
+  const showPath = nodeType !== "ROOT" && Boolean(nodePath);
+
+  return {
+    departmentLabel: nodeName || member.department || "",
+    primaryNodePath: nodePath,
+    showPath,
+  };
 };
 
 export default function UserTable({
@@ -46,14 +69,14 @@ export default function UserTable({
 
   return (
     <>
-    <table className="min-w-[920px] w-full table-fixed">
+    <table className="min-w-[980px] w-full table-fixed">
       <thead className="bg-slate-50">
         <tr className="border-b border-slate-200">
-          <th className="w-[34%] pl-7 pr-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Name</th>
+          <th className="w-[28%] pl-7 pr-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Name</th>
           <th className="w-[18%] px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Designation</th>
-          <th className="w-[18%] px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Department</th>
-          <th className="w-[18%] px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Contact Number</th>
-          <th className="w-[12%] px-4 py-4 text-center text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Manage</th>
+          <th className="w-[20%] px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Department</th>
+          <th className="w-[20%] px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Contact Number</th>
+          <th className="w-[14%] px-4 py-4 text-center text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Manage</th>
         </tr>
       </thead>
       <tbody>
@@ -82,29 +105,81 @@ export default function UserTable({
               </button>
             </td>
             <td className="px-4 py-4 text-sm text-slate-700">{member.designation || "—"}</td>
-            <td className="px-4 py-4 text-sm text-slate-600">{member.department || ""}</td>
+            <td className="px-4 py-4 text-sm text-slate-600">
+              {(() => {
+                const { departmentLabel, primaryNodePath, showPath } = getPrimaryNodeMeta(member);
+                return (
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-slate-700">{departmentLabel || "—"}</p>
+                    {showPath ? (
+                      <p className="mt-1 inline-flex max-w-full truncate rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700">
+                        {primaryNodePath}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })()}
+            </td>
             <td className="px-4 py-4 font-mono text-sm text-slate-600">{maskContactNumber(member.phone)}</td>
             <td className="px-4 py-4">
-              <div className="flex items-center justify-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                  onClick={() => setHistoryOpenForUser(member)}
-                  aria-label={`View history for ${member.name || member.email}`}
-                >
-                  <History className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
-                  onClick={() => onView(member)}
-                  aria-label={`Manage ${member.name || member.email || "member"}`}
-                >
-                  <SlidersHorizontal className="h-4 w-4" />
-                </Button>
-              </div>
+              <TooltipProvider delayDuration={120}>
+                <div className="flex items-center justify-center gap-3">
+                  {historyOpenForUser ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                        onClick={() => setHistoryOpenForUser(member)}
+                        aria-label={`View history for ${member.name || member.email}`}
+                      >
+                        <History className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+                        onClick={() => onView(member)}
+                        aria-label={`Manage ${member.name || member.email || "member"}`}
+                      >
+                        <SlidersHorizontal className="h-4 w-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                            onClick={() => setHistoryOpenForUser(member)}
+                            aria-label={`View history for ${member.name || member.email}`}
+                          >
+                            <History className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">View History</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+                            onClick={() => onView(member)}
+                            aria-label={`Manage ${member.name || member.email || "member"}`}
+                          >
+                            <SlidersHorizontal className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Manage User</TooltipContent>
+                      </Tooltip>
+                    </>
+                  )}
+                </div>
+              </TooltipProvider>
             </td>
           </tr>
         ))}

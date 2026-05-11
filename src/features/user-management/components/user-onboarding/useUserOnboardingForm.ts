@@ -30,7 +30,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   const { currentUser, users } = useAppContext();
   const companyCode = currentUser?.companyCode ?? "";
   const [roles, setRoles] = useState<RoleRecord[]>([]);
-  const [workflowOptions, setWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [workflowOptions, setWorkflowOptions] = useState<Array<{ levelsHash: string; label: string }>>([]);
   const [localOrgStructure, setLocalOrgStructure] = useState<OrgNode | null>(null);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState(createInitialUserOnboardingFormData);
@@ -116,19 +116,19 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
         const options = nodes
           .flatMap((node) => node.workflows)
           .map((workflow) => {
-            const id = workflow.id.trim();
+            const levelsHash = workflow.levelsHash.trim();
             const name = workflow.name.trim();
             const alias = workflow.alias?.trim();
-            if (!id || !name) return null;
+            if (!levelsHash || !name) return null;
             return {
-              id,
+              levelsHash,
               label: alias ? `${name} (${alias})` : name,
             };
           })
-          .filter((option): option is { id: string; label: string } => Boolean(option));
+          .filter((option): option is { levelsHash: string; label: string } => Boolean(option));
 
-        const uniqueById = Array.from(new Map(options.map((option) => [option.id, option])).values());
-        setWorkflowOptions(uniqueById);
+        const uniqueByLevelsHash = Array.from(new Map(options.map((option) => [option.levelsHash, option])).values());
+        setWorkflowOptions(uniqueByLevelsHash);
       })
       .catch(() => {
         if (!ignore) {
@@ -305,11 +305,11 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
     }));
   };
 
-  const setSelectedWorkflow = (workflowId: string) => {
-    const selectedOption = workflowOptions.find((option) => option.id === workflowId);
+  const setSelectedWorkflow = (levelsHash: string) => {
+    const selectedOption = workflowOptions.find((option) => option.levelsHash === levelsHash);
     setFormData((current) => ({
       ...current,
-      selectedWorkflowId: workflowId,
+      selectedWorkflowLevelsHash: levelsHash,
       selectedWorkflow: selectedOption?.label ?? "",
     }));
   };
@@ -539,7 +539,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
         })),
         primaryNodeId,
         selectedWorkflow: formData.selectedWorkflow,
-        selectedWorkflowId: formData.selectedWorkflowId,
+        selectedWorkflowLevelsHash: formData.selectedWorkflowLevelsHash,
       };
 
       await onSubmit(payloadFormData);

@@ -43,6 +43,7 @@ const mapCompanyHistoryEntry = (item: unknown, index: number): HistoryEntry => {
     readString(record.requestedByEmail) ||
     readString(basicDetails.initiatorEmail) ||
     "no-email@example.com";
+  const showActor = Boolean(readString(user.name) || readString(user.email));
   const companyCode = readString(record.companyCode) || readString(record.code);
 
   const normalizedAction = action.toLowerCase();
@@ -63,6 +64,7 @@ const mapCompanyHistoryEntry = (item: unknown, index: number): HistoryEntry => {
       date,
       time,
     },
+    showActor,
     approver: isApprovedAction
       ? {
         name: initiatorName,

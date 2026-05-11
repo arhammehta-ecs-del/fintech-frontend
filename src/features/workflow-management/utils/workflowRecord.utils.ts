@@ -9,13 +9,10 @@ const toRecord = (value: unknown): RawWorkflowRecord =>
 const getNodeLabelFromPath = (nodePath: string) => {
   const segments = nodePath.split(".").map((segment) => segment.trim()).filter(Boolean);
   const last = segments[segments.length - 1] || "";
-  return last
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return formatSnakeCaseLabel(last);
 };
 
-const formatNodeType = (value: string) =>
+export const formatSnakeCaseLabel = (value: string) =>
   value
     .trim()
     .replace(/_/g, " ")
@@ -29,10 +26,21 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
 
   const id =
     readString(record.id) ||
+    readString(record.levelsHash) ||
     readString(record.workflowId) ||
     readString(record.requestId) ||
     readString(payload.id) ||
+    readString(payload.levelsHash) ||
     readString(payload.workflowId);
+  const levelsHash =
+    readString(record.levelsHash) ||
+    readString(payload.levelsHash) ||
+    readString(record.workflowId) ||
+    readString(payload.workflowId);
+  const workflowId =
+    readString(record.workflowId) ||
+    readString(payload.workflowId) ||
+    id;
   const name = readString(record.name) || readString(payload.name) || "Unknown";
   const alias = readString(record.alias) || readString(payload.alias) || "-";
   const moduleName = readString(record.module) || readString(payload.module) || "Unknown";
@@ -41,7 +49,7 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
     readString(orgStructure.nodePath) ||
     readString(payload.nodePath);
   const subModule = readString(record.subModule) || readString(payload.subModule);
-  const moduleDisplayName = subModule || moduleName;
+  const moduleDisplayName = subModule ? formatSnakeCaseLabel(subModule) : moduleName;
   const nodeType = readString(record.nodeType) || readString(orgStructure.nodeType) || readString(payload.nodeType);
   const nodeName =
     readString(record.nodeName) ||
@@ -52,11 +60,13 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
 
   return {
     id,
+    workflowId,
+    levelsHash,
     name,
     alias,
     module: moduleDisplayName,
     nodeName,
-    nodeType: nodeType ? formatNodeType(nodeType) : "-",
+    nodeType: nodeType ? formatSnakeCaseLabel(nodeType) : "-",
     subModule,
     nodePath,
     levels,

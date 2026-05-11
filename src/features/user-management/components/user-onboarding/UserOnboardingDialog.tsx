@@ -207,7 +207,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                 {step === 4 ? (
                   <Select
-                    value={formData.selectedWorkflowId || "__none__"}
+                    value={formData.selectedWorkflowLevelsHash || "__none__"}
                     onValueChange={(value) => setSelectedWorkflow(value === "__none__" ? "" : value)}
                   >
                     <SelectTrigger className="h-11 w-full min-w-[240px] border-[rgb(53,83,233)]/30 text-[rgb(53,83,233)] sm:w-[280px]">
@@ -216,7 +216,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
                     <SelectContent side="top" align="end">
                       <SelectItem value="__none__">No Workflow</SelectItem>
                       {workflowOptions.map((workflowOption) => (
-                        <SelectItem key={workflowOption.id} value={workflowOption.id}>
+                        <SelectItem key={workflowOption.levelsHash} value={workflowOption.levelsHash}>
                           {workflowOption.label}
                         </SelectItem>
                       ))}

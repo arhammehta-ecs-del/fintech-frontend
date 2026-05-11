@@ -14,6 +14,7 @@ export type CreateWorkflowPayload = {
   subModule: string;
   nodePath: string;
   levels: Record<string, any>;
+  levelsHash?: string | null;
 };
 
 export async function createWorkflow(payload: CreateWorkflowPayload) {
@@ -41,9 +42,9 @@ export async function updateWorkflowAction(id: string, action: string, remark: s
   });
 }
 
-export async function fetchWorkflowHistory(workflowId: string) {
+export async function fetchWorkflowHistory(levelsHash: string) {
   return apiFetch<any>(WORKFLOW_HISTORY_PATH, {
     method: "POST",
-    body: JSON.stringify({ workflowId }),
+    body: JSON.stringify({ levelsHash }),
   });
 }

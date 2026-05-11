@@ -8,15 +8,13 @@ import {
   approveAllPendingOrgNodesForCompany,
   approveAllPendingUsersForCompany,
   DEFAULT_SEED_CONFIG,
-  runFrontendSeed,
-  seedAllForCompany,
   seedCompanies,
   seedOrgForCompany,
   seedUsersForCompany,
   type SeedSummary,
 } from "@/services/seed.service";
 
-type SeedAction = "companies" | "org" | "users" | "approve-users" | "approve-org" | "all" | null;
+type SeedAction = "companies" | "org" | "users" | "approve-users" | "approve-org" | null;
 
 type ApprovedCompanyOption = {
   id: string;
@@ -221,19 +219,6 @@ export default function Dashboard() {
     );
   };
 
-  const handleSeedAll = () => {
-    if (!selectedCompany?.companyCode) return;
-    void runAction("all", () =>
-      seedAllForCompany(
-        selectedCompany.companyCode,
-        selectedCompany.companyIndex,
-        selectedCompany.brand,
-        DEFAULT_SEED_CONFIG,
-        appendProgress,
-      ),
-    );
-  };
-
   const handleApprovePendingUsers = () => {
     if (!selectedCompany?.companyCode) return;
     void runAction("approve-users", () =>
@@ -262,7 +247,7 @@ export default function Dashboard() {
                 <p className="text-sm font-medium text-slate-900">Seed Companies</p>
                 <p className="text-xs text-slate-500">Seeds all companies. No company selection needed.</p>
               </div>
-              <Button onClick={handleSeedCompanies} disabled={isRunning}>
+              <Button onClick={handleSeedCompanies} disabled={isRunning} className="h-11 px-5">
                 {runningAction === "companies" ? "Seeding Companies..." : "🏢 Seed Companies"}
               </Button>
             </div>
@@ -286,24 +271,34 @@ export default function Dashboard() {
                 </option>
               ))}
             </select>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-              <Button onClick={handleSeedOrg} disabled={isRunning || !selectedCompany}>
-                {runningAction === "org" ? "Seeding Org..." : "🌿 Seed Org"}
-              </Button>
-              <Button onClick={handleSeedUsers} disabled={isRunning || !selectedCompany}>
-                {runningAction === "users" ? "Seeding Users..." : "👥 Seed Users"}
-              </Button>
-              <Button onClick={handleSeedAll} disabled={isRunning || !selectedCompany}>
-                {runningAction === "all" ? "Seeding All..." : "🚀 Seed All"}
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              <Button onClick={handleApprovePendingUsers} disabled={isRunning || !selectedCompany} variant="outline" className="w-full">
-                {runningAction === "approve-users" ? "Approving Pending Users..." : "✅ Approve All Pending Users"}
-              </Button>
-              <Button onClick={handleApprovePendingOrgNodes} disabled={isRunning || !selectedCompany} variant="outline" className="w-full">
-                {runningAction === "approve-org" ? "Approving Pending Nodes..." : "✅ Approve All Pending Nodes"}
-              </Button>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Button onClick={handleSeedOrg} disabled={isRunning || !selectedCompany} className="h-11 w-full">
+                  {runningAction === "org" ? "Seeding Org..." : "🌿 Seed Org"}
+                </Button>
+                <Button
+                  onClick={handleApprovePendingOrgNodes}
+                  disabled={isRunning || !selectedCompany}
+                  variant="outline"
+                  className="h-11 w-full"
+                >
+                  {runningAction === "approve-org" ? "Approving Pending Nodes..." : "✅ Approve All Pending Nodes"}
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <Button onClick={handleSeedUsers} disabled={isRunning || !selectedCompany} className="h-11 w-full">
+                  {runningAction === "users" ? "Seeding Users..." : "👥 Seed Users"}
+                </Button>
+                <Button
+                  onClick={handleApprovePendingUsers}
+                  disabled={isRunning || !selectedCompany}
+                  variant="outline"
+                  className="h-11 w-full"
+                >
+                  {runningAction === "approve-users" ? "Approving Pending Users..." : "✅ Approve All Pending Users"}
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -332,18 +327,6 @@ export default function Dashboard() {
             </div>
           ) : null}
 
-          <div className="rounded-xl border border-slate-200 p-4">
-            <Button
-              onClick={() =>
-                void runAction("all", () => runFrontendSeed(DEFAULT_SEED_CONFIG, appendProgress))
-              }
-              disabled={isRunning}
-              variant="outline"
-              className="w-full"
-            >
-              {runningAction === "all" ? "Running Legacy Seed..." : "Run Legacy Seed (single-button compatibility)"}
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>

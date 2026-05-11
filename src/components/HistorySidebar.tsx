@@ -10,6 +10,12 @@ export type HistoryEntry = {
   day: string;
   action: string;
   details: string;
+  timestampMissing?: boolean;
+  showActor?: boolean;
+  eligibleApprovers?: Array<{
+    name: string;
+    email: string;
+  }>;
   initiator: {
     name: string;
     email: string;
@@ -46,13 +52,14 @@ const toTitleCase = (value: string) =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 
-type EventTone = "approved" | "pending" | "rejected" | "inactive";
+type EventTone = "approved" | "pending" | "initiation" | "rejected" | "inactive";
 
 const getEventTone = (action: string, fallbackStatus: HistoryStatus): EventTone => {
   const normalized = action.trim().toLowerCase();
   if (normalized.includes("reject")) return "rejected";
   if (normalized.includes("inactive") || normalized.includes("deactivate")) return "inactive";
-  if (normalized.includes("pending") || normalized.includes("initiate")) return "pending";
+  if (normalized.includes("initiate")) return "initiation";
+  if (normalized.includes("pending")) return "pending";
   if (normalized.includes("approve") || normalized.includes("active")) return "approved";
   return fallbackStatus === "pending" ? "pending" : "approved";
 };
@@ -84,6 +91,8 @@ function StatusHeader({ item }: { item: HistoryEntry }) {
   const badgeClassName =
     tone === "pending"
       ? "border-amber-200/50 bg-amber-50 text-amber-700"
+      : tone === "initiation"
+        ? "border-sky-200/60 bg-sky-50 text-sky-700"
       : tone === "rejected"
         ? "border-rose-200/50 bg-rose-50 text-rose-700"
         : tone === "inactive"
@@ -95,6 +104,8 @@ function StatusHeader({ item }: { item: HistoryEntry }) {
       <div className={`flex items-center gap-1.5 rounded border px-2 py-1 ${badgeClassName}`}>
         {tone === "pending" ? (
           <Clock className="h-3 w-3" />
+        ) : tone === "initiation" ? (
+          <History className="h-3 w-3" />
         ) : tone === "rejected" ? (
           <CircleX className="h-3 w-3" />
         ) : (
@@ -125,22 +136,28 @@ function ActorFooter({ item }: { item: HistoryEntry }) {
 
   return (
     <div className="-mx-4 -mb-4 mt-4 flex items-center justify-between rounded-b-[14px] border-t border-slate-100 bg-slate-50/50 px-4 pb-4 pt-3">
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-[9px] font-bold text-slate-600 shadow-sm">
-          {actor.initials}
+      {item.showActor ? (
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-[9px] font-bold text-slate-600 shadow-sm">
+            {actor.initials}
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[11px] font-semibold leading-tight text-slate-900">{actor.name}</span>
+            <span className="text-[9.5px] text-slate-500">{actor.email}</span>
+          </div>
         </div>
-        <div className="flex flex-col">
-          <span className="text-[11px] font-semibold leading-tight text-slate-900">{actor.name}</span>
-          <span className="text-[9.5px] text-slate-500">{actor.email}</span>
-        </div>
-      </div>
+      ) : (
+        <div />
+      )}
 
-      <div className="flex flex-col items-end">
-        <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600">
-          <span className="flex items-center gap-1"><Calendar className="h-3 w-3 text-slate-400" /> {actor.date}</span>
-          <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-slate-400" /> {actor.time}</span>
+      {item.timestampMissing ? null : (
+        <div className="flex flex-col items-end">
+          <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600">
+            <span className="flex items-center gap-1"><Calendar className="h-3 w-3 text-slate-400" /> {actor.date || "—"}</span>
+            <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-slate-400" /> {actor.time || "—"}</span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -151,6 +168,30 @@ function MilestoneTimeline({ data }: { data: HistoryEntry[] }) {
       <div className="space-y-6">
         {data.map((item, index) => (
           <div key={item.id} className="relative pl-14">
+            {(() => {
+              const tone = getEventTone(item.action, item.status);
+              const dateBadgeClassName =
+                tone === "pending"
+                  ? "border-amber-300 text-amber-700 shadow-[0_0_10px_rgba(251,191,36,0.15)]"
+                  : tone === "initiation"
+                    ? "border-sky-300 text-sky-700 shadow-[0_0_10px_rgba(56,189,248,0.16)]"
+                    : tone === "approved"
+                      ? "border-emerald-300 text-emerald-700 shadow-[0_0_10px_rgba(16,185,129,0.16)]"
+                      : "border-slate-200";
+
+              return (
+                <div
+                  className={[
+                    "absolute left-0 top-0 z-10 flex h-9 w-[52px] flex-col items-center justify-center rounded-xl border bg-white font-bold text-slate-700 shadow-sm transition-all",
+                    dateBadgeClassName,
+                  ].join(" ")}
+                >
+                  <span className="text-[13px] leading-none tracking-tight">{item.day}</span>
+                  <span className="mt-0.5 text-[7px] uppercase tracking-widest opacity-70">{item.month.substring(0, 3)}</span>
+                </div>
+              );
+            })()}
+
             {index < data.length - 1 ? (
               <div
                 className="absolute left-[26px] top-[36px] w-[1.5px] bg-slate-200"
@@ -158,30 +199,58 @@ function MilestoneTimeline({ data }: { data: HistoryEntry[] }) {
                 aria-hidden="true"
               />
             ) : null}
-            <div
-              className={[
-                "absolute left-0 top-0 z-10 flex h-9 w-[52px] flex-col items-center justify-center rounded-xl border bg-white font-bold text-slate-700 shadow-sm transition-all",
-                item.status === "pending"
-                  ? "border-amber-300 text-amber-700 shadow-[0_0_10px_rgba(251,191,36,0.15)]"
-                  : "border-slate-200",
-              ].join(" ")}
-            >
-              <span className="text-[13px] leading-none tracking-tight">{item.day}</span>
-              <span className="mt-0.5 text-[7px] uppercase tracking-widest opacity-70">{item.month.substring(0, 3)}</span>
-            </div>
 
             <div
               className={[
                 "rounded-2xl border bg-white p-4 shadow-sm transition-all",
-                item.status === "pending"
-                  ? "border-amber-200/70 shadow-[0_2px_12px_rgba(251,191,36,0.08)]"
-                  : "border-slate-200 hover:shadow-md",
+                (() => {
+                  const tone = getEventTone(item.action, item.status);
+                  return tone === "pending"
+                    ? "border-amber-200/70 shadow-[0_2px_12px_rgba(251,191,36,0.08)]"
+                    : tone === "initiation"
+                      ? "border-sky-200/80 shadow-[0_2px_12px_rgba(56,189,248,0.08)]"
+                      : tone === "approved"
+                        ? "border-emerald-200/80 shadow-[0_2px_12px_rgba(16,185,129,0.08)]"
+                        : "border-slate-200 hover:shadow-md";
+                })(),
               ].join(" ")}
             >
               <StatusHeader item={item} />
               <div className="mb-2 px-1">
                 <h4 className="mb-1.5 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
                 <p className="text-[11.5px] leading-relaxed text-slate-600">{item.details}</p>
+                {item.eligibleApprovers && item.eligibleApprovers.length > 0 ? (
+                  <div
+                    className={[
+                      "mt-2 rounded-lg border p-2",
+                      (() => {
+                        const tone = getEventTone(item.action, item.status);
+                        return tone === "pending"
+                          ? "border-amber-200 bg-amber-50/40"
+                          : tone === "initiation"
+                            ? "border-sky-200 bg-sky-50/35"
+                            : tone === "approved"
+                              ? "border-emerald-200 bg-emerald-50/35"
+                              : "border-slate-200 bg-slate-50/70";
+                      })(),
+                    ].join(" ")}
+                  >
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      Eligible Approvers
+                    </p>
+                    <div className="max-h-[116px] space-y-1 overflow-y-auto pr-1">
+                      {item.eligibleApprovers.map((approver, idx) => (
+                        <div key={`${approver.email}-${idx}`} className="flex items-start gap-1.5 text-[11px] leading-tight text-slate-700">
+                          <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                          <div className="min-w-0">
+                            <span className="font-medium">{approver.name}</span>
+                            <span className="text-slate-500"> ({approver.email})</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
               <ActorFooter item={item} />
             </div>

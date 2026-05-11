@@ -24,7 +24,7 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
     moduleGroups,
     departmentOptions,
     workflowOptions,
-    selectedWorkflowId,
+    selectedWorkflowLevelsHash,
     levels,
     isRMUsedGlobally,
     currentLevelComplete,
@@ -33,7 +33,7 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
     setWfName,
     setWfModule,
     setWfNode,
-    setSelectedWorkflowId,
+    setSelectedWorkflowLevelsHash,
     updateLevelApprover,
     addApproverToLevel,
     removeApproverFromLevel,
@@ -107,14 +107,14 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
 
         <div className="flex items-center gap-2">
           {step === 3 ? (
-            <Select value={selectedWorkflowId || "__none__"} onValueChange={(value) => setSelectedWorkflowId(value === "__none__" ? "" : value)}>
+            <Select value={selectedWorkflowLevelsHash || "__none__"} onValueChange={(value) => setSelectedWorkflowLevelsHash(value === "__none__" ? "" : value)}>
               <SelectTrigger className="h-11 w-[220px] border-blue-200 text-blue-700">
                 <SelectValue placeholder="Select Workflow" />
               </SelectTrigger>
               <SelectContent side="top" align="end">
                 <SelectItem value="__none__">No Workflow</SelectItem>
                 {workflowOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
+                  <SelectItem key={option.levelsHash} value={option.levelsHash}>
                     {option.label}
                   </SelectItem>
                 ))}

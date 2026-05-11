@@ -75,11 +75,15 @@ export interface AppUser {
     email: string;
     phone: string;
     companyOnboardingDate: string;
+    createdAt?: string;
     designation: string;
     employeeId?: string;
     reportingManager: string;
     reportingManagerName?: string;
     reportingManagerEmail?: string;
+    initiatorName?: string;
+    initiatorEmail?: string;
+    initiatedDate?: string;
   };
   accessDetails?: Array<{
     roleCategory: string;

@@ -15,14 +15,29 @@ export function UserManagementView() {
   const {
     search,
     setSearch,
-    departmentFilter,
-    setDepartmentFilter,
-    roleFilter,
-    setRoleFilter,
+    designationFilters,
+    setDesignationFilters,
+    departmentFilters,
+    setDepartmentFilters,
+    reportingManagerFilters,
+    setReportingManagerFilters,
+    primaryNodeFilters,
+    setPrimaryNodeFilters,
+    secondaryNodeFilters,
+    setSecondaryNodeFilters,
+    onboardingDateFrom,
+    setOnboardingDateFrom,
+    onboardingDateTo,
+    setOnboardingDateTo,
     sortOrder,
     setSortOrder,
     roles,
     departments,
+    reportingManagerOptions,
+    primaryNodeOptions,
+    secondaryNodeOptions,
+    toggleFilterValue,
+    clearAdvancedFilters,
     activeMembers,
     pendingMembers,
     inactiveMembers,
@@ -61,14 +76,35 @@ export function UserManagementView() {
         onStatusTabChange={setStatusTab}
         search={search}
         onSearchChange={setSearch}
-        departmentFilter={departmentFilter}
-        onDepartmentFilterChange={setDepartmentFilter}
-        roleFilter={roleFilter}
-        onRoleFilterChange={setRoleFilter}
+        designationFilters={designationFilters}
+        onToggleDesignation={(value) => setDesignationFilters((current) => toggleFilterValue(current, value))}
+        departmentFilters={departmentFilters}
+        onToggleDepartment={(value) => setDepartmentFilters((current) => toggleFilterValue(current, value))}
+        reportingManagerFilters={reportingManagerFilters}
+        onToggleReportingManager={(value) => setReportingManagerFilters((current) => toggleFilterValue(current, value))}
+        primaryNodeFilters={primaryNodeFilters}
+        onTogglePrimaryNode={(value) => setPrimaryNodeFilters((current) => toggleFilterValue(current, value))}
+        secondaryNodeFilters={secondaryNodeFilters}
+        onToggleSecondaryNode={(value) => setSecondaryNodeFilters((current) => toggleFilterValue(current, value))}
+        onboardingDateFrom={onboardingDateFrom}
+        onboardingDateTo={onboardingDateTo}
+        onOnboardingDateFromChange={setOnboardingDateFrom}
+        onOnboardingDateToChange={setOnboardingDateTo}
+        onClearAdvancedFilters={clearAdvancedFilters}
+        onApplyAdvancedFilters={(filters) => {
+          setDesignationFilters(filters.designationFilters);
+          setDepartmentFilters(filters.departmentFilters);
+          setReportingManagerFilters(filters.reportingManagerFilters);
+          setPrimaryNodeFilters(filters.primaryNodeFilters);
+          setSecondaryNodeFilters(filters.secondaryNodeFilters);
+        }}
         sortOrder={sortOrder}
         onSortOrderChange={setSortOrder}
         roles={roles}
         departments={departments}
+        reportingManagerOptions={reportingManagerOptions}
+        primaryNodeOptions={primaryNodeOptions}
+        secondaryNodeOptions={secondaryNodeOptions}
         statusCounts={{
           active: activeMembers.length,
           pending: pendingMembers.length,

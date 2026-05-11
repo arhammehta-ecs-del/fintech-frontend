@@ -155,32 +155,29 @@ export function NewNodePopup({
             </div>
           </div>
 
-          <div className="space-y-2.5">
-            <Label className="text-[15px] font-medium text-slate-900">
-              Select Workflow
-            </Label>
-            <div>
-              <Select value={workflowId || "__none__"} onValueChange={(value) => setWorkflowId(value === "__none__" ? "" : value)}>
-                <SelectTrigger id="workflow-id" className="h-10 rounded-xl border-slate-200 px-3.5 text-[15px] shadow-sm">
-                  <SelectValue placeholder="Select workflow (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">No Workflow</SelectItem>
-                  {workflowOptions.map((workflowOption) => (
-                    <SelectItem key={workflowOption.id} value={workflowOption.id}>
-                      {workflowOption.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
         </div>
 
         <DialogFooter className="border-t border-slate-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-end sm:space-x-3">
-          <Button variant="outline" className="h-10 rounded-xl px-5" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
+          <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <Button variant="outline" className="h-10 rounded-xl px-5" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Select value={workflowId || "__none__"} onValueChange={(value) => setWorkflowId(value === "__none__" ? "" : value)}>
+              <SelectTrigger id="workflow-id" className="h-10 w-full rounded-xl border-slate-200 bg-white px-3.5 text-[14px] shadow-sm sm:w-[260px]">
+                <SelectValue placeholder="Select workflow">
+                  {workflowId ? workflowOptions.find((option) => option.id === workflowId)?.label ?? "Select workflow" : "No Workflow"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent side="top" align="end">
+                <SelectItem value="__none__">No Workflow</SelectItem>
+                {workflowOptions.map((workflowOption) => (
+                  <SelectItem key={workflowOption.id} value={workflowOption.id}>
+                    {workflowOption.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button className="h-10 min-w-[160px] rounded-xl px-6" onClick={handleConfirm} disabled={!name.trim() || !nodeType}>
             Submit Request
           </Button>

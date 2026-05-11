@@ -57,16 +57,13 @@ type RawCompanyListItem = {
   address?: string | null;
   status?: string | null;
   isActive?: boolean | null;
-  signatories?:
-  | Array<{
-    fullName?: string | null;
+  signatories?: Array<{
     name?: string | null;
     designation?: string | null;
     email?: string | null;
     phone?: string | null;
     employeeId?: string | null;
-  } | null>
-  | null;
+  } | null> | null;
   requesterName?: string | null;
   requesterEmail?: string | null;
   requestInitiatedAt?: string | null;
@@ -80,7 +77,6 @@ type RawCompanyListItem = {
 };
 
 type RawSignatory = {
-  fullName?: string | null;
   name?: string | null;
   designation?: string | null;
   email?: string | null;
@@ -91,14 +87,11 @@ type RawSignatory = {
 type RawCompanyGroup = {
   groupName?: string | null;
   groupCode?: string | null;
-  companies?: RawCompanyListItem[] | null;
   groupDetails?: {
     groupName?: string | null;
     groupCode?: string | null;
   } | null;
-  companyDetails?: RawCompanyListItem[] | null;
   comapnyDetails?: RawCompanyListItem[] | null;
-  conapnyDetails?: RawCompanyListItem[] | null;
   signatories?: Array<RawSignatory | null> | null;
 };
 
@@ -139,7 +132,7 @@ const mapSignatories = (signatories: Array<RawSignatory | null> | null | undefin
   signatories
     ?.filter((signatory): signatory is RawSignatory => Boolean(signatory))
     .map((signatory) => ({
-      fullName: getPacketString(signatory.fullName) || getPacketString(signatory.name),
+      fullName: getPacketString(signatory.name),
       designation: getPacketString(signatory.designation),
       email: getPacketString(signatory.email),
       phone: getPacketString(signatory.phone),
@@ -177,27 +170,20 @@ const mapCompany = (
     status: normalizeCompanyStatus(company, bucketStatus),
     signatories,
     requesterName:
-      getPacketString(company.requesterName) ||
-      getPacketString(company.initiatorName) ||
-      getPacketString(company.initiatedByName),
+      getPacketString(company.initiatorName),
     requesterEmail:
-      getPacketString(company.requesterEmail) ||
-      getPacketString(company.initiatorEmail) ||
-      getPacketString(company.initiatedByEmail),
+      getPacketString(company.initiatorEmail),
     requestInitiatedAt:
-      getPacketString(company.requestInitiatedAt) ||
-      getPacketString(company.initiatedDate) ||
-      getPacketString(company.initiatedAt) ||
-      getPacketString(company.createdAt),
+      getPacketString(company.initiatedDate),
   };
 };
 
 const getGroupName = (group: RawCompanyGroup) =>
-  getPacketString(group.groupName) || getPacketString(group.groupDetails?.groupName);
+  getPacketString(group.groupDetails?.groupName);
 const getGroupCode = (group: RawCompanyGroup) =>
-  toUpperValue(getPacketString(group.groupCode) || getPacketString(group.groupDetails?.groupCode));
+  toUpperValue(getPacketString(group.groupDetails?.groupCode));
 const getGroupCompanies = (group: RawCompanyGroup) =>
-  group.companies ?? group.companyDetails ?? group.comapnyDetails ?? group.conapnyDetails ?? [];
+  group.comapnyDetails ?? [];
 
 const mapGroups = (groups: RawCompanyGroup[], bucketStatus?: Company["status"] | null): GroupCompany[] =>
   groups.map((group, index) => {
@@ -230,8 +216,7 @@ export async function getAllCompanies(): Promise<GroupCompany[]> {
     const inactiveGroups = mapGroups(payload.companies.inactive ?? [], "Inactive");
     return [...activeGroups, ...pendingGroups, ...inactiveGroups];
   }
-
-  return mapGroups(payload.data ?? []);
+  return [];
 }
 
 export async function createCompanyOnboarding(payload: OnboardingPayload, file?: File | null) {
