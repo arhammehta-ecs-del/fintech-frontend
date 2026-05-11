@@ -247,7 +247,7 @@ export default function WorkflowManageDialog({
       <DialogContent
         showCloseButton={false}
         overlayClassName={overlayClassName}
-        className={cn("w-[min(92vw,44rem)] max-w-[44rem] p-0", contentClassName)}
+        className={cn("w-[min(90vw,40rem)] max-w-[40rem] p-0", contentClassName)}
         style={contentStyle}
       >
         <DialogHeader className="border-b border-slate-200 bg-slate-50/40 px-6 py-4">
