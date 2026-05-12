@@ -488,7 +488,7 @@ export default function WorkflowManagementView() {
       {manageWorkflow && typeof document !== "undefined"
         ? createPortal(
             <div
-              className="fixed z-[49] bg-black/30 backdrop-blur-sm"
+              className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
               style={
                 canUseSplitManageHistory
                   ? {
@@ -532,7 +532,7 @@ export default function WorkflowManagementView() {
         onSubmitAction={handleWorkflowAction}
         onToggleHistory={manageWorkflow?.status === "Pending" ? () => setManageHistoryOpen((current) => !current) : undefined}
         isHistoryOpen={canUseSplitManageHistory}
-        overlayClassName={canUseSplitManageHistory ? "hidden" : undefined}
+        overlayClassName="hidden"
         contentClassName={
           canUseSplitManageHistory
             ? "flex h-full max-h-none w-auto max-w-none flex-col overflow-hidden rounded-none p-0"

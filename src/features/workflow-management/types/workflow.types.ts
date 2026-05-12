@@ -22,5 +22,5 @@ export type WorkflowRecord = {
   status: WorkflowStatus;
 };
 
-export const WORKFLOW_PAGE_SIZE_OPTIONS = [10, 15, 25] as const;
+export const WORKFLOW_PAGE_SIZE_OPTIONS = [15, 25, 35, 50] as const;
 export type WorkflowPageSize = (typeof WORKFLOW_PAGE_SIZE_OPTIONS)[number];

@@ -16,6 +16,7 @@ import {
 import type { AppUser } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   formatDateLabel,
   getAvatarColor,
@@ -543,20 +544,27 @@ export function UserManagePreview({
             {member.status === "Pending" ? (
               <div className="flex items-center gap-2">
                 {onToggleHistory ? (
-                  <button
-                    type="button"
-                    onClick={onToggleHistory}
-                    className={cn(
-                      "inline-flex h-10 w-10 items-center justify-center rounded-xl border transition",
-                      isHistoryOpen
-                        ? "border-[rgb(53,83,233)] bg-[rgb(53,83,233)] text-white shadow-[0_4px_12px_rgba(53,83,233,0.24)]"
-                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700",
-                    )}
-                    aria-label={isHistoryOpen ? "Close history sidebar" : "Open history sidebar"}
-                    aria-pressed={isHistoryOpen}
-                  >
-                    <History className="h-4 w-4" />
-                  </button>
+                  <TooltipProvider delayDuration={120}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={onToggleHistory}
+                          className={cn(
+                            "inline-flex h-10 w-10 items-center justify-center rounded-xl border transition",
+                            isHistoryOpen
+                              ? "border-[rgb(53,83,233)] bg-[rgb(53,83,233)] text-white shadow-[0_4px_12px_rgba(53,83,233,0.24)]"
+                              : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700",
+                          )}
+                          aria-label={isHistoryOpen ? "Close history sidebar" : "Open history sidebar"}
+                          aria-pressed={isHistoryOpen}
+                        >
+                          <History className="h-4 w-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">User History</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 ) : null}
                 {onClose ? (
                   <button

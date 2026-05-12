@@ -331,7 +331,12 @@ export function useOrgStructure() {
     }
 
     try {
-      await updateOrgNodeAction(nodeId, "approve", cleanedRemark);
+      const response = await updateOrgNodeAction(nodeId, "approve", cleanedRemark);
+      toast({
+        title: "Node Approved",
+        description: response?.message || "Organization structure node approved successfully.",
+        variant: "default",
+      });
       setPendingNodeForReview(null);
       await loadOrgForCompanyCode(companyCode);
     } catch (error) {
@@ -353,7 +358,12 @@ export function useOrgStructure() {
     }
 
     try {
-      await updateOrgNodeAction(nodeId, "reject", cleanedRemark);
+      const response = await updateOrgNodeAction(nodeId, "reject", cleanedRemark);
+      toast({
+        title: "Node Rejected",
+        description: response?.message || "Organization structure node rejected successfully.",
+        variant: "default",
+      });
       setPendingNodeForReview(null);
       await loadOrgForCompanyCode(companyCode);
     } catch (error) {

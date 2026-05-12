@@ -233,7 +233,7 @@ export function UserManagementView() {
       {viewingMember && typeof document !== "undefined"
         ? createPortal(
             <div
-              className="fixed z-[49] bg-black/30 backdrop-blur-sm"
+              className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
               style={
                 canUseSplitHistory
                   ? {

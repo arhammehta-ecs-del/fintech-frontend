@@ -3,6 +3,7 @@ import { X, CheckCircle2, XCircle, Building2, MapPin, Layers3, Briefcase, Boxes,
 import { cn } from "@/lib/utils";
 import type { OrgNode } from "@/contexts/AppContext";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type PendingNodePopupProps = {
   open: boolean;
@@ -111,27 +112,32 @@ export function PendingNodePopup({
         onClick={onClose} 
       />
 
-      {/* Content */}
       <div
         className={cn(
           "relative w-full overflow-hidden rounded-[28px] bg-white shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-in zoom-in-95 fade-in duration-300",
-          isHistoryOpen ? "mx-auto my-auto max-h-full max-w-md" : "max-w-md",
+          isHistoryOpen ? "mx-auto my-auto max-h-full max-w-[480px]" : "max-w-[480px]",
         )}
       >
         {/* Header Section */}
         <div className="relative bg-amber-50/50 px-6 pb-5 pt-5">
           <div className="absolute right-4 top-4 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                if (onOpenHistory) onOpenHistory(node);
-              }}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 transition hover:bg-white hover:text-slate-700 shadow-sm"
-              aria-label="View node history"
-              title="View node history"
-            >
-              <History size={16} />
-            </button>
+            <TooltipProvider delayDuration={120}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenHistory) onOpenHistory(node);
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 transition hover:bg-white hover:text-slate-700 shadow-sm"
+                    aria-label="View node history"
+                  >
+                    <History size={16} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Node History</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <button
               onClick={onClose}
               className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-400 transition hover:bg-white hover:text-slate-600 shadow-sm"
@@ -159,13 +165,13 @@ export function PendingNodePopup({
               <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-700">Node Details</p>
             </div>
             <div className="space-y-2.5">
-              <div className="grid grid-cols-[18px_96px_1fr] items-center gap-2 text-sm">
-                <Info size={14} className="text-slate-400" />
+              <div className="grid grid-cols-[18px_96px_1fr] items-start gap-2 text-sm">
+                <Info size={14} className="mt-0.5 text-slate-400" />
                 <span className="text-slate-500">Node Type</span>
                 <span className="font-semibold text-slate-900">{node.nodeType}</span>
               </div>
-              <div className="grid grid-cols-[18px_96px_1fr] items-center gap-2 text-sm">
-                <Info size={14} className="text-slate-400" />
+              <div className="grid grid-cols-[18px_96px_1fr] items-start gap-2 text-sm">
+                <Info size={14} className="mt-0.5 text-slate-400" />
                 <span className="text-slate-500">Node Path</span>
                 <span className="font-mono text-[12px] font-semibold text-slate-700 break-words">
                   {nodePathSegments.length > 0
@@ -206,15 +212,35 @@ export function PendingNodePopup({
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workflow</p>
                   <div className="mt-2.5 space-y-1 text-[13px]">
-                    <div className="grid grid-cols-[52px_10px_1fr] items-center">
+                    <div className="grid grid-cols-[40px_10px_1fr] items-start">
                       <span className="text-slate-500">Name</span>
                       <span className="text-slate-400">:</span>
-                      <span className="truncate font-medium text-slate-700">{workflowName || "—"}</span>
+                      <span className="font-medium text-slate-700 break-words">
+                        {workflowName ? (
+                          workflowName.split('_').map((part, index, arr) => (
+                            <span key={`wn-${index}`}>
+                              {part}
+                              {index < arr.length - 1 ? "_" : ""}
+                              <wbr />
+                            </span>
+                          ))
+                        ) : "—"}
+                      </span>
                     </div>
-                    <div className="grid grid-cols-[52px_10px_1fr] items-center">
+                    <div className="grid grid-cols-[40px_10px_1fr] items-start">
                       <span className="text-slate-500">Alias</span>
                       <span className="text-slate-400">:</span>
-                      <span className="truncate font-medium text-slate-700">{workflowAlias || "—"}</span>
+                      <span className="font-medium text-slate-700 break-words">
+                        {workflowAlias ? (
+                          workflowAlias.split('_').map((part, index, arr) => (
+                            <span key={`wa-${index}`}>
+                              {part}
+                              {index < arr.length - 1 ? "_" : ""}
+                              <wbr />
+                            </span>
+                          ))
+                        ) : "—"}
+                      </span>
                     </div>
                   </div>
                 </div>

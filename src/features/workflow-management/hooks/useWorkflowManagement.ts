@@ -114,10 +114,9 @@ export function useWorkflowManagement() {
     setTypeFilters([]);
   };
 
-  const filteredWorkflows = useMemo(() => {
+  const baseFilteredWorkflows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return workflows.filter((workflow) => {
-      if (workflow.status !== activeStatus) return false;
       const matchesWorkflow = workflowFilters.length === 0 || workflowFilters.includes(workflow.name);
       const matchesAlias = aliasFilters.length === 0 || aliasFilters.includes(workflow.alias);
       const matchesModule = moduleFilters.length === 0 || moduleFilters.includes(workflow.module);
@@ -130,11 +129,16 @@ export function useWorkflowManagement() {
         .toLowerCase()
         .includes(query);
     });
-  }, [activeStatus, aliasFilters, moduleFilters, nodeNameFilters, search, typeFilters, workflowFilters, workflows]);
+  }, [aliasFilters, moduleFilters, nodeNameFilters, search, typeFilters, workflowFilters, workflows]);
+
+  const filteredWorkflows = useMemo(
+    () => baseFilteredWorkflows.filter((workflow) => workflow.status === activeStatus),
+    [baseFilteredWorkflows, activeStatus],
+  );
 
   const statusCounts = useMemo(
     () =>
-      workflows.reduce(
+      baseFilteredWorkflows.reduce(
         (counts, workflow) => {
           if (workflow.status === "Active") counts.active += 1;
           if (workflow.status === "Pending") counts.pending += 1;
@@ -142,7 +146,7 @@ export function useWorkflowManagement() {
         },
         { active: 0, pending: 0 },
       ),
-    [workflows],
+    [baseFilteredWorkflows],
   );
 
   useEffect(() => {
