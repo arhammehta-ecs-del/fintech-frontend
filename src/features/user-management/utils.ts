@@ -58,30 +58,20 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
             return selectedActions.flatMap((action) => {
               const scope =
                 nodeEntry.permissionScopes?.[bucketKey as "primary" | "secondary"]?.[category]?.[subCategory]?.[action] ?? "NODE";
-              const isPrimaryBucket = bucketKey === "primary";
-              const targets =
-                category.trim().toUpperCase() === "SYSTEM_ACCESS" && SYSTEM_ACCESS_SCOPE_ITEMS.has(normalizeScopeKey(subCategory))
-                  ? isPrimaryBucket
-                    ? [{ nodeName: nodeEntry.nodeName, nodePath: nodeEntry.nodePath }]
-                    : scope === "IMMEDIATE_CHILD"
-                    ? (nodeEntry.immediateChildren.length > 0 ? nodeEntry.immediateChildren : [{ nodeName: nodeEntry.nodeName, nodePath: nodeEntry.nodePath }])
-                    : scope === "ALL_CHILD"
-                      ? (nodeEntry.allChildren.length > 0 ? nodeEntry.allChildren : [{ nodeName: nodeEntry.nodeName, nodePath: nodeEntry.nodePath }])
-                      : [{ nodeName: nodeEntry.nodeName, nodePath: nodeEntry.nodePath }]
-                  : [{ nodeName: nodeEntry.nodeName, nodePath: nodeEntry.nodePath }];
-
-              return targets.map((target) => ({
-                roleCategory: category as UserOnboardingPermission["roleCategory"],
-                roleSubCategory: subCategory,
-                roleName: `${roleNameBase} ${action[0].toUpperCase()}${action.slice(1)}`,
-                nodeName: target.nodeName,
-                nodePath: target.nodePath,
-                accessCategory:
-                  category.trim().toUpperCase() === "SYSTEM_ACCESS" && SYSTEM_ACCESS_SCOPE_ITEMS.has(normalizeScopeKey(subCategory))
-                    ? scope
-                    : null,
-                accessType,
-              }));
+              return [
+                {
+                  roleCategory: category as UserOnboardingPermission["roleCategory"],
+                  roleSubCategory: subCategory,
+                  roleName: `${roleNameBase} ${action[0].toUpperCase()}${action.slice(1)}`,
+                  nodeName: nodeEntry.nodeName,
+                  nodePath: nodeEntry.nodePath,
+                  accessCategory:
+                    category.trim().toUpperCase() === "SYSTEM_ACCESS" && SYSTEM_ACCESS_SCOPE_ITEMS.has(normalizeScopeKey(subCategory))
+                      ? scope
+                      : null,
+                  accessType,
+                },
+              ];
             });
           }),
         ),
