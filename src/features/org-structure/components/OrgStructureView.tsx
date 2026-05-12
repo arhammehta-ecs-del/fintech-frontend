@@ -145,7 +145,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
           <div
             className={cn(
               "min-h-0 flex-1 overflow-x-hidden",
-              embedded ? (zoom > 1 ? "overflow-y-auto" : "overflow-y-hidden") : "overflow-y-auto",
+              embedded ? "overflow-y-auto overscroll-contain" : "overflow-y-auto",
             )}
           >
             <div className={cn("px-9", embedded ? "pt-[10px]" : "pt-10")}>
@@ -361,7 +361,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
           setHistoryViewContext("active");
         }}
         companyCode={companyCode}
-        subtitle={selectedDepartment?.name || companyName}
+        subtitle={historyNodeName || companyName}
         nodeName={historyNodeName}
         nodePath={historyNodePath}
         dockOffset={historyLayoutOffset}

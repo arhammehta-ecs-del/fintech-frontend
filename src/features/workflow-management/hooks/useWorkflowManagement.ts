@@ -6,6 +6,44 @@ import type { WorkflowPageSize, WorkflowRecord, WorkflowStatus } from "@/feature
 import { WORKFLOW_PAGE_SIZE_OPTIONS } from "@/features/workflow-management/types/workflow.types";
 import { mapWorkflowRecord } from "@/features/workflow-management/utils/workflowRecord.utils";
 
+const normalizeLoose = (value: string) => value.toLowerCase().trim().replace(/\s+/g, " ");
+const extractDigits = (value: string) => value.match(/\d+/g) ?? [];
+const splitAlphaNumericTokens = (value: string) =>
+  value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+const isWithinTwoEdits = (left: string, right: string) => {
+  if (!left || !right) return false;
+  const a = left.toLowerCase();
+  const b = right.toLowerCase();
+  const aLen = a.length;
+  const bLen = b.length;
+  if (Math.abs(aLen - bLen) > 2) return false;
+
+  const prev = Array.from({ length: bLen + 1 }, (_, idx) => idx);
+  for (let i = 1; i <= aLen; i += 1) {
+    let diagonal = prev[0];
+    prev[0] = i;
+    let rowMin = prev[0];
+    for (let j = 1; j <= bLen; j += 1) {
+      const temp = prev[j];
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      prev[j] = Math.min(
+        prev[j] + 1,
+        prev[j - 1] + 1,
+        diagonal + cost,
+      );
+      diagonal = temp;
+      if (prev[j] < rowMin) rowMin = prev[j];
+    }
+    if (rowMin > 2) return false;
+  }
+  return prev[bLen] <= 2;
+};
+
 export function useWorkflowManagement() {
   const { toast } = useToast();
   const [activeStatus, setActiveStatus] = useState<WorkflowStatus>("Active");
@@ -115,7 +153,9 @@ export function useWorkflowManagement() {
   };
 
   const baseFilteredWorkflows = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = normalizeLoose(search);
+    const queryTokens = splitAlphaNumericTokens(query).filter((token) => token.length >= 3);
+    const queryDigits = extractDigits(query);
     return workflows.filter((workflow) => {
       const matchesWorkflow = workflowFilters.length === 0 || workflowFilters.includes(workflow.name);
       const matchesAlias = aliasFilters.length === 0 || aliasFilters.includes(workflow.alias);
@@ -124,10 +164,22 @@ export function useWorkflowManagement() {
       const matchesType = typeFilters.length === 0 || typeFilters.includes(workflow.nodeType);
       if (!(matchesWorkflow && matchesAlias && matchesModule && matchesNodeName && matchesType)) return false;
       if (!query) return true;
-      return [workflow.name, workflow.alias, workflow.module, workflow.nodeName, workflow.nodeType]
-        .join(" ")
-        .toLowerCase()
-        .includes(query);
+
+      const rawFields = [workflow.name, workflow.alias, workflow.module, workflow.nodeName];
+      const normalizedFields = rawFields.map((field) => normalizeLoose(field));
+      const candidateDigits = extractDigits(normalizedFields.join(" "));
+      const hasAllDigits =
+        queryDigits.length === 0 || queryDigits.every((digit) => candidateDigits.includes(digit));
+      if (!hasAllDigits) return false;
+
+      const directMatch = normalizedFields.some((field) => field.includes(query));
+      if (directMatch) return true;
+
+      if (queryTokens.length === 0) return false;
+      const candidateTokens = splitAlphaNumericTokens(normalizedFields.join(" "));
+      return queryTokens.every((queryToken) =>
+        candidateTokens.some((candidateToken) => isWithinTwoEdits(queryToken, candidateToken)),
+      );
     });
   }, [aliasFilters, moduleFilters, nodeNameFilters, search, typeFilters, workflowFilters, workflows]);
 
@@ -154,6 +206,16 @@ export function useWorkflowManagement() {
       setActiveStatus("Active");
     }
   }, [activeStatus, statusCounts.pending]);
+
+  useEffect(() => {
+    if (activeStatus === "Active" && statusCounts.active === 0 && statusCounts.pending > 0) {
+      setActiveStatus("Pending");
+      return;
+    }
+    if (activeStatus === "Pending" && statusCounts.pending === 0 && statusCounts.active > 0) {
+      setActiveStatus("Active");
+    }
+  }, [activeStatus, statusCounts.active, statusCounts.pending]);
 
   useEffect(() => {
     setPage(1);

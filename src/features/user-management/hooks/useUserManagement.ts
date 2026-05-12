@@ -12,6 +12,41 @@ import { buildUserOnboardingPayload } from "@/features/user-management/utils";
 const normalizeCompact = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
 const normalizeLoose = (value: string) => value.toLowerCase().trim().replace(/\s+/g, " ");
 const extractDigits = (value: string) => value.match(/\d+/g) ?? [];
+const splitAlphaNumericTokens = (value: string) =>
+  value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+const isWithinTwoEdits = (left: string, right: string) => {
+  if (!left || !right) return false;
+  const a = left.toLowerCase();
+  const b = right.toLowerCase();
+  const aLen = a.length;
+  const bLen = b.length;
+  if (Math.abs(aLen - bLen) > 2) return false;
+
+  const prev = Array.from({ length: bLen + 1 }, (_, idx) => idx);
+  for (let i = 1; i <= aLen; i += 1) {
+    let diagonal = prev[0];
+    prev[0] = i;
+    let rowMin = prev[0];
+    for (let j = 1; j <= bLen; j += 1) {
+      const temp = prev[j];
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      prev[j] = Math.min(
+        prev[j] + 1,
+        prev[j - 1] + 1,
+        diagonal + cost,
+      );
+      diagonal = temp;
+      if (prev[j] < rowMin) rowMin = prev[j];
+    }
+    if (rowMin > 2) return false;
+  }
+  return prev[bLen] <= 2;
+};
 
 export function useUserManagement() {
   const { currentUser, users, setUsers } = useAppContext();
@@ -294,11 +329,10 @@ export function useUserManagement() {
         const email = user.email || "";
         const designation = user.designation || "";
         const department = user.department || "";
-        const phone = user.phone || "";
-        const searchableText = normalizeLoose(`${name} ${email} ${designation} ${department} ${phone}`);
+        const searchableText = normalizeLoose(`${name} ${email} ${designation} ${department}`);
         const compact = normalizeCompact(searchableText);
         const digits = extractDigits(searchableText);
-        return { user, name, email, designation, department, phone, searchableText, compact, digits };
+        return { user, name, email, designation, department, searchableText, compact, digits };
       });
 
       const rankContains = (candidate: (typeof searchable)[number]) => {
@@ -333,7 +367,6 @@ export function useUserManagement() {
             candidate.email.toLowerCase().includes(normalizedTerm) ||
             candidate.designation.toLowerCase().includes(normalizedTerm) ||
             candidate.department.toLowerCase().includes(normalizedTerm) ||
-            (candidate.phone ?? "").toLowerCase().includes(normalizedTerm) ||
             (compactQuery && candidate.compact.includes(compactQuery)) ||
             tokenCoverage
           );
@@ -347,8 +380,10 @@ export function useUserManagement() {
         return containsMatches;
       }
 
-      const threshold = queryDigits.length > 0 ? 0.22 : normalizedTerm.length >= 8 ? 0.3 : 0.36;
-      const minMatchCharLength = normalizedTerm.length <= 3 ? 1 : 2;
+      const hasDigits = /\d/.test(normalizedTerm);
+      const isDigitOnlyQuery = hasDigits && /^[\d\s()+-]+$/.test(normalizedTerm);
+      const threshold = isDigitOnlyQuery ? 0.22 : normalizedTerm.length >= 8 ? 0.3 : 0.32;
+      const minMatchCharLength = 2;
 
       const fuse = new Fuse(searchable, {
         includeScore: true,
@@ -356,22 +391,34 @@ export function useUserManagement() {
         ignoreLocation: true,
         minMatchCharLength,
         keys: [
-          { name: "name", weight: 0.5 },
-          { name: "email", weight: 0.2 },
-          { name: "designation", weight: 0.12 },
-          { name: "department", weight: 0.08 },
-          { name: "phone", weight: 0.05 },
-          { name: "compact", weight: 0.35 },
+          { name: "name", weight: 0.35 },
+          { name: "compact", weight: 0.25 },
+          { name: "email", weight: 0.15 },
+          { name: "designation", weight: 0.08 },
+          { name: "department", weight: 0.05 },
         ],
       });
 
       const fuzzyMatches = fuse
         .search(normalizedTerm)
         .filter((result) => {
-          const scorePass = (result.score ?? 1) <= threshold;
           const digitPass =
             queryDigits.length === 0 || queryDigits.every((digit) => result.item.digits.includes(digit));
-          return scorePass && digitPass;
+          if (!digitPass) return false;
+
+          const queryWordTokens = splitAlphaNumericTokens(normalizedTerm)
+            .filter((token) => token.length >= 3 && /[a-z]/.test(token));
+          if (queryWordTokens.length === 0) {
+            return (result.score ?? 1) <= threshold;
+          }
+
+          const candidateTokens = splitAlphaNumericTokens(result.item.searchableText);
+          const withinTwoEditsPass = queryWordTokens.every((queryToken) =>
+            candidateTokens.some((candidateToken) => isWithinTwoEdits(queryToken, candidateToken)),
+          );
+          if (withinTwoEditsPass) return true;
+
+          return (result.score ?? 1) <= threshold;
         })
         .map((result) => result.item.user);
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Calendar, ChevronDown, CircleX, Clock, History, ShieldCheck, X } from "lucide-react";
 
 export type HistoryStatus = "pending" | "approved";
@@ -46,6 +46,7 @@ export type HistorySidebarProps = {
   };
   splitView?: boolean;
   panelWidth?: number;
+  closeOnOutsideClick?: boolean;
 };
 
 const MONTHS = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
@@ -283,10 +284,12 @@ export function HistorySidebar({
   dockOffset,
   splitView = false,
   panelWidth = 560,
+  closeOnOutsideClick = false,
 }: HistorySidebarProps) {
   const [expandedYears, setExpandedYears] = useState(new Set<string>([(new Date().getFullYear()).toString()]));
   const [expandedMonths, setExpandedMonths] = useState(new Set<string>());
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const effectiveOffset = dockOffset ?? shellOffset;
 
   const structuredHistory = useMemo(() => {
@@ -345,6 +348,22 @@ export function HistorySidebar({
     setExpandedYears(nextYears);
     setExpandedMonths(nextMonths);
   }, [isOpen, structuredHistory]);
+
+  useEffect(() => {
+    if (!isOpen || !closeOnOutsideClick) return;
+
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (panelRef.current?.contains(target)) return;
+      onClose();
+    };
+
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsidePointerDown);
+    };
+  }, [isOpen, closeOnOutsideClick, onClose]);
 
   useEffect(() => {
     if (dockOffset) {
@@ -411,6 +430,7 @@ export function HistorySidebar({
       {!splitView ? <div className="absolute inset-0" onClick={onClose} /> : null}
 
       <div
+        ref={panelRef}
         className={[
           "relative flex h-full w-full min-h-0 flex-col overflow-hidden bg-white transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[transform,opacity]",
           splitView ? "border-l border-slate-200 shadow-none" : "max-w-[560px] border-l border-slate-200 shadow-2xl",

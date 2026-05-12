@@ -90,7 +90,7 @@ export function OrgTreeCanvas({
   return (
     <div
       ref={scrollContainerRef}
-      className="relative w-full overflow-x-auto overflow-y-hidden bg-transparent [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="relative w-full overflow-x-hidden overflow-y-auto bg-transparent"
     >
       <div
         className="relative mx-auto"

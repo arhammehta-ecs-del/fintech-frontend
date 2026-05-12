@@ -161,6 +161,7 @@ export default function OrgHistorySidebar({
       data={historyData}
       dockOffset={dockOffset}
       splitView={splitView}
+      closeOnOutsideClick
     />
   );
 }

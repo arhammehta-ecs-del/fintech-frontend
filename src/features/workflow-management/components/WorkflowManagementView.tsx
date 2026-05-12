@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronLeft, ChevronRight, Filter, Plus, Search, Settings, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,67 @@ const statusBadgeClassName: Record<string, string> = {
   Pending: "border-amber-200 bg-amber-50 text-amber-700",
   Inactive: "border-rose-200 bg-rose-50 text-rose-700",
 };
+
+function NodePathMarquee({ text }: { text: string }) {
+  const viewportRef = useRef<HTMLSpanElement | null>(null);
+  const textRef = useRef<HTMLSpanElement | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const [overflowPx, setOverflowPx] = useState(0);
+
+  useEffect(() => {
+    const measure = () => {
+      const viewport = viewportRef.current;
+      const label = textRef.current;
+      if (!viewport || !label) return;
+      const nextOverflow = Math.max(0, Math.ceil(label.scrollWidth - viewport.clientWidth));
+      setOverflowPx(nextOverflow);
+    };
+
+    measure();
+    const viewport = viewportRef.current;
+    if (!viewport || typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    if (textRef.current) observer.observe(textRef.current);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [text]);
+
+  const shouldAnimate = isHovered && overflowPx > 0;
+  const durationSeconds = Math.min(12, Math.max(2, overflowPx / 34));
+
+  return (
+    <span
+      className="mt-1 inline-flex max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <span ref={viewportRef} className="block max-w-full overflow-hidden whitespace-nowrap">
+        <span
+          ref={textRef}
+          className="inline-block whitespace-nowrap will-change-transform"
+          style={
+            shouldAnimate
+              ? {
+                  animation: `workflow-node-path-marquee ${durationSeconds}s linear infinite alternate`,
+                  ["--node-path-shift" as string]: `${overflowPx}px`,
+                }
+              : undefined
+          }
+        >
+          {text}
+        </span>
+      </span>
+    </span>
+  );
+}
 
 export default function WorkflowManagementView() {
   const {
@@ -116,6 +177,20 @@ export default function WorkflowManagementView() {
   }, [manageWorkflow]);
 
   useEffect(() => {
+    if (!manageWorkflow) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [manageWorkflow]);
+
+  useEffect(() => {
     const syncShellOffset = () => {
       const topBar = document.querySelector("header");
       const sideBar = document.querySelector("aside");
@@ -152,12 +227,16 @@ export default function WorkflowManagementView() {
     MIN_HISTORY_WIDTH,
     Math.min(MAX_HISTORY_WIDTH, availableContentWidth - MIN_DIALOG_SPLIT_WIDTH),
   );
+  const canSplitManageHistoryLayout =
+    manageWorkflow?.status === "Pending" &&
+    availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
   const canUseSplitManageHistory =
     manageWorkflow?.status === "Pending" &&
     manageHistoryOpen &&
     availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
-  const splitWorkflowDockOffset = canUseSplitManageHistory
-    ? { top: shellOffset.top, left: shellOffset.left }
+  const splitHistoryTopOverlap = 2;
+  const splitWorkflowDockOffset = canSplitManageHistoryLayout
+    ? { top: Math.max(0, shellOffset.top - splitHistoryTopOverlap), left: shellOffset.left }
     : shellOffset;
 
   return (
@@ -378,9 +457,7 @@ export default function WorkflowManagementView() {
                     {workflow.nodePath ? (() => {
                       const pathPreview = getWorkflowPathPreview(workflow.nodePath, 3);
                       return pathPreview ? (
-                        <p className="mt-1 inline-flex max-w-full truncate rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700">
-                          {pathPreview}
-                        </p>
+                        <NodePathMarquee text={pathPreview} />
                       ) : null;
                     })() : null}
                   </div>
@@ -488,7 +565,7 @@ export default function WorkflowManagementView() {
       {manageWorkflow && typeof document !== "undefined"
         ? createPortal(
             <div
-              className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
+              className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm transition-[top,left,width,height,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
               style={
                 canUseSplitManageHistory
                   ? {
@@ -518,8 +595,8 @@ export default function WorkflowManagementView() {
           setHistoryWorkflow(null);
         }}
         workflow={manageHistoryOpen ? manageWorkflow : historyWorkflow}
-        dockOffset={canUseSplitManageHistory ? splitWorkflowDockOffset : shellOffset}
-        splitView={canUseSplitManageHistory}
+        dockOffset={splitWorkflowDockOffset}
+        splitView={canSplitManageHistoryLayout}
         panelWidth={computedHistoryPanelWidth}
       />
       <WorkflowManageDialog
@@ -535,7 +612,7 @@ export default function WorkflowManagementView() {
         overlayClassName="hidden"
         contentClassName={
           canUseSplitManageHistory
-            ? "flex h-full max-h-none w-auto max-w-none flex-col overflow-hidden rounded-none p-0"
+            ? "flex h-full max-h-none w-auto max-w-none flex-col overflow-hidden rounded-none p-0 transition-[top,left,width,height,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] data-[state=open]:animate-none data-[state=closed]:animate-none"
             : undefined
         }
         contentStyle={
@@ -549,6 +626,13 @@ export default function WorkflowManagementView() {
               }
             : undefined
         }
+        preventOutsideClose={canUseSplitManageHistory}
+      />
+      <style
+        dangerouslySetInnerHTML={{
+          __html:
+            "@keyframes workflow-node-path-marquee{from{transform:translateX(0)}to{transform:translateX(calc(-1 * var(--node-path-shift, 0px)))}}",
+        }}
       />
     </div>
   );
