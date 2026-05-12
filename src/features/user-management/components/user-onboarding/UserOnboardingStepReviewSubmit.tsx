@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { UserOnboardingFormData, NodePermissionBuckets, NodePermissionScopeBuckets, PermissionAction, UserOnboardingPermissions } from "@/features/user-management/types";
 import { formatRoleTokenLabel, getPermissionActionFromText, getPermissionActionLabelFromText } from "@/features/user-management/roleLabels";
 import { getNodeAccentBackground, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
+import { formatCollapsedNodePath } from "@/features/user-management/utils";
 
 type StepReviewSubmitProps = {
   orgStructure: OrgNode | null;
@@ -240,7 +241,7 @@ function NodePermissionCard({
 }) {
   const selectedSections = getSelectedSections(permissions, permissionScopes);
   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
-  const parentSubtitle = isRoot ? "" : breadcrumbByNodeId.get(node.id) || "";
+  const parentSubtitle = isRoot ? "" : formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "");
 
   return (
     <div
@@ -544,7 +545,7 @@ export function UserOnboardingStepReviewSubmit({
                         <div className="min-w-0">
                           <div className="truncate text-xs font-semibold text-slate-700">{primaryNode.name}</div>
                           {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(primaryNode.id) ? (
-                            <div className="truncate text-[10px] font-medium text-slate-500">{breadcrumbByNodeId.get(primaryNode.id)}</div>
+                            <div className="truncate text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(primaryNode.id) || "")}</div>
                           ) : null}
                           {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" ? (
                             <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{primaryNode.nodeType}</div>
@@ -600,7 +601,7 @@ export function UserOnboardingStepReviewSubmit({
                         <div className="min-w-0">
                           <div className="truncate text-xs font-semibold text-slate-700">{node.name}</div>
                           {node.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(node.id) ? (
-                            <div className="truncate text-[10px] font-medium text-slate-500">{breadcrumbByNodeId.get(node.id)}</div>
+                            <div className="truncate text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "")}</div>
                           ) : null}
                           {node.nodeType.trim().toUpperCase() !== "ROOT" ? (
                             <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</div>

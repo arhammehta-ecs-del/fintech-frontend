@@ -16,6 +16,7 @@ import type {
 } from "@/features/user-management/types";
 import { PERMISSION_ACTIONS, formatRoleTokenLabel, getPermissionActionLabel } from "@/features/user-management/roleLabels";
 import { getNodeAccentBackground, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
+import { formatCollapsedNodePath } from "@/features/user-management/utils";
 
 type StepAccessRightsProps = {
   orgStructure: OrgNode | null;
@@ -699,7 +700,7 @@ export function UserOnboardingStepAccessRights({
                               <div className="truncate text-sm font-semibold text-slate-800">{node.name}</div>
                             </div>
                             {!isRoot && breadcrumbByNodeId.get(node.id) ? (
-                              <div className="truncate text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(node.id)}</div>
+                              <div className="truncate text-[11px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "")}</div>
                             ) : null}
                             {!isRoot ? (
                               <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{node.nodeType}</div>
@@ -748,7 +749,7 @@ export function UserOnboardingStepAccessRights({
                             <div>
                               <div className="text-sm font-semibold text-slate-800">{infoNode.name}</div>
                               {!isInfoRoot && breadcrumbByNodeId.get(infoNode.id) ? (
-                                <div className="text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(infoNode.id)}</div>
+                                <div className="text-[11px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(infoNode.id) || "")}</div>
                               ) : null}
                               {!isInfoRoot ? (
                                 <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{infoNode.nodeType}</div>
@@ -775,7 +776,7 @@ export function UserOnboardingStepAccessRights({
                           </div>
                           <div className="rounded-lg bg-slate-50 px-3 py-2">
                             <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Node Path</div>
-                            <div className="mt-1 break-all font-semibold text-slate-700">{isInfoRoot ? "-" : (infoNode.nodePath || "-")}</div>
+                            <div className="mt-1 break-all font-semibold text-slate-700">{isInfoRoot ? "-" : (formatCollapsedNodePath(infoNode.nodePath || "") || "-")}</div>
                           </div>
                         </div>
                       </div>
@@ -842,7 +843,7 @@ export function UserOnboardingStepAccessRights({
                       <div className="min-w-0">
                         <div className="truncate text-sm font-semibold text-slate-800">{primarySelectedNode.name}</div>
                         {primarySelectedNode.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(primarySelectedNode.id) ? (
-                          <div className="truncate text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(primarySelectedNode.id)}</div>
+                          <div className="truncate text-[11px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(primarySelectedNode.id) || "")}</div>
                         ) : null}
                         {primarySelectedNode.nodeType.trim().toUpperCase() !== "ROOT" ? (
                           <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
@@ -910,7 +911,7 @@ export function UserOnboardingStepAccessRights({
                             <div className="min-w-0">
                               <div className="truncate text-sm font-semibold text-slate-800">{node.name}</div>
                               {node.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(node.id) ? (
-                                <div className="truncate text-[11px] font-medium text-slate-500">{breadcrumbByNodeId.get(node.id)}</div>
+                                <div className="truncate text-[11px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "")}</div>
                               ) : null}
                               {node.nodeType.trim().toUpperCase() !== "ROOT" ? (
                                 <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">

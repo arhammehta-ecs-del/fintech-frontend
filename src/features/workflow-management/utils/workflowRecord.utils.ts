@@ -111,8 +111,10 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
     initiatedDate:
       readString(record.initiatedDate) ||
       readString(record.initiatedAt) ||
+      readString(record.initiatorTimestamp) ||
       readString(payload.initiatedDate) ||
-      readString(payload.initiatedAt),
+      readString(payload.initiatedAt) ||
+      readString(payload.initiatorTimestamp),
     workflowName: readString(record.workflowName) || readString(payload.workflowName),
     workflowAlias: readString(record.alias) || readString(payload.alias),
     status,

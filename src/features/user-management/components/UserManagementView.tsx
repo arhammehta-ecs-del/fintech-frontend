@@ -137,12 +137,15 @@ export function UserManagementView() {
     MIN_HISTORY_WIDTH,
     Math.min(MAX_HISTORY_WIDTH, availableContentWidth - MIN_DIALOG_SPLIT_WIDTH),
   );
+  const canSplitHistoryLayout =
+    viewingMember?.status === "Pending" &&
+    availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
   const canUseSplitHistory =
     viewingMember?.status === "Pending" &&
     historyOpenForMember &&
     availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
   const splitHistoryTopOverlap = 2;
-  const splitDockOffset = canUseSplitHistory
+  const splitDockOffset = canSplitHistoryLayout
     ? { top: Math.max(0, shellOffset.top - splitHistoryTopOverlap), left: shellOffset.left }
     : shellOffset;
 
@@ -233,7 +236,7 @@ export function UserManagementView() {
       {viewingMember && typeof document !== "undefined"
         ? createPortal(
             <div
-              className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
+              className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm transition-[top,left,width,height,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
               style={
                 canUseSplitHistory
                   ? {
@@ -265,8 +268,8 @@ export function UserManagementView() {
           }}
           className={
             canUseSplitHistory
-              ? "flex flex-col overflow-hidden rounded-none p-0 max-w-none transition-all duration-300 ease-in-out"
-              : "flex h-[92vh] w-[96vw] max-w-[1200px] flex-col overflow-hidden p-0 transition-all duration-300 ease-in-out"
+              ? "flex flex-col overflow-hidden rounded-none p-0 max-w-none transition-[top,left,width,height,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] data-[state=open]:animate-none data-[state=closed]:animate-none"
+              : "flex h-[92vh] w-[96vw] max-w-[1200px] flex-col overflow-hidden p-0 transition-[transform,opacity] duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] data-[state=open]:animate-none data-[state=closed]:animate-none"
           }
           style={
             canUseSplitHistory
@@ -308,7 +311,7 @@ export function UserManagementView() {
           onClose={() => setHistoryOpenForMember(false)}
           user={viewingMember}
           dockOffset={splitDockOffset}
-          splitView={canUseSplitHistory}
+          splitView={canSplitHistoryLayout}
           panelWidth={computedHistoryPanelWidth}
         />
       ) : null}

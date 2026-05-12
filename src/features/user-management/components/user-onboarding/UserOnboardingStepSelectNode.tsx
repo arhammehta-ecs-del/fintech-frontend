@@ -7,6 +7,7 @@ import {
   getBranchAppearance,
   getNodeAccentBorderLeft,
 } from "@/features/org-structure/nodeTheme.utils";
+import { formatCollapsedNodePath } from "@/features/user-management/utils";
 
 type StepSelectNodeProps = {
   orgStructure: OrgNode | null;
@@ -171,7 +172,7 @@ export function UserOnboardingStepSelectNode({
                   const isFocusedSelection = selectedNodeId === item.node.id;
                   const appearance = getBranchAppearance(item.branchIndex, item.branchDepth, isRoot);
                   const borderLeftClass = getNodeBorderLeftClass(item.branchIndex, item.branchDepth, isRoot);
-                  const parentSubtitle = breadcrumbByNodeId.get(item.node.id) || "";
+                  const parentSubtitle = formatCollapsedNodePath(breadcrumbByNodeId.get(item.node.id) || "");
 
                   return (
                     <div key={item.node.id} style={{ paddingLeft: `${item.depth * 20}px` }}>
@@ -233,6 +234,7 @@ export function UserOnboardingStepSelectNode({
                   const meta = branchMetaMap.get(node.id) ?? { branchIndex: null, branchDepth: 0 };
                   const appearance = getBranchAppearance(meta.branchIndex, meta.branchDepth, isRoot);
                   const borderLeftClass = getNodeBorderLeftClass(meta.branchIndex, meta.branchDepth, isRoot);
+                  const collapsedPath = formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "");
 
                   return (
                     <div
@@ -247,9 +249,9 @@ export function UserOnboardingStepSelectNode({
                     >
                       <div className="min-w-0">
                         <div className={cn("truncate text-[16px] font-semibold", isRoot ? "text-slate-800" : "text-slate-800")}>{node.name}</div>
-                        {!isRoot && breadcrumbByNodeId.get(node.id) ? (
+                        {!isRoot && collapsedPath ? (
                           <div className={cn("truncate text-[10px] font-medium", "text-slate-500")}>
-                            {breadcrumbByNodeId.get(node.id)}
+                            {collapsedPath}
                           </div>
                         ) : null}
                         {!isRoot ? (

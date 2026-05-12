@@ -399,7 +399,7 @@ export function HistorySidebar({
   return (
     <div
       className={[
-        "fixed bottom-0 right-0 z-[60] flex min-h-0 justify-end overflow-hidden font-sans transition-[width,height] duration-300 ease-in-out",
+        "fixed bottom-0 right-0 z-[60] flex min-h-0 justify-end overflow-hidden font-sans transition-[width,height,top] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
         splitView && !isOpen ? "pointer-events-none" : "pointer-events-auto",
       ].join(" ")}
       style={
@@ -412,9 +412,9 @@ export function HistorySidebar({
 
       <div
         className={[
-          "relative flex h-full w-full min-h-0 flex-col overflow-hidden bg-white animate-in slide-in-from-right duration-300 ease-out",
+          "relative flex h-full w-full min-h-0 flex-col overflow-hidden bg-white transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[transform,opacity]",
           splitView ? "border-l border-slate-200 shadow-none" : "max-w-[560px] border-l border-slate-200 shadow-2xl",
-          splitView && !isOpen ? "opacity-0" : "opacity-100",
+          splitView && !isOpen ? "translate-x-3 opacity-0" : "translate-x-0 opacity-100",
         ].join(" ")}
       >
         <div

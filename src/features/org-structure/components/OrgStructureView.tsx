@@ -82,6 +82,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [showPending, setShowPending] = useState(true);
   const [isOrgHistoryOpen, setIsOrgHistoryOpen] = useState(false);
   const [historyNodeName, setHistoryNodeName] = useState("");
+  const [historyNodePath, setHistoryNodePath] = useState("");
   const [historyViewContext, setHistoryViewContext] = useState<"active" | "pending">("active");
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const historyLayoutOffset =
@@ -274,6 +275,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
               department={selectedDepartment}
               onOpenHistory={() => {
                 setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
+                setHistoryNodePath((selectedDepartment?.nodePath || "").trim());
                 setHistoryViewContext("active");
                 setIsOrgHistoryOpen(true);
               }}
@@ -295,6 +297,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
             department={selectedDepartment}
             onOpenHistory={() => {
               setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
+              setHistoryNodePath((selectedDepartment?.nodePath || "").trim());
               setHistoryViewContext("active");
               setIsOrgHistoryOpen(true);
             }}
@@ -345,6 +348,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         dockOffset={historyLayoutOffset}
         onOpenHistory={(node) => {
           setHistoryNodeName(node.name.trim());
+          setHistoryNodePath((node.nodePath || "").trim());
           setHistoryViewContext("pending");
           setIsOrgHistoryOpen(true);
         }}
@@ -359,6 +363,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         companyCode={companyCode}
         subtitle={selectedDepartment?.name || companyName}
         nodeName={historyNodeName}
+        nodePath={historyNodePath}
         dockOffset={historyLayoutOffset}
         splitView
       />

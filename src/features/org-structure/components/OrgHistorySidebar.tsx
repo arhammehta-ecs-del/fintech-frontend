@@ -10,6 +10,7 @@ type OrgHistorySidebarProps = {
   companyCode: string;
   subtitle: string;
   nodeName?: string;
+  nodePath?: string;
   dockOffset?: {
     top: number;
     left: number;
@@ -112,6 +113,7 @@ export default function OrgHistorySidebar({
   companyCode,
   subtitle,
   nodeName = "",
+  nodePath = "",
   dockOffset,
   splitView = false,
 }: OrgHistorySidebarProps) {
@@ -130,6 +132,7 @@ export default function OrgHistorySidebar({
         const response = await fetchOrgHistory(
           companyCode.trim().toUpperCase(),
           (nodeName || subtitle).trim(),
+          nodePath.trim(),
         );
         if (!isMounted) return;
         const mappedHistory = Array.isArray(response?.data)
@@ -146,7 +149,7 @@ export default function OrgHistorySidebar({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, companyCode, subtitle, nodeName, toast]);
+  }, [isOpen, companyCode, subtitle, nodeName, nodePath, toast]);
 
   return (
     <HistorySidebar

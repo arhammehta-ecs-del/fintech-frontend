@@ -3,9 +3,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ArrowUpDown, SlidersHorizontal, Users, History } from "lucide-react";
-import { maskContactNumber, getInitials, getAvatarColor } from "@/features/user-management/utils";
+import { maskContactNumber, getInitials, getAvatarColor, formatCollapsedNodePath } from "@/features/user-management/utils";
 import UserHistorySidebar from "./UserHistorySidebar";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type UserTableProps = {
   isLoading: boolean;
@@ -36,23 +36,66 @@ const getPrimaryNodeMeta = (member: AppUser) => {
   };
 };
 
-const formatPathSegment = (segment: string) =>
-  segment
-    .trim()
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+function NodePathMarquee({ text }: { text: string }) {
+  const viewportRef = useRef<HTMLSpanElement | null>(null);
+  const textRef = useRef<HTMLSpanElement | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const [overflowPx, setOverflowPx] = useState(0);
 
-const formatNodePathAfterRoot = (nodePath: string) => {
-  const segments = nodePath
-    .split(".")
-    .map((segment) => segment.trim())
-    .filter((segment) => Boolean(segment) && segment.toUpperCase() !== "ROOT");
+  useEffect(() => {
+    const measure = () => {
+      const viewport = viewportRef.current;
+      const label = textRef.current;
+      if (!viewport || !label) return;
+      const nextOverflow = Math.max(0, Math.ceil(label.scrollWidth - viewport.clientWidth));
+      setOverflowPx(nextOverflow);
+    };
 
-  if (segments.length <= 1) return "";
+    measure();
+    const viewport = viewportRef.current;
+    if (!viewport || typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
 
-  return segments.map(formatPathSegment).join(" > ");
-};
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    if (textRef.current) observer.observe(textRef.current);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [text]);
+
+  const shouldAnimate = isHovered && overflowPx > 0;
+  const durationSeconds = Math.min(12, Math.max(2, overflowPx / 34));
+
+  return (
+    <span
+      className="mt-1 inline-flex max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <span ref={viewportRef} className="block max-w-full overflow-hidden whitespace-nowrap">
+        <span
+          ref={textRef}
+          className="inline-block whitespace-nowrap will-change-transform"
+          style={
+            shouldAnimate
+              ? {
+                  animation: `user-node-path-marquee ${durationSeconds}s linear infinite alternate`,
+                  ["--node-path-shift" as string]: `${overflowPx}px`,
+                }
+              : undefined
+          }
+        >
+          {text}
+        </span>
+      </span>
+    </span>
+  );
+}
 
 export default function UserTable({
   isLoading,
@@ -126,14 +169,12 @@ export default function UserTable({
             <td className="px-4 py-4 text-sm text-slate-600">
               {(() => {
                 const { departmentLabel, primaryNodePath, showPath } = getPrimaryNodeMeta(member);
-                const formattedPath = showPath ? formatNodePathAfterRoot(primaryNodePath) : "";
+                const formattedPath = showPath ? formatCollapsedNodePath(primaryNodePath) : "";
                 return (
                   <div className="min-w-0">
                     <p className="truncate text-sm text-slate-700">{departmentLabel || "—"}</p>
                     {formattedPath ? (
-                      <p className="mt-1 inline-flex max-w-full truncate rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700">
-                        {formattedPath}
-                      </p>
+                      <NodePathMarquee text={formattedPath} />
                     ) : null}
                   </div>
                 );
@@ -212,6 +253,12 @@ export default function UserTable({
       isOpen={!!historyOpenForUser}
       onClose={() => setHistoryOpenForUser(null)}
       user={historyOpenForUser}
+    />
+    <style
+      dangerouslySetInnerHTML={{
+        __html:
+          "@keyframes user-node-path-marquee{from{transform:translateX(0)}to{transform:translateX(calc(-1 * var(--node-path-shift, 0px)))}}",
+      }}
     />
     </>
   );
