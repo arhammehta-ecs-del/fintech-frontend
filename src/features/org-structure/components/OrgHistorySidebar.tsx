@@ -31,6 +31,12 @@ const readLevel = (value: unknown) => {
   }
   return null;
 };
+const toEpochMs = (value: unknown) => {
+  const raw = readString(value);
+  if (!raw) return Number.NEGATIVE_INFINITY;
+  const timestamp = Date.parse(raw);
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+};
 const mapEligibleApprovers = (record: RawHistoryRecord) => {
   const eligibleApproversRaw = Array.isArray(record.eligibleapprovers) ? record.eligibleapprovers : [];
   return eligibleApproversRaw
@@ -42,11 +48,54 @@ const mapEligibleApprovers = (record: RawHistoryRecord) => {
     .filter((approver) => approver.name || approver.email);
 };
 
-const mapOrgHistoryEntry = (item: unknown, subtitle: string, index: number): HistoryEntry => {
-  const record = toRecord(item);
+const findNearestTimestamp = (records: RawHistoryRecord[], index: number) => {
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const candidate = records[cursor];
+    const createdAt =
+      readString(candidate.createdAt) ||
+      readString(candidate.initiatedAt) ||
+      readString(candidate.initiatedDate) ||
+      readString(candidate.requestedAt);
+    if (createdAt) return createdAt;
+  }
+
+  for (let cursor = index + 1; cursor < records.length; cursor += 1) {
+    const candidate = records[cursor];
+    const createdAt =
+      readString(candidate.createdAt) ||
+      readString(candidate.initiatedAt) ||
+      readString(candidate.initiatedDate) ||
+      readString(candidate.requestedAt);
+    if (createdAt) return createdAt;
+  }
+
+  return "";
+};
+
+const getEffectiveCreatedAt = (record: RawHistoryRecord, index: number, records: RawHistoryRecord[]) => {
+  const createdAtRaw =
+    readString(record.createdAt) ||
+    readString(record.initiatedAt) ||
+    readString(record.initiatedDate) ||
+    readString(record.requestedAt);
+  if (createdAtRaw) return createdAtRaw;
+  const eligibleApprovers = mapEligibleApprovers(record);
+  if (eligibleApprovers.length > 0) {
+    return findNearestTimestamp(records, index);
+  }
+  return "";
+};
+
+const mapOrgHistoryEntry = (
+  record: RawHistoryRecord,
+  subtitle: string,
+  index: number,
+  records: RawHistoryRecord[],
+): HistoryEntry => {
   const user = toRecord(record.user);
-  const createdAt = readString(record.createdAt) || readString(record.initiatedAt) || readString(record.initiatedDate);
+  const createdAt = getEffectiveCreatedAt(record, index, records);
   const hasCreatedAt = Boolean(createdAt);
+  const sortEpochMs = toEpochMs(createdAt);
   const eventRaw = readString(record.event) || readString(record.action) || readString(record.status);
   const rawAction = eventRaw ? eventRaw.replace(/_/g, " ").toUpperCase() : "UPDATE";
   const level = readLevel(record.level);
@@ -79,6 +128,7 @@ const mapOrgHistoryEntry = (item: unknown, subtitle: string, index: number): His
 
   return {
     id: readString(record.id) || readString(record.requestId) || `${createdAt || "history"}-${index}`,
+    sortEpochMs: Number.isFinite(sortEpochMs) ? sortEpochMs : undefined,
     year,
     month,
     day,
@@ -136,7 +186,9 @@ export default function OrgHistorySidebar({
         );
         if (!isMounted) return;
         const mappedHistory = Array.isArray(response?.data)
-          ? response.data.map((item: unknown, index: number) => mapOrgHistoryEntry(item, subtitle, index))
+          ? response.data
+            .map((item: unknown) => toRecord(item))
+            .map((record: RawHistoryRecord, index: number, records: RawHistoryRecord[]) => mapOrgHistoryEntry(record, subtitle, index, records))
           : [];
         setHistoryData(mappedHistory);
       } catch (error) {
