@@ -34,6 +34,12 @@ const toRecordArray = (value: unknown): RawHistoryRecord[] =>
   Array.isArray(value)
     ? value.filter((item): item is RawHistoryRecord => typeof item === "object" && item !== null)
     : [];
+const toEpochMs = (value: unknown) => {
+  const raw = readString(value);
+  if (!raw) return Number.NEGATIVE_INFINITY;
+  const timestamp = Date.parse(raw);
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+};
 
 const getHistorySubject = (record: RawHistoryRecord, fallbackWorkflowName: string) => {
   const payload = toRecord(record.data);
@@ -49,8 +55,28 @@ const getHistorySubject = (record: RawHistoryRecord, fallbackWorkflowName: strin
   );
 };
 
-const mapWorkflowHistoryEntry = (item: unknown, workflowName: string, index: number): HistoryEntry => {
-  const record = toRecord(item);
+const findNearestTimestamp = (records: RawHistoryRecord[], index: number) => {
+  for (let cursor = index + 1; cursor < records.length; cursor += 1) {
+    const candidate = records[cursor];
+    const createdAt = readString(candidate.createdAt) || readString(candidate.initiatedAt) || readString(candidate.initiatedDate);
+    if (createdAt) return createdAt;
+  }
+
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const candidate = records[cursor];
+    const createdAt = readString(candidate.createdAt) || readString(candidate.initiatedAt) || readString(candidate.initiatedDate);
+    if (createdAt) return createdAt;
+  }
+
+  return "";
+};
+
+const mapWorkflowHistoryEntry = (
+  record: RawHistoryRecord,
+  workflowName: string,
+  index: number,
+  records: RawHistoryRecord[],
+): HistoryEntry => {
   const user = toRecord(record.user);
   const level = readLevel(record.level);
   const subjectName = getHistorySubject(record, workflowName);
@@ -61,7 +87,9 @@ const mapWorkflowHistoryEntry = (item: unknown, workflowName: string, index: num
     }))
     .filter((approver) => approver.name || approver.email);
 
-  const createdAt = readString(record.createdAt) || readString(record.initiatedAt) || readString(record.initiatedDate);
+  const createdAtRaw = readString(record.createdAt) || readString(record.initiatedAt) || readString(record.initiatedDate);
+  const createdAt = createdAtRaw || (eligibleApprovers.length > 0 ? findNearestTimestamp(records, index) : "");
+  const sortEpochMs = toEpochMs(createdAt);
   const eventRaw = readString(record.event) || readString(record.action) || readString(record.status);
   const action = eventRaw ? eventRaw.replace(/_/g, " ").toUpperCase() : "UPDATE";
   const { year, month, day, date, time } = formatDateParts(createdAt);
@@ -84,6 +112,7 @@ const mapWorkflowHistoryEntry = (item: unknown, workflowName: string, index: num
 
   return {
     id: readString(record.id) || readString(record.workflowId) || `${createdAt || "history"}-${index}`,
+    sortEpochMs: Number.isFinite(sortEpochMs) ? sortEpochMs : undefined,
     year,
     month,
     day,
@@ -142,7 +171,9 @@ export default function WorkflowHistorySidebar({
         const response = await fetchWorkflowHistory({ levelsHash, module, subModule, nodePath });
         if (isMounted && response?.data) {
           const mappedHistory = Array.isArray(response.data)
-            ? response.data.map((item, index) => mapWorkflowHistoryEntry(item, workflow.name, index))
+            ? response.data
+              .map((item) => toRecord(item))
+              .map((record, index, records) => mapWorkflowHistoryEntry(record, workflow.name, index, records))
             : [];
           setHistoryData(mappedHistory);
         }

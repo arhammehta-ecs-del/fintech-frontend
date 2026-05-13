@@ -72,22 +72,60 @@ const mapEligibleApprovers = (record: RawHistoryRecord) => {
     .filter((approver) => approver.name || approver.email);
 };
 
-const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number): HistoryEntry => {
-  const record = toRecord(item);
-  const initiator = toRecord(record.user);
-  const basicDetails = toRecord(record.basicDetails);
+const findNearestTimestamp = (records: RawHistoryRecord[], index: number) => {
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const candidate = records[cursor];
+    const createdAt =
+      readString(candidate.createdAt) ||
+      readString(candidate.initiatedAt) ||
+      readString(candidate.initiatedDate) ||
+      readString(candidate.requestedAt);
+    if (createdAt) return createdAt;
+  }
 
-  const createdAt =
+  for (let cursor = index + 1; cursor < records.length; cursor += 1) {
+    const candidate = records[cursor];
+    const createdAt =
+      readString(candidate.createdAt) ||
+      readString(candidate.initiatedAt) ||
+      readString(candidate.initiatedDate) ||
+      readString(candidate.requestedAt);
+    if (createdAt) return createdAt;
+  }
+
+  return "";
+};
+
+const getEffectiveCreatedAt = (record: RawHistoryRecord, index: number, records: RawHistoryRecord[]) => {
+  const createdAtRaw =
     readString(record.createdAt) ||
     readString(record.initiatedAt) ||
     readString(record.initiatedDate) ||
     readString(record.requestedAt);
+  if (createdAtRaw) return createdAtRaw;
+  const eligibleApprovers = mapEligibleApprovers(record);
+  if (eligibleApprovers.length > 0) {
+    return findNearestTimestamp(records, index);
+  }
+  return "";
+};
+
+const mapUserHistoryEntry = (
+  record: RawHistoryRecord,
+  fallbackEmail: string,
+  index: number,
+  records: RawHistoryRecord[],
+): HistoryEntry => {
+  const initiator = toRecord(record.user);
+  const basicDetails = toRecord(record.basicDetails);
+  const createdAt = getEffectiveCreatedAt(record, index, records);
   const actionRaw = readString(record.event) || readString(record.action) || readString(record.status);
   const action = actionRaw ? actionRaw.replace(/_/g, " ").toUpperCase() : "UPDATE";
   const eventPhrase = toEventPhrase(action);
   const targetEmail = readString(record.email) || fallbackEmail || "this user";
   const level = readLevel(record.level);
   const hasCreatedAt = Boolean(createdAt);
+  const sortEpochMs = toEpochMs(createdAt);
   const { year, month, day, date, time } = formatDateParts(createdAt);
 
   const initiatorName =
@@ -122,6 +160,7 @@ const mapUserHistoryEntry = (item: unknown, fallbackEmail: string, index: number
       readString(record.userId) ||
       readString(record.email) ||
       `${createdAt || "history"}-${index}`,
+    sortEpochMs: Number.isFinite(sortEpochMs) ? sortEpochMs : undefined,
     year,
     month,
     day,
@@ -177,25 +216,28 @@ export default function UserHistorySidebar({
         const response = await fetchUserHistory(user.email, targetCompanyCode);
         if (isMounted && response?.data) {
           const mappedHistory = Array.isArray(response.data)
-            ? [...response.data]
-              .sort((left, right) => {
-                const leftRecord = toRecord(left);
-                const rightRecord = toRecord(right);
-                const leftTs = Math.max(
-                  toEpochMs(leftRecord.createdAt),
-                  toEpochMs(leftRecord.initiatedAt),
-                  toEpochMs(leftRecord.initiatedDate),
-                  toEpochMs(leftRecord.requestedAt),
-                );
-                const rightTs = Math.max(
-                  toEpochMs(rightRecord.createdAt),
-                  toEpochMs(rightRecord.initiatedAt),
-                  toEpochMs(rightRecord.initiatedDate),
-                  toEpochMs(rightRecord.requestedAt),
-                );
-                return rightTs - leftTs;
-              })
-              .map((item, index) => mapUserHistoryEntry(item, user.email, index))
+            ? (() => {
+              const rawRecords = response.data.map((item) => toRecord(item));
+              const sortedRecords = rawRecords
+                .map((record, index) => ({
+                  record,
+                  index,
+                  effectiveCreatedAt: getEffectiveCreatedAt(record, index, rawRecords),
+                  hasEligibleApprovers: mapEligibleApprovers(record).length > 0,
+                }))
+                .sort((left, right) => {
+                  const leftTs = toEpochMs(left.effectiveCreatedAt);
+                  const rightTs = toEpochMs(right.effectiveCreatedAt);
+                  if (rightTs !== leftTs) return rightTs - leftTs;
+                  if (left.hasEligibleApprovers !== right.hasEligibleApprovers) {
+                    return left.hasEligibleApprovers ? -1 : 1;
+                  }
+                  return left.index - right.index;
+                })
+                .map((item) => item.record);
+
+              return sortedRecords.map((record, index, records) => mapUserHistoryEntry(record, user.email, index, records));
+            })()
             : [];
           setHistoryData(mappedHistory);
         }

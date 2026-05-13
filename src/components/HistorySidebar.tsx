@@ -5,6 +5,7 @@ export type HistoryStatus = "pending" | "approved";
 
 export type HistoryEntry = {
   id: string;
+  sortEpochMs?: number;
   year: string;
   month: string;
   day: string;
@@ -303,6 +304,12 @@ export function HistorySidebar({
     Object.values(grouped).forEach((months) => {
       Object.values(months).forEach((entries) => {
         entries.sort((a, b) => {
+          const leftEpoch = typeof a.sortEpochMs === "number" && Number.isFinite(a.sortEpochMs) ? a.sortEpochMs : null;
+          const rightEpoch = typeof b.sortEpochMs === "number" && Number.isFinite(b.sortEpochMs) ? b.sortEpochMs : null;
+          if (leftEpoch !== null && rightEpoch !== null && rightEpoch !== leftEpoch) return rightEpoch - leftEpoch;
+          if (leftEpoch !== null && rightEpoch === null) return -1;
+          if (leftEpoch === null && rightEpoch !== null) return 1;
+
           const left = Date.parse(`${a.month} ${a.day}, ${a.year} ${a.initiator.time || "00:00 AM"}`);
           const right = Date.parse(`${b.month} ${b.day}, ${b.year} ${b.initiator.time || "00:00 AM"}`);
           const hasLeftTime = Number.isFinite(left);
