@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -72,6 +72,9 @@ export function NewNodePopup({
           <DialogTitle className="text-[1.5rem] font-semibold tracking-[-0.02em] text-slate-950">
             Create Node
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Create a new organization node under the selected parent node by entering node details and workflow.
+          </DialogDescription>
           <div className="mt-3 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.92),rgba(248,250,252,0.98))] px-4 py-3.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">
               Creating Under

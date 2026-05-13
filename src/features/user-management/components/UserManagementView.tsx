@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { EyeOff, Users, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { UserOnboardingDialog } from "@/features/user-management";
 import EditMemberDialog from "@/features/user-management/components/EditMemberDialog";
 import UserFilters from "@/features/user-management/components/UserFilters";
@@ -300,6 +300,10 @@ export function UserManagementView() {
               : { transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)" }
           }
         >
+          <DialogTitle className="sr-only">Manage User</DialogTitle>
+          <DialogDescription className="sr-only">
+            Review and manage selected user details, permissions, and status actions.
+          </DialogDescription>
           {viewingMember ? (
             <UserManagePreview
               member={viewingMember}

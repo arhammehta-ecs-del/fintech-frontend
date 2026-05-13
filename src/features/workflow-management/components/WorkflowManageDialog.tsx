@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { BadgeCheck, Briefcase, Building2, Calendar, CheckCircle2, GitBranch, History, Layers, Mail, Settings2, UserCheck, X, Zap } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -281,6 +281,9 @@ export default function WorkflowManageDialog({
         className={cn("flex max-h-[88vh] w-[min(92vw,44rem)] max-w-[44rem] flex-col overflow-hidden p-0", contentClassName)}
         style={contentStyle}
       >
+        <DialogDescription className="sr-only">
+          Review workflow details, approval chain, history, and submit approve or reject actions.
+        </DialogDescription>
         <DialogHeader className="border-b border-slate-200 bg-slate-50/40 px-6 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>

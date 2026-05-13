@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronLeft, ChevronRight, Filter, Plus, Search, Settings, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -543,6 +543,10 @@ export default function WorkflowManagementView() {
 
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="flex h-[90vh] w-[min(94vw,72rem)] max-w-[72rem] flex-col gap-0 overflow-hidden rounded-lg p-0">
+          <DialogTitle className="sr-only">Add Workflow</DialogTitle>
+          <DialogDescription className="sr-only">
+            Create a new workflow by configuring name, alias, module, node, and approval levels.
+          </DialogDescription>
           <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
             <div className="flex items-center gap-2">
               <div className="rounded-lg bg-blue-600 p-1.5">

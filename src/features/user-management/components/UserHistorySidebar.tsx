@@ -155,11 +155,13 @@ const mapUserHistoryEntry = (
       : `${eventPhrase.charAt(0).toUpperCase()}${eventPhrase.slice(1)} recorded for ${targetEmail}.`;
 
   return {
-    id:
-      readString(record.id) ||
-      readString(record.userId) ||
-      readString(record.email) ||
-      `${createdAt || "history"}-${index}`,
+    id: [
+      readString(record.id) || readString(record.userId) || readString(record.email) || "history",
+      action,
+      level ?? "na",
+      createdAt || "no-ts",
+      index,
+    ].join("|"),
     sortEpochMs: Number.isFinite(sortEpochMs) ? sortEpochMs : undefined,
     year,
     month,
