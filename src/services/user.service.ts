@@ -82,10 +82,6 @@ const toRecord = (value: unknown): RawUserRecord =>
   typeof value === "object" && value !== null ? (value as RawUserRecord) : {};
 
 const readString = (value: unknown) => (typeof value === "string" ? value : "");
-const readNonEmptyString = (value: unknown, fallback: string) => {
-  const raw = readString(value).trim();
-  return raw || fallback;
-};
 const normalizeAccessCategory = (value: unknown): "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null => {
   const normalized = readString(value).trim().toUpperCase();
   if (!normalized) return null;
@@ -96,7 +92,7 @@ const normalizeAccessCategory = (value: unknown): "ALL_CHILD" | "IMMEDIATE_CHILD
 };
 
 
-const mapAccessDetails = (record: RawUserRecord, status: AppUser["status"]): NonNullable<AppUser["accessDetails"]> => {
+const mapAccessDetails = (record: RawUserRecord): NonNullable<AppUser["accessDetails"]> => {
   const primaryArr = Array.isArray(record.primary)
     ? (record.primary as RawUserRecord[])
     : [];
@@ -120,11 +116,7 @@ const mapAccessDetails = (record: RawUserRecord, status: AppUser["status"]): Non
     nodePath: readString(entry.nodePath).trim(),
     nodeType: readString(entry.nodeType).trim(),
     accessCategory: normalizeAccessCategory(entry.accessCategory),
-    accessType: detectedType
-      ? detectedType
-      : readString(entry.accessType).trim().toUpperCase() === "SECONDARY"
-        ? "SECONDARY"
-        : "PRIMARY",
+    accessType: detectedType,
   }));
 
   return mappedEntries;
@@ -150,10 +142,10 @@ const getDepartmentFromAccessDetails = (record: RawUserRecord) => {
 
 const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUser => {
   const basicDetails = toRecord(record.basicDetails);
-  const name = readNonEmptyString(readString(basicDetails.name), "Not available");
-  const email = readNonEmptyString(readString(basicDetails.email), "no-email@example.com");
-  const designation = readNonEmptyString(readString(basicDetails.designation), "Not available");
-  const phone = readNonEmptyString(readString(basicDetails.phone), "9999999999");
+  const name = readString(basicDetails.name).trim();
+  const email = readString(basicDetails.email).trim();
+  const designation = readString(basicDetails.designation).trim();
+  const phone = readString(basicDetails.phone).trim();
   const onboardingDate = readString(basicDetails.createdAt) || readString(basicDetails.companyOnboardingDate);
   const reportingManagerName = readString(basicDetails.reportingManagerName).trim();
   const reportingManagerEmail = readString(basicDetails.reportingManagerEmail).trim();
@@ -164,22 +156,23 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   const workflowName = readString(basicDetails.workflowName).trim();
   const alias = readString(basicDetails.alias).trim();
   const backendId =
-    readString(record.id) ||
-    readString(record.userId) ||
-    readString(basicDetails.id) ||
-    readString(basicDetails.userId);
-  const uuid = readString(record.uuid) || readString(basicDetails.uuid);
+    readString(record.id).trim() ||
+    readString(record.userId).trim() ||
+    readString(basicDetails.id).trim() ||
+    readString(basicDetails.userId).trim();
+  const uuid = readString(record.uuid).trim() || readString(basicDetails.uuid).trim();
+  const companyId = readString(record.companyId).trim();
 
   return {
-    id: backendId || email || name,
-    uuid,
+    id: backendId || undefined,
+    uuid: uuid || undefined,
     name,
     email,
     role: designation,
     designation,
     department: getDepartmentFromAccessDetails(record),
     phone,
-    companyId: typeof record.companyId === "string" ? record.companyId : undefined,
+    companyId: companyId || undefined,
     onboardingDate: onboardingDate || undefined,
     manager: {
       name: reportingManagerName,
@@ -203,7 +196,7 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
       workflowName: workflowName || "",
       alias: alias || "",
     },
-    accessDetails: mapAccessDetails(record, status),
+    accessDetails: mapAccessDetails(record),
   };
 };
 
@@ -244,13 +237,19 @@ export async function fetchCompanyNodes(subCategory: string): Promise<CompanyNod
     }),
   });
 
-  const rows = Array.isArray(payload.data) ? payload.data : [];
+  if (!Array.isArray(payload.data)) {
+    throw new Error("Invalid company nodes response: data must be an array");
+  }
 
-  return rows.map((row) => {
+  return payload.data.map((row) => {
     const record = toRecord(row);
-    const workflowsRaw = Array.isArray(record.workflows) ? (record.workflows as RawUserRecord[]) : [];
+    const workflowsRaw = record.workflows;
+    if (!Array.isArray(workflowsRaw)) {
+      throw new Error("Invalid company nodes response: workflows must be an array");
+    }
+    const workflowRecords = workflowsRaw as RawUserRecord[];
     const workflows = workflowsRaw.map((workflow) => ({
-      levelsHash: readString(workflow.levelsHash).trim() || readString(workflow.id).trim(),
+      levelsHash: readString((workflow as RawUserRecord).levelsHash).trim(),
       name: readString(workflow.name).trim(),
       alias: readString(workflow.alias).trim() || undefined,
     }));
@@ -272,15 +271,17 @@ export async function getCompanyUsers(_companyCode: string): Promise<AppUser[]> 
     body: JSON.stringify({ companyCode: _companyCode.trim().toUpperCase() }),
   });
 
-  const activeUsers = Array.isArray(payload.data?.activeUsers)
-    ? payload.data.activeUsers.map((record) => mapCompanyUser(record, "Active"))
-    : [];
-  const pendingUsers = Array.isArray(payload.data?.pendingUsers)
-    ? payload.data.pendingUsers.map((record) => mapCompanyUser(record, "Pending"))
-    : [];
-  const inactiveUsers = Array.isArray(payload.data?.inactiveUsers)
-    ? payload.data.inactiveUsers.map((record) => mapCompanyUser(record, "Inactive"))
-    : [];
+  if (!payload.data) {
+    throw new Error("Invalid users response: missing data object");
+  }
+  const { activeUsers, pendingUsers, inactiveUsers } = payload.data;
+  if (!Array.isArray(activeUsers) || !Array.isArray(pendingUsers) || !Array.isArray(inactiveUsers)) {
+    throw new Error("Invalid users response: user buckets must be arrays");
+  }
 
-  return [...activeUsers, ...pendingUsers, ...inactiveUsers];
+  const mappedActiveUsers = activeUsers.map((record) => mapCompanyUser(record, "Active"));
+  const mappedPendingUsers = pendingUsers.map((record) => mapCompanyUser(record, "Pending"));
+  const mappedInactiveUsers = inactiveUsers.map((record) => mapCompanyUser(record, "Inactive"));
+
+  return [...mappedActiveUsers, ...mappedPendingUsers, ...mappedInactiveUsers];
 }

@@ -13,7 +13,10 @@ import { formatRoleTokenLabel } from "@/features/user-management/roleLabels";
 
 const normalizeCompact = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
 const normalizeLoose = (value: string) => value.toLowerCase().trim().replace(/\s+/g, " ");
-const extractDigits = (value: string) => value.match(/\d+/g) ?? [];
+const extractDigits = (value: string): string[] => {
+  const matches = value.match(/\d+/g);
+  return matches ? [...matches] : [];
+};
 const splitAlphaNumericTokens = (value: string) =>
   value
     .toLowerCase()
@@ -37,11 +40,7 @@ const isWithinTwoEdits = (left: string, right: string) => {
     for (let j = 1; j <= bLen; j += 1) {
       const temp = prev[j];
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      prev[j] = Math.min(
-        prev[j] + 1,
-        prev[j - 1] + 1,
-        diagonal + cost,
-      );
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diagonal + cost);
       diagonal = temp;
       if (prev[j] < rowMin) rowMin = prev[j];
     }
@@ -67,6 +66,7 @@ export function useUserManagement() {
   const [accessScopeFilters, setAccessScopeFilters] = useState<string[]>([]);
   const [roleTypeFilters, setRoleTypeFilters] = useState<string[]>([]);
   const [linkedNodeFilter, setLinkedNodeFilter] = useState("");
+  const [linkedNodePathFilter, setLinkedNodePathFilter] = useState("");
   const [linkedCategoryFilter, setLinkedCategoryFilter] = useState("");
   const [linkedSubcategoryFilter, setLinkedSubcategoryFilter] = useState("");
   const [linkedActionFilter, setLinkedActionFilter] = useState<"" | "checker" | "maker" | "viewer">("");
@@ -148,6 +148,7 @@ export function useUserManagement() {
     sortOrder,
     pageSize,
     linkedNodeFilter,
+    linkedNodePathFilter,
     linkedCategoryFilter,
     linkedSubcategoryFilter,
     linkedActionFilter,
@@ -158,16 +159,18 @@ export function useUserManagement() {
     if (tab !== "users") return;
 
     const node = (searchParams.get("um_node") || "").trim();
+    const nodePath = (searchParams.get("um_node_path") || "").trim();
     const category = (searchParams.get("um_category") || "").trim();
     const subcategory = (searchParams.get("um_subcategory") || "").trim();
     const actionRaw = (searchParams.get("um_action") || "").trim().toLowerCase();
     const action = actionRaw === "checker" || actionRaw === "maker" || actionRaw === "viewer" ? actionRaw : "";
 
-    const hasDeepLinkFilters = Boolean(node || category || subcategory || action);
+    const hasDeepLinkFilters = Boolean(node || nodePath || category || subcategory || action);
     if (!hasDeepLinkFilters) return;
 
     setStatusTab("active");
     setLinkedNodeFilter(node);
+    setLinkedNodePathFilter(nodePath);
     setLinkedCategoryFilter(category);
     setLinkedSubcategoryFilter(subcategory);
     setLinkedActionFilter(action);
@@ -307,12 +310,14 @@ export function useUserManagement() {
     setOnboardingDateFrom("");
     setOnboardingDateTo("");
     setLinkedNodeFilter("");
+    setLinkedNodePathFilter("");
     setLinkedCategoryFilter("");
     setLinkedSubcategoryFilter("");
     setLinkedActionFilter("");
 
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete("um_node");
+    nextParams.delete("um_node_path");
     nextParams.delete("um_category");
     nextParams.delete("um_subcategory");
     nextParams.delete("um_action");
@@ -335,15 +340,25 @@ export function useUserManagement() {
           const userReportingManager = (user.manager?.name || user.basicDetails?.reportingManagerName || "").trim();
           const matchesReportingManager =
             reportingManagerFilters.length === 0 || reportingManagerFilters.includes(userReportingManager);
-          const primaryEntries = (user.accessDetails ?? []).filter((entry) => entry.accessType === "PRIMARY");
-          const secondaryEntries = (user.accessDetails ?? []).filter((entry) => entry.accessType === "SECONDARY");
-          const primaryNodeNames = new Set(primaryEntries.map((entry) => entry.nodeName.trim()).filter(Boolean));
-          const secondaryNodeNames = new Set(secondaryEntries.map((entry) => entry.nodeName.trim()).filter(Boolean));
+          const primaryNodeNames = new Set(
+            (user.accessDetails ?? [])
+              .filter((entry) => entry.accessType === "PRIMARY")
+              .map((entry) => entry.nodeName.trim())
+              .filter(Boolean),
+          );
+          const secondaryNodeNames = new Set(
+            (user.accessDetails ?? [])
+              .filter((entry) => entry.accessType === "SECONDARY")
+              .map((entry) => entry.nodeName.trim())
+              .filter(Boolean),
+          );
           const matchesPrimaryNode =
             primaryNodeFilters.length === 0 || primaryNodeFilters.some((nodeName) => primaryNodeNames.has(nodeName));
           const matchesSecondaryNode =
             secondaryNodeFilters.length === 0 || secondaryNodeFilters.some((nodeName) => secondaryNodeNames.has(nodeName));
           const scopedEntriesForRoleFilters = (() => {
+            const primaryEntries = (user.accessDetails ?? []).filter((entry) => entry.accessType === "PRIMARY");
+            const secondaryEntries = (user.accessDetails ?? []).filter((entry) => entry.accessType === "SECONDARY");
             const scopedPrimaryEntries =
               primaryNodeFilters.length > 0
                 ? primaryEntries.filter((entry) => primaryNodeFilters.includes(entry.nodeName.trim()))
@@ -377,6 +392,7 @@ export function useUserManagement() {
           const linkedEntryMatched = (() => {
             const hasLinkedFilters =
               Boolean(linkedNodeFilter) ||
+              Boolean(linkedNodePathFilter) ||
               Boolean(linkedCategoryFilter) ||
               Boolean(linkedSubcategoryFilter) ||
               Boolean(linkedActionFilter);
@@ -384,6 +400,7 @@ export function useUserManagement() {
 
             return scopedEntriesForRoleFilters.some((entry) => {
               const entryNode = (entry.nodeName || "").trim();
+              const entryNodePath = (entry.nodePath || "").trim();
               const entryCategory = (entry.roleCategory || "").trim();
               const entrySubcategory = (entry.roleSubCategory || "").trim();
               const normalizedRoleName = (entry.roleName || "").trim().toLowerCase();
@@ -401,6 +418,7 @@ export function useUserManagement() {
 
               return (
                 (!linkedNodeFilter || entryNode === linkedNodeFilter) &&
+                (!linkedNodePathFilter || entryNodePath === linkedNodePathFilter) &&
                 (!linkedCategoryFilter || entryCategory === linkedCategoryFilter) &&
                 (!linkedSubcategoryFilter || entrySubcategory === linkedSubcategoryFilter) &&
                 actionMatched
@@ -452,10 +470,11 @@ export function useUserManagement() {
         const email = user.email || "";
         const designation = user.designation || "";
         const department = user.department || "";
-        const searchableText = normalizeLoose(`${name} ${email} ${designation} ${department}`);
+        const phone = user.phone || "";
+        const searchableText = normalizeLoose(`${name} ${email} ${designation} ${department} ${phone}`);
         const compact = normalizeCompact(searchableText);
         const digits = extractDigits(searchableText);
-        return { user, name, email, designation, department, searchableText, compact, digits };
+        return { user, name, email, designation, department, phone, searchableText, compact, digits };
       });
 
       const rankContains = (candidate: (typeof searchable)[number]) => {
@@ -490,6 +509,7 @@ export function useUserManagement() {
             candidate.email.toLowerCase().includes(normalizedTerm) ||
             candidate.designation.toLowerCase().includes(normalizedTerm) ||
             candidate.department.toLowerCase().includes(normalizedTerm) ||
+            (candidate.phone ?? "").toLowerCase().includes(normalizedTerm) ||
             (compactQuery && candidate.compact.includes(compactQuery)) ||
             tokenCoverage
           );
@@ -514,11 +534,12 @@ export function useUserManagement() {
         ignoreLocation: true,
         minMatchCharLength,
         keys: [
-          { name: "name", weight: 0.35 },
-          { name: "compact", weight: 0.25 },
-          { name: "email", weight: 0.15 },
-          { name: "designation", weight: 0.08 },
-          { name: "department", weight: 0.05 },
+          { name: "name", weight: 0.5 },
+          { name: "email", weight: 0.2 },
+          { name: "designation", weight: 0.12 },
+          { name: "department", weight: 0.08 },
+          { name: "phone", weight: 0.05 },
+          { name: "compact", weight: 0.35 },
         ],
       });
 
@@ -562,6 +583,11 @@ export function useUserManagement() {
       departmentFilters,
       designationFilters,
       inferRoleType,
+      linkedActionFilter,
+      linkedCategoryFilter,
+      linkedNodeFilter,
+      linkedNodePathFilter,
+      linkedSubcategoryFilter,
       onboardingDateFrom,
       onboardingDateTo,
       parseToDate,
@@ -657,7 +683,7 @@ export function useUserManagement() {
         throw new Error("User email is missing");
       }
 
-      const response = await updateUserStatus(member.id, action === "activate" ? "approve" : "reject", _remark ?? "");
+      await updateUserStatus(member.id, action === "activate" ? "approve" : "reject", _remark ?? "");
       await loadUsers();
       setViewingMember(null);
       if (action === "activate") {
@@ -665,9 +691,7 @@ export function useUserManagement() {
       }
       toast({
         title: action === "activate" ? "User activated" : "User deactivated",
-        description:
-          response?.message?.trim() ||
-          `${member.name} was moved to ${action === "activate" ? "active" : "inactive"} users.`,
+        description: `${member.name} was moved to ${action === "activate" ? "active" : "inactive"} users.`,
       });
     } catch (error) {
       toast({

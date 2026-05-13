@@ -3,7 +3,7 @@ import type { AppUser, OrgNode } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
-import { createNewOrgNode, getCompanyOrgStructure, updateOrgNodeAction } from "@/services/org.service";
+import { createNewOrgNode, fetchUsersByNodePathCount, getCompanyOrgStructure, updateOrgNodeAction } from "@/services/org.service";
 import { fetchCompanyNodes, getCompanyUsers } from "@/services/user.service";
 import { collectNodeTrail, findOrgNodeById, findParentNodeById, flattenOrg } from "@/features/org-structure/orgNode.utils";
 import type { DepartmentSidebarDepartment, NewNodeType } from "@/features/org-structure/types";
@@ -12,6 +12,19 @@ const VIEWPORT_EDGE_PADDING = 96;
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
+type PermissionAction = "checker" | "maker" | "viewer";
+type PermissionMatrixRow = {
+  key: string;
+  label: string;
+  counts: Record<PermissionAction, number>;
+};
+const SYSTEM_ROWS: Array<{ key: string; label: string }> = [
+  { key: "ORG_STR", label: "Org Structure" },
+  { key: "USER_ACC", label: "User Access" },
+  { key: "WORK_FLOW", label: "Workflow" },
+];
+const buildEmptyPermissionRows = (): PermissionMatrixRow[] =>
+  SYSTEM_ROWS.map((row) => ({ key: row.key, label: row.label, counts: { checker: 0, maker: 0, viewer: 0 } }));
 
 export function useOrgStructure() {
   const { currentUser, orgStructure, setOrgStructure } = useAppContext();
@@ -30,6 +43,8 @@ export function useOrgStructure() {
   const [pendingNodeForReview, setPendingNodeForReview] = useState<OrgNode | null>(null);
   const [orgUsers, setOrgUsers] = useState<AppUser[]>([]);
   const [orgUsersLoading, setOrgUsersLoading] = useState(false);
+  const [nodePermissionRows, setNodePermissionRows] = useState<PermissionMatrixRow[]>(buildEmptyPermissionRows);
+  const [nodePermissionLoading, setNodePermissionLoading] = useState(false);
   const treeScrollRef = useRef<HTMLDivElement | null>(null);
   const bottomScrollRef = useRef<HTMLDivElement | null>(null);
   const graphContentRef = useRef<HTMLDivElement | null>(null);
@@ -286,6 +301,35 @@ export function useOrgStructure() {
       return;
     }
 
+    if (node.nodePath?.trim()) {
+      setNodePermissionLoading(true);
+      void fetchUsersByNodePathCount(node.nodePath)
+        .then((data) => {
+          const normalizedRows = SYSTEM_ROWS.map((row) => {
+            const entries = Array.isArray(data[row.key]) ? data[row.key] : [];
+            const counts = { checker: 0, maker: 0, viewer: 0 };
+            entries.forEach((entry) => {
+              const level = String(entry.permissionlevel || "").trim().toUpperCase();
+              const count = typeof entry.count === "number" ? entry.count : 0;
+              if (level === "MANAGER") counts.checker = count;
+              if (level === "USER") counts.maker = count;
+              if (level === "VIEWER") counts.viewer = count;
+            });
+            return { key: row.key, label: row.label, counts };
+          });
+          setNodePermissionRows(normalizedRows);
+        })
+        .catch(() => {
+          setNodePermissionRows(buildEmptyPermissionRows());
+        })
+        .finally(() => {
+          setNodePermissionLoading(false);
+        });
+    } else {
+      setNodePermissionRows(buildEmptyPermissionRows());
+      setNodePermissionLoading(false);
+    }
+
     if (selectedDepartment?.id === node.id && sidebarOpen) {
       startTransition(() => {
         setSelectedDepartment(null);
@@ -412,6 +456,8 @@ export function useOrgStructure() {
     pendingNodeForReview,
     orgUsers,
     orgUsersLoading,
+    nodePermissionRows,
+    nodePermissionLoading,
     treeScrollRef,
     bottomScrollRef,
     graphContentRef,

@@ -42,10 +42,23 @@ type OrgApiResponse = {
   };
 };
 
+type NodePathCountItem = {
+  label?: string;
+  count?: number;
+  permissionlevel?: string;
+};
+
+type NodePathCountResponse = {
+  message?: string;
+  code?: number;
+  data?: Record<string, NodePathCountItem[]>;
+};
+
 const COMPANY_ORG_PATH = "/api/v1/company-settings/org/fetch";
 const NEW_NODE_PATH = "/api/v1/company-settings/org/initiate";
 const NODE_ACTION_PATH = "/api/v1/company-settings/org/approve";
 const ORG_HISTORY_PATH = "/api/v1/company-settings/org/fetch-history";
+const USERS_BY_NODEPATH_COUNT_PATH = "/api/v1/company-settings/user/fetch-users-by-nodepath-count";
 
 
 const getString = (record: RawCompanyRecord, keys: string[], fallback = "") => {
@@ -88,22 +101,19 @@ const normalizeNodeTypeForApi = (nodeType: string): AllowedNodeType => {
 
 const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"): OrgNode => {
   const nodePath = getString(record, ["nodePath"], "");
-  const nodeUuid = getString(record, ["uuid"], getString(record, ["id"], ""));
-
-  const generateId = () => {
-    try {
-      return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `node-${Math.random().toString(36).substring(2, 9)}`;
-    } catch {
-      return `node-${Date.now()}`;
-    }
-  };
-
+  const nodeId = getString(record, ["id"], nodePath);
+  const nodeUuid = getString(record, ["uuid"], nodeId);
+  const nodeName = getString(record, ["nodeName"], "");
+  const nodeType = getString(record, ["nodeType"], "");
+  if (!nodePath || !nodeName || !nodeType) {
+    throw new Error("Invalid org/fetch response: nodeName, nodeType and nodePath are required");
+  }
   return {
-    id: getString(record, ["id"], nodePath || generateId()),
+    id: nodeId,
     uuid: nodeUuid || undefined,
     companyId: getNullableString(record, ["companyId"]) ?? undefined,
-    name: getString(record, ["nodeName"], "Untitled Node"),
-    nodeType: getString(record, ["nodeType"], "NODE"),
+    name: nodeName,
+    nodeType,
     nodePath,
     status,
     children: [],
@@ -295,12 +305,17 @@ export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNo
       }),
     });
 
-    const activeNodes = Array.isArray(payload.data?.active) ? payload.data.active.map((record) => mapOrgNode(record, "Active")) : [];
-    const pendingNodes = Array.isArray(payload.data?.pending)
-      ? payload.data.pending
-          .map((record) => mapPendingOrgRequest(record))
-          .filter((node): node is OrgNode => node !== null)
-      : [];
+    if (!payload.data) {
+      throw new Error("Invalid org/fetch response: missing data");
+    }
+    if (!Array.isArray(payload.data.active) || !Array.isArray(payload.data.pending)) {
+      throw new Error("Invalid org/fetch response: active and pending must be arrays");
+    }
+
+    const activeNodes = payload.data.active.map((record) => mapOrgNode(record, "Active"));
+    const pendingNodes = payload.data.pending
+      .map((record) => mapPendingOrgRequest(record))
+      .filter((node): node is OrgNode => node !== null);
     const parsedData = [...activeNodes, ...pendingNodes];
 
     if (parsedData.length > 0) {
@@ -324,4 +339,17 @@ export async function fetchOrgHistory(companyCode: string, nodeName: string, nod
       ...(nodePath?.trim() ? { nodePath: nodePath.trim() } : {}),
     })
   });
+}
+
+export async function fetchUsersByNodePathCount(nodePath: string) {
+  const payload = await apiFetch<NodePathCountResponse>(USERS_BY_NODEPATH_COUNT_PATH, {
+    method: "POST",
+    body: JSON.stringify({
+      nodePath: nodePath.trim(),
+    }),
+  });
+  if (!payload.data || typeof payload.data !== "object") {
+    throw new Error("Invalid nodepath count response: missing data");
+  }
+  return payload.data;
 }

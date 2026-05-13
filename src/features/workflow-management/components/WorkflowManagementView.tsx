@@ -565,7 +565,7 @@ export default function WorkflowManagementView() {
       {manageWorkflow && typeof document !== "undefined"
         ? createPortal(
             <div
-              className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm transition-[top,left,width,height,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+              className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm transition-[top,left,width,height,opacity] duration-500"
               style={
                 canUseSplitManageHistory
                   ? {
@@ -573,12 +573,14 @@ export default function WorkflowManagementView() {
                       left: `${shellOffset.left}px`,
                       width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
                       height: `calc(100vh - ${shellOffset.top}px)`,
+                      transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
                     }
                   : {
                       top: "0px",
                       left: "0px",
                       width: "100vw",
                       height: "100vh",
+                      transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
                     }
               }
             />,
@@ -612,7 +614,7 @@ export default function WorkflowManagementView() {
         overlayClassName="hidden"
         contentClassName={
           canUseSplitManageHistory
-            ? "flex h-full max-h-none w-auto max-w-none flex-col overflow-hidden rounded-none p-0 transition-[top,left,width,height,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] data-[state=open]:animate-none data-[state=closed]:animate-none"
+            ? "flex h-full max-h-none w-auto max-w-none flex-col overflow-hidden rounded-none p-0 transition-[top,left,width,height,transform] duration-500 will-change-[width] data-[state=open]:animate-none data-[state=closed]:animate-none"
             : undefined
         }
         contentStyle={
@@ -623,6 +625,7 @@ export default function WorkflowManagementView() {
                 width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
                 height: `calc(100vh - ${shellOffset.top}px)`,
                 transform: "translate(0, 0)",
+                transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
               }
             : undefined
         }

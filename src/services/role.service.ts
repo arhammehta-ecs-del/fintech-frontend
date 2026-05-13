@@ -35,22 +35,35 @@ export async function getCompanyRoles(companyCode: string): Promise<RoleRecord[]
     }),
   });
 
-  const roles = Array.isArray(payload.data) ? payload.data : [];
+  if (!Array.isArray(payload.data)) {
+    throw new Error("Invalid roles response: data must be an array");
+  }
 
-  return roles
-    .map((role) => ({
-      roleName: getPacketString(role.roleName),
-      roleCode: `${getPacketString(role.subCategory).toUpperCase()}_${getPacketString(role.permissionLevel).toUpperCase()}`,
-      category: getPacketString(role.category).toUpperCase(),
-      subCategory: getPacketString(role.subCategory).toUpperCase(),
-      permissionLevel: getPacketString(role.permissionLevel).toUpperCase(),
+  return payload.data.map((role) => {
+    const roleName = getPacketString(role.roleName);
+    const category = getPacketString(role.category).toUpperCase();
+    const subCategory = getPacketString(role.subCategory).toUpperCase();
+    const permissionLevel = getPacketString(role.permissionLevel).toUpperCase();
+    if (!roleName || !category || !subCategory || !permissionLevel) {
+      throw new Error("Invalid roles response: roleName, category, subCategory and permissionLevel are required");
+    }
+
+    const accessTypeRaw = getPacketString(role.accessType).toUpperCase();
+    const accessType =
+      accessTypeRaw === "PRIMARY"
+        ? "PRIMARY"
+        : accessTypeRaw === "SECONDARY"
+          ? "SECONDARY"
+          : undefined;
+
+    return {
+      roleName,
+      roleCode: `${subCategory}_${permissionLevel}`,
+      category,
+      subCategory,
+      permissionLevel,
       isActive: true,
-      accessType:
-        getPacketString(role.accessType).toUpperCase() === "PRIMARY"
-          ? "PRIMARY"
-          : getPacketString(role.accessType).toUpperCase() === "SECONDARY"
-            ? "SECONDARY"
-            : undefined,
-    }))
-    .filter((role) => role.roleCode && role.category && role.permissionLevel && role.isActive);
+      accessType,
+    };
+  });
 }

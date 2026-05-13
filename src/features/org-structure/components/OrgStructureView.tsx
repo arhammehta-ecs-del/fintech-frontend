@@ -76,8 +76,8 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     zoomOut,
     zoomIn,
     pendingNodeForReview,
-    orgUsers,
-    orgUsersLoading,
+    nodePermissionRows,
+    nodePermissionLoading,
     setPendingNodeForReview,
     handleApproveNode,
     handleRejectNode,
@@ -139,11 +139,13 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
 
   const handleNavigateToUsers = ({
     nodeName,
+    nodePath,
     category,
     subCategory,
     action,
   }: {
     nodeName: string;
+    nodePath: string;
     category: string;
     subCategory: string;
     action: "checker" | "maker" | "viewer";
@@ -151,6 +153,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     setSearchParams({
       tab: "users",
       um_node: nodeName,
+      um_node_path: nodePath,
       um_category: category,
       um_subcategory: subCategory,
       um_action: action,
@@ -297,8 +300,8 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
               open={sidebarOpen}
               onOpenChange={handleSidebarOpenChange}
               department={selectedDepartment}
-              users={orgUsers}
-              usersLoading={orgUsersLoading}
+              permissionRows={nodePermissionRows}
+              countsLoading={nodePermissionLoading}
               onNavigateToUsers={handleNavigateToUsers}
               onOpenHistory={() => {
                 setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
@@ -322,8 +325,8 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
             open={sidebarOpen}
             onOpenChange={handleSidebarOpenChange}
             department={selectedDepartment}
-            users={orgUsers}
-            usersLoading={orgUsersLoading}
+            permissionRows={nodePermissionRows}
+            countsLoading={nodePermissionLoading}
             onNavigateToUsers={handleNavigateToUsers}
             onOpenHistory={() => {
               setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());

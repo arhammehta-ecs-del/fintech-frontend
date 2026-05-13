@@ -115,66 +115,53 @@ const COMPANY_HISTORY_PATH = "/api/v1/admin/fetch-history";
 const getPacketString = (value: string | null | undefined) => (typeof value === "string" ? value.trim() : "");
 const toUpperValue = (value: string) => value.toUpperCase();
 
-const normalizeCompanyStatus = (
-  company: RawCompanyListItem,
-  bucketStatus?: Company["status"] | null,
-): Company["status"] => {
-  if (bucketStatus) return bucketStatus;
-  const packetStatus = getPacketString(company.status).toLowerCase();
-  if (packetStatus === "pending") return "Pending";
-  if (packetStatus === "inactive") return "Inactive";
-  if (packetStatus === "approved" || packetStatus === "active") return "Approved";
-  if (company.isActive === false) return "Inactive";
-  return "Approved";
-};
-
 const mapSignatories = (signatories: Array<RawSignatory | null> | null | undefined) =>
-  signatories
-    ?.filter((signatory): signatory is RawSignatory => Boolean(signatory))
+  (signatories ?? [])
+    .filter((signatory): signatory is RawSignatory => Boolean(signatory))
     .map((signatory) => ({
       fullName: getPacketString(signatory.name),
       designation: getPacketString(signatory.designation),
       email: getPacketString(signatory.email),
       phone: getPacketString(signatory.phone),
       employeeId: getPacketString(signatory.employeeId),
-    }))
-    .filter((signatory) => Boolean(signatory.fullName || signatory.email || signatory.phone || signatory.designation || signatory.employeeId)) ?? [];
+    }));
 
 const mapCompany = (
   company: RawCompanyListItem,
-  bucketStatus?: Company["status"] | null,
+  bucketStatus: Company["status"],
   inheritedSignatories?: Array<RawSignatory | null> | null,
 ): Company => {
-  const legalName = getPacketString(company.name) || "Untitled Company";
-  const companyName = getPacketString(company.brand) || legalName;
+  const legalName = getPacketString(company.name);
+  const companyName = getPacketString(company.brand);
   const companyCode = toUpperValue(getPacketString(company.companyCode));
+  const companyId = getPacketString(company.companyId) || getPacketString(company.id) || companyCode;
+  const incorporationDate = getPacketString(company.registration) || getPacketString(company.registeredAt);
+  const ieCode = getPacketString(company.ieCode) || getPacketString(company.iecode);
+
+  if (!companyId || !companyCode || !legalName || !companyName || !incorporationDate) {
+    throw new Error("Invalid admin/groups response: company record missing required fields");
+  }
+
   const companyLevelSignatories = mapSignatories(company.signatories);
   const signatories = companyLevelSignatories.length > 0
     ? companyLevelSignatories
     : mapSignatories(inheritedSignatories);
 
   return {
-    id:
-      getPacketString(company.companyId) ||
-      getPacketString(company.id) ||
-      companyCode ||
-      companyName.toLowerCase().replace(/\s+/g, "-"),
+    id: companyId,
     brand: companyName,
     companyCode,
     companyName,
     legalName,
-    incorporationDate: getPacketString(company.registeredAt) || getPacketString(company.registration),
+    incorporationDate,
     address: getPacketString(company.address),
     gstin: getPacketString(company.gst),
-    ieCode: getPacketString(company.ieCode) || getPacketString(company.iecode),
-    status: normalizeCompanyStatus(company, bucketStatus),
+    ieCode,
+    status: bucketStatus,
     signatories,
-    requesterName:
-      getPacketString(company.initiatorName),
-    requesterEmail:
-      getPacketString(company.initiatorEmail),
-    requestInitiatedAt:
-      getPacketString(company.initiatedDate),
+    requesterName: getPacketString(company.initiatorName),
+    requesterEmail: getPacketString(company.initiatorEmail),
+    requestInitiatedAt: getPacketString(company.initiatedDate),
   };
 };
 
@@ -182,16 +169,22 @@ const getGroupName = (group: RawCompanyGroup) =>
   getPacketString(group.groupDetails?.groupName);
 const getGroupCode = (group: RawCompanyGroup) =>
   toUpperValue(getPacketString(group.groupDetails?.groupCode));
-const getGroupCompanies = (group: RawCompanyGroup) =>
-  group.comapnyDetails ?? [];
+const getGroupCompanies = (group: RawCompanyGroup) => {
+  if (!Array.isArray(group.comapnyDetails)) {
+    throw new Error("Invalid admin/groups response: comapnyDetails must be an array");
+  }
+  return group.comapnyDetails;
+};
 
-const mapGroups = (groups: RawCompanyGroup[], bucketStatus?: Company["status"] | null): GroupCompany[] =>
+const mapGroups = (groups: RawCompanyGroup[], bucketStatus: Company["status"]): GroupCompany[] =>
   groups.map((group, index) => {
-    const rawGroupName = getGroupName(group);
+    const rawGroupName = getGroupName(group).toUpperCase() === "INDEPENDENT" ? "Independent" : getGroupName(group);
     const groupCode = getGroupCode(group);
-    const isIndependentGroup = !rawGroupName && !groupCode || rawGroupName.trim().toLowerCase() === "ungrouped";
-    const groupName = isIndependentGroup ? "Independent" : rawGroupName;
-    const groupId = isIndependentGroup ? `ungrouped-${bucketStatus ?? "default"}-${index + 1}` : groupCode || rawGroupName;
+    if (!rawGroupName || !groupCode) {
+      throw new Error("Invalid admin/groups response: groupDetails missing groupName/groupCode");
+    }
+    const groupName = rawGroupName;
+    const groupId = `${groupCode}-${index + 1}`;
     const subsidiaries = getGroupCompanies(group).map((company) => mapCompany(company, bucketStatus, group.signatories));
 
     return {
@@ -210,13 +203,18 @@ export async function getAllCompanies(): Promise<GroupCompany[]> {
     body: JSON.stringify({}),
   });
 
-  if (payload.companies) {
-    const activeGroups = mapGroups(payload.companies.active ?? [], "Approved");
-    const pendingGroups = mapGroups(payload.companies.pending ?? [], "Pending");
-    const inactiveGroups = mapGroups(payload.companies.inactive ?? [], "Inactive");
-    return [...activeGroups, ...pendingGroups, ...inactiveGroups];
+  if (!payload.companies) {
+    throw new Error("Invalid admin/groups response: missing companies object");
   }
-  return [];
+  const { active, pending, inactive } = payload.companies;
+  if (!Array.isArray(active) || !Array.isArray(pending) || !Array.isArray(inactive)) {
+    throw new Error("Invalid admin/groups response: companies buckets must be arrays");
+  }
+
+  const activeGroups = mapGroups(active, "Approved");
+  const pendingGroups = mapGroups(pending, "Pending");
+  const inactiveGroups = mapGroups(inactive, "Inactive");
+  return [...activeGroups, ...pendingGroups, ...inactiveGroups];
 }
 
 export async function createCompanyOnboarding(payload: OnboardingPayload, file?: File | null) {

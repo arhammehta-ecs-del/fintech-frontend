@@ -1,12 +1,12 @@
 import { ChevronRight, History, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DepartmentSidebarDepartment } from "@/features/org-structure/types";
-import type { AppUser } from "@/contexts/AppContext";
 
 export type { DepartmentSidebarDepartment };
 
 type PermissionAction = "checker" | "maker" | "viewer";
 type PermissionMatrixRow = {
+  key: string;
   label: string;
   counts: Record<PermissionAction, number>;
 };
@@ -21,22 +21,6 @@ const SYSTEM_ROWS: Array<{ key: string; label: string }> = [
   { key: "USER_ACC", label: "User Access" },
   { key: "WORK_FLOW", label: "Workflow" },
 ];
-
-const normalizeSubCategory = (value: string) => {
-  const normalized = value.trim().toUpperCase();
-  if (normalized === "ORG_STRUCTURE") return "ORG_STR";
-  if (normalized === "USER_ACCESS" || normalized === "USER_MANAGEMENT") return "USER_ACC";
-  if (normalized === "WORKFLOW") return "WORK_FLOW";
-  return normalized;
-};
-
-const getActionFromRoleName = (roleName: string): PermissionAction | null => {
-  const normalized = roleName.trim().toLowerCase();
-  if (normalized.endsWith("manager") || normalized.endsWith("checker")) return "checker";
-  if (normalized.endsWith("user") || normalized.endsWith("maker")) return "maker";
-  if (normalized.endsWith("viewer")) return "viewer";
-  return null;
-};
 
 const initRowCounts = (): Record<PermissionAction, number> => ({
   checker: 0,
@@ -55,70 +39,25 @@ const buildCompactBreadcrumbs = (breadcrumbs: string[]): BreadcrumbItem[] => {
   ];
 };
 
-const buildPermissionMatrix = (
-  users: AppUser[],
-  department: DepartmentSidebarDepartment | null,
-): PermissionMatrixRow[] => {
-  const defaultRows = SYSTEM_ROWS.map((row) => ({ label: row.label, counts: initRowCounts() }));
-  if (!department?.nodePath) return defaultRows;
-
-  const matrixBySubCategory = new Map<string, Record<PermissionAction, Set<string>>>();
-  SYSTEM_ROWS.forEach((row) => {
-    matrixBySubCategory.set(row.key, { checker: new Set<string>(), maker: new Set<string>(), viewer: new Set<string>() });
-  });
-
-  users
-    .filter((user) => (user.status || "").trim().toUpperCase() === "ACTIVE")
-    .forEach((user) => {
-      const userKey = (user.email || user.id || "").trim();
-      if (!userKey) return;
-
-      (user.accessDetails || []).forEach((entry) => {
-        if ((entry.roleCategory || "").trim().toUpperCase() !== "SYSTEM_ACCESS") return;
-        if ((entry.nodePath || "").trim() !== department.nodePath) return;
-
-        const subCategory = normalizeSubCategory(entry.roleSubCategory || "");
-        const action = getActionFromRoleName(entry.roleName || "");
-        if (!action) return;
-        const countsByAction = matrixBySubCategory.get(subCategory);
-        if (!countsByAction) return;
-        countsByAction[action].add(userKey);
-      });
-    });
-
-  return SYSTEM_ROWS.map((row) => {
-    const countsByAction = matrixBySubCategory.get(row.key);
-    return {
-      label: row.label,
-      counts: {
-        checker: countsByAction?.checker.size ?? 0,
-        maker: countsByAction?.maker.size ?? 0,
-        viewer: countsByAction?.viewer.size ?? 0,
-      },
-    };
-  });
-};
-
 function NodeSidebarContent({
   department,
   breadcrumbs,
-  users,
-  usersLoading,
+  permissionRows,
+  countsLoading,
   onNavigateToUsers,
   onClose,
   onOpenHistory,
 }: {
   department: DepartmentSidebarDepartment | null;
   breadcrumbs: string[];
-  users: AppUser[];
-  usersLoading: boolean;
-  onNavigateToUsers: (input: { nodeName: string; category: string; subCategory: string; action: PermissionAction }) => void;
+  permissionRows: PermissionMatrixRow[];
+  countsLoading: boolean;
+  onNavigateToUsers: (input: { nodeName: string; nodePath: string; category: string; subCategory: string; action: PermissionAction }) => void;
   onClose: () => void;
   onOpenHistory: () => void;
 }) {
   const showBreadcrumbs = breadcrumbs.length > 1 || breadcrumbs[0] !== (department?.name ?? "Organisation");
   const compactBreadcrumbs = buildCompactBreadcrumbs(breadcrumbs);
-  const permissionRows = buildPermissionMatrix(users, department);
 
   return (
     <div className="flex h-full min-h-full w-full flex-col">
@@ -166,7 +105,7 @@ function NodeSidebarContent({
             <span className="text-center">Viewer</span>
           </div>
 
-          {usersLoading ? (
+          {countsLoading ? (
             <div className="px-3 py-4 text-xs text-slate-500">Loading access counts...</div>
           ) : (
             permissionRows.map((row) => (
@@ -181,13 +120,12 @@ function NodeSidebarContent({
                     key={`${row.label}-${action}`}
                     disabled={row.counts[action] === 0}
                     onClick={() => {
-                      if (!department?.name || row.counts[action] === 0) return;
-                      const subCategory = SYSTEM_ROWS.find((item) => item.label === row.label)?.key || "";
-                      if (!subCategory) return;
+                      if (!department?.name || !department?.nodePath || row.counts[action] === 0) return;
                       onNavigateToUsers({
                         nodeName: department.name,
+                        nodePath: department.nodePath,
                         category: "SYSTEM_ACCESS",
-                        subCategory,
+                        subCategory: row.key,
                         action,
                       });
                     }}
@@ -214,17 +152,17 @@ export function NodeSidebar({
   open,
   onOpenChange,
   department,
-  users,
-  usersLoading,
+  permissionRows,
+  countsLoading,
   onNavigateToUsers,
   onOpenHistory,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   department: DepartmentSidebarDepartment | null;
-  users: AppUser[];
-  usersLoading: boolean;
-  onNavigateToUsers: (input: { nodeName: string; category: string; subCategory: string; action: PermissionAction }) => void;
+  permissionRows: PermissionMatrixRow[];
+  countsLoading: boolean;
+  onNavigateToUsers: (input: { nodeName: string; nodePath: string; category: string; subCategory: string; action: PermissionAction }) => void;
   onOpenHistory: () => void;
 }) {
   const breadcrumbs = department?.breadcrumbs?.length ? department.breadcrumbs : [department?.name ?? "Organisation"];
@@ -241,8 +179,8 @@ export function NodeSidebar({
       <NodeSidebarContent
         department={department}
         breadcrumbs={breadcrumbs}
-        users={users}
-        usersLoading={usersLoading}
+        permissionRows={permissionRows}
+        countsLoading={countsLoading}
         onNavigateToUsers={onNavigateToUsers}
         onClose={() => onOpenChange(false)}
         onOpenHistory={onOpenHistory}

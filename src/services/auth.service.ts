@@ -33,34 +33,51 @@ const getPacketString = (value: string | null | undefined) => (typeof value === 
 const toUpperValue = (value: string) => value.toUpperCase();
 
 const mapUserGroups = (groups?: RawLoginGroup[] | null): CurrentUserGroup[] =>
-  Array.isArray(groups)
-    ? groups.map((group) => ({
-      groupName: getPacketString(group.groupName),
-      groupCode: toUpperValue(getPacketString(group.groupCode)),
-      companies: Array.isArray(group.companies)
-        ? group.companies.map((company) => ({
-          companyName: getPacketString(company.legalName),
-          brandName: getPacketString(company.brandName),
-          companyCode: toUpperValue(getPacketString(company.companyCode)),
-        }))
-        : [],
-    }))
-    : [];
+  (groups ?? []).map((group) => {
+    const groupName = getPacketString(group.groupName);
+    const groupCode = toUpperValue(getPacketString(group.groupCode));
+    if (!groupName || !groupCode) {
+      throw new Error("Invalid auth/me response: groupName and groupCode are required");
+    }
+    if (!Array.isArray(group.companies)) {
+      throw new Error("Invalid auth/me response: group.companies must be an array");
+    }
+    const companies = group.companies.map((company) => {
+      const companyName = getPacketString(company.legalName);
+      const brandName = getPacketString(company.brandName);
+      const companyCode = toUpperValue(getPacketString(company.companyCode));
+      if (!companyName || !brandName || !companyCode) {
+        throw new Error("Invalid auth/me response: company legalName, brandName and companyCode are required");
+      }
+      return { companyName, brandName, companyCode };
+    });
+    return { groupName, groupCode, companies };
+  });
 
 const mapUser = (record?: RawLoginUser | null): CurrentUser => {
+  if (!record) {
+    throw new Error("Invalid auth/me response: missing user object");
+  }
+  const name = getPacketString(record.name);
+  const email = getPacketString(record.email);
+  const phone = getPacketString(record.phone);
+  if (!name || !email || !phone) {
+    throw new Error("Invalid auth/me response: user name, email and phone are required");
+  }
+
   const groups = mapUserGroups(record?.groups);
-  const firstGroup = groups[0];
-  const firstCompany = firstGroup?.companies[0];
+  const firstGroup = groups[0] ?? null;
+  const firstCompany = firstGroup?.companies[0] ?? null;
 
   return {
-    name: getPacketString(record?.name),
-    email: getPacketString(record?.email),
-    phone: getPacketString(record?.phone),
-    company: getPacketString(record?.company) || firstCompany?.companyName,
-    brand: getPacketString(record?.brand) || firstCompany?.brandName,
-    companyCode: toUpperValue(getPacketString(record?.companyCode)) || firstCompany?.companyCode,
-    groupName: getPacketString(record?.groupName) || firstGroup?.groupName,
-    groupCode: toUpperValue(getPacketString(record?.groupCode)) || firstGroup?.groupCode,
+    name,
+    email,
+    phone,
+    company: firstCompany?.companyName,
+    brand: firstCompany?.brandName,
+    companyCode: firstCompany?.companyCode,
+    groupName: firstGroup?.groupName,
+    groupCode: firstGroup?.groupCode,
     groups,
   };
 };
@@ -87,9 +104,12 @@ export async function getCurrentUser() {
   const payload = await apiFetch<{ message?: string; user?: RawLoginUser | null }>(ME_PATH, {
     method: "POST",
   });
+  if (!payload.user) {
+    throw new Error("Invalid auth/me response: missing user");
+  }
 
   return {
-    message: payload.message ?? "",
+    message: payload.message ?? "Current user fetched",
     user: mapUser(payload.user),
   };
 }
