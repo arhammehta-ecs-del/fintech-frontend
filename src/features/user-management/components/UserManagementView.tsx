@@ -20,6 +20,10 @@ export function UserManagementView() {
     setSearch,
     designationFilters,
     setDesignationFilters,
+    accessCategoryFilters,
+    setAccessCategoryFilters,
+    accessSubcategoryFilters,
+    setAccessSubcategoryFilters,
     departmentFilters,
     setDepartmentFilters,
     reportingManagerFilters,
@@ -35,6 +39,8 @@ export function UserManagementView() {
     sortOrder,
     setSortOrder,
     roles,
+    accessCategories,
+    accessSubcategories,
     departments,
     reportingManagerOptions,
     primaryNodeOptions,
@@ -158,6 +164,10 @@ export function UserManagementView() {
         onSearchChange={setSearch}
         designationFilters={designationFilters}
         onToggleDesignation={(value) => setDesignationFilters((current) => toggleFilterValue(current, value))}
+        accessCategoryFilters={accessCategoryFilters}
+        onToggleAccessCategory={(value) => setAccessCategoryFilters((current) => toggleFilterValue(current, value))}
+        accessSubcategoryFilters={accessSubcategoryFilters}
+        onToggleAccessSubcategory={(value) => setAccessSubcategoryFilters((current) => toggleFilterValue(current, value))}
         departmentFilters={departmentFilters}
         onToggleDepartment={(value) => setDepartmentFilters((current) => toggleFilterValue(current, value))}
         reportingManagerFilters={reportingManagerFilters}
@@ -173,6 +183,8 @@ export function UserManagementView() {
         onClearAdvancedFilters={clearAdvancedFilters}
         onApplyAdvancedFilters={(filters) => {
           setDesignationFilters(filters.designationFilters);
+          setAccessCategoryFilters(filters.accessCategoryFilters);
+          setAccessSubcategoryFilters(filters.accessSubcategoryFilters);
           setDepartmentFilters(filters.departmentFilters);
           setReportingManagerFilters(filters.reportingManagerFilters);
           setPrimaryNodeFilters(filters.primaryNodeFilters);
@@ -181,6 +193,8 @@ export function UserManagementView() {
         sortOrder={sortOrder}
         onSortOrderChange={setSortOrder}
         roles={roles}
+        accessCategories={accessCategories}
+        accessSubcategories={accessSubcategories}
         departments={departments}
         reportingManagerOptions={reportingManagerOptions}
         primaryNodeOptions={primaryNodeOptions}

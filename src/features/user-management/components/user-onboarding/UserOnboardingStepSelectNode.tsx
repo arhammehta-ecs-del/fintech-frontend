@@ -89,18 +89,16 @@ function buildBranchMetaMap(root: OrgNode | null): Map<string, BranchMeta> {
   const walk = (node: OrgNode, branchIndex: number | null, branchDepth: number) => {
     branchMap.set(node.id, { branchIndex, branchDepth });
 
+    const isRootNode = node.nodeType.trim().toUpperCase() === "ROOT";
     node.children.forEach((child, childIdx) => {
-      const nextBranchIndex = node.nodeType.trim().toUpperCase() === "ROOT"
-        ? childIdx
-        : branchIndex;
-      const nextBranchDepth = node.nodeType.trim().toUpperCase() === "ROOT"
-        ? 0
-        : branchDepth + 1;
+      const nextBranchIndex = isRootNode ? childIdx : (branchIndex ?? 0);
+      const nextBranchDepth = isRootNode ? 0 : branchDepth + 1;
       walk(child, nextBranchIndex, nextBranchDepth);
     });
   };
 
-  walk(root, null, 0);
+  const isRootNode = root.nodeType.trim().toUpperCase() === "ROOT";
+  walk(root, isRootNode ? null : 0, 0);
   return branchMap;
 }
 

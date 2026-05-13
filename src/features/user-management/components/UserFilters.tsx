@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { formatRoleTokenLabel } from "@/features/user-management/roleLabels";
 import type { MemberStatusTab, SortOrder } from "@/features/user-management/types";
 
 const STATUS_TABS: Array<{ id: MemberStatusTab; label: string }> = [
@@ -35,6 +36,10 @@ type UserFiltersProps = {
   onSearchChange: (value: string) => void;
   designationFilters: string[];
   onToggleDesignation: (value: string) => void;
+  accessCategoryFilters: string[];
+  onToggleAccessCategory: (value: string) => void;
+  accessSubcategoryFilters: string[];
+  onToggleAccessSubcategory: (value: string) => void;
   departmentFilters: string[];
   onToggleDepartment: (value: string) => void;
   reportingManagerFilters: string[];
@@ -50,6 +55,8 @@ type UserFiltersProps = {
   onClearAdvancedFilters: () => void;
   onApplyAdvancedFilters: (filters: {
     designationFilters: string[];
+    accessCategoryFilters: string[];
+    accessSubcategoryFilters: string[];
     departmentFilters: string[];
     reportingManagerFilters: string[];
     primaryNodeFilters: string[];
@@ -58,6 +65,8 @@ type UserFiltersProps = {
   sortOrder: SortOrder;
   onSortOrderChange: (value: SortOrder) => void;
   roles: string[];
+  accessCategories: string[];
+  accessSubcategories: string[];
   departments: string[];
   reportingManagerOptions: string[];
   primaryNodeOptions: string[];
@@ -72,6 +81,10 @@ export default function UserFilters({
   onSearchChange,
   designationFilters,
   onToggleDesignation,
+  accessCategoryFilters,
+  onToggleAccessCategory,
+  accessSubcategoryFilters,
+  onToggleAccessSubcategory,
   departmentFilters,
   onToggleDepartment,
   reportingManagerFilters,
@@ -88,6 +101,8 @@ export default function UserFilters({
   onApplyAdvancedFilters,
   onSortOrderChange,
   roles,
+  accessCategories,
+  accessSubcategories,
   departments,
   reportingManagerOptions,
   primaryNodeOptions,
@@ -97,6 +112,8 @@ export default function UserFilters({
   const visibleTabs = STATUS_TABS.filter((tab) => tab.id === "active" || statusCounts[tab.id] > 0);
   const activeFilterCount =
     designationFilters.length +
+    accessCategoryFilters.length +
+    accessSubcategoryFilters.length +
     departmentFilters.length +
     reportingManagerFilters.length +
     primaryNodeFilters.length +
@@ -106,6 +123,8 @@ export default function UserFilters({
   const hasAnyFilter = activeFilterCount > 0;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftDesignationFilters, setDraftDesignationFilters] = useState<string[]>(designationFilters);
+  const [draftAccessCategoryFilters, setDraftAccessCategoryFilters] = useState<string[]>(accessCategoryFilters);
+  const [draftAccessSubcategoryFilters, setDraftAccessSubcategoryFilters] = useState<string[]>(accessSubcategoryFilters);
   const [draftDepartmentFilters, setDraftDepartmentFilters] = useState<string[]>(departmentFilters);
   const [draftReportingManagerFilters, setDraftReportingManagerFilters] = useState<string[]>(reportingManagerFilters);
   const [draftPrimaryNodeFilters, setDraftPrimaryNodeFilters] = useState<string[]>(primaryNodeFilters);
@@ -116,6 +135,8 @@ export default function UserFilters({
 
   const resetDraftFilters = () => {
     setDraftDesignationFilters([]);
+    setDraftAccessCategoryFilters([]);
+    setDraftAccessSubcategoryFilters([]);
     setDraftDepartmentFilters([]);
     setDraftReportingManagerFilters([]);
     setDraftPrimaryNodeFilters([]);
@@ -124,6 +145,8 @@ export default function UserFilters({
 
   const syncDraftFromApplied = () => {
     setDraftDesignationFilters(designationFilters);
+    setDraftAccessCategoryFilters(accessCategoryFilters);
+    setDraftAccessSubcategoryFilters(accessSubcategoryFilters);
     setDraftDepartmentFilters(departmentFilters);
     setDraftReportingManagerFilters(reportingManagerFilters);
     setDraftPrimaryNodeFilters(primaryNodeFilters);
@@ -251,6 +274,20 @@ export default function UserFilters({
                       onToggle={(value) => setDraftDepartmentFilters((current) => toggleValue(current, value))}
                     />
                     <FilterDropdown
+                      title="Category"
+                      placeholder="All categories"
+                      options={accessCategories}
+                      selected={draftAccessCategoryFilters}
+                      onToggle={(value) => setDraftAccessCategoryFilters((current) => toggleValue(current, value))}
+                    />
+                    <FilterDropdown
+                      title="Subcategory"
+                      placeholder="All subcategories"
+                      options={accessSubcategories}
+                      selected={draftAccessSubcategoryFilters}
+                      onToggle={(value) => setDraftAccessSubcategoryFilters((current) => toggleValue(current, value))}
+                    />
+                    <FilterDropdown
                       title="Primary Node"
                       placeholder="All primary nodes"
                       options={primaryNodeOptions}
@@ -292,6 +329,8 @@ export default function UserFilters({
                   onClick={() => {
                     onApplyAdvancedFilters({
                       designationFilters: draftDesignationFilters,
+                      accessCategoryFilters: draftAccessCategoryFilters,
+                      accessSubcategoryFilters: draftAccessSubcategoryFilters,
                       departmentFilters: draftDepartmentFilters,
                       reportingManagerFilters: draftReportingManagerFilters,
                       primaryNodeFilters: draftPrimaryNodeFilters,
@@ -344,7 +383,7 @@ function FilterDropdown({
     selected.length === 0
       ? placeholder
       : selected.length === 1
-        ? selected[0]
+        ? formatRoleTokenLabel(selected[0])
         : `${selected.length} selected`;
   const filteredOptions = options.filter((option) => option.toLowerCase().includes(searchTerm));
 
@@ -437,14 +476,14 @@ function FilterDropdown({
           ) : (
             <div className="mt-2 max-h-56 overflow-y-auto">
               {filteredOptions.map((option) => (
-                <DropdownMenuCheckboxItem
-                  key={option}
-                  checked={selected.includes(option)}
-                  onSelect={(event) => event.preventDefault()}
-                  onCheckedChange={() => onToggle(option)}
-                  className="text-[13px]"
-                >
-                  {option}
+              <DropdownMenuCheckboxItem
+                key={option}
+                checked={selected.includes(option)}
+                onSelect={(event) => event.preventDefault()}
+                onCheckedChange={() => onToggle(option)}
+                className="text-[13px]"
+              >
+                  {formatRoleTokenLabel(option)}
                 </DropdownMenuCheckboxItem>
               ))}
             </div>

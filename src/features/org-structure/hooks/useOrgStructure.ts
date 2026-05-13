@@ -1,10 +1,10 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
-import type { OrgNode } from "@/contexts/AppContext";
+import type { AppUser, OrgNode } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
 import { createNewOrgNode, getCompanyOrgStructure, updateOrgNodeAction } from "@/services/org.service";
-import { fetchCompanyNodes } from "@/services/user.service";
+import { fetchCompanyNodes, getCompanyUsers } from "@/services/user.service";
 import { collectNodeTrail, findOrgNodeById, findParentNodeById, flattenOrg } from "@/features/org-structure/orgNode.utils";
 import type { DepartmentSidebarDepartment, NewNodeType } from "@/features/org-structure/types";
 
@@ -28,6 +28,8 @@ export function useOrgStructure() {
   const [newNodeParent, setNewNodeParent] = useState<OrgNode | null>(null);
   const [newNodeWorkflowOptions, setNewNodeWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [pendingNodeForReview, setPendingNodeForReview] = useState<OrgNode | null>(null);
+  const [orgUsers, setOrgUsers] = useState<AppUser[]>([]);
+  const [orgUsersLoading, setOrgUsersLoading] = useState(false);
   const treeScrollRef = useRef<HTMLDivElement | null>(null);
   const bottomScrollRef = useRef<HTMLDivElement | null>(null);
   const graphContentRef = useRef<HTMLDivElement | null>(null);
@@ -52,6 +54,18 @@ export function useOrgStructure() {
     }
   };
 
+  const loadUsersForCompanyCode = async (nextCompanyCode: string) => {
+    setOrgUsersLoading(true);
+    try {
+      const users = await getCompanyUsers(nextCompanyCode);
+      setOrgUsers(users);
+    } catch {
+      setOrgUsers([]);
+    } finally {
+      setOrgUsersLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!companyCode) {
       setOrgStructure(null);
@@ -63,15 +77,19 @@ export function useOrgStructure() {
 
     const loadOrg = async () => {
       setOrgLoading(true);
+      setOrgUsersLoading(true);
       setOrgError("");
 
       try {
         const structure = await getCompanyOrgStructure(companyCode);
+        const users = await getCompanyUsers(companyCode);
         if (cancelled) return;
         setOrgStructure(structure);
+        setOrgUsers(users);
       } catch (error) {
         if (!cancelled) {
           setOrgStructure(null);
+          setOrgUsers([]);
           const message = getApiErrorMessage(error, "Unable to fetch organization structure.");
           setOrgError(message);
           toast({ title: "Unable to load organization structure", description: message, variant: "destructive" });
@@ -79,6 +97,7 @@ export function useOrgStructure() {
       } finally {
         if (!cancelled) {
           setOrgLoading(false);
+          setOrgUsersLoading(false);
         }
       }
     };
@@ -252,6 +271,7 @@ export function useOrgStructure() {
         },
       });
       await loadOrgForCompanyCode(companyCode);
+      await loadUsersForCompanyCode(companyCode);
     } catch (error) {
       setOrgError(getApiErrorMessage(error, "Failed to create node. Please try again."));
     }
@@ -339,6 +359,7 @@ export function useOrgStructure() {
       });
       setPendingNodeForReview(null);
       await loadOrgForCompanyCode(companyCode);
+      await loadUsersForCompanyCode(companyCode);
     } catch (error) {
       setOrgError(getApiErrorMessage(error, "Failed to approve node. Please try again."));
     }
@@ -366,6 +387,7 @@ export function useOrgStructure() {
       });
       setPendingNodeForReview(null);
       await loadOrgForCompanyCode(companyCode);
+      await loadUsersForCompanyCode(companyCode);
     } catch (error) {
       setOrgError(getApiErrorMessage(error, "Failed to reject node. Please try again."));
     }
@@ -388,6 +410,8 @@ export function useOrgStructure() {
     isNewNodePopupOpen,
     newNodeParent,
     pendingNodeForReview,
+    orgUsers,
+    orgUsersLoading,
     treeScrollRef,
     bottomScrollRef,
     graphContentRef,

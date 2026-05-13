@@ -64,6 +64,7 @@ export type UserManagementFilters = {
   designationFilters: string[];
   departmentFilters: string[];
   accessCategoryFilters: string[];
+  accessSubcategoryFilters: string[];
   accessScopeFilters: string[];
   roleTypeFilters: string[];
   onboardingDateFrom: string;

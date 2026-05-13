@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Fuse from "fuse.js";
+import { useSearchParams } from "react-router-dom";
 import type { AppUser } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
@@ -8,6 +9,7 @@ import { createUserOnboarding, getCompanyUsers, updateUserStatus } from "@/servi
 import { USER_DEFAULT_PAGE_SIZE, USER_FILTER_CONFIG, USER_PAGE_SIZE_OPTIONS, USER_SEARCH_DEBOUNCE_MS } from "@/features/user-management/constants";
 import type { MemberStatusTab, UserOnboardingFormData, SortOrder } from "@/features/user-management/types";
 import { buildUserOnboardingPayload } from "@/features/user-management/utils";
+import { formatRoleTokenLabel } from "@/features/user-management/roleLabels";
 
 const normalizeCompact = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
 const normalizeLoose = (value: string) => value.toLowerCase().trim().replace(/\s+/g, " ");
@@ -49,6 +51,7 @@ const isWithinTwoEdits = (left: string, right: string) => {
 };
 
 export function useUserManagement() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser, users, setUsers } = useAppContext();
   const { toast } = useToast();
   const [statusTab, setStatusTab] = useState<MemberStatusTab>("active");
@@ -60,8 +63,13 @@ export function useUserManagement() {
   const [primaryNodeFilters, setPrimaryNodeFilters] = useState<string[]>([]);
   const [secondaryNodeFilters, setSecondaryNodeFilters] = useState<string[]>([]);
   const [accessCategoryFilters, setAccessCategoryFilters] = useState<string[]>([]);
+  const [accessSubcategoryFilters, setAccessSubcategoryFilters] = useState<string[]>([]);
   const [accessScopeFilters, setAccessScopeFilters] = useState<string[]>([]);
   const [roleTypeFilters, setRoleTypeFilters] = useState<string[]>([]);
+  const [linkedNodeFilter, setLinkedNodeFilter] = useState("");
+  const [linkedCategoryFilter, setLinkedCategoryFilter] = useState("");
+  const [linkedSubcategoryFilter, setLinkedSubcategoryFilter] = useState("");
+  const [linkedActionFilter, setLinkedActionFilter] = useState<"" | "checker" | "maker" | "viewer">("");
   const [onboardingDateFrom, setOnboardingDateFrom] = useState("");
   const [onboardingDateTo, setOnboardingDateTo] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
@@ -132,13 +140,50 @@ export function useUserManagement() {
     primaryNodeFilters,
     secondaryNodeFilters,
     accessCategoryFilters,
+    accessSubcategoryFilters,
     accessScopeFilters,
     roleTypeFilters,
     onboardingDateFrom,
     onboardingDateTo,
     sortOrder,
     pageSize,
+    linkedNodeFilter,
+    linkedCategoryFilter,
+    linkedSubcategoryFilter,
+    linkedActionFilter,
   ]);
+
+  useEffect(() => {
+    const tab = (searchParams.get("tab") || "").trim();
+    if (tab !== "users") return;
+
+    const node = (searchParams.get("um_node") || "").trim();
+    const category = (searchParams.get("um_category") || "").trim();
+    const subcategory = (searchParams.get("um_subcategory") || "").trim();
+    const actionRaw = (searchParams.get("um_action") || "").trim().toLowerCase();
+    const action = actionRaw === "checker" || actionRaw === "maker" || actionRaw === "viewer" ? actionRaw : "";
+
+    const hasDeepLinkFilters = Boolean(node || category || subcategory || action);
+    if (!hasDeepLinkFilters) return;
+
+    setStatusTab("active");
+    setLinkedNodeFilter(node);
+    setLinkedCategoryFilter(category);
+    setLinkedSubcategoryFilter(subcategory);
+    setLinkedActionFilter(action);
+    setAccessCategoryFilters(category ? [category] : []);
+    setAccessSubcategoryFilters(subcategory ? [subcategory] : []);
+    if (node) {
+      setDepartmentFilters([node]);
+      setPrimaryNodeFilters([]);
+      setSecondaryNodeFilters([]);
+    } else {
+      setDepartmentFilters([]);
+      setPrimaryNodeFilters([]);
+      setSecondaryNodeFilters([]);
+    }
+    setSearch("");
+  }, [searchParams, users]);
 
   const parseToDate = useCallback((value?: string) => {
     const trimmed = (value || "").trim();
@@ -215,7 +260,20 @@ export function useUserManagement() {
               .filter((category) => Boolean(category)),
           ),
         ),
-      ).sort((a, b) => a.localeCompare(b)),
+      ).sort((a, b) => formatRoleTokenLabel(a).localeCompare(formatRoleTokenLabel(b))),
+    [users],
+  );
+  const accessSubcategories = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          users.flatMap((user) =>
+            (user.accessDetails ?? [])
+              .map((entry) => entry.roleSubCategory.trim())
+              .filter((subcategory) => Boolean(subcategory)),
+          ),
+        ),
+      ).sort((a, b) => formatRoleTokenLabel(a).localeCompare(formatRoleTokenLabel(b))),
     [users],
   );
   const accessScopes = useMemo(
@@ -243,10 +301,22 @@ export function useUserManagement() {
     setPrimaryNodeFilters([]);
     setSecondaryNodeFilters([]);
     setAccessCategoryFilters([]);
+    setAccessSubcategoryFilters([]);
     setAccessScopeFilters([]);
     setRoleTypeFilters([]);
     setOnboardingDateFrom("");
     setOnboardingDateTo("");
+    setLinkedNodeFilter("");
+    setLinkedCategoryFilter("");
+    setLinkedSubcategoryFilter("");
+    setLinkedActionFilter("");
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("um_node");
+    nextParams.delete("um_category");
+    nextParams.delete("um_subcategory");
+    nextParams.delete("um_action");
+    setSearchParams(nextParams, { replace: true });
   };
 
   const filterMembers = useCallback(
@@ -258,34 +328,85 @@ export function useUserManagement() {
 
       const filteredByAdvancedFilters = list.filter((user) => {
           const matchesDesignation = designationFilters.length === 0 || designationFilters.includes(user.designation);
-          const matchesDepartment = departmentFilters.length === 0 || departmentFilters.includes(user.department);
+          const matchesDepartment =
+            departmentFilters.length === 0 ||
+            departmentFilters.includes(user.department) ||
+            (user.accessDetails ?? []).some((entry) => departmentFilters.includes((entry.nodeName || "").trim()));
           const userReportingManager = (user.manager?.name || user.basicDetails?.reportingManagerName || "").trim();
           const matchesReportingManager =
             reportingManagerFilters.length === 0 || reportingManagerFilters.includes(userReportingManager);
-          const primaryNodeNames = new Set(
-            (user.accessDetails ?? [])
-              .filter((entry) => entry.accessType === "PRIMARY")
-              .map((entry) => entry.nodeName.trim())
-              .filter(Boolean),
-          );
-          const secondaryNodeNames = new Set(
-            (user.accessDetails ?? [])
-              .filter((entry) => entry.accessType === "SECONDARY")
-              .map((entry) => entry.nodeName.trim())
-              .filter(Boolean),
-          );
+          const primaryEntries = (user.accessDetails ?? []).filter((entry) => entry.accessType === "PRIMARY");
+          const secondaryEntries = (user.accessDetails ?? []).filter((entry) => entry.accessType === "SECONDARY");
+          const primaryNodeNames = new Set(primaryEntries.map((entry) => entry.nodeName.trim()).filter(Boolean));
+          const secondaryNodeNames = new Set(secondaryEntries.map((entry) => entry.nodeName.trim()).filter(Boolean));
           const matchesPrimaryNode =
             primaryNodeFilters.length === 0 || primaryNodeFilters.some((nodeName) => primaryNodeNames.has(nodeName));
           const matchesSecondaryNode =
             secondaryNodeFilters.length === 0 || secondaryNodeFilters.some((nodeName) => secondaryNodeNames.has(nodeName));
+          const scopedEntriesForRoleFilters = (() => {
+            const scopedPrimaryEntries =
+              primaryNodeFilters.length > 0
+                ? primaryEntries.filter((entry) => primaryNodeFilters.includes(entry.nodeName.trim()))
+                : [];
+            const scopedSecondaryEntries =
+              secondaryNodeFilters.length > 0
+                ? secondaryEntries.filter((entry) => secondaryNodeFilters.includes(entry.nodeName.trim()))
+                : [];
+
+            if (primaryNodeFilters.length > 0 || secondaryNodeFilters.length > 0) {
+              return [...scopedPrimaryEntries, ...scopedSecondaryEntries];
+            }
+            return user.accessDetails ?? [];
+          })();
           const userAccessCategories = new Set(
-            (user.accessDetails ?? [])
+            scopedEntriesForRoleFilters
               .map((entry) => entry.roleCategory.trim())
               .filter((category) => Boolean(category)),
           );
           const matchesAccessCategory =
             accessCategoryFilters.length === 0 ||
             accessCategoryFilters.some((category) => userAccessCategories.has(category));
+          const userAccessSubcategories = new Set(
+            scopedEntriesForRoleFilters
+              .map((entry) => entry.roleSubCategory.trim())
+              .filter((subcategory) => Boolean(subcategory)),
+          );
+          const matchesAccessSubcategory =
+            accessSubcategoryFilters.length === 0 ||
+            accessSubcategoryFilters.some((subcategory) => userAccessSubcategories.has(subcategory));
+          const linkedEntryMatched = (() => {
+            const hasLinkedFilters =
+              Boolean(linkedNodeFilter) ||
+              Boolean(linkedCategoryFilter) ||
+              Boolean(linkedSubcategoryFilter) ||
+              Boolean(linkedActionFilter);
+            if (!hasLinkedFilters) return true;
+
+            return scopedEntriesForRoleFilters.some((entry) => {
+              const entryNode = (entry.nodeName || "").trim();
+              const entryCategory = (entry.roleCategory || "").trim();
+              const entrySubcategory = (entry.roleSubCategory || "").trim();
+              const normalizedRoleName = (entry.roleName || "").trim().toLowerCase();
+
+              const actionMatched = (() => {
+                if (!linkedActionFilter) return true;
+                if (linkedActionFilter === "checker") {
+                  return normalizedRoleName.endsWith("manager") || normalizedRoleName.endsWith("checker");
+                }
+                if (linkedActionFilter === "maker") {
+                  return normalizedRoleName.endsWith("user") || normalizedRoleName.endsWith("maker");
+                }
+                return normalizedRoleName.endsWith("viewer");
+              })();
+
+              return (
+                (!linkedNodeFilter || entryNode === linkedNodeFilter) &&
+                (!linkedCategoryFilter || entryCategory === linkedCategoryFilter) &&
+                (!linkedSubcategoryFilter || entrySubcategory === linkedSubcategoryFilter) &&
+                actionMatched
+              );
+            });
+          })();
           const userAccessScopes = new Set<string>(
             (user.accessDetails ?? [])
               .map((entry) => (entry.accessCategory || "NODE").toUpperCase())
@@ -309,6 +430,8 @@ export function useUserManagement() {
             matchesPrimaryNode &&
             matchesSecondaryNode &&
             matchesAccessCategory &&
+            matchesAccessSubcategory &&
+            linkedEntryMatched &&
             matchesAccessScope &&
             matchesRoleType &&
             matchesOnboardingDate
@@ -433,6 +556,7 @@ export function useUserManagement() {
     },
     [
       accessCategoryFilters,
+      accessSubcategoryFilters,
       accessScopeFilters,
       debouncedSearch,
       departmentFilters,
@@ -607,6 +731,8 @@ export function useUserManagement() {
     setSecondaryNodeFilters,
     accessCategoryFilters,
     setAccessCategoryFilters,
+    accessSubcategoryFilters,
+    setAccessSubcategoryFilters,
     accessScopeFilters,
     setAccessScopeFilters,
     roleTypeFilters,
@@ -635,6 +761,7 @@ export function useUserManagement() {
     primaryNodeOptions,
     secondaryNodeOptions,
     accessCategories,
+    accessSubcategories,
     accessScopes,
     roleTypes,
     toggleFilterValue,

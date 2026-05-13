@@ -30,6 +30,10 @@ const readLevel = (value: unknown) => {
 };
 const toRecord = (value: unknown): RawHistoryRecord =>
   typeof value === "object" && value !== null ? (value as RawHistoryRecord) : {};
+const toRecordArray = (value: unknown): RawHistoryRecord[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is RawHistoryRecord => typeof item === "object" && item !== null)
+    : [];
 
 const getHistorySubject = (record: RawHistoryRecord, fallbackWorkflowName: string) => {
   const payload = toRecord(record.data);
@@ -50,6 +54,12 @@ const mapWorkflowHistoryEntry = (item: unknown, workflowName: string, index: num
   const user = toRecord(record.user);
   const level = readLevel(record.level);
   const subjectName = getHistorySubject(record, workflowName);
+  const eligibleApprovers = toRecordArray((record as RawHistoryRecord).eligibleapprovers)
+    .map((approver) => ({
+      name: readString(approver.name),
+      email: readString(approver.email),
+    }))
+    .filter((approver) => approver.name || approver.email);
 
   const createdAt = readString(record.createdAt) || readString(record.initiatedAt) || readString(record.initiatedDate);
   const eventRaw = readString(record.event) || readString(record.action) || readString(record.status);
@@ -63,6 +73,14 @@ const mapWorkflowHistoryEntry = (item: unknown, workflowName: string, index: num
   const isPendingAction = normalizedAction.includes("initiate") || normalizedAction.includes("pending");
   const isApprovedAction = normalizedAction.includes("approve");
   const remarks = readString(record.remarks);
+  const timestampMissing = !createdAt;
+  const pendingApproverCount = eligibleApprovers.length;
+  const details =
+    level !== null
+      ? `Level ${level} ${action.toLowerCase()} for ${subjectName}.`
+      : pendingApproverCount > 0
+        ? `${pendingApproverCount} eligible approver${pendingApproverCount === 1 ? "" : "s"} for ${subjectName}.`
+        : `Event recorded for ${subjectName}.`;
 
   return {
     id: readString(record.id) || readString(record.workflowId) || `${createdAt || "history"}-${index}`,
@@ -70,14 +88,16 @@ const mapWorkflowHistoryEntry = (item: unknown, workflowName: string, index: num
     month,
     day,
     action,
-    details: level !== null ? `Level ${level} ${action.toLowerCase()} for ${subjectName}.` : `Event recorded for ${subjectName}.`,
+    details,
     remarks: remarks || undefined,
+    timestampMissing,
+    eligibleApprovers: eligibleApprovers.length > 0 ? eligibleApprovers : undefined,
     initiator: {
       name: initiatorName,
       email: initiatorEmail,
       initials: getInitials(initiatorName),
-      date,
-      time,
+      date: timestampMissing ? "" : date,
+      time: timestampMissing ? "" : time,
     },
     showActor,
     approver: isApprovedAction

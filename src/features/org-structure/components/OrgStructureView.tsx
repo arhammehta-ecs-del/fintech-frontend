@@ -1,5 +1,6 @@
 import { startTransition } from "react";
 import { Building2 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import type { OrgNode } from "@/contexts/AppContext";
 import { NodeSidebar } from "@/features/org-structure/components/NodeSidebar";
 import { NewNodePopup } from "@/features/org-structure/components/NewNodePopup";
@@ -42,6 +43,7 @@ function hasPendingNodes(node: OrgNode | null): boolean {
 }
 
 export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
+  const [, setSearchParams] = useSearchParams();
   const newNodeTypeOptions: NewNodeType[] = ["DEPARTMENT", "DIVISION", "TEAM", "PLANT", "LOCATION"];
   const {
     companyCode,
@@ -74,6 +76,8 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     zoomOut,
     zoomIn,
     pendingNodeForReview,
+    orgUsers,
+    orgUsersLoading,
     setPendingNodeForReview,
     handleApproveNode,
     handleRejectNode,
@@ -132,6 +136,26 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     if (!orgStructure || !newNodeParent?.id) return [];
     return collectNodeTrail(orgStructure, newNodeParent.id);
   }, [orgStructure, newNodeParent]);
+
+  const handleNavigateToUsers = ({
+    nodeName,
+    category,
+    subCategory,
+    action,
+  }: {
+    nodeName: string;
+    category: string;
+    subCategory: string;
+    action: "checker" | "maker" | "viewer";
+  }) => {
+    setSearchParams({
+      tab: "users",
+      um_node: nodeName,
+      um_category: category,
+      um_subcategory: subCategory,
+      um_action: action,
+    });
+  };
 
   return (
     <div
@@ -263,7 +287,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
           </div>
           <div
             className={cn(
-              "absolute inset-y-0 right-0 z-20 w-full max-w-[360px] overflow-hidden bg-white shadow-[-18px_0_32px_rgba(15,23,42,0.08)] transition-[transform,opacity] duration-500 lg:hidden",
+              "absolute inset-y-0 right-0 z-20 w-full max-w-[420px] overflow-hidden bg-white shadow-[-18px_0_32px_rgba(15,23,42,0.08)] transition-[transform,opacity] duration-500 lg:hidden",
               sidebarOpen ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-full opacity-0",
             )}
             style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
@@ -273,6 +297,9 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
               open={sidebarOpen}
               onOpenChange={handleSidebarOpenChange}
               department={selectedDepartment}
+              users={orgUsers}
+              usersLoading={orgUsersLoading}
+              onNavigateToUsers={handleNavigateToUsers}
               onOpenHistory={() => {
                 setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
                 setHistoryNodePath((selectedDepartment?.nodePath || "").trim());
@@ -286,7 +313,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         <div
           className={cn(
             "hidden shrink-0 overflow-hidden border-l border-slate-200 bg-white transition-[width,opacity] duration-500 lg:block",
-            sidebarOpen ? "w-[360px] opacity-100" : "w-0 opacity-0",
+            sidebarOpen ? "w-[420px] opacity-100" : "w-0 opacity-0",
           )}
           style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
           aria-hidden={!sidebarOpen}
@@ -295,6 +322,9 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
             open={sidebarOpen}
             onOpenChange={handleSidebarOpenChange}
             department={selectedDepartment}
+            users={orgUsers}
+            usersLoading={orgUsersLoading}
+            onNavigateToUsers={handleNavigateToUsers}
             onOpenHistory={() => {
               setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
               setHistoryNodePath((selectedDepartment?.nodePath || "").trim());
@@ -308,7 +338,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
           <div
             className={cn(
               "absolute bottom-0 left-0 right-0 z-30 border-t border-slate-200/80 bg-[#fcfcfd]/95 px-6 py-3 backdrop-blur",
-              sidebarOpen ? "lg:right-[360px]" : "lg:right-0",
+              sidebarOpen ? "lg:right-[420px]" : "lg:right-0",
             )}
           >
             <div
