@@ -44,10 +44,14 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
           },
         },
       ];
+  const effectivePrimaryNodeId = formData.primaryNodeId || selectedNodeEntries[0]?.nodeId || "";
 
   const mappedPermissions: UserOnboardingPermission[] = selectedNodeEntries.flatMap((nodeEntry) =>
-    (Object.entries(nodeEntry.permissions) as Array<[string, UserOnboardingPermissions]>).flatMap(
-      ([bucketKey, bucketPermissions]) =>
+    (Object.entries(nodeEntry.permissions) as Array<[string, UserOnboardingPermissions]>).flatMap(([bucketKey, bucketPermissions]) => {
+      // Only the effective primary node can contribute PRIMARY permissions.
+      // This prevents stale PRIMARY entries on previously-primary nodes after drag/drop reorder.
+      if (bucketKey === "primary" && nodeEntry.nodeId !== effectivePrimaryNodeId) return [];
+      return (
         Object.entries(bucketPermissions).flatMap(([category, modules]) =>
           Object.entries(modules).flatMap(([subCategory, rights]) => {
             const selectedActions = PERMISSION_ACTIONS.filter((action) => rights[action]);
@@ -74,8 +78,25 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
               ];
             });
           }),
-        ),
-    ),
+        )
+      );
+    }),
+  );
+
+  const dedupedPermissions = Array.from(
+    new Map(
+      mappedPermissions.map((permission) => [
+        [
+          permission.roleCategory,
+          permission.roleSubCategory,
+          permission.roleName,
+          permission.nodePath,
+          permission.accessType,
+          permission.accessCategory ?? "",
+        ].join("|"),
+        permission,
+      ]),
+    ).values(),
   );
 
   return {
@@ -87,7 +108,7 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
       employeeId: formData.basic.employeeId.trim() ? formData.basic.employeeId.trim() : null,
       reportingManager: (formData.basic.reportingManagerEmail || formData.basic.reportingManager).trim(),
     },
-    permissions: mappedPermissions,
+    permissions: dedupedPermissions,
     levelsHash: formData.selectedWorkflowLevelsHash.trim() || null,
   };
 };

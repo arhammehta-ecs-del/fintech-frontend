@@ -288,6 +288,30 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
         return currentExpanded.filter(id => next.includes(id));
       });
 
+      // Reordering changes the semantic meaning of primary vs secondary.
+      // Reset all selected rights/scope selections to avoid stale payload entries.
+      setNodePermissions(() => {
+        const reset: Record<string, NodePermissionBuckets> = {};
+        next.forEach((nodeId) => {
+          reset[nodeId] = {
+            primary: createInitialPermissions(roles),
+            secondary: createInitialPermissions(roles),
+          };
+        });
+        return reset;
+      });
+
+      setNodePermissionScopes(() => {
+        const reset: Record<string, NodePermissionScopeBuckets> = {};
+        next.forEach((nodeId) => {
+          reset[nodeId] = {
+            primary: createInitialPermissionScopes(roles),
+            secondary: createInitialPermissionScopes(roles),
+          };
+        });
+        return reset;
+      });
+
       return next;
     });
   };
