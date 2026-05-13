@@ -274,15 +274,6 @@ function MilestoneTimeline({ data }: { data: HistoryEntry[] }) {
   );
 }
 
-const getHistoryEntryPriority = (entry: HistoryEntry) => {
-  const tone = getEventTone(entry.action, entry.status);
-  if ((entry.eligibleApprovers?.length ?? 0) > 0) return 4;
-  if (tone === "pending") return 3;
-  if (tone === "initiation") return 2;
-  if (tone === "approved") return 1;
-  return 0;
-};
-
 export function HistorySidebar({
   isOpen,
   onClose,
@@ -312,9 +303,6 @@ export function HistorySidebar({
     Object.values(grouped).forEach((months) => {
       Object.values(months).forEach((entries) => {
         entries.sort((a, b) => {
-          const priorityDelta = getHistoryEntryPriority(b) - getHistoryEntryPriority(a);
-          if (priorityDelta !== 0) return priorityDelta;
-
           const left = Date.parse(`${a.month} ${a.day}, ${a.year} ${a.initiator.time || "00:00 AM"}`);
           const right = Date.parse(`${b.month} ${b.day}, ${b.year} ${b.initiator.time || "00:00 AM"}`);
           const hasLeftTime = Number.isFinite(left);

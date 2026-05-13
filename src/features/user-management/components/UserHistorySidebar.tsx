@@ -31,6 +31,12 @@ const readLevel = (value: unknown) => {
   }
   return null;
 };
+const toEpochMs = (value: unknown) => {
+  const raw = readString(value);
+  if (!raw) return Number.NEGATIVE_INFINITY;
+  const timestamp = Date.parse(raw);
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+};
 const toEventPhrase = (action: string) => {
   const normalized = action.trim().toUpperCase();
   if (normalized.includes("APPROVE")) return "approval";
@@ -171,7 +177,25 @@ export default function UserHistorySidebar({
         const response = await fetchUserHistory(user.email, targetCompanyCode);
         if (isMounted && response?.data) {
           const mappedHistory = Array.isArray(response.data)
-            ? response.data.map((item, index) => mapUserHistoryEntry(item, user.email, index))
+            ? [...response.data]
+              .sort((left, right) => {
+                const leftRecord = toRecord(left);
+                const rightRecord = toRecord(right);
+                const leftTs = Math.max(
+                  toEpochMs(leftRecord.createdAt),
+                  toEpochMs(leftRecord.initiatedAt),
+                  toEpochMs(leftRecord.initiatedDate),
+                  toEpochMs(leftRecord.requestedAt),
+                );
+                const rightTs = Math.max(
+                  toEpochMs(rightRecord.createdAt),
+                  toEpochMs(rightRecord.initiatedAt),
+                  toEpochMs(rightRecord.initiatedDate),
+                  toEpochMs(rightRecord.requestedAt),
+                );
+                return rightTs - leftTs;
+              })
+              .map((item, index) => mapUserHistoryEntry(item, user.email, index))
             : [];
           setHistoryData(mappedHistory);
         }
