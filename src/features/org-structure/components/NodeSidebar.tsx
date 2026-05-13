@@ -136,7 +136,7 @@ function NodeSidebarContent({
                         : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100",
                     )}
                   >
-                    {row.counts[action]}
+                    {row.counts[action] === 0 ? "-" : row.counts[action]}
                   </button>
                 ))}
               </div>
