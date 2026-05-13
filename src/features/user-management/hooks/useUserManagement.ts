@@ -51,7 +51,7 @@ const isWithinTwoEdits = (left: string, right: string) => {
 
 export function useUserManagement() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { currentUser, users, setUsers } = useAppContext();
+  const { currentUser, orgStructure, users, setUsers } = useAppContext();
   const { toast } = useToast();
   const [statusTab, setStatusTab] = useState<MemberStatusTab>("active");
   const [search, setSearch] = useState("");
@@ -206,10 +206,24 @@ export function useUserManagement() {
     return isSignatory ? "Signatory" : "Regular User";
   }, []);
 
-  const departments = useMemo(
-    () => Array.from(new Set(users.map((user) => user.department).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [users],
-  );
+  const departments = useMemo(() => {
+    const namesFromOrg = new Set<string>();
+    const walk = (node: typeof orgStructure) => {
+      if (!node) return;
+      if ((node.status || "Active").trim().toUpperCase() !== "PENDING") {
+        const name = (node.name || "").trim();
+        if (name) namesFromOrg.add(name);
+      }
+      node.children.forEach((child) => walk(child));
+    };
+    walk(orgStructure);
+
+    const namesFromUsers = users
+      .map((user) => (user.department || "").trim())
+      .filter(Boolean);
+
+    return Array.from(new Set([...namesFromOrg, ...namesFromUsers])).sort((a, b) => a.localeCompare(b));
+  }, [orgStructure, users]);
   const roles = useMemo(
     () => Array.from(new Set(users.map((user) => user.designation).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
     [users],
@@ -611,6 +625,74 @@ export function useUserManagement() {
     () => filterMembers(users.filter((user) => user.status === "Inactive")),
     [filterMembers, users],
   );
+
+  const hasAppliedRefinement = Boolean(
+    debouncedSearch ||
+      designationFilters.length > 0 ||
+      departmentFilters.length > 0 ||
+      reportingManagerFilters.length > 0 ||
+      primaryNodeFilters.length > 0 ||
+      secondaryNodeFilters.length > 0 ||
+      accessCategoryFilters.length > 0 ||
+      accessSubcategoryFilters.length > 0 ||
+      accessScopeFilters.length > 0 ||
+      roleTypeFilters.length > 0 ||
+      onboardingDateFrom.trim() ||
+      onboardingDateTo.trim() ||
+      linkedNodeFilter ||
+      linkedNodePathFilter ||
+      linkedCategoryFilter ||
+      linkedSubcategoryFilter ||
+      linkedActionFilter,
+  );
+
+  useEffect(() => {
+    if (!hasAppliedRefinement) return;
+
+    const currentCount =
+      statusTab === "active"
+        ? activeMembers.length
+        : statusTab === "pending"
+          ? pendingMembers.length
+          : inactiveMembers.length;
+
+    if (currentCount > 0) return;
+
+    if (pendingMembers.length > 0) {
+      setStatusTab("pending");
+      return;
+    }
+    if (activeMembers.length > 0) {
+      setStatusTab("active");
+      return;
+    }
+    if (inactiveMembers.length > 0) {
+      setStatusTab("inactive");
+    }
+  }, [
+    accessCategoryFilters.length,
+    accessScopeFilters.length,
+    accessSubcategoryFilters.length,
+    activeMembers.length,
+    debouncedSearch,
+    departmentFilters.length,
+    designationFilters.length,
+    hasAppliedRefinement,
+    inactiveMembers.length,
+    linkedActionFilter,
+    linkedCategoryFilter,
+    linkedNodeFilter,
+    linkedNodePathFilter,
+    linkedSubcategoryFilter,
+    onboardingDateFrom,
+    onboardingDateTo,
+    pendingMembers.length,
+    primaryNodeFilters.length,
+    reportingManagerFilters.length,
+    roleTypeFilters.length,
+    secondaryNodeFilters.length,
+    statusTab,
+  ]);
 
   const currentMembers =
     statusTab === "pending" ? pendingMembers : statusTab === "inactive" ? inactiveMembers : activeMembers;

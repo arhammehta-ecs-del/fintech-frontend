@@ -124,24 +124,24 @@ export function useWorkflowManagement() {
   );
 
   const workflowOptions = useMemo(
-    () => Array.from(new Set(statusScopedWorkflows.map((workflow) => workflow.name).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [statusScopedWorkflows],
+    () => Array.from(new Set(workflows.map((workflow) => workflow.name).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [workflows],
   );
   const aliasOptions = useMemo(
-    () => Array.from(new Set(statusScopedWorkflows.map((workflow) => workflow.alias).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [statusScopedWorkflows],
+    () => Array.from(new Set(workflows.map((workflow) => workflow.alias).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [workflows],
   );
   const moduleOptions = useMemo(
-    () => Array.from(new Set(statusScopedWorkflows.map((workflow) => workflow.module).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [statusScopedWorkflows],
+    () => Array.from(new Set(workflows.map((workflow) => workflow.module).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [workflows],
   );
   const nodeNameOptions = useMemo(
-    () => Array.from(new Set(statusScopedWorkflows.map((workflow) => workflow.nodeName).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [statusScopedWorkflows],
+    () => Array.from(new Set(workflows.map((workflow) => workflow.nodeName).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [workflows],
   );
   const typeOptions = useMemo(
-    () => Array.from(new Set(statusScopedWorkflows.map((workflow) => workflow.nodeType).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [statusScopedWorkflows],
+    () => Array.from(new Set(workflows.map((workflow) => workflow.nodeType).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [workflows],
   );
 
   const clearColumnFilters = () => {
