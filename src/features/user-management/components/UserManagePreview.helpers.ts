@@ -192,3 +192,39 @@ export const getNodeBadgeClass = (nodeIndex: number, isPrimary: boolean) =>
 
 export const getNodeHoverClass = (nodeIndex: number, isPrimary: boolean) =>
   isPrimary ? "hover:border-indigo-300 hover:bg-indigo-50/60" : BRANCH_HOVER[getPaletteIndex(nodeIndex)];
+
+export const getUserStatusClass = (status?: string) =>
+  status === "Inactive"
+    ? "border-rose-200 bg-rose-100 text-rose-700"
+    : status === "Pending"
+      ? "border-amber-200 bg-amber-100 text-amber-700"
+      : "border-emerald-200 bg-emerald-100 text-emerald-700";
+
+export const buildPreviewUserData = (member: AppUser) => {
+  const rawJoiningDate = member.basicDetails?.companyOnboardingDate || "";
+  const formattedJoiningDate = formatDateLabel(rawJoiningDate);
+  const rawCreatedAt = member.basicDetails?.createdAt || "";
+  const formattedCreatedAt = formatLooseDateLabel(rawCreatedAt);
+  const rawReportingManagerName = member.basicDetails?.reportingManagerName || "";
+  const rawReportingManagerEmail = member.basicDetails?.reportingManagerEmail || "";
+
+  return {
+    rawReportingManagerName,
+    rawReportingManagerEmail,
+    data: {
+      name: displayOrFallback(member.basicDetails?.name, "—"),
+      email: displayOrFallback(member.basicDetails?.email, "—"),
+      phone: displayOrFallback(member.basicDetails?.phone, "—"),
+      joiningDate: displayOrFallback(
+        formattedJoiningDate === "-" && rawJoiningDate ? rawJoiningDate : formattedJoiningDate,
+        "—",
+      ),
+      createdAt: displayOrFallback(formattedCreatedAt === "-" && rawCreatedAt ? rawCreatedAt : formattedCreatedAt, "—"),
+      designation: displayOrFallback(member.basicDetails?.designation, "—"),
+      department: displayOrFallback(member.department, "—"),
+      employeeId: (member.basicDetails?.employeeId || "").trim(),
+      reportingManager: displayOrFallback(rawReportingManagerName, "—"),
+      reportingManagerEmail: displayOrFallback(rawReportingManagerEmail, "—"),
+    },
+  };
+};

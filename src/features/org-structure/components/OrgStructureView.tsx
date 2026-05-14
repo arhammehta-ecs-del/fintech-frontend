@@ -9,38 +9,11 @@ import { PendingNodePopup } from "@/features/org-structure/components/PendingNod
 import OrgHistorySidebar from "@/features/org-structure/components/OrgHistorySidebar";
 import { useOrgStructure } from "@/features/org-structure/hooks/useOrgStructure";
 import { collectNodeTrail } from "@/features/org-structure/orgNode.utils";
+import { countNodes, countPendingNodes, filterPendingNodes, hasPendingNodes } from "@/features/org-structure/components/OrgStructureView.helpers";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import type { NewNodeType } from "@/features/org-structure/types";
-
-function filterPendingNodes(node: OrgNode | null): OrgNode | null {
-  if (!node) return null;
-  if (node.status === "Pending") return null;
-  return {
-    ...node,
-    children: node.children
-      .map(filterPendingNodes)
-      .filter((n): n is OrgNode => n !== null),
-  };
-}
-
-function countNodes(node: OrgNode | null): number {
-  if (!node) return 0;
-  return 1 + node.children.reduce((acc, child) => acc + countNodes(child), 0);
-}
-
-function countPendingNodes(node: OrgNode | null): number {
-  if (!node) return 0;
-  const own = node.status === "Pending" ? 1 : 0;
-  return own + node.children.reduce((acc, child) => acc + countPendingNodes(child), 0);
-}
-
-function hasPendingNodes(node: OrgNode | null): boolean {
-  if (!node) return false;
-  if (node.status === "Pending") return true;
-  return node.children.some(hasPendingNodes);
-}
 
 export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [, setSearchParams] = useSearchParams();

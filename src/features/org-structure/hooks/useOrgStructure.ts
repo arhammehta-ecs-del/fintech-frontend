@@ -7,24 +7,18 @@ import { createNewOrgNode, fetchUsersByNodePathCount, getCompanyOrgStructure, up
 import { fetchCompanyNodes } from "@/services/user.service";
 import { collectNodeTrail, findOrgNodeById, findParentNodeById, flattenOrg } from "@/features/org-structure/orgNode.utils";
 import type { DepartmentSidebarDepartment, NewNodeType } from "@/features/org-structure/types";
-
-const VIEWPORT_EDGE_PADDING = 96;
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 2;
-const ZOOM_STEP = 0.1;
-type PermissionAction = "checker" | "maker" | "viewer";
-type PermissionMatrixRow = {
-  key: string;
-  label: string;
-  counts: Record<PermissionAction, number>;
-};
-const SYSTEM_ROWS: Array<{ key: string; label: string }> = [
-  { key: "ORG_STR", label: "Org Structure" },
-  { key: "USER_ACC", label: "User Access" },
-  { key: "WORK_FLOW", label: "Workflow" },
-];
-const buildEmptyPermissionRows = (): PermissionMatrixRow[] =>
-  SYSTEM_ROWS.map((row) => ({ key: row.key, label: row.label, counts: { checker: 0, maker: 0, viewer: 0 } }));
+import {
+  MAX_ZOOM,
+  MIN_ZOOM,
+  VIEWPORT_EDGE_PADDING,
+  ZOOM_STEP,
+  buildEmptyPermissionRows,
+  centerSelectedNode,
+  getInitialZoomForOverflow,
+  type PermissionMatrixRow,
+  SYSTEM_ROWS,
+  performPendingNodeAction,
+} from "@/features/org-structure/hooks/useOrgStructure.helpers";
 
 export function useOrgStructure() {
   const { currentUser, orgStructure, setOrgStructure } = useAppContext();
@@ -111,14 +105,8 @@ export function useOrgStructure() {
         setSelectedDepartment(null);
         setSidebarOpen(false);
       });
-      didApplyInitialAutoZoomRef.current = false;
     }
-  }, [orgStructure]);
-
-  useEffect(() => {
-    if (orgStructure) {
-      didApplyInitialAutoZoomRef.current = false;
-    }
+    didApplyInitialAutoZoomRef.current = false;
   }, [orgStructure]);
 
   useEffect(() => {
@@ -196,7 +184,7 @@ export function useOrgStructure() {
     if (!hasHorizontalOverflow) return;
 
     didApplyInitialAutoZoomRef.current = true;
-    setZoom(Math.max(MIN_ZOOM, Number((1 - ZOOM_STEP * 2).toFixed(2))));
+    setZoom(getInitialZoomForOverflow());
   }, [orgStructure, hasHorizontalOverflow, zoom]);
 
   useEffect(() => {
@@ -204,19 +192,7 @@ export function useOrgStructure() {
     const selectedId = selectedDepartment?.id;
     if (!treeElement || !selectedId) return;
 
-    const escapedId = selectedId.replace(/"/g, '\\"');
-    const selectedNodeElement = treeElement.querySelector<HTMLElement>(`[data-org-node-id="${escapedId}"]`);
-    if (!selectedNodeElement) return;
-
-    const treeRect = treeElement.getBoundingClientRect();
-    const nodeRect = selectedNodeElement.getBoundingClientRect();
-    const nodeCenterFromScrollLeft = treeElement.scrollLeft + (nodeRect.left - treeRect.left) + nodeRect.width / 2;
-    const targetScrollLeft = Math.max(0, nodeCenterFromScrollLeft - treeElement.clientWidth / 2);
-
-    treeElement.scrollTo({
-      left: targetScrollLeft,
-      behavior: "smooth",
-    });
+    centerSelectedNode(treeElement, selectedId);
   }, [selectedDepartment?.id, sidebarOpen, canvasWidth, zoom]);
 
   const allNodes = useMemo(() => flattenOrg(orgStructure), [orgStructure]);
@@ -362,98 +338,44 @@ export function useOrgStructure() {
   };
 
   const handleApproveNode = async (node: OrgNode, remark: string) => {
-    const cleanedRemark = remark.trim();
-    if (!cleanedRemark) {
-      setOrgError("Remark is required before approving this node.");
-      return;
-    }
-
-    const nodeId = node.uuid?.trim() || node.id?.trim();
-    if (!nodeId) {
-      setOrgError("Pending node ID is missing.");
-      return;
-    }
-
-    try {
-      const response = await updateOrgNodeAction(nodeId, "approve", cleanedRemark);
-      toast({
-        title: "Node Approved",
-        description: response?.message || "Organization structure node approved successfully.",
-        variant: "default",
-      });
-      setPendingNodeForReview(null);
-      await loadOrgForCompanyCode(companyCode);
-    } catch (error) {
-      setOrgError(getApiErrorMessage(error, "Failed to approve node. Please try again."));
-    }
+    await performPendingNodeAction({
+      node,
+      action: "approve",
+      remark,
+      setOrgError,
+      toast,
+      updateOrgNodeAction,
+      onClose: () => setPendingNodeForReview(null),
+      onSuccess: async () => {
+        await loadOrgForCompanyCode(companyCode);
+      },
+    });
   };
 
   const handleRejectNode = async (node: OrgNode, remark: string) => {
-    const cleanedRemark = remark.trim();
-    if (!cleanedRemark) {
-      setOrgError("Remark is required before rejecting this node.");
-      return;
-    }
-
-    const nodeId = node.uuid?.trim() || node.id?.trim();
-    if (!nodeId) {
-      setOrgError("Pending node ID is missing.");
-      return;
-    }
-
-    try {
-      const response = await updateOrgNodeAction(nodeId, "reject", cleanedRemark);
-      toast({
-        title: "Node Rejected",
-        description: response?.message || "Organization structure node rejected successfully.",
-        variant: "default",
-      });
-      setPendingNodeForReview(null);
-      await loadOrgForCompanyCode(companyCode);
-    } catch (error) {
-      setOrgError(getApiErrorMessage(error, "Failed to reject node. Please try again."));
-    }
+    await performPendingNodeAction({
+      node,
+      action: "reject",
+      remark,
+      setOrgError,
+      toast,
+      updateOrgNodeAction,
+      onClose: () => setPendingNodeForReview(null),
+      onSuccess: async () => {
+        await loadOrgForCompanyCode(companyCode);
+      },
+    });
   };
 
   const zoomOut = () => setZoom((current) => Math.max(MIN_ZOOM, Number((current - ZOOM_STEP).toFixed(2))));
   const zoomIn = () => setZoom((current) => Math.min(MAX_ZOOM, Number((current + ZOOM_STEP).toFixed(2))));
 
   return {
-    companyCode,
-    orgStructure,
-    selectedDepartment,
-    sidebarOpen,
-    orgLoading,
-    orgError,
-    canvasWidth,
-    bottomScrollContentWidth,
-    hasHorizontalOverflow,
-    zoom,
-    isNewNodePopupOpen,
-    newNodeParent,
-    pendingNodeForReview,
-    nodePermissionRows,
-    nodePermissionLoading,
-    treeScrollRef,
-    bottomScrollRef,
-    graphContentRef,
-    companyName,
-    nodeCount,
-    canZoomOut,
-    canZoomIn,
-    viewportEdgePadding: VIEWPORT_EDGE_PADDING,
-    setCanvasWidth,
-    setIsNewNodePopupOpen,
-    setNewNodeParent,
-    newNodeWorkflowOptions,
-    setPendingNodeForReview,
-    handleOpenNewNodePopup,
-    handleCreateNode,
-    handleDepartmentClick,
-    handleSidebarOpenChange,
-    handleApproveNode,
-    handleRejectNode,
-    zoomOut,
-    zoomIn,
+    companyCode, orgStructure, selectedDepartment, sidebarOpen, orgLoading, orgError, canvasWidth, bottomScrollContentWidth,
+    hasHorizontalOverflow, zoom, isNewNodePopupOpen, newNodeParent, pendingNodeForReview, nodePermissionRows,
+    nodePermissionLoading, treeScrollRef, bottomScrollRef, graphContentRef, companyName, nodeCount, canZoomOut, canZoomIn,
+    viewportEdgePadding: VIEWPORT_EDGE_PADDING, setCanvasWidth, setIsNewNodePopupOpen, setNewNodeParent, newNodeWorkflowOptions,
+    setPendingNodeForReview, handleOpenNewNodePopup, handleCreateNode, handleDepartmentClick, handleSidebarOpenChange,
+    handleApproveNode, handleRejectNode, zoomOut, zoomIn,
   };
 }

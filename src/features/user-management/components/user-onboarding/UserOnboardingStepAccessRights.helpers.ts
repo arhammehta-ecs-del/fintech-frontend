@@ -1,5 +1,8 @@
 import type { OrgNode } from "@/contexts/AppContext";
 import { getNodeAccentBackground, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
+import { PERMISSION_ACTIONS, formatRoleTokenLabel } from "@/features/user-management/roleLabels";
+import type { NodePermissionBuckets, PermissionAction, PermissionCategory, SystemAccessScope } from "@/features/user-management/types";
+import type { RoleRecord } from "@/services/role.service";
 import { formatCollapsedNodePath } from "@/features/user-management/utils";
 
 export type BranchMeta = {
@@ -64,6 +67,72 @@ const BRANCH_SURFACE_BY_ACCENT: Record<string, string> = {
 };
 
 export const isRootOrgNode = (node: OrgNode) => node.nodeType.trim().toUpperCase() === "ROOT";
+
+export const SYSTEM_ACCESS_SCOPE_ITEMS = new Set([
+  "ORG_STR",
+  "ORG_STRUCTURE",
+  "USER_ACC",
+  "USER_ACCESS",
+  "USER_MANAGEMENT",
+  "WORK_FLOW",
+  "WORKFLOW",
+  "WORKFLOW_CONFIG",
+]);
+
+export const PERMISSION_SCOPE_ROWS: Array<{ value: SystemAccessScope; label: string }> = [
+  { value: "ALL_CHILD", label: "ALL CHILD" },
+  { value: "NODE", label: "NODE" },
+  { value: "IMMEDIATE_CHILD", label: "IMMEDIATE CHILD" },
+];
+
+export const isSystemAccessScopeItem = (itemKey: string) =>
+  SYSTEM_ACCESS_SCOPE_ITEMS.has(itemKey.trim().toUpperCase());
+
+export type ActivePermissionSelection = {
+  categoryKey: PermissionCategory;
+  itemKey: string;
+  action: PermissionAction;
+};
+
+export type RoleCategorySection = {
+  categoryKey: string;
+  label: string;
+  items: Array<{ key: string; label: string }>;
+};
+
+export const buildRoleCategoriesFromRoles = (roles: RoleRecord[]): RoleCategorySection[] =>
+  Array.from(
+    roles.reduce((acc, role) => {
+      if (!acc.has(role.category)) acc.set(role.category, new Map());
+      const mods = acc.get(role.category)!;
+      if (!mods.has(role.subCategory)) {
+        const label = formatRoleTokenLabel(role.subCategory);
+        mods.set(role.subCategory, label);
+      }
+      return acc;
+    }, new Map<string, Map<string, string>>()),
+    ([category, mods]) => ({
+      categoryKey: category,
+      label: formatRoleTokenLabel(category),
+      items: Array.from(mods, ([key, label]) => ({ key, label })),
+    }),
+  );
+
+export const getPrimarySelectionFromPermissions = (
+  permissions: NodePermissionBuckets["primary"],
+  roleCategories: RoleCategorySection[],
+): ActivePermissionSelection | null => {
+  for (const { categoryKey, items } of roleCategories) {
+    for (const item of items) {
+      const rights = permissions[categoryKey]?.[item.key];
+      if (!rights) continue;
+      for (const action of PERMISSION_ACTIONS) {
+        if (rights[action]) return { categoryKey, itemKey: item.key, action };
+      }
+    }
+  }
+  return null;
+};
 
 export const buildNodeBreadcrumbMap = (root: OrgNode | null) => {
   const map = new Map<string, string>();

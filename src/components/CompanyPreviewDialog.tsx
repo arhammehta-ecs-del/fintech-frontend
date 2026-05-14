@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { format, isValid, parse, parseISO } from "date-fns";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,15 +7,24 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Company } from "@/contexts/AppContext";
 import { Building2, Check, Clock3, Mail, UserRound, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  CodePill,
+  DetailRow,
+  displayValue,
+  formatDisplayDate,
+  formatUtcToIstDateTime,
+  InfoField,
+  sectionHeadingClassName,
+  SignatoryDetailRow,
+  statusColors,
+  type ApprovalStatusLabel,
+} from "@/components/CompanyPreviewDialog.helpers";
 
 // export interface ApprovalEvent {
 //   name: string;
 //   action: string;
 //   at: string;
 // }
-
-// Internal helper types
-type ApprovalStatusLabel = "Approved" | "Pending" | "Inactive" | "Rejected";
 
 // Public props
 interface CompanyPreviewDialogProps {
@@ -34,88 +42,6 @@ interface CompanyPreviewDialogProps {
   // onAuditEvent?: (event: ApprovalEvent) => void;
 }
 
-// Shared constants and helpers
-const statusColors = {
-  Approved: "bg-success/10 text-success border-success/20",
-  Pending: "bg-warning/10 text-warning border-warning/20",
-  Inactive: "bg-destructive/10 text-destructive border-destructive/20",
-  Rejected: "bg-destructive/10 text-destructive border-destructive/20",
-} as const satisfies Record<ApprovalStatusLabel, string>;
-
-const fieldLabelClassName = "text-[12px] font-medium text-slate-500";
-const fieldValueClassName = "text-[15px] font-semibold text-slate-900";
-const sectionHeadingClassName = "text-[15px] font-semibold text-foreground";
-const displayValue = (value?: string | null) => (value && value.trim() ? value : "—");
-
-type InfoFieldProps = {
-  label: string;
-  value: ReactNode;
-  className?: string;
-};
-
-function InfoField({ label, value, className }: InfoFieldProps) {
-  return (
-    <div className={cn("space-y-1.5", className)}>
-      <p className={fieldLabelClassName}>{label}</p>
-      <div className={fieldValueClassName}>{value}</div>
-    </div>
-  );
-}
-
-function CodePill({ value }: { value: string }) {
-  return (
-    <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-3.5 py-1.5 text-xs font-semibold leading-none tracking-[0.03em] text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      {value}
-    </span>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="grid grid-cols-[140px_14px_1fr] gap-2 py-1.5">
-      <p className="text-sm text-slate-700">{label}</p>
-      <span className="text-slate-400">:</span>
-      <div className="text-[15px] font-semibold text-slate-900">{value}</div>
-    </div>
-  );
-}
-
-function SignatoryDetailRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="grid grid-cols-[92px_14px_1fr] gap-2 py-0.5">
-      <p className="text-sm text-slate-700">{label}</p>
-      <span className="text-slate-400">:</span>
-      <div className="text-sm font-semibold text-slate-900 break-all">{value}</div>
-    </div>
-  );
-}
-
-const formatDisplayDate = (value?: string) => {
-  if (!value) return "—";
-  const isoDate = parseISO(value);
-  if (isValid(isoDate)) return format(isoDate, "dd MMM yyyy");
-
-  const parsedDate = parse(value, "dd/MM/yyyy", new Date());
-  if (isValid(parsedDate)) return format(parsedDate, "dd MMM yyyy");
-
-  return value;
-};
-
-const formatUtcToIstDateTime = (value?: string) => {
-  if (!value) return "—";
-  const utcDate = new Date(value);
-  if (Number.isNaN(utcDate.getTime())) return value;
-
-  return new Intl.DateTimeFormat("en-IN", {
-    timeZone: "Asia/Kolkata",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  }).format(utcDate);
-};
 
 export function CompanyPreviewDialog({
   company,

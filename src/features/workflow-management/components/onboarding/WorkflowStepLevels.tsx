@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useRef } from "react";
-import { AlertCircle, CheckCircle2, Plus, Settings2, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Settings2, Trash2 } from "lucide-react";
 import { APPROVAL_OPTIONS } from "@/features/workflow-management/constants";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { WorkflowLevel } from "./types";
+import {
+  ADD_LEVEL_FLOAT_OFFSET,
+  AddLevelButton,
+  CARD_HEIGHT_SINGLE,
+  CARD_WIDTH,
+  FLOW_ARROW_ID,
+  LEFT_X,
+  STAGE_WIDTH,
+  TOP_Y,
+  getCardHeight,
+  getOptionState,
+  getSlotPosition,
+} from "./WorkflowStepLevels.helpers";
 
 type WorkflowStepLevelsProps = {
   levels: WorkflowLevel[];
@@ -19,76 +32,7 @@ type WorkflowStepLevelsProps = {
   canRemoveLevel: boolean;
 };
 
-const FLOW_ARROW_ID = "workflow-level-flow-arrow";
-const STAGE_WIDTH = 980;
-const CARD_WIDTH = 330;
-const CARD_HEIGHT_SINGLE = 178;
-const CARD_HEIGHT_DOUBLE = 256;
-const LEFT_X = 48;
-const RIGHT_X = STAGE_WIDTH - CARD_WIDTH - LEFT_X;
-const TOP_Y = 24;
-const ROW_GAP = 302;
-const ADD_LEVEL_FLOAT_OFFSET = 8;
 
-const getSlotPosition = (index: number) => {
-  const row = Math.floor(index / 2);
-  const posInRow = index % 2;
-  // Snake layout:
-  // Row 0: Left -> Right
-  // Row 1: Right -> Left
-  // Row 2: Left -> Right
-  const isLeft = row % 2 === 0 ? posInRow === 0 : posInRow === 1;
-
-  return {
-    x: isLeft ? LEFT_X : RIGHT_X,
-    y: TOP_Y + row * ROW_GAP,
-  };
-};
-
-function AddLevelButton({ onClick, locked }: { onClick: () => void; locked: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-full border-2 border-dashed px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] shadow-sm transition-all ${
-        locked
-          ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300"
-          : "border-blue-300 bg-white text-blue-600 hover:scale-[1.02] hover:border-blue-500 hover:bg-blue-50"
-      }`}
-      aria-label="Add next workflow level"
-    >
-      <Plus className="h-4 w-4" />
-      Add level
-    </button>
-  );
-}
-
-function getOptionState({
-  optionId,
-  level,
-  currentValue,
-  currentIndex,
-  isRMUsedGlobally,
-}: {
-  optionId: string;
-  level: WorkflowLevel;
-  currentValue: string;
-  currentIndex: number;
-  isRMUsedGlobally: boolean;
-}) {
-  if (optionId === "reporting_manager") {
-    return {
-      disabled: isRMUsedGlobally && currentValue !== "reporting_manager",
-    };
-  }
-
-  const usedByPeer = level.approvals.some((approval, idx) => idx !== currentIndex && approval.option === optionId);
-  return {
-    disabled: usedByPeer,
-  };
-}
-
-const getCardHeight = (level: WorkflowLevel) => (level.approvals.length > 1 ? CARD_HEIGHT_DOUBLE : CARD_HEIGHT_SINGLE);
 
 export default function WorkflowStepLevels({
   levels,

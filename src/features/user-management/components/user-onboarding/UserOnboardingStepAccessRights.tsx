@@ -1,28 +1,31 @@
-import { ChevronDown, ChevronLeft, ChevronRight, Eye, GripVertical, Maximize2, Minimize2, Pencil, ShieldCheck, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, Maximize2, Minimize2 } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import type { OrgNode } from "@/contexts/AppContext";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { RoleRecord } from "@/services/role.service";
 import type {
-  UserOnboardingFormData,
   NodePermissionBuckets,
   NodePermissionScopeBuckets,
   PermissionAction,
-  PermissionBucket,
-  PermissionCategory,
   SystemAccessScope,
   ValidationErrors,
 } from "@/features/user-management/types";
 import { PERMISSION_ACTIONS, formatRoleTokenLabel, getPermissionActionLabel } from "@/features/user-management/roleLabels";
-import { formatCollapsedNodePath } from "@/features/user-management/utils";
+import { createInitialPermissions } from "@/features/user-management/utils";
 import {
+  buildRoleCategoriesFromRoles,
   buildBranchMetaMap,
   buildNodeBreadcrumbMap,
+  getPrimarySelectionFromPermissions,
   getNodeBadgeClass,
   getNodeBorderLeftClass,
-  getNodeSurfaceClass,
+  getNodeSubtitle,
+  isRootOrgNode,
+  isSystemAccessScopeItem,
 } from "./UserOnboardingStepAccessRights.helpers";
+import { PermissionRow, type ActivePermissionSelection } from "./access-rights/PermissionRow";
+import { SelectedNodesPanel } from "./access-rights/SelectedNodesPanel";
 
 type StepAccessRightsProps = {
   orgStructure: OrgNode | null;
@@ -55,237 +58,6 @@ type StepAccessRightsProps = {
   ) => void;
 };
 
-type ActivePermissionSelection = {
-  categoryKey: PermissionCategory;
-  itemKey: string;
-  action: PermissionAction;
-};
-
-const SYSTEM_ACCESS_SCOPE_ITEMS = new Set([
-  "ORG_STR",
-  "ORG_STRUCTURE",
-  "USER_ACC",
-  "USER_ACCESS",
-  "USER_MANAGEMENT",
-  "WORK_FLOW",
-  "WORKFLOW",
-  "WORKFLOW_CONFIG",
-]);
-
-const getPermissionActionTheme = (action: PermissionAction) => {
-  if (action === "manager") {
-    return {
-      Icon: ShieldCheck,
-      active: "border-violet-300 bg-violet-50 text-violet-700",
-      idle: "border-slate-200 bg-white text-transparent hover:border-violet-200 hover:bg-violet-50",
-    };
-  }
-
-  if (action === "user") {
-    return {
-      Icon: Pencil,
-      active: "border-amber-300 bg-amber-50 text-amber-700",
-      idle: "border-slate-200 bg-white text-transparent hover:border-amber-200 hover:bg-amber-50",
-    };
-  }
-
-  return {
-    Icon: Eye,
-    active: "border-slate-300 bg-slate-50 text-slate-700",
-    idle: "border-slate-200 bg-white text-transparent hover:border-slate-300 hover:bg-slate-50",
-  };
-};
-
-function PermissionRow({
-  category,
-  itemKey,
-  label,
-  checked,
-  variant,
-  selectedChoice,
-  occupiedChoice,
-  hasPrimarySelection = true,
-  scopeByAction = {},
-  showScopePicker = false,
-  scopeExpanded = false,
-  onToggle,
-  onScopeChange,
-  onToggleScopeExpanded,
-}: {
-  category: string;
-  itemKey: string;
-  label: string;
-  checked: PermissionBucket;
-  variant: "primary" | "secondary";
-  selectedChoice?: ActivePermissionSelection | null;
-  occupiedChoice?: ActivePermissionSelection | null;
-  hasPrimarySelection?: boolean;
-  scopeByAction?: Partial<Record<PermissionAction, SystemAccessScope>>;
-  showScopePicker?: boolean;
-  scopeExpanded?: boolean;
-  onToggle: (category: string, itemKey: string, action: PermissionAction) => void;
-  onScopeChange?: (category: string, itemKey: string, action: PermissionAction, scope: SystemAccessScope) => void;
-  onToggleScopeExpanded?: (category: string, itemKey: string) => void;
-}) {
-  const selectedByAction: Record<PermissionAction, boolean> = {
-    manager: Boolean(
-      selectedChoice?.categoryKey === category &&
-      String(selectedChoice.itemKey) === String(itemKey) &&
-      selectedChoice.action === "manager",
-    ) || checked.manager,
-    user: Boolean(
-      selectedChoice?.categoryKey === category &&
-      String(selectedChoice.itemKey) === String(itemKey) &&
-      selectedChoice.action === "user",
-    ) || checked.user,
-    viewer: Boolean(
-      selectedChoice?.categoryKey === category &&
-      String(selectedChoice.itemKey) === String(itemKey) &&
-      selectedChoice.action === "viewer",
-    ) || checked.viewer,
-  };
-
-  const scopeRows: Array<{ value: SystemAccessScope; label: string }> = [
-    { value: "ALL_CHILD", label: "ALL CHILD" },
-    { value: "NODE", label: "NODE" },
-    { value: "IMMEDIATE_CHILD", label: "IMMEDIATE CHILD" },
-  ];
-
-  return (
-    <div className="border-b border-slate-100 transition-colors hover:bg-slate-50/50 last:border-b-0">
-      <div className="grid grid-cols-4 items-center px-4 py-2.5">
-      <div className="space-y-1.5">
-        <button
-          type="button"
-          onClick={() => {
-            if (!showScopePicker) return;
-            onToggleScopeExpanded?.(category, itemKey);
-          }}
-          className={cn(
-            "inline-flex items-center gap-2 text-sm font-medium text-slate-700",
-            showScopePicker ? "cursor-pointer" : "cursor-default",
-          )}
-        >
-          {showScopePicker ? (
-            <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", scopeExpanded ? "rotate-180" : "")} />
-          ) : null}
-          <span>{label}</span>
-        </button>
-      </div>
-      {PERMISSION_ACTIONS.map((action) => (
-        <div key={action} className="flex justify-center">
-          {(() => {
-            const isSelected =
-              selectedChoice?.categoryKey === category &&
-              String(selectedChoice.itemKey) === String(itemKey) &&
-              selectedChoice.action === action;
-            const isOccupied =
-              occupiedChoice?.categoryKey === category &&
-              String(occupiedChoice.itemKey) === String(itemKey) &&
-              occupiedChoice.action === action;
-            const isPrimaryDisabled = variant === "primary" && Boolean(selectedChoice) && !isSelected;
-            const isSecondaryBlocked = variant === "secondary" && !hasPrimarySelection;
-            const shouldDisable = isPrimaryDisabled || isOccupied || isSecondaryBlocked;
-            const isFilled = checked[action] || isSelected;
-            const theme = getPermissionActionTheme(action);
-            const Icon = theme.Icon;
-
-            const button = (
-              <button
-                type="button"
-                aria-pressed={isFilled || isOccupied}
-                aria-label={`${label} ${getPermissionActionLabel(action)}`}
-                disabled={shouldDisable}
-                onClick={() => onToggle(category, itemKey, action)}
-                className={cn(
-                  "flex h-7 w-7 items-center justify-center rounded-sm border-2 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(53,83,233)]/20",
-                  isFilled ? theme.active : theme.idle,
-                  shouldDisable && !isFilled ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-300 hover:border-slate-200 hover:bg-slate-100" : "",
-                )}
-              >
-                <Icon className={cn("h-3.5 w-3.5 transition-transform duration-150", isFilled ? "scale-100" : "scale-95")} />
-              </button>
-            );
-
-            if (isOccupied) {
-              return (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex" aria-label={`${label} ${action} PRIMARY`}>
-                      {button}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">PRIMARY</TooltipContent>
-                </Tooltip>
-              );
-            }
-
-            if (isSecondaryBlocked) {
-              return (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex" aria-label={`${label} ${action} disabled until primary is selected`}>
-                      {button}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">Select one PRIMARY right first</TooltipContent>
-                </Tooltip>
-              );
-            }
-
-            return button;
-          })()}
-        </div>
-      ))}
-      </div>
-
-      {showScopePicker && scopeExpanded ? (
-        <div className="space-y-1 pb-2.5 pl-4 pr-4">
-          {scopeRows.map((row) => (
-            <div key={`${itemKey}-${row.value}`} className="grid grid-cols-4 items-center">
-              <div className="inline-flex items-center justify-end gap-2 pr-4 text-[12px] font-bold uppercase tracking-[0.11em] text-slate-500">
-                <span className="text-slate-300">+</span>
-                <span>{row.label}</span>
-              </div>
-              {PERMISSION_ACTIONS.map((action) => {
-                const isEnabled = selectedByAction[action];
-                const isActive = isEnabled && (scopeByAction[action] ?? "NODE") === row.value;
-
-                return (
-                  <div key={`${itemKey}-${row.value}-${action}`} className="flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!isEnabled) return;
-                        onScopeChange?.(category, itemKey, action, row.value);
-                      }}
-                      disabled={!isEnabled}
-                      aria-label={`${label} ${action} ${row.label}`}
-                      className={cn(
-                        "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all",
-                        isActive
-                          ? "border-[rgb(79,70,229)]"
-                          : "border-slate-300",
-                        !isEnabled ? "cursor-not-allowed opacity-50" : "hover:border-[rgb(79,70,229)]/60",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "h-2.5 w-2.5 rounded-full",
-                          isActive ? "bg-[rgb(79,70,229)]" : "bg-transparent",
-                        )}
-                      />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 export function UserOnboardingStepAccessRights({
   orgStructure,
@@ -316,70 +88,8 @@ export function UserOnboardingStepAccessRights({
     },
     [primarySelectedNode?.id, selectedNodeIndexMap],
   );
-  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
-  const [dropTargetNodeId, setDropTargetNodeId] = useState<string | null>(null);
   const [expandedScopeRows, setExpandedScopeRows] = useState<string[]>([]);
-
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-
-  const checkScroll = useCallback(() => {
-    if (scrollContainerRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
-      setCanScrollLeft(scrollLeft > 0);
-      setCanScrollRight(Math.ceil(scrollLeft + clientWidth) < scrollWidth);
-    }
-  }, []);
-
-  useEffect(() => {
-    checkScroll();
-    window.addEventListener("resize", checkScroll);
-    return () => window.removeEventListener("resize", checkScroll);
-  }, [checkScroll, selectedNodes.length]);
-
-  const scrollListLeft = () => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollBy({ left: -300, behavior: "smooth" });
-    }
-  };
-
-  const scrollListRight = () => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollBy({ left: 300, behavior: "smooth" });
-    }
-  };
-
-  // Build dynamic section structure from live roles
-  const roleCategories = Array.from(
-    roles.reduce((acc, role) => {
-      if (!acc.has(role.category)) acc.set(role.category, new Map());
-      const mods = acc.get(role.category)!;
-      if (!mods.has(role.subCategory)) {
-        const label = formatRoleTokenLabel(role.subCategory);
-        mods.set(role.subCategory, label);
-      }
-      return acc;
-    }, new Map<string, Map<string, string>>()),
-    ([category, mods]) => ({
-      categoryKey: category,
-      label: formatRoleTokenLabel(category),
-      items: Array.from(mods, ([key, label]) => ({ key, label })),
-    }),
-  );
-
-  const getPrimarySelection = (permissions: NodePermissionBuckets["primary"]): ActivePermissionSelection | null => {
-    for (const { categoryKey, items } of roleCategories) {
-      for (const item of items) {
-        const rights = permissions[categoryKey]?.[item.key];
-        if (!rights) continue;
-        for (const action of PERMISSION_ACTIONS) {
-          if (rights[action]) return { categoryKey, itemKey: item.key, action };
-        }
-      }
-    }
-    return null;
-  };
+  const roleCategories = buildRoleCategoriesFromRoles(roles);
 
   const renderNodePermissions = (
     node: OrgNode,
@@ -387,9 +97,9 @@ export function UserOnboardingStepAccessRights({
   ) => {
     const buckets = nodePermissions[node.id];
     if (!buckets) return null;
-    const primaryChoice = getPrimarySelection(buckets.primary);
+    const primaryChoice = getPrimarySelectionFromPermissions(buckets.primary, roleCategories);
     const primarySelectedNodePrimaryChoice =
-      primarySelectedNode ? getPrimarySelection(nodePermissions[primarySelectedNode.id]?.primary ?? createInitialPermissions(roles)) : null;
+      primarySelectedNode ? getPrimarySelectionFromPermissions(nodePermissions[primarySelectedNode.id]?.primary ?? createInitialPermissions(roles), roleCategories) : null;
     const hasAnyPrimarySelection = Boolean(primarySelectedNodePrimaryChoice);
     const occupiedPrimaryChoice = node.id === primarySelectedNode?.id ? primaryChoice : null;
 
@@ -413,9 +123,7 @@ export function UserOnboardingStepAccessRights({
                   const selectedChoice = bucketKey === "primary" ? primaryChoice : null;
                   const occupiedChoice = bucketKey === "secondary" ? occupiedPrimaryChoice : null;
                   const scopeValues = nodePermissionScopes[node.id]?.[bucketKey]?.[categoryKey]?.[item.key] ?? {};
-                  const showScopePicker =
-                    categoryKey.trim().toUpperCase() === "SYSTEM_ACCESS" &&
-                    SYSTEM_ACCESS_SCOPE_ITEMS.has(item.key.trim().toUpperCase());
+                  const showScopePicker = categoryKey.trim().toUpperCase() === "SYSTEM_ACCESS" && isSystemAccessScopeItem(item.key);
                   const scopeRowKey = `${node.id}::${bucketKey}::${categoryKey}::${item.key}`;
 
                   return (
@@ -493,199 +201,18 @@ export function UserOnboardingStepAccessRights({
           </div>
         ) : null}
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-          <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-200/60 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-800">Selected Nodes</h3>
-              <p className="mt-0.5 text-xs text-slate-500">Drag to reorder or click to select.</p>
-            </div>
-          </div>
-
-          {selectedNodes.length > 0 ? (
-            <div className="space-y-3">
-              <div className="group relative">
-                <div
-                  className={cn(
-                    "pointer-events-none absolute bottom-0 left-[-8px] top-0 z-10 flex w-20 items-center justify-start bg-gradient-to-r from-slate-50 via-slate-50/90 to-transparent pb-2 pl-2 transition-opacity duration-300",
-                    canScrollLeft ? "opacity-100" : "opacity-0"
-                  )}
-                >
-                  <button
-                    type="button"
-                    onClick={scrollListLeft}
-                    disabled={!canScrollLeft}
-                    className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-all hover:border-[rgb(53,83,233)]/30 hover:bg-slate-50 hover:text-[rgb(53,83,233)] focus-visible:outline-none"
-                    aria-label="Scroll left"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                </div>
-
-                <div
-                  ref={scrollContainerRef}
-                  onScroll={checkScroll}
-                  className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide [&::-webkit-scrollbar]:hidden snap-x snap-mandatory scroll-pl-14 scroll-pr-14"
-                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-                >
-                  {selectedNodes.map((node) => (
-                    (() => {
-                      const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
-                      return (
-                        <div
-                          key={node.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => {
-                            onSetExpandedAccessNodeIds((current) => current.includes(node.id) ? current : [...current, node.id]);
-                            onSetPrimaryNodeId(node.id);
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              onSetExpandedAccessNodeIds((current) => current.includes(node.id) ? current : [...current, node.id]);
-                              onSetPrimaryNodeId(node.id);
-                            }
-                          }}
-                          onDragOver={(event) => {
-                            event.preventDefault();
-                            if (draggedNodeId && draggedNodeId !== node.id) {
-                              setDropTargetNodeId(node.id);
-                            }
-                          }}
-                          onDrop={(event) => {
-                            event.preventDefault();
-                            if (draggedNodeId && draggedNodeId !== node.id) {
-                              onReorderSelectedNodes(draggedNodeId, node.id);
-                            }
-                            setDraggedNodeId(null);
-                            setDropTargetNodeId(null);
-                          }}
-                          onDoubleClick={() => onSetInfoNodeId(infoNodeId === node.id ? null : node.id)}
-                          className={cn(
-                            "snap-start relative flex shrink-0 items-center gap-3 overflow-hidden rounded-xl border border-l-[4px] bg-white px-4 py-3 text-left shadow-sm transition-all",
-                            getNodeBorderLeftClass(node, branchMetaMap),
-                            getNodeSurfaceClass(node, branchMetaMap),
-                            draggedNodeId === node.id ? "opacity-50" : "",
-                            dropTargetNodeId === node.id ? "border-[rgb(53,83,233)] ring-2 ring-[rgb(53,83,233)]/10" : "",
-                            expandedAccessNodeIds.includes(node.id) ? "ring-1 ring-[rgb(53,83,233)]/15" : "",
-                          )}
-                        >
-                          <button
-                            type="button"
-                            draggable
-                            aria-label={`Drag ${node.name} to reorder`}
-                            onClick={(event) => event.stopPropagation()}
-                            onDragStart={(event) => {
-                              event.stopPropagation();
-                              setDraggedNodeId(node.id);
-                            }}
-                            onDragEnd={() => {
-                              setDraggedNodeId(null);
-                              setDropTargetNodeId(null);
-                            }}
-                            className="inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600 active:cursor-grabbing"
-                          >
-                            <GripVertical className="h-4 w-4" />
-                          </button>
-                          <div className={cn("flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold", getNodeBadgeClass(node, branchMetaMap))}>
-                            {getAccessBadgeLabel(node.id)}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <div className="truncate text-sm font-semibold text-slate-800">{node.name}</div>
-                            </div>
-                            {!isRoot && breadcrumbByNodeId.get(node.id) ? (
-                              <div className="truncate text-[11px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "")}</div>
-                            ) : null}
-                            {!isRoot ? (
-                              <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{node.nodeType}</div>
-                            ) : null}
-                          </div>
-                          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-                        </div>
-                      );
-                    })()
-                  ))}
-                </div>
-
-                <div
-                  className={cn(
-                    "pointer-events-none absolute bottom-0 right-[-8px] top-0 z-10 flex w-20 items-center justify-end bg-gradient-to-l from-slate-50 via-slate-50/90 to-transparent pb-2 pr-2 transition-opacity duration-300",
-                    canScrollRight ? "opacity-100" : "opacity-0"
-                  )}
-                >
-                  <button
-                    type="button"
-                    onClick={scrollListRight}
-                    disabled={!canScrollRight}
-                    className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-all hover:border-[rgb(53,83,233)]/30 hover:bg-slate-50 hover:text-[rgb(53,83,233)] focus-visible:outline-none"
-                    aria-label="Scroll right"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              {infoNodeId ? (
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  {(() => {
-                    const infoNode = selectedNodes.find((node) => node.id === infoNodeId);
-                    if (!infoNode) return null;
-                    const infoIndex = selectedNodes.findIndex((node) => node.id === infoNodeId);
-                    const isInfoRoot = infoNode.nodeType.trim().toUpperCase() === "ROOT";
-
-                    return (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className={cn("flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold", getNodeBadgeClass(infoNode, branchMetaMap))}>
-                              {getAccessBadgeLabel(infoNode.id)}
-                            </div>
-                            <div>
-                              <div className="text-sm font-semibold text-slate-800">{infoNode.name}</div>
-                              {!isInfoRoot && breadcrumbByNodeId.get(infoNode.id) ? (
-                                <div className="text-[11px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(infoNode.id) || "")}</div>
-                              ) : null}
-                              {!isInfoRoot ? (
-                                <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{infoNode.nodeType}</div>
-                              ) : null}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => onSetInfoNodeId(null)}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-                            aria-label="Close node info"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-3">
-                          <div className="rounded-lg bg-slate-50 px-3 py-2">
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Preference</div>
-                            <div className="mt-1 font-semibold text-slate-700">{infoIndex + 1}</div>
-                          </div>
-                          <div className="rounded-lg bg-slate-50 px-3 py-2">
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Node Type</div>
-                            <div className="mt-1 font-semibold text-slate-700">{isInfoRoot ? "-" : infoNode.nodeType}</div>
-                          </div>
-                          <div className="rounded-lg bg-slate-50 px-3 py-2">
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Node Path</div>
-                            <div className="mt-1 break-all font-semibold text-slate-700">{isInfoRoot ? "-" : (formatCollapsedNodePath(infoNode.nodePath || "") || "-")}</div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">
-              No nodes selected yet.
-            </div>
-          )}
-        </div>
+        <SelectedNodesPanel
+          selectedNodes={selectedNodes}
+          infoNodeId={infoNodeId}
+          branchMetaMap={branchMetaMap}
+          breadcrumbByNodeId={breadcrumbByNodeId}
+          expandedAccessNodeIds={expandedAccessNodeIds}
+          onSetExpandedAccessNodeIds={onSetExpandedAccessNodeIds}
+          onSetPrimaryNodeId={onSetPrimaryNodeId}
+          onReorderSelectedNodes={onReorderSelectedNodes}
+          onSetInfoNodeId={onSetInfoNodeId}
+          getAccessBadgeLabel={getAccessBadgeLabel}
+        />
 
         {selectedNodes.length > 0 ? (
           <div className="relative space-y-8">
@@ -737,10 +264,10 @@ export function UserOnboardingStepAccessRights({
                       </div>
                       <div className="min-w-0">
                         <div className="truncate text-sm font-semibold text-slate-800">{primarySelectedNode.name}</div>
-                        {primarySelectedNode.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(primarySelectedNode.id) ? (
-                          <div className="truncate text-[11px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(primarySelectedNode.id) || "")}</div>
+                        {!isRootOrgNode(primarySelectedNode) ? (
+                          <div className="truncate text-[11px] font-medium text-slate-500">{getNodeSubtitle(primarySelectedNode, breadcrumbByNodeId)}</div>
                         ) : null}
-                        {primarySelectedNode.nodeType.trim().toUpperCase() !== "ROOT" ? (
+                        {!isRootOrgNode(primarySelectedNode) ? (
                           <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
                             {primarySelectedNode.nodeType}
                           </div>
@@ -805,10 +332,10 @@ export function UserOnboardingStepAccessRights({
                             </div>
                             <div className="min-w-0">
                               <div className="truncate text-sm font-semibold text-slate-800">{node.name}</div>
-                              {node.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(node.id) ? (
-                                <div className="truncate text-[11px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "")}</div>
+                              {!isRootOrgNode(node) ? (
+                                <div className="truncate text-[11px] font-medium text-slate-500">{getNodeSubtitle(node, breadcrumbByNodeId)}</div>
                               ) : null}
-                              {node.nodeType.trim().toUpperCase() !== "ROOT" ? (
+                              {!isRootOrgNode(node) ? (
                                 <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
                                   {node.nodeType}
                                 </div>

@@ -8,6 +8,19 @@ import type {
   ValidationErrors,
 } from "@/features/user-management/types";
 import { formatRoleTokenLabel } from "@/features/user-management/roleLabels";
+import {
+  formatDateLabel,
+  formatDateWithSlashes,
+  isoToSlashDate,
+  isDateInFuture,
+  parseSlashDate,
+  slashToIsoDate,
+} from "@/features/user-management/date.utils";
+import {
+  getOrgNodeBadgeTheme,
+  getOrgNodePermissionChipTheme,
+  getOrgNodeTheme,
+} from "@/features/user-management/orgNodeTheme";
 
 const PERMISSION_ACTIONS = ["manager", "user", "viewer"] as const;
 const SYSTEM_ACCESS_SCOPE_ITEMS = new Set([
@@ -201,101 +214,6 @@ export const createInitialUserOnboardingFormData = (): UserOnboardingFormData =>
   selectedWorkflowLevelsHash: "",
 });
 
-export const parseSlashDate = (value: string): Date | null => {
-  const parts = value.split("/");
-  if (parts.length !== 3) return null;
-
-  const [dayText, monthText, yearText] = parts;
-  if (dayText.length !== 2 || monthText.length !== 2 || yearText.length !== 4) return null;
-
-  const day = Number(dayText);
-  const month = Number(monthText);
-  const year = Number(yearText);
-  if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) return null;
-
-  const date = new Date(year, month - 1, day);
-  const isValid = date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
-
-  return isValid ? date : null;
-};
-
-export const formatDateLabel = (value: string) => {
-  const normalizedValue = value.trim();
-  if (!normalizedValue) return "-";
-
-  const slashDate = parseSlashDate(normalizedValue);
-  if (slashDate) {
-    return new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).format(slashDate);
-  }
-
-  const dashMatch = normalizedValue.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (dashMatch) {
-    const [, dayText, monthText, yearText] = dashMatch;
-    const day = Number(dayText);
-    const month = Number(monthText);
-    const year = Number(yearText);
-    const date = new Date(year, month - 1, day);
-    const isValid = date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
-
-    if (isValid) {
-      return new Intl.DateTimeFormat("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }).format(date);
-    }
-  }
-
-  const isoDate = new Date(`${normalizedValue}T00:00:00`);
-  if (Number.isNaN(isoDate.getTime())) return "-";
-
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(isoDate);
-};
-
-export const formatDateWithSlashes = (input: string): string => {
-  const cleaned = input.replace(/\D/g, "");
-  if (cleaned.length <= 2) return cleaned;
-  if (cleaned.length <= 4) return `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
-  return `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4, 8)}`;
-};
-
-export const slashToIsoDate = (value: string): string => {
-  const parsed = parseSlashDate(value);
-  if (!parsed) return "";
-
-  const year = String(parsed.getFullYear());
-  const month = String(parsed.getMonth() + 1).padStart(2, "0");
-  const day = String(parsed.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-export const isoToSlashDate = (value: string): string => {
-  const parts = value.split("-");
-  if (parts.length !== 3) return "";
-
-  const [year, month, day] = parts;
-  if (year.length !== 4 || month.length !== 2 || day.length !== 2) return "";
-
-  const parsed = parseSlashDate(`${day}/${month}/${year}`);
-  return parsed ? `${day}/${month}/${year}` : "";
-};
-
-export const isDateInFuture = (dateString: string): boolean => {
-  const date = parseSlashDate(dateString);
-  if (!date) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return date > today;
-};
-
 const toNodePathSegmentLabel = (segment: string) => segment.trim().replace(/_/g, " ");
 
 const splitNodePathSegments = (value: string) => {
@@ -355,85 +273,14 @@ export function findOrgNode(node: OrgNode | null, nodeId: string): OrgNode | nul
   return null;
 }
 
-export function getOrgNodeTheme(nodeType: string) {
-  const normalized = nodeType.trim().toUpperCase();
-
-  if (normalized === "DIVISION") {
-    return {
-      edge: "bg-sky-400",
-      card: "border-slate-200",
-      hover: "hover:border-sky-200 hover:bg-sky-50/40",
-      selected: "border-sky-300 bg-sky-50/60 shadow-[0_0_0_4px_rgba(96,165,250,0.08)]",
-    };
-  }
-
-  if (normalized === "LOCATION") {
-    return {
-      edge: "bg-emerald-400",
-      card: "border-slate-200",
-      hover: "hover:border-emerald-200 hover:bg-emerald-50/40",
-      selected: "border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_4px_rgba(52,211,153,0.08)]",
-    };
-  }
-
-  if (normalized === "DEPARTMENT") {
-    return {
-      edge: "bg-amber-400",
-      card: "border-slate-200",
-      hover: "hover:border-amber-200 hover:bg-amber-50/40",
-      selected: "border-amber-200 bg-amber-50/60 shadow-[0_0_0_4px_rgba(251,191,36,0.08)]",
-    };
-  }
-
-  if (normalized === "ROOT") {
-    return {
-      edge: "",
-      card: "border border-slate-200",
-      hover: "hover:border-slate-300 hover:bg-slate-50",
-      selected: "border-slate-300 bg-slate-50 shadow-[0_8px_24px_rgba(15,23,42,0.06)]",
-    };
-  }
-
-  return {
-    edge: "bg-slate-300",
-    card: "border-slate-200",
-    hover: "hover:border-slate-300 hover:bg-slate-50",
-    selected: "border-slate-300 bg-slate-50 shadow-[0_8px_24px_rgba(15,23,42,0.04)]",
-  };
-}
-
-export function getOrgNodeBadgeTheme(nodeType: string) {
-  const normalized = nodeType.trim().toUpperCase();
-
-  if (normalized === "DIVISION") {
-    return "border border-sky-200 bg-sky-50 text-sky-600";
-  }
-
-  if (normalized === "LOCATION") {
-    return "border border-emerald-200 bg-emerald-50 text-emerald-600";
-  }
-
-  if (normalized === "DEPARTMENT") {
-    return "border border-amber-200 bg-amber-50 text-amber-600";
-  }
-
-  return "border border-slate-200 bg-slate-50 text-slate-500";
-}
-
-export function getOrgNodePermissionChipTheme(nodeType: string) {
-  const normalized = nodeType.trim().toUpperCase();
-
-  if (normalized === "DIVISION") {
-    return "border border-sky-200 bg-sky-100 text-sky-700";
-  }
-
-  if (normalized === "LOCATION") {
-    return "border border-emerald-200 bg-emerald-100 text-emerald-700";
-  }
-
-  if (normalized === "DEPARTMENT") {
-    return "border border-amber-200 bg-amber-100 text-amber-700";
-  }
-
-  return "border border-slate-200 bg-slate-100 text-slate-600";
-}
+export {
+  formatDateLabel,
+  formatDateWithSlashes,
+  isoToSlashDate,
+  isDateInFuture,
+  parseSlashDate,
+  slashToIsoDate,
+  getOrgNodeTheme,
+  getOrgNodeBadgeTheme,
+  getOrgNodePermissionChipTheme,
+};
