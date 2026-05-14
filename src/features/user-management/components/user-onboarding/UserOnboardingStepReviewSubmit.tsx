@@ -11,6 +11,7 @@ import { formatCollapsedNodePath } from "@/features/user-management/utils";
 type StepReviewSubmitProps = {
   orgStructure: OrgNode | null;
   basic: UserOnboardingFormData["basic"];
+  isGlobalSignatory: boolean;
   selectedNodes: OrgNode[];
   primaryNodeId: string | null;
   nodePermissions: Record<string, NodePermissionBuckets>;
@@ -329,6 +330,7 @@ function BasicDetailRow({ label, value }: { label: string; value: string }) {
 export function UserOnboardingStepReviewSubmit({
   orgStructure,
   basic,
+  isGlobalSignatory,
   selectedNodes,
   primaryNodeId,
   nodePermissions,
@@ -347,6 +349,7 @@ export function UserOnboardingStepReviewSubmit({
   const breadcrumbByNodeId = useMemo(() => buildNodeBreadcrumbMap(orgStructure), [orgStructure]);
   const [collapsedFocusedNodeId, setCollapsedFocusedNodeId] = useState<"primary" | string | null>(null);
   const primaryNode = primaryNodeId ? selectedNodes.find((node) => node.id === primaryNodeId) ?? null : null;
+  const globalNodeName = (orgStructure?.name || selectedNodes[0]?.name || "-").trim() || "-";
   const primaryPermissions = primaryNode ? nodePermissions[primaryNode.id]?.primary ?? {} : {};
   const secondaryNodesWithRights = selectedNodes.filter((node) => {
     const buckets = nodePermissions[node.id];
@@ -411,46 +414,75 @@ export function UserOnboardingStepReviewSubmit({
                     </div>
                   </div>
 
-                  <div className="flex h-full min-h-[220px] flex-col space-y-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm ring-1 ring-slate-100/70">
-                    <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#4F46E5]" />
-                      <span className="text-[12px] font-extrabold uppercase tracking-widest text-[#4F46E5]">Primary Access</span>
-                    </div>
-                    {primaryNode ? (
-                      <NodePermissionCard
-                        node={primaryNode}
-                        badgeLabel="P1"
-                        permissions={primaryPermissions}
-                        permissionScopes={nodePermissionScopes[primaryNode.id]?.primary ?? {}}
-                        branchMetaMap={branchMetaMap}
-                        breadcrumbByNodeId={breadcrumbByNodeId}
-                        emptyText="No primary access configured."
-                      />
-                    ) : (
-                      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-4 text-sm text-slate-400">
-                        No primary access configured.
+                  {isGlobalSignatory ? (
+                    <div className="flex h-full min-h-[220px] flex-col rounded-xl border border-emerald-200 bg-white p-3 shadow-sm ring-1 ring-emerald-100/70">
+                      <div className="flex h-full flex-col rounded-2xl border border-emerald-200 bg-white p-4">
+                        <div className="mb-3 flex h-20 w-20 items-center justify-center rounded-3xl border border-emerald-200 bg-white/80 text-emerald-700">
+                          <ShieldCheck className="h-9 w-9" />
+                        </div>
+                        <div className="mb-3 border-b border-emerald-200 pb-2 text-[12px] font-extrabold uppercase tracking-[0.22em] text-emerald-700">
+                          Global Access
+                        </div>
+                        <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+                          <div className="flex items-center gap-2 text-[14px]">
+                            <span className="text-slate-500">Node Name</span>
+                            <span className="text-slate-400">:</span>
+                            <span className="font-extrabold text-slate-900">{globalNodeName}</span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2 text-[14px]">
+                            <span className="text-slate-500">Access Category</span>
+                            <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
+                              All Child
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="flex h-full min-h-[220px] flex-col space-y-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm ring-1 ring-slate-100/70">
+                      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-[#4F46E5]" />
+                        <span className="text-[12px] font-extrabold uppercase tracking-widest text-[#4F46E5]">Primary Access</span>
+                      </div>
+                      {primaryNode ? (
+                        <NodePermissionCard
+                          node={primaryNode}
+                          badgeLabel="P1"
+                          permissions={primaryPermissions}
+                          permissionScopes={nodePermissionScopes[primaryNode.id]?.primary ?? {}}
+                          branchMetaMap={branchMetaMap}
+                          breadcrumbByNodeId={breadcrumbByNodeId}
+                          emptyText="No primary access configured."
+                        />
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-4 text-sm text-slate-400">
+                          No primary access configured.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100/70">
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-8 lg:whitespace-nowrap">
-                    <div className="flex min-w-0 items-center gap-1">
-                      <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
-                      <span className="shrink-0 text-slate-400">:</span>
-                      <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerName}</span>
-                    </div>
-                    <div className="flex min-w-0 items-center gap-1">
-                      <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
-                      <span className="shrink-0 text-slate-400">:</span>
-                      <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerEmail}</span>
+                {!isGlobalSignatory ? (
+                  <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100/70">
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-8 lg:whitespace-nowrap">
+                      <div className="flex min-w-0 items-center gap-1">
+                        <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
+                        <span className="shrink-0 text-slate-400">:</span>
+                        <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerName}</span>
+                      </div>
+                      <div className="flex min-w-0 items-center gap-1">
+                        <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
+                        <span className="shrink-0 text-slate-400">:</span>
+                        <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerEmail}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : null}
               </div>
 
-              <div className="space-y-2.5">
+              {!isGlobalSignatory ? (
+                <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-slate-400" />
                   <span className="text-[12px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
@@ -475,40 +507,76 @@ export function UserOnboardingStepReviewSubmit({
                     ))}
                   </div>
                 )}
-              </div>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
-              <div className="rounded-2xl border border-indigo-200 bg-[#DDE6FF] px-3 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
-                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm ring-1 ring-slate-100/70">
-                  <div className="mb-2 border-b border-slate-200 pb-1.5 text-[11px] font-black uppercase tracking-widest text-slate-600">
-                    Basic Details
+              <div className="rounded-2xl border border-indigo-200 bg-[#DDE6FF] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
+                <div
+                  className={cn(
+                    "grid items-stretch gap-2.5",
+                    isGlobalSignatory ? "grid-cols-1 lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]" : "grid-cols-1",
+                  )}
+                >
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm ring-1 ring-slate-100/70">
+                    <div className="mb-2 border-b border-slate-200 pb-1.5 text-[11px] font-black uppercase tracking-widest text-slate-600">
+                      Basic Details
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <BasicDetailRow label="Name" value={basic.name} />
+                      <BasicDetailRow label="Email" value={basic.email} />
+                      <BasicDetailRow label="Phone" value={basic.phone} />
+                      <BasicDetailRow label="Designation" value={basic.designation} />
+                      {basic.employeeId?.trim() ? <BasicDetailRow label="Employee ID" value={basic.employeeId} /> : null}
+                      {selectedWorkflow.trim() ? <BasicDetailRow label="Workflow" value={selectedWorkflow} /> : null}
+                    </div>
                   </div>
-                  <div className="space-y-2 text-sm">
-                    <BasicDetailRow label="Name" value={basic.name} />
-                    <BasicDetailRow label="Email" value={basic.email} />
-                    <BasicDetailRow label="Phone" value={basic.phone} />
-                    <BasicDetailRow label="Designation" value={basic.designation} />
-                    {basic.employeeId?.trim() ? <BasicDetailRow label="Employee ID" value={basic.employeeId} /> : null}
-                    {selectedWorkflow.trim() ? <BasicDetailRow label="Workflow" value={selectedWorkflow} /> : null}
-                  </div>
+                  {isGlobalSignatory ? (
+                    <div className="flex h-full min-h-[220px] flex-col rounded-xl border border-emerald-200 bg-white p-3 shadow-sm ring-1 ring-emerald-100/70">
+                      <div className="flex h-full flex-col rounded-2xl border border-emerald-200 bg-white p-4">
+                        <div className="mb-3 flex h-20 w-20 items-center justify-center rounded-3xl border border-emerald-200 bg-white/80 text-emerald-700">
+                          <ShieldCheck className="h-9 w-9" />
+                        </div>
+                        <div className="mb-3 border-b border-emerald-200 pb-2 text-[12px] font-extrabold uppercase tracking-[0.22em] text-emerald-700">
+                          Global Access
+                        </div>
+                        <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+                          <div className="flex items-center gap-2 text-[14px]">
+                            <span className="text-slate-500">Node Name</span>
+                            <span className="text-slate-400">:</span>
+                            <span className="font-extrabold text-slate-900">{globalNodeName}</span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2 text-[14px]">
+                            <span className="text-slate-500">Access Category</span>
+                            <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
+                              All Child
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
-                <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100/70">
-                  <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-6 lg:whitespace-nowrap">
-                  <div className="flex min-w-0 items-center gap-1">
-                    <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
-                    <span className="shrink-0 text-slate-400">:</span>
-                    <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerName}</span>
+                {!isGlobalSignatory ? (
+                  <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100/70">
+                    <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-6 lg:whitespace-nowrap">
+                      <div className="flex min-w-0 items-center gap-1">
+                        <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
+                        <span className="shrink-0 text-slate-400">:</span>
+                        <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerName}</span>
+                      </div>
+                      <div className="flex min-w-0 items-center gap-1">
+                        <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
+                        <span className="shrink-0 text-slate-400">:</span>
+                        <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerEmail}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex min-w-0 items-center gap-1">
-                    <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
-                    <span className="shrink-0 text-slate-400">:</span>
-                    <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerEmail}</span>
-                  </div>
-                  </div>
-                </div>
+                ) : null}
 
+                {!isGlobalSignatory ? (
                 <div className="mt-3 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-blue-500" />
@@ -558,8 +626,10 @@ export function UserOnboardingStepReviewSubmit({
                     <div className="text-xs text-slate-500">No primary access configured.</div>
                   )}
                 </div>
+                ) : null}
               </div>
 
+              {!isGlobalSignatory ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-slate-400" />
@@ -613,6 +683,7 @@ export function UserOnboardingStepReviewSubmit({
                   )
                 )}
               </div>
+              ) : null}
             </div>
           )}
         </div>

@@ -98,7 +98,6 @@ export function useWorkflowManagement() {
   const handleWorkflowAction = async (workflow: WorkflowRecord, action: "approve" | "reject", remark: string) => {
     const levelsHash = workflow.levelsHash?.trim() || workflow.workflowId?.trim() || workflow.id?.trim();
     if (!levelsHash) {
-      console.error("Missing workflow levels hash for action:", workflow);
       return;
     }
     try {

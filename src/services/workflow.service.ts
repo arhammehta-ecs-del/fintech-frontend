@@ -13,26 +13,33 @@ export type CreateWorkflowPayload = {
   module: string;
   subModule: string;
   nodePath: string;
-  levels: Record<string, any>;
+  levels: Record<string, unknown>;
   levelsHash?: string | null;
 };
 
+type WorkflowApiResponse = {
+  message?: string;
+  code?: number;
+  success?: boolean;
+  data?: unknown;
+};
+
 export async function createWorkflow(payload: CreateWorkflowPayload) {
-  return apiFetch<any>(WORKFLOW_INITIATE_PATH, {
+  return apiFetch<WorkflowApiResponse>(WORKFLOW_INITIATE_PATH, {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function fetchWorkflows() {
-  return apiFetch<any>(WORKFLOW_FETCH_PATH, {
+  return apiFetch<WorkflowApiResponse>(WORKFLOW_FETCH_PATH, {
     method: "POST",
     body: JSON.stringify({}),
   });
 }
 
 export async function updateWorkflowAction(levelsHash: string, action: string, remark: string) {
-  return apiFetch<any>(WORKFLOW_ACTION_PATH, {
+  return apiFetch<WorkflowApiResponse>(WORKFLOW_ACTION_PATH, {
     method: "POST",
     body: JSON.stringify({
       levelsHash,
@@ -50,7 +57,7 @@ export type FetchWorkflowHistoryPayload = {
 };
 
 export async function fetchWorkflowHistory(payload: FetchWorkflowHistoryPayload) {
-  return apiFetch<any>(WORKFLOW_HISTORY_PATH, {
+  return apiFetch<WorkflowApiResponse>(WORKFLOW_HISTORY_PATH, {
     method: "POST",
     body: JSON.stringify(payload),
   });

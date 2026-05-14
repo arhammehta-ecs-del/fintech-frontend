@@ -1,0 +1,194 @@
+import type { AppUser } from "@/contexts/AppContext";
+import { formatDateLabel } from "@/features/user-management/utils";
+
+export const formatKey = (key: string) =>
+  key.split("_").map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+
+export const formatDesignation = (value?: string) => {
+  const cleaned = (value || "").trim();
+  if (!cleaned || cleaned === "-") return "Not available";
+  const upper = cleaned.toUpperCase();
+  const acronymMap: Record<string, string> = {
+    CEO: "CEO",
+    CTO: "CTO",
+    CFO: "CFO",
+    COO: "COO",
+    CMO: "CMO",
+    CHRO: "CHRO",
+    VP: "VP",
+  };
+  if (acronymMap[upper]) return acronymMap[upper];
+  return cleaned
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
+export const cleanDisplayValue = (value?: string) => {
+  const cleaned = (value || "").trim();
+  return cleaned && cleaned !== "-" ? cleaned : "";
+};
+
+export const displayOrFallback = (value: string | undefined, fallback: string) => {
+  const cleaned = (value || "").trim();
+  return cleaned ? cleaned : fallback;
+};
+
+export const formatToIst = (value?: string) => {
+  if (!value?.trim()) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Kolkata",
+  }).format(parsed);
+};
+
+export const formatLooseDateLabel = (value?: string) => {
+  const cleaned = (value || "").trim();
+  if (!cleaned) return "-";
+
+  const slashMatch = cleaned.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (slashMatch) {
+    const [, day, month, year] = slashMatch;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    if (!Number.isNaN(parsed.getTime())) {
+      return new Intl.DateTimeFormat("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(parsed);
+    }
+  }
+
+  const dashMatch = cleaned.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (dashMatch) {
+    const [, day, month, year] = dashMatch;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    if (!Number.isNaN(parsed.getTime())) {
+      return new Intl.DateTimeFormat("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(parsed);
+    }
+  }
+
+  const fallback = formatDateLabel(cleaned);
+  return fallback === "-" ? cleaned : fallback;
+};
+
+export const INITIATOR_FALLBACK = {
+  name: "—",
+  email: "—",
+  initiatedAt: "",
+};
+
+export const DEMO_SECONDARY_ACCESS: NonNullable<AppUser["accessDetails"]> = [];
+
+export type GroupedByNode = Record<string, {
+  nodeName: string;
+  nodeType: string;
+  parentSubtitle: string;
+  categories: Record<string, Array<{
+    roleSubCategory: string;
+    roleName: string;
+    nodeType?: string;
+    accessCategory?: "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null;
+  }>>;
+}>;
+
+const formatPathSegment = (segment: string) =>
+  segment
+    .trim()
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+const getParentSubtitleFromPath = (nodePath?: string) => {
+  const rawSegments = (nodePath || "")
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  if (rawSegments.length === 0) return "";
+
+  const root = rawSegments[0] ? formatPathSegment(rawSegments[0]) : "";
+  const remaining = rawSegments.slice(1).filter((segment) => segment.toUpperCase() !== "ROOT");
+  if (remaining.length === 0) return root;
+  if (remaining.length <= 3) {
+    return [root, ...remaining.map(formatPathSegment)].filter(Boolean).join(" > ");
+  }
+
+  const tail = remaining.slice(-3).map(formatPathSegment);
+  return [root, "...", ...tail].filter(Boolean).join(" > ");
+};
+
+export function groupByNode(items: NonNullable<AppUser["accessDetails"]>): GroupedByNode {
+  const result: GroupedByNode = {};
+  for (const item of items) {
+    const key = (item.nodePath || item.nodeName || "Unknown").trim();
+    if (!result[key]) {
+      result[key] = {
+        nodeName: item.nodeName || item.nodePath || "Unknown",
+        nodeType: "",
+        parentSubtitle: getParentSubtitleFromPath(item.nodePath),
+        categories: {},
+      };
+    }
+    const cat = item.roleCategory || "OTHER";
+    if (!result[key].categories[cat]) {
+      result[key].categories[cat] = [];
+    }
+    result[key].categories[cat].push({
+      roleSubCategory: item.roleSubCategory,
+      roleName: item.roleName,
+      nodeType: item.nodeType,
+      accessCategory: item.accessCategory ?? "NODE",
+    });
+  }
+  return result;
+}
+
+export const CATEGORY_ORDER = ["TRANSACTIONAL", "OPERATIONAL", "SYSTEM_ACCESS"];
+
+const BRANCH_EDGE_BORDER = [
+  "!border-l-orange-500",
+  "!border-l-sky-500",
+  "!border-l-emerald-500",
+  "!border-l-rose-500",
+  "!border-l-amber-500",
+  "!border-l-cyan-500",
+];
+const BRANCH_BADGE = [
+  "bg-orange-100 text-orange-700",
+  "bg-sky-100 text-sky-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-rose-100 text-rose-700",
+  "bg-amber-100 text-amber-700",
+  "bg-cyan-100 text-cyan-700",
+];
+const BRANCH_HOVER = [
+  "hover:border-orange-300 hover:bg-orange-50/70",
+  "hover:border-sky-300 hover:bg-sky-50/70",
+  "hover:border-emerald-300 hover:bg-emerald-50/70",
+  "hover:border-rose-300 hover:bg-rose-50/70",
+  "hover:border-amber-300 hover:bg-amber-50/70",
+  "hover:border-cyan-300 hover:bg-cyan-50/70",
+];
+
+const getPaletteIndex = (nodeIndex: number) => nodeIndex % BRANCH_BADGE.length;
+
+export const getNodeEdgeBorderClass = (nodeIndex: number, isPrimary: boolean) =>
+  isPrimary ? "!border-l-indigo-500" : BRANCH_EDGE_BORDER[getPaletteIndex(nodeIndex)];
+
+export const getNodeBadgeClass = (nodeIndex: number, isPrimary: boolean) =>
+  isPrimary ? "bg-indigo-100 text-indigo-700" : BRANCH_BADGE[getPaletteIndex(nodeIndex)];
+
+export const getNodeHoverClass = (nodeIndex: number, isPrimary: boolean) =>
+  isPrimary ? "hover:border-indigo-300 hover:bg-indigo-50/60" : BRANCH_HOVER[getPaletteIndex(nodeIndex)];

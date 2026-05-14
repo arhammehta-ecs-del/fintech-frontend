@@ -183,15 +183,17 @@ export const maskContactNumber = (phone?: string) => {
 
 export const createInitialUserOnboardingFormData = (): UserOnboardingFormData => ({
   basic: {
-    name: "avm",
-    email: "arhammehta26@gmail.com",
-    phone: "1234567889",
-    designation: "ceo",
-    employeeId: "EMP-10294",
-    reportingManager: "aamm@gmail.com",
+    name: "",
+    email: "",
+    phone: "",
+    designation: "",
+    employeeId: "",
+    reportingManager: "",
     reportingManagerName: "",
     reportingManagerEmail: "",
   },
+  isGlobalUserEligible: false,
+  isGlobalSignatory: false,
   permissions: createInitialPermissions([]),
   nodeSelections: [],
   primaryNodeId: null,
@@ -333,7 +335,9 @@ export const validateUserOnboardingStep = (step: number, formData: UserOnboardin
     if (!phone.trim()) errors.phone = "Required";
     else if (!/^\d{10}$/.test(phone)) errors.phone = "Enter a valid 10-digit phone number";
     if (!designation.trim()) errors.designation = "Required";
-    if (!reportingManager.trim()) errors.reportingManager = "Required";
+    if (!(formData.isGlobalUserEligible && formData.isGlobalSignatory) && !reportingManager.trim()) {
+      errors.reportingManager = "Required";
+    }
   }
 
   return errors;

@@ -26,6 +26,12 @@ type OrgNodeActionResponse = {
   success?: boolean;
   data?: unknown;
 };
+type OrgHistoryResponse = {
+  message?: string;
+  code?: number;
+  success?: boolean;
+  data?: unknown;
+};
 
 type RawCompanyRecord = Record<string, unknown>;
 type RawOrgRecord = Record<string, unknown>;
@@ -296,42 +302,36 @@ export async function updateOrgNodeAction(id: string, action: OrgNodeAction, rem
 }
 
 export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNode | null> {
+  const payload = await apiFetch<OrgApiResponse>(COMPANY_ORG_PATH, {
+    method: "POST",
+    body: JSON.stringify({
+      companyCode: companyCode.trim().toUpperCase(),
+    }),
+  });
 
-  try {
-    const payload = await apiFetch<OrgApiResponse>(COMPANY_ORG_PATH, {
-      method: "POST",
-      body: JSON.stringify({
-        companyCode: companyCode.trim().toUpperCase(),
-      }),
-    });
-
-    if (!payload.data) {
-      throw new Error("Invalid org/fetch response: missing data");
-    }
-    if (!Array.isArray(payload.data.active) || !Array.isArray(payload.data.pending)) {
-      throw new Error("Invalid org/fetch response: active and pending must be arrays");
-    }
-
-    const activeNodes = payload.data.active.map((record) => mapOrgNode(record, "Active"));
-    const pendingNodes = payload.data.pending
-      .map((record) => mapPendingOrgRequest(record))
-      .filter((node): node is OrgNode => node !== null);
-    const parsedData = [...activeNodes, ...pendingNodes];
-
-    if (parsedData.length > 0) {
-      const tree = buildOrgTree(parsedData);
-      if (tree) return tree;
-    }
-    throw new Error("Empty data or invalid tree returned");
-  } catch (error) {
-    console.error("Failed to fetch org structure:", error);
-    throw error;
+  if (!payload.data) {
+    throw new Error("Invalid org/fetch response: missing data");
   }
+  if (!Array.isArray(payload.data.active) || !Array.isArray(payload.data.pending)) {
+    throw new Error("Invalid org/fetch response: active and pending must be arrays");
+  }
+
+  const activeNodes = payload.data.active.map((record) => mapOrgNode(record, "Active"));
+  const pendingNodes = payload.data.pending
+    .map((record) => mapPendingOrgRequest(record))
+    .filter((node): node is OrgNode => node !== null);
+  const parsedData = [...activeNodes, ...pendingNodes];
+
+  if (parsedData.length > 0) {
+    const tree = buildOrgTree(parsedData);
+    if (tree) return tree;
+  }
+  throw new Error("Empty data or invalid tree returned");
 }
 
 export async function fetchOrgHistory(companyCode: string, nodeName: string, nodePath?: string) {
 
-  return apiFetch<any>(ORG_HISTORY_PATH, {
+  return apiFetch<OrgHistoryResponse>(ORG_HISTORY_PATH, {
     method: "POST",
     body: JSON.stringify({
       companyCode: companyCode.trim().toUpperCase(),

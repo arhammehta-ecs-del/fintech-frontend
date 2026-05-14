@@ -17,7 +17,10 @@ type ReportingManagerOption = {
 
 type StepBasicDetailsProps = {
   basic: UserOnboardingFormData["basic"];
+  isGlobalUserEligible: boolean;
+  isGlobalSignatory: boolean;
   reportingManagerOptions: ReportingManagerOption[];
+  onGlobalSignatoryToggle: (value: boolean) => void;
   errors: ValidationErrors;
   onBasicChange: <K extends keyof UserOnboardingFormData["basic"]>(
     field: K,
@@ -75,11 +78,13 @@ function InputGroup({
 function ReportingManagerField({
   options,
   currentValue,
+  disabled = false,
   error,
   onSelect,
 }: {
   options: ReportingManagerOption[];
   currentValue: string;
+  disabled?: boolean;
   error?: string;
   onSelect: (option: ReportingManagerOption) => void;
 }) {
@@ -97,12 +102,13 @@ function ReportingManagerField({
         Reporting Manager
       </Label>
       <div className="relative">
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open} onOpenChange={(nextOpen) => !disabled && setOpen(nextOpen)}>
           <PopoverTrigger asChild>
             <Button
               type="button"
               variant="outline"
-              className="h-11 w-full justify-between border-slate-200 bg-white pl-12 pr-3 font-normal text-slate-900 hover:bg-white"
+              disabled={disabled}
+              className="h-11 w-full justify-between border-slate-200 bg-white pl-12 pr-3 font-normal text-slate-900 hover:bg-white disabled:cursor-not-allowed disabled:opacity-70"
             >
               <span className={cn("truncate text-left", displayValue ? "text-slate-900" : "text-slate-400")}>
                 {displayValue || "Search and select reporting manager"}
@@ -152,7 +158,10 @@ function ReportingManagerField({
 
 export function UserOnboardingStepBasicDetails({
   basic,
+  isGlobalUserEligible,
+  isGlobalSignatory,
   reportingManagerOptions,
+  onGlobalSignatoryToggle,
   errors,
   onBasicChange,
   onClearError,
@@ -208,21 +217,53 @@ export function UserOnboardingStepBasicDetails({
           placeholder="Senior Analyst"
           error={errors.designation}
         />
-        <InputGroup
-          label="Employee ID"
-          icon={<IdCard size={18} />}
-          value={basic.employeeId}
-          onChange={(value) => {
-            onClearError("employeeId");
-            onBasicChange("employeeId", value);
-          }}
-          placeholder="EMP-10294"
-          error={errors.employeeId}
-        />
+        <div className="space-y-1">
+          <Label className="ml-1 text-xs font-bold uppercase tracking-wider text-slate-500">Employee ID</Label>
+          <div className="relative group">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-primary">
+              <IdCard size={18} />
+            </div>
+            <Input
+              value={basic.employeeId}
+              onChange={(event) => {
+                onClearError("employeeId");
+                onBasicChange("employeeId", event.target.value);
+              }}
+              className="h-11 w-full border-slate-200 bg-white pl-12 pr-4 placeholder:text-slate-300 focus:border-primary focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              placeholder="EMP-10294"
+            />
+          </div>
+          {errors.employeeId ? <p className="text-xs text-destructive">{errors.employeeId}</p> : null}
+        </div>
+        <div className="md:col-start-2">
+          {isGlobalUserEligible ? (
+            <div className="space-y-2">
+              <Label className="ml-1 text-xs font-bold uppercase tracking-wider text-slate-500">Signatory</Label>
+              <div className="flex h-11 items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-3">
+                <input
+                  id="is-global-signatory"
+                  type="checkbox"
+                  checked={isGlobalSignatory}
+                  onChange={(event) => onGlobalSignatoryToggle(event.target.checked)}
+                  className="h-4 w-4 accent-emerald-600"
+                />
+                <Label htmlFor="is-global-signatory" className="text-xs font-semibold text-emerald-700">
+                  Global Signatory
+                </Label>
+                <Input
+                  value="Signatory"
+                  readOnly
+                  className="ml-auto h-8 max-w-[140px] border-emerald-300 bg-white/85 text-xs font-semibold text-emerald-700"
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
         <div className="md:col-span-2">
           <ReportingManagerField
             options={reportingManagerOptions}
             currentValue={basic.reportingManager}
+            disabled={isGlobalUserEligible && isGlobalSignatory}
             onSelect={(option) => {
               onClearError("reportingManager");
               onBasicChange("reportingManager", option.email);

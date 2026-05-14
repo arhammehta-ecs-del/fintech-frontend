@@ -215,31 +215,33 @@ export function PendingNodePopup({
                     <div className="grid grid-cols-[40px_10px_1fr] items-start">
                       <span className="text-slate-500">Name</span>
                       <span className="text-slate-400">:</span>
-                      <span className="font-medium text-slate-700 break-words">
-                        {workflowName ? (
-                          workflowName.split('_').map((part, index, arr) => (
-                            <span key={`wn-${index}`}>
-                              {part}
-                              {index < arr.length - 1 ? "_" : ""}
-                              <wbr />
-                            </span>
-                          ))
-                        ) : "—"}
+                      <span
+                        className="font-medium leading-5 text-slate-700 [overflow-wrap:anywhere]"
+                        style={{
+                          display: "-webkit-box",
+                          WebkitBoxOrient: "vertical",
+                          WebkitLineClamp: 2,
+                          overflow: "hidden",
+                        }}
+                        title={workflowName || "—"}
+                      >
+                        {workflowName || "—"}
                       </span>
                     </div>
                     <div className="grid grid-cols-[40px_10px_1fr] items-start">
                       <span className="text-slate-500">Alias</span>
                       <span className="text-slate-400">:</span>
-                      <span className="font-medium text-slate-700 break-words">
-                        {workflowAlias ? (
-                          workflowAlias.split('_').map((part, index, arr) => (
-                            <span key={`wa-${index}`}>
-                              {part}
-                              {index < arr.length - 1 ? "_" : ""}
-                              <wbr />
-                            </span>
-                          ))
-                        ) : "—"}
+                      <span
+                        className="font-medium leading-5 text-slate-700 [overflow-wrap:anywhere]"
+                        style={{
+                          display: "-webkit-box",
+                          WebkitBoxOrient: "vertical",
+                          WebkitLineClamp: 2,
+                          overflow: "hidden",
+                        }}
+                        title={workflowAlias || "—"}
+                      >
+                        {workflowAlias || "—"}
                       </span>
                     </div>
                   </div>

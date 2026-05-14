@@ -39,6 +39,12 @@ type UserStatusUpdateResponse = {
   success?: boolean;
   data?: unknown;
 };
+type UserHistoryResponse = {
+  message?: string;
+  code?: number;
+  success?: boolean;
+  data?: unknown;
+};
 
 type RawUserRecord = Record<string, unknown>;
 
@@ -70,11 +76,35 @@ type CompanyNodesResponse = {
   message?: string;
   code?: number;
   data?: Array<Record<string, unknown>>;
+  access?: {
+    designation?: string;
+    isGlobalUser?: boolean;
+  };
+};
+
+export type CompanyNodesAccessMeta = {
+  designation: string;
+  isGlobalUser: boolean;
+};
+
+export type CompanyNodesFetchResult = {
+  nodes: CompanyNodeWithWorkflows[];
+  access: CompanyNodesAccessMeta;
+};
+
+export type GlobalSignatoryOnboardingPayload = {
+  name: string;
+  email: string;
+  phone: string;
+  designation: string;
+  employeeId: string | null;
+  isGlobalUser: true;
 };
 
 const COMPANY_USERS_PATH = "/api/v1/company-settings/user/fetch-all-users";
 const COMPANY_NODES_PATH = "/api/v1/company-settings/user/fetch-company-nodes";
 const NEW_USER_ONBOARD_PATH = "/api/v1/company-settings/user/initiate";
+const NEW_GLOBAL_SIGNATORY_ONBOARD_PATH = "/api/v1/company-settings/user/initiate-global-signatory";
 const USER_STATUS_UPDATE_PATH = "/api/v1/company-settings/user/action";
 const USER_HISTORY_PATH = "/api/v1/company-settings/user/fetch-history";
 
@@ -201,8 +231,14 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
 };
 
 export async function createUserOnboarding(payload: UserOnboardingPayload) {
-  console.log("EXACT PAYLOAD BEING SENT TO BACKEND:", JSON.stringify(payload, null, 2));
   return apiFetch<UserOnboardingResponse>(NEW_USER_ONBOARD_PATH, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createGlobalSignatoryOnboarding(payload: GlobalSignatoryOnboardingPayload) {
+  return apiFetch<UserOnboardingResponse>(NEW_GLOBAL_SIGNATORY_ONBOARD_PATH, {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -220,7 +256,7 @@ export async function updateUserStatus(id: string, action: string, remark: strin
 }
 
 export async function fetchUserHistory(email: string, companyCode: string) {
-  return apiFetch<any>(USER_HISTORY_PATH, {
+  return apiFetch<UserHistoryResponse>(USER_HISTORY_PATH, {
     method: "POST",
     body: JSON.stringify({
       email,
@@ -229,7 +265,7 @@ export async function fetchUserHistory(email: string, companyCode: string) {
   });
 }
 
-export async function fetchCompanyNodes(subCategory: string): Promise<CompanyNodeWithWorkflows[]> {
+export async function fetchCompanyNodesWithAccess(subCategory: string): Promise<CompanyNodesFetchResult> {
   const payload = await apiFetch<CompanyNodesResponse>(COMPANY_NODES_PATH, {
     method: "POST",
     body: JSON.stringify({
@@ -241,13 +277,12 @@ export async function fetchCompanyNodes(subCategory: string): Promise<CompanyNod
     throw new Error("Invalid company nodes response: data must be an array");
   }
 
-  return payload.data.map((row) => {
+  const nodes = payload.data.map((row) => {
     const record = toRecord(row);
     const workflowsRaw = record.workflows;
     if (!Array.isArray(workflowsRaw)) {
       throw new Error("Invalid company nodes response: workflows must be an array");
     }
-    const workflowRecords = workflowsRaw as RawUserRecord[];
     const workflows = workflowsRaw.map((workflow) => ({
       levelsHash: readString((workflow as RawUserRecord).levelsHash).trim(),
       name: readString(workflow.name).trim(),
@@ -261,6 +296,19 @@ export async function fetchCompanyNodes(subCategory: string): Promise<CompanyNod
       workflows,
     };
   });
+
+  return {
+    nodes,
+    access: {
+      designation: readString(payload.access?.designation).trim(),
+      isGlobalUser: Boolean(payload.access?.isGlobalUser),
+    },
+  };
+}
+
+export async function fetchCompanyNodes(subCategory: string): Promise<CompanyNodeWithWorkflows[]> {
+  const result = await fetchCompanyNodesWithAccess(subCategory);
+  return result.nodes;
 }
 
 

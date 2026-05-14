@@ -42,6 +42,12 @@ type OnboardingActionResponse = {
   success?: boolean;
   data?: unknown;
 };
+type CompanyHistoryResponse = {
+  message?: string;
+  code?: number;
+  success?: boolean;
+  data?: unknown;
+};
 
 type RawCompanyListItem = {
   id?: string | null;
@@ -92,6 +98,7 @@ type RawCompanyGroup = {
     groupCode?: string | null;
   } | null;
   comapnyDetails?: RawCompanyListItem[] | null;
+  companyDetails?: RawCompanyListItem[] | null;
   signatories?: Array<RawSignatory | null> | null;
 };
 
@@ -166,14 +173,20 @@ const mapCompany = (
 };
 
 const getGroupName = (group: RawCompanyGroup) =>
-  getPacketString(group.groupDetails?.groupName);
+  getPacketString(group.groupDetails?.groupName) || getPacketString(group.groupName);
 const getGroupCode = (group: RawCompanyGroup) =>
-  toUpperValue(getPacketString(group.groupDetails?.groupCode));
+  toUpperValue(getPacketString(group.groupDetails?.groupCode) || getPacketString(group.groupCode));
 const getGroupCompanies = (group: RawCompanyGroup) => {
-  if (!Array.isArray(group.comapnyDetails)) {
-    throw new Error("Invalid admin/groups response: comapnyDetails must be an array");
+  const companies = Array.isArray(group.companyDetails)
+    ? group.companyDetails
+    : Array.isArray(group.comapnyDetails)
+      ? group.comapnyDetails
+      : null;
+
+  if (!companies) {
+    throw new Error("Invalid admin/groups response: companyDetails/comapnyDetails must be an array");
   }
-  return group.comapnyDetails;
+  return companies;
 };
 
 const mapGroups = (groups: RawCompanyGroup[], bucketStatus: Company["status"]): GroupCompany[] =>
@@ -259,7 +272,7 @@ export async function updateCompanyOnboardingAction(
 }
 
 export async function fetchCompanyHistory(companyCode: string) {
-  return apiFetch<any>(COMPANY_HISTORY_PATH, {
+  return apiFetch<CompanyHistoryResponse>(COMPANY_HISTORY_PATH, {
     method: "POST",
     body: JSON.stringify({ companyCode })
   });

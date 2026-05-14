@@ -2,7 +2,7 @@ import { Check, ChevronRight, Building2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { NEW_MEMBER_STEPS } from "@/features/user-management/constants";
@@ -40,6 +40,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
     clearError,
     updateBasic,
     setSelectedWorkflow,
+    setGlobalSignatory,
     removeSelectedNode,
     handleNodeSelect,
     togglePermission,
@@ -52,6 +53,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
     prevStep,
     handlePrimaryAction,
   } = useUserOnboardingForm({ open, onOpenChange, onSubmit });
+  const isGlobalSignatoryFlow = formData.isGlobalUserEligible && formData.isGlobalSignatory;
   const stepContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -81,6 +83,9 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
                 </div>
                 <div>
                   <DialogTitle className="text-2xl font-semibold tracking-tight text-foreground">User Onboarding</DialogTitle>
+                  <DialogDescription className="sr-only">
+                    Complete user details, select nodes, configure access rights, and review before submitting.
+                  </DialogDescription>
                 </div>
               </div>
             </DialogHeader>
@@ -141,14 +146,17 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
               {step === 1 ? (
                 <UserOnboardingStepBasicDetails
                   basic={formData.basic}
+                  isGlobalUserEligible={formData.isGlobalUserEligible}
+                  isGlobalSignatory={formData.isGlobalSignatory}
                   reportingManagerOptions={reportingManagerOptions}
+                  onGlobalSignatoryToggle={setGlobalSignatory}
                   errors={errors}
                   onBasicChange={updateBasic}
                   onClearError={clearError}
                 />
               ) : null}
 
-              {step === 2 ? (
+              {step === 2 && !isGlobalSignatoryFlow ? (
                 <UserOnboardingStepSelectNode
                   orgStructure={orgStructure}
                   selectedNodeId={selectedNodeId}
@@ -159,7 +167,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
                 />
               ) : null}
 
-              {step === 3 ? (
+              {step === 3 && !isGlobalSignatoryFlow ? (
                 <UserOnboardingStepAccessRights
                   orgStructure={orgStructure}
                   selectedNodes={selectedNodes}
@@ -183,6 +191,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
                 <UserOnboardingStepReviewSubmit
                   orgStructure={orgStructure}
                   basic={formData.basic}
+                  isGlobalSignatory={isGlobalSignatoryFlow}
                   selectedNodes={selectedNodes}
                   primaryNodeId={primaryNodeId}
                   nodePermissions={nodePermissions}
@@ -205,7 +214,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
               </Button>
 
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-                {step === 4 ? (
+                {step === 4 && !isGlobalSignatoryFlow ? (
                   <Select
                     value={formData.selectedWorkflowLevelsHash || "__none__"}
                     onValueChange={(value) => setSelectedWorkflow(value === "__none__" ? "" : value)}

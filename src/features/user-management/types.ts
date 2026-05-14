@@ -36,6 +36,8 @@ export type UserOnboardingFormData = {
     reportingManagerName: string;
     reportingManagerEmail: string;
   };
+  isGlobalUserEligible: boolean;
+  isGlobalSignatory: boolean;
   permissions: UserOnboardingPermissions;
   nodeSelections: Array<{
     nodeId: string;

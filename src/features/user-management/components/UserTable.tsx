@@ -27,7 +27,10 @@ const getPrimaryNodeMeta = (member: AppUser) => {
   const nodeType = (primaryAccess.nodeType || "").trim().toUpperCase();
   const nodePath = (primaryAccess.nodePath || "").trim();
   const nodeName = (primaryAccess.nodeName || "").trim();
-  const showPath = nodeType !== "ROOT" && Boolean(nodePath);
+  const nodeDepth = nodePath.split(".").map((part) => part.trim()).filter(Boolean).length;
+  const isRootByType = nodeType === "ROOT";
+  const isRootByPath = nodeDepth <= 1;
+  const showPath = Boolean(nodePath) && !isRootByType && !isRootByPath;
 
   return {
     departmentLabel: nodeName || member.department || "",

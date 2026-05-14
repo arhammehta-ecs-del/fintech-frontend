@@ -5,49 +5,18 @@ import type { AppUser } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
-import { createUserOnboarding, getCompanyUsers, updateUserStatus } from "@/services/user.service";
+import { createGlobalSignatoryOnboarding, createUserOnboarding, getCompanyUsers, updateUserStatus } from "@/services/user.service";
 import { USER_DEFAULT_PAGE_SIZE, USER_FILTER_CONFIG, USER_PAGE_SIZE_OPTIONS, USER_SEARCH_DEBOUNCE_MS } from "@/features/user-management/constants";
 import type { MemberStatusTab, UserOnboardingFormData, SortOrder } from "@/features/user-management/types";
 import { buildUserOnboardingPayload } from "@/features/user-management/utils";
 import { formatRoleTokenLabel } from "@/features/user-management/roleLabels";
-
-const normalizeCompact = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
-const normalizeLoose = (value: string) => value.toLowerCase().trim().replace(/\s+/g, " ");
-const extractDigits = (value: string): string[] => {
-  const matches = value.match(/\d+/g);
-  return matches ? [...matches] : [];
-};
-const splitAlphaNumericTokens = (value: string) =>
-  value
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .map((token) => token.trim())
-    .filter(Boolean);
-
-const isWithinTwoEdits = (left: string, right: string) => {
-  if (!left || !right) return false;
-  const a = left.toLowerCase();
-  const b = right.toLowerCase();
-  const aLen = a.length;
-  const bLen = b.length;
-  if (Math.abs(aLen - bLen) > 2) return false;
-
-  const prev = Array.from({ length: bLen + 1 }, (_, idx) => idx);
-  for (let i = 1; i <= aLen; i += 1) {
-    let diagonal = prev[0];
-    prev[0] = i;
-    let rowMin = prev[0];
-    for (let j = 1; j <= bLen; j += 1) {
-      const temp = prev[j];
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diagonal + cost);
-      diagonal = temp;
-      if (prev[j] < rowMin) rowMin = prev[j];
-    }
-    if (rowMin > 2) return false;
-  }
-  return prev[bLen] <= 2;
-};
+import {
+  extractDigits,
+  isWithinTwoEdits,
+  normalizeCompact,
+  normalizeLoose,
+  splitAlphaNumericTokens,
+} from "@/features/user-management/hooks/useUserManagement.helpers";
 
 export function useUserManagement() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -707,10 +676,18 @@ export function useUserManagement() {
   const handleAddUser = async (userData: UserOnboardingFormData) => {
     if (!userData.basic.name.trim() || !userData.basic.email.trim()) return;
 
-    const payload = buildUserOnboardingPayload(userData);
-
     try {
-      const response = await createUserOnboarding(payload);
+      const isGlobalSignatoryFlow = userData.isGlobalUserEligible && userData.isGlobalSignatory;
+      const response = isGlobalSignatoryFlow
+        ? await createGlobalSignatoryOnboarding({
+          name: userData.basic.name.trim(),
+          email: userData.basic.email.trim(),
+          phone: userData.basic.phone.trim(),
+          designation: userData.basic.designation.trim(),
+          employeeId: userData.basic.employeeId.trim() || null,
+          isGlobalUser: true,
+        })
+        : await createUserOnboarding(buildUserOnboardingPayload(userData));
       setAddDialogOpen(false);
       setStatusTab("pending");
       await loadUsers(true);

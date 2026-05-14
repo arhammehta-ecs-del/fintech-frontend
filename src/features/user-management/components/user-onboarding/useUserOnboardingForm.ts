@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppContext, type OrgNode } from "@/contexts/AppContext";
 import type { RoleRecord } from "@/services/role.service";
 import { getCompanyRoles } from "@/services/role.service";
-import { fetchCompanyNodes } from "@/services/user.service";
+import { fetchCompanyNodesWithAccess } from "@/services/user.service";
 import type {
   UserOnboardingFormData,
   NodePermissionBuckets,
@@ -19,6 +19,7 @@ import {
   findOrgNode,
   validateUserOnboardingStep,
 } from "@/features/user-management/utils";
+import { buildOrgTreeFromCompanyNodes, buildWorkflowOptions } from "./useUserOnboardingForm.helpers";
 
 type UseUserOnboardingFormOptions = {
   open: boolean;
@@ -47,55 +48,6 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
 
   const orgStructure = localOrgStructure;
 
-  const toNodeType = (value: string) => {
-    const normalized = value.trim().toUpperCase();
-    if (normalized === "ROOT" || normalized === "DIVISION" || normalized === "DEPARTMENT" || normalized === "TEAM" || normalized === "PLANT" || normalized === "LOCATION") {
-      return normalized;
-    }
-    return "DEPARTMENT";
-  };
-
-  const buildOrgTreeFromCompanyNodes = (rows: Array<{ nodeName: string; nodePath: string; nodeType: string }>): OrgNode | null => {
-    if (rows.length === 0) return null;
-
-    const byPath = new Map<string, OrgNode>();
-    rows.forEach((row) => {
-      const nodePath = row.nodePath.trim();
-      if (!nodePath) return;
-      byPath.set(nodePath, {
-        id: nodePath,
-        name: row.nodeName.trim() || "Unnamed Node",
-        nodePath,
-        nodeType: toNodeType(row.nodeType),
-        status: "Active",
-        children: [],
-      });
-    });
-
-    const roots: OrgNode[] = [];
-    byPath.forEach((node, nodePath) => {
-      const segments = nodePath.split(".").map((segment) => segment.trim()).filter(Boolean);
-      const parentPath = segments.length > 1 ? segments.slice(0, -1).join(".") : null;
-      if (!parentPath) {
-        roots.push(node);
-        return;
-      }
-      const parent = byPath.get(parentPath);
-      if (parent) {
-        parent.children.push(node);
-      } else {
-        roots.push(node);
-      }
-    });
-
-    const sortBranch = (nodes: OrgNode[]) => {
-      nodes.sort((a, b) => a.nodePath.localeCompare(b.nodePath, undefined, { numeric: true, sensitivity: "base" }));
-      nodes.forEach((node) => sortBranch(node.children));
-    };
-    sortBranch(roots);
-    return roots.find((node) => node.nodeType === "ROOT") ?? roots[0] ?? null;
-  };
-
   // Fetch live roles when dialog opens
   useEffect(() => {
     if (!open) return;
@@ -109,31 +61,32 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   useEffect(() => {
     if (!open) return;
     let ignore = false;
-    fetchCompanyNodes("USER_ACC")
-      .then((nodes) => {
+    fetchCompanyNodesWithAccess("USER_ACC")
+      .then(({ nodes, access }) => {
         if (ignore) return;
         setLocalOrgStructure(buildOrgTreeFromCompanyNodes(nodes));
-        const options = nodes
-          .flatMap((node) => node.workflows)
-          .map((workflow) => {
-            const levelsHash = workflow.levelsHash.trim();
-            const name = workflow.name.trim();
-            const alias = workflow.alias?.trim();
-            if (!levelsHash || !name) return null;
-            return {
-              levelsHash,
-              label: alias ? `${name} (${alias})` : name,
-            };
-          })
-          .filter((option): option is { levelsHash: string; label: string } => Boolean(option));
-
-        const uniqueByLevelsHash = Array.from(new Map(options.map((option) => [option.levelsHash, option])).values());
-        setWorkflowOptions(uniqueByLevelsHash);
+        setWorkflowOptions(buildWorkflowOptions(nodes));
+        setFormData((current) => ({
+          ...current,
+          isGlobalUserEligible: access.isGlobalUser,
+          isGlobalSignatory: access.isGlobalUser ? current.isGlobalSignatory : false,
+          basic: access.designation
+            ? {
+              ...current.basic,
+              designation: current.basic.designation.trim() ? current.basic.designation : access.designation,
+            }
+            : current.basic,
+        }));
       })
       .catch(() => {
         if (!ignore) {
           setWorkflowOptions([]);
           setLocalOrgStructure(null);
+          setFormData((current) => ({
+            ...current,
+            isGlobalUserEligible: false,
+            isGlobalSignatory: false,
+          }));
         }
       });
 
@@ -145,7 +98,11 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   useEffect(() => {
     if (!open) return;
     setStep(1);
-    setFormData(createInitialUserOnboardingFormData());
+    setFormData((current) => ({
+      ...createInitialUserOnboardingFormData(),
+      isGlobalUserEligible: current.isGlobalUserEligible,
+      isGlobalSignatory: current.isGlobalSignatory,
+    }));
     setErrors({});
     setSelectedNodeId(orgStructure?.id ?? null);
     setSelectedNodeIds([]);
@@ -338,6 +295,13 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
     }));
   };
 
+  const setGlobalSignatory = (value: boolean) => {
+    setFormData((current) => ({
+      ...current,
+      isGlobalSignatory: current.isGlobalUserEligible ? value : false,
+    }));
+  };
+
   const togglePermission = (
     nodeId: string,
     bucket: keyof NodePermissionBuckets,
@@ -423,7 +387,11 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
     });
   };
 
-  const prevStep = () => setStep((current) => Math.max(current - 1, 1));
+  const prevStep = () =>
+    setStep((current) => {
+      if (formData.isGlobalUserEligible && formData.isGlobalSignatory && current === 4) return 1;
+      return Math.max(current - 1, 1);
+    });
 
   const handlePrimaryAction = async () => {
     if (step === 1 || step === 2 || step === 3) {
@@ -489,11 +457,31 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
         return;
       }
 
+      if (step === 1 && formData.isGlobalUserEligible && formData.isGlobalSignatory) {
+        setStep(4);
+        return;
+      }
+
       if (step === 3) {
         setExpandedAccessNodeIds(selectedNodes[0] ? [selectedNodes[0].id] : []);
       }
 
       setStep((current) => Math.min(current + 1, 4));
+      return;
+    }
+
+    if (formData.isGlobalUserEligible && formData.isGlobalSignatory) {
+      if (onSubmit) {
+        await onSubmit({
+          ...formData,
+          nodeSelections: [],
+          permissions: createInitialPermissions(roles),
+          primaryNodeId: null,
+          selectedWorkflow: "",
+          selectedWorkflowLevelsHash: "",
+        });
+      }
+      onOpenChange(false);
       return;
     }
 
@@ -594,6 +582,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
     clearError,
     updateBasic,
     setSelectedWorkflow,
+    setGlobalSignatory,
     removeSelectedNode,
     handleNodeSelect,
     togglePermission,
