@@ -34,7 +34,7 @@ import {
   getUserStatusClass,
   getNodeHoverClass,
   groupByNode,
-} from "@/features/user-management/components/UserManagePreview.helpers";
+} from "@/features/user-management/components/UserManagePreview.utils";
 import { NodeAccessCard } from "@/features/user-management/components/UserManagePreview.NodeAccessCard";
 
 // ── Main component ─────────────────────────────────────────────────────────────

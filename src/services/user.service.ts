@@ -2,11 +2,11 @@ import type { AppUser } from "@/contexts/AppContext";
 import { apiFetch } from "@/services/client";
 
 export type UserOnboardingPermission = {
-  roleCategory: "TRANSACTIONAL" | "OPERATIONAL" | "SYSTEM_ACCESS";
+  roleCategory: "TRANSACTIONAL" | "OPERATIONAL" | "SYSTEM_ACCESS" | "ALL";
   roleSubCategory: string;
   roleName: string;
   nodeName: string;
-  nodePath: string;
+  nodePath?: string;
   accessCategory?: "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null;
   accessType?: "PRIMARY" | "SECONDARY";
 };
@@ -18,7 +18,7 @@ export type UserOnboardingPayload = {
     phone: string;
     designation: string;
     employeeId: string | null;
-    reportingManager: string;
+    reportingManager: string | null;
   };
   permissions: UserOnboardingPermission[];
   levelsHash?: string | null;

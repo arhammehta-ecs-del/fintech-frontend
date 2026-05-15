@@ -1,5 +1,4 @@
 export { UserManagementView } from "./components/UserManagementView";
-export { default as UserManagementScreen } from "./entry/UserManagementScreen";
 export { default as UserTable } from "./components/UserTable";
 export { default as UserFilters } from "./components/UserFilters";
 export { default as UserPagination } from "./components/UserPagination";

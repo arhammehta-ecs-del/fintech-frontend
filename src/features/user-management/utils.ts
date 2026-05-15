@@ -21,6 +21,7 @@ import {
   getOrgNodePermissionChipTheme,
   getOrgNodeTheme,
 } from "@/features/user-management/orgNodeTheme";
+import { getInitials as getSharedInitials } from "@/lib/userIdentity.utils";
 
 const PERMISSION_ACTIONS = ["manager", "user", "viewer"] as const;
 const SYSTEM_ACCESS_SCOPE_ITEMS = new Set([
@@ -35,6 +36,12 @@ const SYSTEM_ACCESS_SCOPE_ITEMS = new Set([
 ]);
 
 const normalizeScopeKey = (value: string) => value.trim().toUpperCase();
+const isRootNode = (nodePath: string, nodeType?: string) => {
+  if ((nodeType || "").trim().toUpperCase() === "ROOT") return true;
+  const trimmed = nodePath.trim();
+  if (!trimmed) return true;
+  return !trimmed.includes(".");
+};
 
 export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): UserOnboardingPayload => {
   const selectedNodeEntries =
@@ -81,7 +88,7 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
                   roleSubCategory: subCategory,
                   roleName: `${roleNameBase} ${action[0].toUpperCase()}${action.slice(1)}`,
                   nodeName: nodeEntry.nodeName,
-                  nodePath: nodeEntry.nodePath,
+                  nodePath: isRootNode(nodeEntry.nodePath, nodeEntry.nodeType) ? undefined : nodeEntry.nodePath,
                   accessCategory:
                     category.trim().toUpperCase() === "SYSTEM_ACCESS" && SYSTEM_ACCESS_SCOPE_ITEMS.has(normalizeScopeKey(subCategory))
                       ? scope
@@ -126,6 +133,31 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
   };
 };
 
+export const buildSignatoryOnboardingPayload = (
+  formData: UserOnboardingFormData,
+  companyNode: { nodeName: string; nodePath: string; nodeType?: string },
+): UserOnboardingPayload => ({
+  basicDetails: {
+    name: formData.basic.name.trim(),
+    email: formData.basic.email.trim(),
+    phone: formData.basic.phone.trim(),
+    designation: formData.basic.designation.trim(),
+    employeeId: formData.basic.employeeId.trim() ? formData.basic.employeeId.trim() : null,
+    reportingManager: null,
+  },
+  permissions: [
+    {
+      accessType: "PRIMARY",
+      roleName: "Corp Admin",
+      roleCategory: "ALL",
+      roleSubCategory: "ALL",
+      nodeName: companyNode.nodeName.trim(),
+      nodePath: isRootNode(companyNode.nodePath, companyNode.nodeType) ? undefined : companyNode.nodePath.trim(),
+    },
+  ],
+  levelsHash: null,
+});
+
 /**
  * Build an empty UserOnboardingPermissions object from the live roles.
  * Structure: { [category]: { [subCategory]: { manager: false, user: false, viewer: false } } }
@@ -157,13 +189,7 @@ export const createInitialPermissionScopes = (roles: RoleRecord[]) => {
   return scopes;
 };
 
-export const getInitials = (name: string) =>
-  name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+export const getInitials = (name: string) => getSharedInitials(name);
 
 const AVATAR_PALETTES = [
   { bg: "bg-blue-100", text: "text-blue-700" },

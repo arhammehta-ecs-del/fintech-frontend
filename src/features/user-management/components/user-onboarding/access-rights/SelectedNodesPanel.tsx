@@ -10,7 +10,7 @@ import {
   getNodeSubtitle,
   getNodeSurfaceClass,
   isRootOrgNode,
-} from "../UserOnboardingStepAccessRights.helpers";
+} from "../UserOnboardingStepAccessRights.utils";
 
 type Props = {
   selectedNodes: OrgNode[];

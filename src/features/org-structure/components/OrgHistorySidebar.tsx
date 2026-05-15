@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import HistorySidebar, { formatDateParts, getInitials, type HistoryEntry } from "@/components/HistorySidebar";
+import HistorySidebar, { type HistoryEntry } from "@/components/HistorySidebar";
+import { formatDateParts } from "@/lib/historyDate.utils";
+import { getInitials } from "@/lib/userIdentity.utils";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
 import { fetchOrgHistory } from "@/services/org.service";

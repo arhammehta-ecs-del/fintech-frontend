@@ -19,7 +19,7 @@ import {
   findOrgNode,
   validateUserOnboardingStep,
 } from "@/features/user-management/utils";
-import { buildOrgTreeFromCompanyNodes, buildWorkflowOptions } from "./useUserOnboardingForm.helpers";
+import { buildOrgTreeFromCompanyNodes, buildWorkflowOptions } from "./useUserOnboardingForm.utils";
 
 type UseUserOnboardingFormOptions = {
   open: boolean;
@@ -539,6 +539,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
           })(),
           nodeId: node.id,
           nodeName: node.name,
+          nodeType: node.nodeType,
           nodePath: node.nodePath,
           permissions: nodePermissions[node.id] ?? {
             primary: createInitialPermissions(roles),

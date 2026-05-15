@@ -1,4 +1,4 @@
-import { ShieldCheck, Eye, Pencil, Plus } from "lucide-react";
+import { ShieldCheck, Eye, Pencil } from "lucide-react";
 import { getPermissionActionLabelFromText } from "@/features/user-management/roleLabels";
 import type { WorkflowLevel } from "./types";
 
@@ -57,21 +57,3 @@ export const getOrderedPermissionLabels = (activeRights: string[]) => {
   const labels = new Set(activeRights.map((right) => getPermissionActionLabelFromText(right)));
   return ["Checker", "Maker", "Viewer"].filter((label) => labels.has(label));
 };
-
-export function AddLevelButton({ onClick, locked }: { onClick: () => void; locked: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-full border-2 border-dashed px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] shadow-sm transition-all ${
-        locked
-          ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300"
-          : "border-blue-300 bg-white text-blue-600 hover:scale-[1.02] hover:border-blue-500 hover:bg-blue-50"
-      }`}
-      aria-label="Add next workflow level"
-    >
-      <Plus className="h-4 w-4" />
-      Add level
-    </button>
-  );
-}

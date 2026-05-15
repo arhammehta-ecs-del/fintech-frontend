@@ -12,7 +12,7 @@ import {
   normalizeLoose,
   parseDateAtStartOfDay,
   splitAlphaNumericTokens,
-} from "@/features/user-management/hooks/useUserManagement.helpers";
+} from "@/features/user-management/hooks/userManagementFilters.utils";
 
 type FilterMembersInput = {
   list: AppUser[];

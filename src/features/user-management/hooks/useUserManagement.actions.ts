@@ -1,9 +1,9 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { AppUser } from "@/contexts/AppContext";
+import type { AppUser, OrgNode } from "@/contexts/AppContext";
 import { getApiErrorMessage } from "@/services/client";
-import { createGlobalSignatoryOnboarding, createUserOnboarding, updateUserStatus } from "@/services/user.service";
+import { createUserOnboarding, updateUserStatus } from "@/services/user.service";
 import type { UserOnboardingFormData } from "@/features/user-management/types";
-import { buildUserOnboardingPayload } from "@/features/user-management/utils";
+import { buildSignatoryOnboardingPayload, buildUserOnboardingPayload } from "@/features/user-management/utils";
 
 type StatusAction = "activate" | "deactivate";
 type PendingAction = { member: AppUser; action: StatusAction } | null;
@@ -20,6 +20,7 @@ type CreateActionsInput = {
   loadUsers: (showRefreshToast?: boolean) => Promise<void>;
   editingMember: AppUser | null;
   pendingAction: PendingAction;
+  orgStructure: OrgNode | null;
 };
 
 export const createUserManagementActions = ({
@@ -34,6 +35,7 @@ export const createUserManagementActions = ({
   loadUsers,
   editingMember,
   pendingAction,
+  orgStructure,
 }: CreateActionsInput) => {
   const updateUsersStatus = (ids: Set<string>, status: AppUser["status"]) => {
     setUsers((previous) => previous.map((user) => (ids.has(user.id) ? { ...user, status } : user)));
@@ -44,15 +46,17 @@ export const createUserManagementActions = ({
 
     try {
       const isGlobalSignatoryFlow = userData.isGlobalUserEligible && userData.isGlobalSignatory;
+      if (isGlobalSignatoryFlow && (!orgStructure?.name?.trim() || !orgStructure?.nodePath?.trim())) {
+        throw new Error("Company node name/path is missing for signatory onboarding.");
+      }
       const response = isGlobalSignatoryFlow
-        ? await createGlobalSignatoryOnboarding({
-          name: userData.basic.name.trim(),
-          email: userData.basic.email.trim(),
-          phone: userData.basic.phone.trim(),
-          designation: userData.basic.designation.trim(),
-          employeeId: userData.basic.employeeId.trim() || null,
-          isGlobalUser: true,
-        })
+        ? await createUserOnboarding(
+          buildSignatoryOnboardingPayload(userData, {
+            nodeName: orgStructure?.name?.trim() || "",
+            nodePath: orgStructure?.nodePath?.trim() || "",
+            nodeType: orgStructure?.nodeType?.trim() || "",
+          }),
+        )
         : await createUserOnboarding(buildUserOnboardingPayload(userData));
       setAddDialogOpen(false);
       setStatusTab("pending");

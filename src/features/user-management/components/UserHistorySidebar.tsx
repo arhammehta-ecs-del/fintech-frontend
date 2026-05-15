@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import type { AppUser } from "@/contexts/AppContext";
-import HistorySidebar, { formatDateParts, getInitials, type HistoryEntry } from "@/components/HistorySidebar";
+import HistorySidebar, { type HistoryEntry } from "@/components/HistorySidebar";
+import { formatDateParts } from "@/lib/historyDate.utils";
+import { getInitials } from "@/lib/userIdentity.utils";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
 import { fetchUserHistory } from "@/services/user.service";

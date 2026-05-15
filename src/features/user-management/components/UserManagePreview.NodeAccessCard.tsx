@@ -6,7 +6,7 @@ import {
   formatKey,
   getNodeBadgeClass,
   getNodeEdgeBorderClass,
-} from "@/features/user-management/components/UserManagePreview.helpers";
+} from "@/features/user-management/components/UserManagePreview.utils";
 
 type NodeAccessCardProps = {
   nodeName: string;

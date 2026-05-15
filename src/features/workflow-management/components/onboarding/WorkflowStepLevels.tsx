@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
-import { AlertCircle, CheckCircle2, Settings2, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Plus, Settings2, Trash2 } from "lucide-react";
 import { APPROVAL_OPTIONS } from "@/features/workflow-management/constants";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { WorkflowLevel } from "./types";
 import {
   ADD_LEVEL_FLOAT_OFFSET,
-  AddLevelButton,
   CARD_HEIGHT_SINGLE,
   CARD_WIDTH,
   FLOW_ARROW_ID,
@@ -15,7 +14,7 @@ import {
   getCardHeight,
   getOptionState,
   getSlotPosition,
-} from "./WorkflowStepLevels.helpers";
+} from "./WorkflowStepLevels.utils";
 
 type WorkflowStepLevelsProps = {
   levels: WorkflowLevel[];
@@ -32,8 +31,23 @@ type WorkflowStepLevelsProps = {
   canRemoveLevel: boolean;
 };
 
-
-
+function AddLevelButton({ onClick, locked }: { onClick: () => void; locked: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 rounded-full border-2 border-dashed px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] shadow-sm transition-all ${
+        locked
+          ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300"
+          : "border-blue-300 bg-white text-blue-600 hover:scale-[1.02] hover:border-blue-500 hover:bg-blue-50"
+      }`}
+      aria-label="Add next workflow level"
+    >
+      <Plus className="h-4 w-4" />
+      Add level
+    </button>
+  );
+}
 export default function WorkflowStepLevels({
   levels,
   visibleLevels,

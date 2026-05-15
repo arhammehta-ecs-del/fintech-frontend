@@ -18,7 +18,7 @@ import {
   SignatoryDetailRow,
   statusColors,
   type ApprovalStatusLabel,
-} from "@/components/CompanyPreviewDialog.helpers";
+} from "@/components/CompanyPreviewDialog.utils";
 
 // export interface ApprovalEvent {
 //   name: string;

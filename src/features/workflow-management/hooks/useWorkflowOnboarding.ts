@@ -28,7 +28,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
   const [wfNode, setWfNode] = useState("");
 
   const [moduleGroups, setModuleGroups] = useState<ModuleGroup[]>([]);
-  const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string; nodeType?: string }>>([]);
   const [workflowOptions, setWorkflowOptions] = useState<Array<{ levelsHash: string; label: string }>>([]);
   const [selectedWorkflowLevelsHash, setSelectedWorkflowLevelsHash] = useState("");
   const [levels, setLevels] = useState(INITIAL_LEVELS);
@@ -112,9 +112,9 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
             const label = node.nodeName.trim();
             const value = node.nodePath.trim();
             if (!label || !value) return acc;
-            if (!acc.has(value)) acc.set(value, { label, value });
+            if (!acc.has(value)) acc.set(value, { label, value, nodeType: node.nodeType.trim() });
             return acc;
-          }, new Map<string, { label: string; value: string }>())
+          }, new Map<string, { label: string; value: string; nodeType?: string }>())
             .values(),
         );
         setDepartmentOptions(nextDepartments);
@@ -266,13 +266,15 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
         return acc;
       }, {});
 
+      const normalizedNodePath = wfNode.trim();
+
       await createWorkflow({
         companyCode,
         name: wfName.trim(),
         ...(wfAlias.trim() ? { alias: wfAlias.trim() } : {}),
         module: selectedModuleCategoryKey || wfModule.trim(),
         subModule: wfModule.trim(),
-        nodePath: wfNode.trim(),
+        ...(normalizedNodePath ? { nodePath: normalizedNodePath } : {}),
         levels: payloadLevels,
         levelsHash: selectedWorkflowLevelsHash.trim() || null,
       });

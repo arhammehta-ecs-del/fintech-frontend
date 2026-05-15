@@ -18,7 +18,7 @@ import {
   type PermissionMatrixRow,
   SYSTEM_ROWS,
   performPendingNodeAction,
-} from "@/features/org-structure/hooks/useOrgStructure.helpers";
+} from "@/features/org-structure/hooks/orgStructureViewModel.utils";
 
 export function useOrgStructure() {
   const { currentUser, orgStructure, setOrgStructure } = useAppContext();

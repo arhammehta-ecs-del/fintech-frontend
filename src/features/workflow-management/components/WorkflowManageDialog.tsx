@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { BadgeCheck, Calendar, GitBranch, History, Mail, Settings2, UserCheck, X } from "lucide-react";
+import { BadgeCheck, Calendar, CheckCircle2, GitBranch, History, Mail, Settings2, UserCheck, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";

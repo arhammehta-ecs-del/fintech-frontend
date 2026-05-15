@@ -22,7 +22,7 @@ import {
   hasAppliedUserRefinement,
   resolveStatusTabAfterFiltering,
   toggleFilterValue,
-} from "@/features/user-management/hooks/useUserManagement.helpers";
+} from "@/features/user-management/hooks/userManagementFilters.utils";
 
 export function useUserManagement() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -319,6 +319,7 @@ export function useUserManagement() {
     loadUsers,
     editingMember,
     pendingAction,
+    orgStructure,
   });
 
   const statusHeading =

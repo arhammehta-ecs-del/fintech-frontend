@@ -9,7 +9,7 @@ import { PendingNodePopup } from "@/features/org-structure/components/PendingNod
 import OrgHistorySidebar from "@/features/org-structure/components/OrgHistorySidebar";
 import { useOrgStructure } from "@/features/org-structure/hooks/useOrgStructure";
 import { collectNodeTrail } from "@/features/org-structure/orgNode.utils";
-import { countNodes, countPendingNodes, filterPendingNodes, hasPendingNodes } from "@/features/org-structure/components/OrgStructureView.helpers";
+import { countNodes, countPendingNodes, filterPendingNodes, hasPendingNodes } from "@/features/org-structure/components/OrgStructureView.utils";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";

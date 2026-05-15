@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Calendar, ChevronDown, CircleX, Clock, History, ShieldCheck, X } from "lucide-react";
+import { getInitials } from "@/lib/userIdentity.utils";
 
 export type HistoryStatus = "pending" | "approved";
 
@@ -72,28 +73,6 @@ const getEventTone = (action: string, fallbackStatus: HistoryStatus): EventTone 
   if (normalized.includes("approve") || normalized.includes("active")) return "approved";
   return fallbackStatus === "pending" ? "pending" : "approved";
 };
-
-export const getInitials = (name: string) => {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "NA";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
-};
-
-export const formatDateParts = (isoLike?: string) => {
-  const parsed = isoLike ? new Date(isoLike) : new Date();
-  const safeDate = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-
-  const year = safeDate.getFullYear().toString();
-  const month = MONTHS[safeDate.getMonth()] ?? "JANUARY";
-  const day = String(safeDate.getDate()).padStart(2, "0");
-  const date = safeDate.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
-  const time = safeDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-
-  return { year, month, day, date, time };
-};
-
-
 
 function StatusHeader({ item }: { item: HistoryEntry }) {
   const tone = getEventTone(item.action, item.status);

@@ -2,7 +2,7 @@ import { BadgeCheck, Briefcase, Building2, CheckCircle2, Layers, UserCheck, Zap 
 import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 import type { WorkflowLevel } from "@/features/workflow-management/components/onboarding/types";
 import { APPROVAL_OPTIONS } from "@/features/workflow-management/constants";
-import { formatSnakeCaseLabel, formatWorkflowPath } from "@/features/workflow-management/utils/workflowRecord.utils";
+import { formatSnakeCaseLabel, formatWorkflowPath, isRootWorkflowNode } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 export const formatToIst = (value?: string) => {
   if (!value) return "";
@@ -112,7 +112,7 @@ export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
             <span className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-400">Node Name</span>
           </div>
           <div className="mt-2 min-h-[2.5rem] pl-8 text-sm font-semibold leading-snug text-slate-900 break-words">{workflow.nodeName || "-"}</div>
-          {workflow.nodePath ? <div className="mt-2 pl-8"><div className="inline-flex max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700">{formatWorkflowPath(workflow.nodePath)}</div></div> : null}
+          {workflow.nodePath && !isRootWorkflowNode(workflow.nodePath, workflow.nodeType) ? <div className="mt-2 pl-8"><div className="inline-flex max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700">{formatWorkflowPath(workflow.nodePath)}</div></div> : null}
         </div>
       </div>
 

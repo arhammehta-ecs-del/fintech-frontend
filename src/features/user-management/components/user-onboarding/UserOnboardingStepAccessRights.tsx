@@ -23,7 +23,7 @@ import {
   getNodeSubtitle,
   isRootOrgNode,
   isSystemAccessScopeItem,
-} from "./UserOnboardingStepAccessRights.helpers";
+} from "./UserOnboardingStepAccessRights.utils";
 import { PermissionRow, type ActivePermissionSelection } from "./access-rights/PermissionRow";
 import { SelectedNodesPanel } from "./access-rights/SelectedNodesPanel";
 

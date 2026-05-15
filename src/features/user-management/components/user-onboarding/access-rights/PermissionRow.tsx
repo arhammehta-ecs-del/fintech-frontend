@@ -3,7 +3,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import type { PermissionAction, PermissionBucket, PermissionCategory, SystemAccessScope } from "@/features/user-management/types";
 import { PERMISSION_ACTIONS, getPermissionActionLabel } from "@/features/user-management/roleLabels";
-import { PERMISSION_SCOPE_ROWS } from "../UserOnboardingStepAccessRights.helpers";
+import { PERMISSION_SCOPE_ROWS } from "../UserOnboardingStepAccessRights.utils";
 
 export type ActivePermissionSelection = {
   categoryKey: PermissionCategory;

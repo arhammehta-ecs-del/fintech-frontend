@@ -3,6 +3,7 @@ import { useAppContext } from "@/contexts/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { getInitials } from "@/lib/userIdentity.utils";
 
 const fieldLabelClassName = "text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground";
 const fieldValueClassName = "mt-1 text-base font-semibold text-foreground";
@@ -17,15 +18,10 @@ function ProfileField({ label, value }: { label: string; value?: string | null }
 }
 
 export default function Profile() {
-  const { currentUser } = useAppContext();
+const { currentUser } = useAppContext();
 
 const base = currentUser?.name || currentUser?.email || "User";
-const initials = base
-  .split(" ")
-  .map((part) => part[0])
-  .join("")
-  .slice(0, 2)
-  .toUpperCase();
+const initials = getInitials(base);
 
 
   return (

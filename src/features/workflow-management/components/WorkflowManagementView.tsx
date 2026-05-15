@@ -20,7 +20,7 @@ import WorkflowManageDialog from "./WorkflowManageDialog";
 import type { WorkflowPageSize } from "@/features/workflow-management/types/workflow.types";
 import { useWorkflowManagement } from "@/features/workflow-management/hooks/useWorkflowManagement";
 import { cn } from "@/lib/utils";
-import { getWorkflowPathPreview } from "@/features/workflow-management/utils/workflowRecord.utils";
+import { getWorkflowPathPreview, isRootWorkflowNode } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 const tabClassName =
   "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:shadow-sm";
@@ -454,7 +454,7 @@ export default function WorkflowManagementView() {
                   <div className="text-sm text-slate-700">{workflow.module}</div>
                   <div className="min-w-0 text-sm text-slate-700">
                     <p className="truncate text-sm text-slate-700">{workflow.nodeName || "—"}</p>
-                    {workflow.nodePath ? (() => {
+                    {workflow.nodePath && !isRootWorkflowNode(workflow.nodePath, workflow.nodeType) ? (() => {
                       const pathPreview = getWorkflowPathPreview(workflow.nodePath, 3);
                       return pathPreview ? (
                         <NodePathMarquee text={pathPreview} />

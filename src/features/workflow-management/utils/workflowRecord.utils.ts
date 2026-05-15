@@ -6,6 +6,13 @@ const readString = (value: unknown) => (typeof value === "string" ? value.trim()
 const toRecord = (value: unknown): RawWorkflowRecord =>
   typeof value === "object" && value !== null ? (value as RawWorkflowRecord) : {};
 
+export const isRootWorkflowNode = (nodePath: string, nodeType?: string) => {
+  if ((nodeType || "").trim().toUpperCase() === "ROOT") return true;
+  const trimmed = nodePath.trim();
+  if (!trimmed) return false;
+  return !trimmed.includes(".");
+};
+
 const getNodeLabelFromPath = (nodePath: string) => {
   const segments = nodePath.split(".").map((segment) => segment.trim()).filter(Boolean);
   const last = segments[segments.length - 1] || "";

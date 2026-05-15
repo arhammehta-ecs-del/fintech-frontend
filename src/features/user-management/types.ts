@@ -42,6 +42,7 @@ export type UserOnboardingFormData = {
   nodeSelections: Array<{
     nodeId: string;
     nodeName: string;
+    nodeType?: string;
     nodePath: string;
     immediateChildren: Array<{
       nodeName: string;

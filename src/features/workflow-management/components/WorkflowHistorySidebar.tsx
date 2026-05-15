@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
-import HistorySidebar, { formatDateParts, getInitials, type HistoryEntry } from "@/components/HistorySidebar";
+import HistorySidebar, { type HistoryEntry } from "@/components/HistorySidebar";
+import { formatDateParts } from "@/lib/historyDate.utils";
+import { getInitials } from "@/lib/userIdentity.utils";
 import { useToast } from "@/hooks/use-toast";
 import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 import { getApiErrorMessage } from "@/services/client";
 import { fetchWorkflowHistory } from "@/services/workflow.service";
+import { isRootWorkflowNode } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 export type WorkflowHistorySidebarProps = {
   isOpen: boolean;
@@ -164,9 +167,11 @@ export default function WorkflowHistorySidebar({
         const levelsHash = (workflow.levelsHash || workflow.id || "").trim();
         const module = workflow.rawModule?.trim() || workflow.module?.trim() || null;
         const subModule = workflow.subModule?.trim() || null;
-        const nodePath = workflow.nodePath?.trim() || null;
+        const nodePathRaw = workflow.nodePath?.trim() || "";
+        const nodePath = nodePathRaw && !isRootWorkflowNode(nodePathRaw, workflow.nodeType) ? nodePathRaw : null;
         if (!levelsHash) {
-          throw new Error("Workflow levels hash is missing");
+          if (isMounted) setHistoryData([]);
+          return;
         }
         const response = await fetchWorkflowHistory({ levelsHash, module, subModule, nodePath });
         if (isMounted && response?.data) {

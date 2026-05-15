@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { RolesAllocationPanel } from "@/components/RolesAllocationPanel";
+import { FeatureErrorBoundary } from "@/components/FeatureErrorBoundary";
 import { OrgStructureView } from "@/features/org-structure";
 import { UserManagementView } from "@/features/user-management";
 
@@ -36,31 +37,39 @@ export default function CompanySettings() {
         </TabsList>
 
         <TabsContent value="org" className="mt-0">
-          <OrgStructureView embedded />
+          <FeatureErrorBoundary featureName="Org Structure">
+            <OrgStructureView embedded />
+          </FeatureErrorBoundary>
         </TabsContent>
 
         <TabsContent value="users">
-          <UserManagementView />
+          <FeatureErrorBoundary featureName="User Management">
+            <UserManagementView />
+          </FeatureErrorBoundary>
         </TabsContent>
 
         <TabsContent value="roles">
-          <Card className="shadow-sm">
-            <CardContent className="py-6">
-              <RolesAllocationPanel />
-            </CardContent>
-          </Card>
+          <FeatureErrorBoundary featureName="Roles">
+            <Card className="shadow-sm">
+              <CardContent className="py-6">
+                <RolesAllocationPanel />
+              </CardContent>
+            </Card>
+          </FeatureErrorBoundary>
         </TabsContent>
 
         <TabsContent value="workflows">
-          <Suspense
-            fallback={
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
-                Loading workflows...
-              </div>
-            }
-          >
-            <WorkflowManagementView />
-          </Suspense>
+          <FeatureErrorBoundary featureName="Workflows">
+            <Suspense
+              fallback={
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
+                  Loading workflows...
+                </div>
+              }
+            >
+              <WorkflowManagementView />
+            </Suspense>
+          </FeatureErrorBoundary>
         </TabsContent>
       </Tabs>
     </div>
