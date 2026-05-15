@@ -1,4 +1,4 @@
-import { Building2, LayoutDashboard, List, LogOut, Settings } from "lucide-react";
+import { Activity, Building2, LayoutDashboard, List, LogOut, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/" },
   { label: "Company List", icon: List, path: "/companies" },
+  { label: "API Monitoring", icon: Activity, path: "/api-monitoring" },
 ];
 
 const settingsNavItem: NavItem = {

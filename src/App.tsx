@@ -6,6 +6,7 @@ import { DashboardLayout } from "@/features/dashboard-layout";
 import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import CompanyList from "@/pages/CompanyList";
+import ApiMonitoring from "@/pages/ApiMonitoring";
 import CompanySettings from "@/pages/CompanySettings";
 import Profile from "@/pages/Profile";
 import Onboarding from "@/pages/Onboarding";
@@ -30,6 +31,7 @@ function AppRoutes() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/saas-organisation" element={<SaasOrganisation />} />
         <Route path="/companies" element={<CompanyList />} />
+        <Route path="/api-monitoring" element={<ApiMonitoring />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/settings" element={<CompanySettings />} />
