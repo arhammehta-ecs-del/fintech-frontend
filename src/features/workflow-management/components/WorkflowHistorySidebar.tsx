@@ -6,7 +6,6 @@ import { useToast } from "@/hooks/use-toast";
 import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 import { getApiErrorMessage } from "@/services/client";
 import { fetchWorkflowHistory } from "@/services/workflow.service";
-import { isRootWorkflowNode } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 export type WorkflowHistorySidebarProps = {
   isOpen: boolean;
@@ -167,8 +166,7 @@ export default function WorkflowHistorySidebar({
         const levelsHash = (workflow.levelsHash || workflow.id || "").trim();
         const module = workflow.rawModule?.trim() || workflow.module?.trim() || null;
         const subModule = workflow.subModule?.trim() || null;
-        const nodePathRaw = workflow.nodePath?.trim() || "";
-        const nodePath = nodePathRaw && !isRootWorkflowNode(nodePathRaw, workflow.nodeType) ? nodePathRaw : null;
+        const nodePath = workflow.nodePath?.trim() || null;
         if (!levelsHash) {
           if (isMounted) setHistoryData([]);
           return;
