@@ -15,9 +15,11 @@ export type ApiMonitoringPayload = Record<string, unknown> | null;
 export type ApiMonitoringStep = {
   id: string;
   trackId: string;
+  spanType?: string;
   method: string;
   path: string;
   status: number | null;
+  clientIp?: string;
   timeString: string;
   accessToken?: string;
   refreshToken?: string;
@@ -34,5 +36,11 @@ export type ApiMonitoringLog = ApiMonitoringStep & {
   timeStr: string;
   dateStr: string;
   spanCount: number;
+  totalSpanCount: number;
   subApis: ApiMonitoringStep[];
+};
+
+export type ApiMonitoringDetailsData = {
+  mainRequest: ApiMonitoringStep;
+  childSpans: ApiMonitoringStep[];
 };

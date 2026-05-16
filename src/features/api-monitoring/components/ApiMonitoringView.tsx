@@ -65,15 +65,15 @@ export default function ApiMonitoringView() {
         </div>
 
         <div className="flex-1 overflow-auto">
-          <table className="w-full border-collapse text-left">
-            <thead className="sticky top-0 z-10 bg-muted/50 text-sm uppercase tracking-wide text-muted-foreground">
+          <table className="w-full border-separate border-spacing-0 text-left">
+            <thead className="text-sm uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-6 py-4 font-semibold">Company</th>
-                <th className="px-4 py-4 font-semibold">User</th>
-                <th className="px-4 py-4 font-semibold">Time</th>
-                <th className="px-4 py-4 font-semibold">Date</th>
-                <th className="px-4 py-4 font-semibold">API Endpoint</th>
-                <th className="px-4 py-4 font-semibold">Status</th>
+                <th className="sticky top-0 z-20 border-b border-border bg-muted px-6 py-4 font-semibold">Company</th>
+                <th className="sticky top-0 z-20 border-b border-border bg-muted px-4 py-4 font-semibold">User</th>
+                <th className="sticky top-0 z-20 border-b border-border bg-muted px-4 py-4 font-semibold">Time</th>
+                <th className="sticky top-0 z-20 border-b border-border bg-muted px-4 py-4 font-semibold">Date</th>
+                <th className="sticky top-0 z-20 border-b border-border bg-muted px-4 py-4 font-semibold">API Endpoint</th>
+                <th className="sticky top-0 z-20 border-b border-border bg-muted px-4 py-4 font-semibold">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -83,12 +83,23 @@ export default function ApiMonitoringView() {
                   onClick={async () => {
                     setSelectedLog(log);
                     try {
-                      const steps = await fetchDetailsForTrack(log.id);
+                      const details = await fetchDetailsForTrack(log.id);
                       setSelectedLog((current) => {
                         if (!current || current.trackId !== log.trackId) return current;
+                        const parsed = details.mainRequest.timeString.split(" ");
+                        const nextDate = parsed[0] || current.dateStr;
+                        const nextTime = parsed.slice(1).join(" ") || current.timeStr;
                         return {
                           ...current,
-                          subApis: steps,
+                          id: details.mainRequest.id,
+                          trackId: details.mainRequest.trackId,
+                          method: details.mainRequest.method,
+                          path: details.mainRequest.path,
+                          status: details.mainRequest.status,
+                          timeString: details.mainRequest.timeString,
+                          timeStr: nextTime,
+                          dateStr: nextDate,
+                          subApis: details.childSpans,
                         };
                       });
                     } catch {
@@ -105,13 +116,18 @@ export default function ApiMonitoringView() {
                   </td>
                   <td className="px-4 py-3 align-top">
                     <p className="text-sm font-medium text-foreground">{log.user.name}</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">{log.user.email}</p>
+                    <p className="mt-0.5 text-[11px] text-sky-700">{log.user.email}</p>
+                    {log.clientIp ? (
+                      <p className="mt-0.5 text-[11px] text-amber-700">{log.clientIp}</p>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{log.timeStr || "-"}</td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{log.dateStr || "-"}</td>
                   <td className="px-4 py-3 align-top">
                     <p className="max-w-[280px] truncate font-mono text-sm text-foreground">{log.path}</p>
-                    <p className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">{log.spanCount} sub-tasks</p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700">
+                      {log.totalSpanCount} sub-tasks
+                    </p>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-start">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ApiMonitoringLog, ApiMonitoringStep } from "@/features/api-monitoring/types";
+import type { ApiMonitoringDetailsData, ApiMonitoringLog } from "@/features/api-monitoring/types";
 import { getApiErrorMessage } from "@/services/client";
 import { fetchApiMonitoringDetails, fetchApiMonitoringList } from "@/services/api-monitoring.service";
 
@@ -46,7 +46,7 @@ export function useApiMonitoring() {
     ));
   }, [logs, searchText]);
 
-  const fetchDetailsForTrack = async (trackId: string): Promise<ApiMonitoringStep[]> => {
+  const fetchDetailsForTrack = async (trackId: string): Promise<ApiMonitoringDetailsData> => {
     return fetchApiMonitoringDetails(trackId);
   };
 

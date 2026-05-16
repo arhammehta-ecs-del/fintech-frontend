@@ -20,17 +20,27 @@ const getStatusIcon = (status: number | null) => {
   return <XCircle className="h-5 w-5 text-red-600" />;
 };
 
-const hasValue = (value?: string) => Boolean(value && value.trim() && value !== "N/A");
+const isCookiesPresent = (headers: Record<string, string>) => {
+  const value = headers.cookies_present ?? headers["cookies_present"] ?? "";
+  return value.toLowerCase() === "true";
+};
 
 const companyBadgeClass = (code: string) => {
   const palette = [
-    "bg-blue-100 text-blue-700 border-blue-200",
-    "bg-teal-100 text-teal-700 border-teal-200",
-    "bg-rose-100 text-rose-700 border-rose-200",
-    "bg-amber-100 text-amber-700 border-amber-200",
-    "bg-indigo-100 text-indigo-700 border-indigo-200",
+    "bg-blue-100 text-blue-700",
+    "bg-teal-100 text-teal-700",
+    "bg-rose-100 text-rose-700",
+    "bg-amber-100 text-amber-700",
+    "bg-indigo-100 text-indigo-700",
+    "bg-emerald-100 text-emerald-700",
+    "bg-cyan-100 text-cyan-700",
+    "bg-fuchsia-100 text-fuchsia-700",
+    "bg-violet-100 text-violet-700",
+    "bg-orange-100 text-orange-700",
+    "bg-lime-100 text-lime-700",
+    "bg-sky-100 text-sky-700",
   ];
-  const hash = code.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const hash = code.split("").reduce((acc, ch, index) => acc + (ch.charCodeAt(0) * (index + 1)), 0);
   return palette[Math.abs(hash) % palette.length];
 };
 
@@ -66,10 +76,14 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
 
   const steps = useMemo<ApiMonitoringStep[]>(() => {
     if (!log) return [];
-    return [log, ...(log.subApis ?? [])];
+    if ((log.subApis ?? []).length > 0) {
+      return log.subApis;
+    }
+    return [log];
   }, [log]);
 
   const activeStep = steps[activeIndex] ?? null;
+  const authOk = activeStep ? isCookiesPresent(activeStep.reqHeaders) : false;
 
   if (!log || !activeStep) return null;
 
@@ -84,10 +98,10 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
       <DialogContent showCloseButton={false} className="h-[88vh] w-[min(96vw,1200px)] max-w-none overflow-hidden p-0">
         <DialogHeader className="flex-row items-center justify-between border-b border-border bg-muted/40 px-6 py-3.5">
           <DialogTitle className="flex items-start gap-2">
-            <span className="mt-0.5">{getStatusIcon(activeStep.status)}</span>
+            <span className="mt-0.5">{getStatusIcon(log.status)}</span>
             <span className="flex flex-col">
-              <span className="font-mono text-sm md:text-base">{activeStep.path}</span>
-              <span className="font-mono text-xs text-muted-foreground">{activeStep.id}</span>
+              <span className="font-mono text-sm md:text-base">{log.path}</span>
+              <span className="font-mono text-xs text-muted-foreground">{log.trackId}</span>
             </span>
           </DialogTitle>
           <button
@@ -125,6 +139,9 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
                 <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">User</p>
                 <p className="text-base font-semibold text-foreground">{log.user.name}</p>
                 <p className="mt-0.5 text-sm text-muted-foreground">{log.user.email}</p>
+                {log.clientIp ? (
+                  <p className="mt-0.5 text-sm text-amber-700">{log.clientIp}</p>
+                ) : null}
               </div>
 
               <div>
@@ -137,9 +154,9 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
               <div>
                 <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Auth</p>
                 <div className="flex flex-col items-start gap-2 pt-1">
-                  <Badge variant="outline" className={cn("text-[10px]", hasValue(activeStep.accessToken) ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>Access Token</Badge>
-                  <Badge variant="outline" className={cn("text-[10px]", hasValue(activeStep.refreshToken) ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>Refresh Token</Badge>
-                  <Badge variant="outline" className={cn("text-[10px]", hasValue(activeStep.cookies) ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>Cookies</Badge>
+                  <Badge variant="outline" className={cn("text-[10px]", authOk ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>Access Token</Badge>
+                  <Badge variant="outline" className={cn("text-[10px]", authOk ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>Refresh Token</Badge>
+                  <Badge variant="outline" className={cn("text-[10px]", authOk ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>Cookies</Badge>
                 </div>
               </div>
             </div>
@@ -155,7 +172,7 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
                   "relative -ml-4 h-[54px] min-w-[180px] shrink-0 px-6 text-white transition first:ml-0 focus:outline-none",
                   activeIndex === index ? "z-20 saturate-110 brightness-[1.02]" : "z-10 hover:brightness-95",
                 )}
-                title={step.path}
+                title={`${step.spanType || "UNKNOWN"} | ${step.id}`}
               >
                 <span
                   className="absolute inset-0"
@@ -173,7 +190,10 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
                   />
                 ) : null}
                 <span className="relative z-10 flex h-full items-center justify-center px-2 text-[12px] font-bold tracking-[0.02em]">
-                  <span className="max-w-[150px] truncate font-mono">{step.id}</span>
+                  <span className="flex max-w-[170px] flex-col items-center leading-tight">
+                    <span className="text-[9px] uppercase opacity-90">{step.spanType || "UNKNOWN"}</span>
+                    <span className="max-w-[165px] truncate font-mono text-[11px]">{step.id}</span>
+                  </span>
                 </span>
               </button>
             ))}
