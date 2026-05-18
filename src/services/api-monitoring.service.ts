@@ -37,6 +37,7 @@ type DetailMainRequest = {
   url?: string;
   statusCode?: number | null;
   status?: number | null;
+  latency?: number | null;
   ip?: string | null;
   clientIp?: string | null;
   startedAt?: string;
@@ -61,6 +62,7 @@ type DetailChildSpan = {
   url?: string;
   statusCode?: number | null;
   status?: number | null;
+  latency?: number | null;
   ip?: string | null;
   clientIp?: string | null;
   reqBody?: unknown;
@@ -198,6 +200,7 @@ const mapDetailStep = (value: unknown, fallbackTrackId: string, index: number): 
 
   const statusRaw = row.statusCode ?? row.status;
   const status = typeof statusRaw === "number" ? statusRaw : null;
+  const latency = typeof row.latency === "number" ? row.latency : null;
   const clientIp = asString(row.ip) || asString(row.clientIp) || asString(headers["client-ip"]) || asString(headers["x-client-ip"]);
 
   return {
@@ -207,6 +210,7 @@ const mapDetailStep = (value: unknown, fallbackTrackId: string, index: number): 
     method: asString(row.method) || "-",
     path: asString(row.apiUrl) || asString(row.url) || asString(row.endpoint) || asString(row.path) || "-",
     status,
+    latency,
     clientIp: clientIp || undefined,
     timeString,
     accessToken: asString(row.accessToken),
@@ -230,6 +234,7 @@ const mapMainRequest = (value: unknown, fallbackId: string): ApiMonitoringStep =
   const reqObj = asObject(row.req);
   const resObj = asObject(row.res);
   const clientIp = asString(row.ip) || asString(row.clientIp);
+  const latency = typeof row.latency === "number" ? row.latency : null;
   const type = resolveSpanTypeFromSubCount(row.subCount) || asString(row.type).toUpperCase();
 
   return {
@@ -239,6 +244,7 @@ const mapMainRequest = (value: unknown, fallbackId: string): ApiMonitoringStep =
     method: asString(row.method) || "-",
     path: asString(row.apiUrl) || asString(row.url) || asString(row.endpoint) || "-",
     status: typeof statusRaw === "number" ? statusRaw : null,
+    latency,
     clientIp: clientIp || undefined,
     timeString,
     accessToken: "",

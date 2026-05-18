@@ -19,6 +19,7 @@ export type ApiMonitoringStep = {
   method: string;
   path: string;
   status: number | null;
+  latency?: number | null;
   clientIp?: string;
   timeString: string;
   accessToken?: string;

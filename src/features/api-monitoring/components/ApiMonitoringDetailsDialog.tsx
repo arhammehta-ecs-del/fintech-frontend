@@ -158,6 +158,14 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
                     {log.company.code}
                   </span>
                 </div>
+                <p className="mb-1 mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Latency</p>
+                {typeof activeStep.latency === "number" ? (
+                  <p className="text-sm font-semibold text-emerald-700">
+                    {activeStep.latency} ms
+                  </p>
+                ) : (
+                  <p className="text-sm font-normal text-muted-foreground">-</p>
+                )}
               </div>
 
               <div>
