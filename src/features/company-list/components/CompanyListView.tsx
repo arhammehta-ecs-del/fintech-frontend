@@ -9,6 +9,7 @@ import CompanyListToolbar from "@/features/company-list/components/CompanyListTo
 import { useCompanyDrag } from "@/features/company-list/hooks/useCompanyDrag";
 import { useCompanyList } from "@/features/company-list/hooks/useCompanyList";
 import { RemarkDialog } from "@/components/RemarkDialog";
+import PaginationFooter from "@/components/PaginationFooter";
 import type { CompanyOnboardingWizardRendererProps } from "@/features/company-list/types";
 
 type CompanyListViewProps = {
@@ -30,6 +31,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     groupNameOptions,
     companyNameOptions,
     legalNameOptions,
+    searchSuggestions,
     visibleColumns,
     selectedCompany,
     isPreviewOpen,
@@ -45,6 +47,14 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     selectedGroupName,
     selectedGroupCode,
     displayRows,
+    paginatedDisplayRows,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    safePage,
+    totalPages,
+    pageSizeOptions,
     handleClearSearch,
     clearAdvancedFilters,
     toggleGroup,
@@ -78,6 +88,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
         groupNameOptions={groupNameOptions}
         companyNameOptions={companyNameOptions}
         legalNameOptions={legalNameOptions}
+        searchSuggestions={searchSuggestions}
         onClearAdvancedFilters={clearAdvancedFilters}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
       />
@@ -99,7 +110,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
         <CompanyListEmptyState selectedStatusTab={selectedStatusTab} onOpenOnboarding={() => setIsOnboardingOpen(true)} />
       ) : (
         <CompanyListTable
-          displayRows={displayRows}
+          displayRows={paginatedDisplayRows}
           expanded={expanded}
           visibleColumns={visibleColumns}
           showStatusColumn={showStatusColumn}
@@ -113,6 +124,19 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
           onDrop={handleDrop}
         />
       )}
+      {!isLoading && !error && displayRows.length > 0 ? (
+        <PaginationFooter
+          currentCount={displayRows.length}
+          pageSize={pageSize}
+          pageSizeOptions={pageSizeOptions}
+          onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}
+          safePage={safePage}
+          totalPages={totalPages}
+          onPrevPage={() => setPage((previous) => Math.max(1, previous - 1))}
+          onNextPage={() => setPage((previous) => Math.min(totalPages, previous + 1))}
+          className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+        />
+      ) : null}
 
       <CompanyPreviewDialog
         company={selectedCompany}

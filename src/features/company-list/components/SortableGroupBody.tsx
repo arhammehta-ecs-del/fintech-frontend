@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import type { DragPayload, VisibleColumn } from "@/features/company-list/types";
-import { formatDisplayDate } from "@/features/company-list/utils";
+import { formatDisplayDate, getCodeBadgeStyle } from "@/features/company-list/utils";
 import SortableSubsidiaryRow from "@/features/company-list/components/SortableSubsidiaryRow";
 
 type SortableGroupBodyProps = {
@@ -41,7 +41,7 @@ export default function SortableGroupBody({
     <tbody>
       <tr
         className={cn(
-          "border-b border-border cursor-pointer transition-colors hover:bg-sky-50/70",
+          "border-b border-border/80 cursor-pointer transition-colors hover:bg-sky-50/70",
           isDragging && "opacity-50",
           isDropTarget && "bg-primary/5",
         )}
@@ -72,13 +72,14 @@ export default function SortableGroupBody({
         {visibleColumns.has("groupName") && (
           <td className="px-4 py-3 text-sm font-medium text-foreground">
             <div className="flex flex-col">
-              <span>
+              <span className="font-medium text-slate-700">
                 {group.groupName} ({group.subsidiaries.length})
               </span>
               {group.code ? (
                 <Badge
                   variant="outline"
-                  className="mt-1 w-fit border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600"
+                  className="mt-1 w-fit text-[10px] font-semibold uppercase tracking-[0.12em]"
+                  style={getCodeBadgeStyle(group.code)}
                 >
                   {group.code}
                 </Badge>

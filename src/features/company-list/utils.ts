@@ -15,6 +15,18 @@ export const formatDisplayDate = (value: string, emptyFallback = "") => {
   return isValid(parsedDate) ? format(parsedDate, "dd MMM yyyy") : value;
 };
 
+export const getCodeBadgeStyle = (code: string) => {
+  const source = (code || "N/A").trim();
+  const hash = source.split("").reduce((acc, ch, index) => acc + (ch.charCodeAt(0) * (index + 1)), 0);
+  // Keep a narrow cool-tone band so badges look cohesive, not rainbow-random.
+  const hue = 206 + (Math.abs(hash) % 28); // blue/slate spectrum only
+  return {
+    backgroundColor: `hsl(${hue} 34% 93%)`,
+    color: `hsl(${hue} 36% 32%)`,
+    borderColor: `hsl(${hue} 26% 80%)`,
+  };
+};
+
 export const reorderItems = <T,>(items: T[], fromIndex: number, toIndex: number) => {
   const next = [...items];
   const [moved] = next.splice(fromIndex, 1);

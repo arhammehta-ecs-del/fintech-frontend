@@ -24,6 +24,19 @@ import {
   toggleFilterValue,
 } from "@/features/user-management/hooks/userManagementFilters.utils";
 
+const fuzzyMatch = (text: string, query: string) => {
+  const source = text.trim().toLowerCase().replace(/\s+/g, "");
+  const target = query.trim().toLowerCase().replace(/\s+/g, "");
+  if (!target) return true;
+  if (source.includes(target)) return true;
+  let index = 0;
+  for (const ch of source) {
+    if (ch === target[index]) index += 1;
+    if (index === target.length) return true;
+  }
+  return false;
+};
+
 export function useUserManagement() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser, orgStructure, users, setUsers } = useAppContext();
@@ -156,6 +169,26 @@ export function useUserManagement() {
   const accessSubcategories = useMemo(() => buildRoleSubcategoryOptions(users), [users]);
   const accessScopes = useMemo(() => buildAccessScopeOptions(users), [users]);
   const roleTypes = useMemo(() => [...USER_FILTER_CONFIG.roleType.options], []);
+
+  const searchSuggestions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    const values = new Set<string>();
+    users.forEach((user) => {
+      [
+        user.name,
+        user.email,
+        user.designation,
+        user.department,
+        user.employeeId || "",
+        user.manager?.name || "",
+        user.manager?.email || "",
+      ].forEach((field) => {
+        if (field && fuzzyMatch(field, q)) values.add(field);
+      });
+    });
+    return Array.from(values).slice(0, 8);
+  }, [search, users]);
 
   const clearAdvancedFilters = () =>
     clearUserAdvancedFilters({
@@ -331,6 +364,7 @@ export function useUserManagement() {
     setStatusTab,
     search,
     setSearch,
+    searchSuggestions,
     designationFilters,
     setDesignationFilters,
     departmentFilters,

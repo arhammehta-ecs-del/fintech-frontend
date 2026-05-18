@@ -34,6 +34,7 @@ type UserFiltersProps = {
   onStatusTabChange: (value: MemberStatusTab) => void;
   search: string;
   onSearchChange: (value: string) => void;
+  searchSuggestions: string[];
   designationFilters: string[];
   onToggleDesignation: (value: string) => void;
   accessCategoryFilters: string[];
@@ -79,6 +80,7 @@ export default function UserFilters({
   onStatusTabChange,
   search,
   onSearchChange,
+  searchSuggestions,
   designationFilters,
   onToggleDesignation,
   accessCategoryFilters,
@@ -129,6 +131,7 @@ export default function UserFilters({
   const [draftReportingManagerFilters, setDraftReportingManagerFilters] = useState<string[]>(reportingManagerFilters);
   const [draftPrimaryNodeFilters, setDraftPrimaryNodeFilters] = useState<string[]>(primaryNodeFilters);
   const [draftSecondaryNodeFilters, setDraftSecondaryNodeFilters] = useState<string[]>(secondaryNodeFilters);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const toggleValue = (current: string[], value: string) =>
     current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
@@ -160,6 +163,8 @@ export default function UserFilters({
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
             onChange={(event) => onSearchChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -172,12 +177,32 @@ export default function UserFilters({
           {search ? (
             <button
               type="button"
-              onClick={() => onSearchChange("")}
+              onClick={() => {
+                onSearchChange("");
+                setShowSuggestions(false);
+              }}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
               aria-label="Clear search"
             >
               <X className="h-4 w-4" />
             </button>
+          ) : null}
+          {showSuggestions && searchSuggestions.length > 0 ? (
+            <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-card p-1 shadow-lg">
+              {searchSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => {
+                    onSearchChange(suggestion);
+                    setShowSuggestions(false);
+                  }}
+                  className="block w-full rounded px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
           ) : null}
         </div>
 

@@ -15,6 +15,20 @@ const EMPTY_STATUS_COUNTS = {
   pending: 0,
   inactive: 0,
 };
+const COMPANY_PAGE_SIZE_OPTIONS = [15, 25, 35, 50] as const;
+
+const fuzzyMatch = (text: string, query: string) => {
+  const source = text.trim().toLowerCase().replace(/\s+/g, "");
+  const target = query.trim().toLowerCase().replace(/\s+/g, "");
+  if (!target) return true;
+  if (source.includes(target)) return true;
+  let index = 0;
+  for (const ch of source) {
+    if (ch === target[index]) index += 1;
+    if (index === target.length) return true;
+  }
+  return false;
+};
 
 export function useCompanyList() {
   const location = useLocation();
@@ -35,6 +49,8 @@ export function useCompanyList() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<(typeof COMPANY_PAGE_SIZE_OPTIONS)[number]>(15);
   const [visibleColumns, setVisibleColumns] = useState<Set<VisibleColumn>>(
     new Set(["groupName", "companyName", "code", "createdDate", "manage", "status"]),
   );
@@ -184,10 +200,45 @@ export function useCompanyList() {
   ]);
 
   const displayRows = useMemo<DisplayRow[]>(() => buildAllDisplayRows(filteredGroups), [filteredGroups]);
+  const totalPages = Math.max(1, Math.ceil(displayRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const paginatedDisplayRows = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return displayRows.slice(start, start + pageSize);
+  }, [displayRows, safePage, pageSize]);
+
+  const searchSuggestions = useMemo(() => {
+    const q = searchInput.trim().toLowerCase();
+    if (!q) return [];
+    const values = new Set<string>();
+    statusScopedGroups.forEach((group) => {
+      [group.groupName, group.code].forEach((field) => {
+        if (field && fuzzyMatch(field, q)) values.add(field);
+      });
+      group.subsidiaries.forEach((company) => {
+        [
+          company.companyName,
+          company.legalName,
+          company.companyCode || "",
+          company.brand || "",
+          company.gstin,
+          company.ieCode,
+          company.incorporationDate,
+        ].forEach((field) => {
+          if (field && fuzzyMatch(field, q)) values.add(field);
+        });
+      });
+    });
+    return Array.from(values).slice(0, 8);
+  }, [searchInput, statusScopedGroups]);
 
   const handleClearSearch = () => {
     setSearchInput("");
   };
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchInput, groupNameFilters, companyNameFilters, legalNameFilters, selectedStatusTab, pageSize]);
 
   const clearAdvancedFilters = () => {
     setGroupNameFilters([]);
@@ -319,6 +370,15 @@ export function useCompanyList() {
     selectedGroupName: selectedGroupInfo.name,
     selectedGroupCode: selectedGroupInfo.code,
     displayRows,
+    paginatedDisplayRows,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    safePage,
+    totalPages,
+    pageSizeOptions: COMPANY_PAGE_SIZE_OPTIONS,
+    searchSuggestions,
     handleClearSearch,
     clearAdvancedFilters,
     toggleGroup,

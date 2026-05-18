@@ -18,6 +18,7 @@ export function UserManagementView() {
   const {
     search,
     setSearch,
+    searchSuggestions,
     designationFilters,
     setDesignationFilters,
     accessCategoryFilters,
@@ -162,6 +163,7 @@ export function UserManagementView() {
         onStatusTabChange={setStatusTab}
         search={search}
         onSearchChange={setSearch}
+        searchSuggestions={searchSuggestions}
         designationFilters={designationFilters}
         onToggleDesignation={(value) => setDesignationFilters((current) => toggleFilterValue(current, value))}
         accessCategoryFilters={accessCategoryFilters}

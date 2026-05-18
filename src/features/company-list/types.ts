@@ -49,6 +49,7 @@ export type CompanyListToolbarProps = {
   searchInput: string;
   onSearchInputChange: (value: string) => void;
   onClearSearch: () => void;
+  searchSuggestions: string[];
   selectedStatusTab: StatusTab;
   onStatusTabChange: (value: StatusTab) => void;
   statusCounts: Record<"active" | "pending" | "inactive", number>;

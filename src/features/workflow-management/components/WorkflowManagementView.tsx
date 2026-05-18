@@ -99,6 +99,7 @@ export default function WorkflowManagementView() {
     setActiveStatus,
     search,
     setSearch,
+    searchSuggestions,
     workflowFilters,
     setWorkflowFilters,
     aliasFilters,
@@ -150,6 +151,7 @@ export default function WorkflowManagementView() {
   const [draftModuleFilters, setDraftModuleFilters] = useState<string[]>(moduleFilters);
   const [draftNodeNameFilters, setDraftNodeNameFilters] = useState<string[]>(nodeNameFilters);
   const [draftTypeFilters, setDraftTypeFilters] = useState<string[]>(typeFilters);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const toggleValue = (current: string[], value: string) =>
     current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
@@ -247,6 +249,8 @@ export default function WorkflowManagementView() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search by workflow, alias, module, or node name..."
               className="pl-9 pr-9"
@@ -254,12 +258,32 @@ export default function WorkflowManagementView() {
             {search ? (
               <button
                 type="button"
-                onClick={() => setSearch("")}
+                onClick={() => {
+                  setSearch("");
+                  setShowSuggestions(false);
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
                 aria-label="Clear search"
               >
                 <X className="h-4 w-4" />
               </button>
+            ) : null}
+            {showSuggestions && searchSuggestions.length > 0 ? (
+              <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-card p-1 shadow-lg">
+                {searchSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => {
+                      setSearch(suggestion);
+                      setShowSuggestions(false);
+                    }}
+                    className="block w-full rounded px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
             ) : null}
           </div>
 

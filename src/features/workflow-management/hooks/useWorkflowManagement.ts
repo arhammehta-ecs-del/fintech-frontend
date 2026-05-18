@@ -15,6 +15,19 @@ const splitAlphaNumericTokens = (value: string) =>
     .map((token) => token.trim())
     .filter(Boolean);
 
+const fuzzyMatch = (text: string, query: string) => {
+  const source = text.trim().toLowerCase().replace(/\s+/g, "");
+  const target = query.trim().toLowerCase().replace(/\s+/g, "");
+  if (!target) return true;
+  if (source.includes(target)) return true;
+  let index = 0;
+  for (const ch of source) {
+    if (ch === target[index]) index += 1;
+    if (index === target.length) return true;
+  }
+  return false;
+};
+
 const isWithinTwoEdits = (left: string, right: string) => {
   if (!left || !right) return false;
   const a = left.toLowerCase();
@@ -143,6 +156,18 @@ export function useWorkflowManagement() {
     [workflows],
   );
 
+  const searchSuggestions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    const values = new Set<string>();
+    workflows.forEach((workflow) => {
+      [workflow.name, workflow.alias, workflow.module, workflow.nodeName, workflow.nodeType].forEach((field) => {
+        if (field && fuzzyMatch(field, q)) values.add(field);
+      });
+    });
+    return Array.from(values).slice(0, 8);
+  }, [search, workflows]);
+
   const clearColumnFilters = () => {
     setWorkflowFilters([]);
     setAliasFilters([]);
@@ -233,6 +258,7 @@ export function useWorkflowManagement() {
     setActiveStatus,
     search,
     setSearch,
+    searchSuggestions,
     workflowFilters,
     setWorkflowFilters,
     aliasFilters,

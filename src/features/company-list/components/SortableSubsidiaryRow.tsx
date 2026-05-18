@@ -1,4 +1,4 @@
-import { useMemo, useState, type DragEvent } from "react";
+import { useState, type DragEvent } from "react";
 import type { Company } from "@/contexts/AppContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { GripVertical, History, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CompanyHistorySidebar from "@/features/company-list/components/CompanyHistorySidebar";
 import type { DragPayload, VisibleColumn } from "@/features/company-list/types";
-import { formatDisplayDate, statusColors } from "@/features/company-list/utils";
+import { formatDisplayDate, getCodeBadgeStyle, statusColors } from "@/features/company-list/utils";
 
 type SortableSubsidiaryRowProps = {
   sub: Company;
@@ -49,7 +49,7 @@ export default function SortableSubsidiaryRow({
     <>
       <tr
         className={cn(
-          "border-b border-border bg-muted/20 transition-colors hover:bg-sky-50/70",
+          "border-b border-border/70 bg-white transition-colors hover:bg-sky-50/50",
           isDragging && "opacity-50",
           isDropTarget && "bg-primary/5",
         )}
@@ -88,11 +88,12 @@ export default function SortableSubsidiaryRow({
         {visibleColumns.has("code") && (
           <td className="px-4 py-3 text-sm text-muted-foreground">
             <div className="flex flex-col">
-              <span>{sub.legalName}</span>
+              <span className="font-medium text-slate-700">{sub.legalName}</span>
               {sub.companyCode ? (
                 <Badge
                   variant="outline"
-                  className="mt-1 w-fit border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600"
+                  className="mt-1 w-fit text-[10px] font-semibold uppercase tracking-[0.12em]"
+                  style={getCodeBadgeStyle(sub.companyCode)}
                 >
                   {sub.companyCode}
                 </Badge>

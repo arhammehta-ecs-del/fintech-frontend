@@ -23,6 +23,7 @@ export default function CompanyListToolbar({
   searchInput,
   onSearchInputChange,
   onClearSearch,
+  searchSuggestions,
   selectedStatusTab,
   onStatusTabChange,
   statusCounts,
@@ -45,6 +46,7 @@ export default function CompanyListToolbar({
   const [draftGroupNameFilters, setDraftGroupNameFilters] = useState<string[]>(groupNameFilters);
   const [draftCompanyNameFilters, setDraftCompanyNameFilters] = useState<string[]>(companyNameFilters);
   const [draftLegalNameFilters, setDraftLegalNameFilters] = useState<string[]>(legalNameFilters);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const toggleValue = (current: string[], value: string) =>
     current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
@@ -78,6 +80,8 @@ export default function CompanyListToolbar({
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchInput}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
               onChange={(event) => onSearchInputChange(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") onSearchInputChange(searchInput.trim());
@@ -88,12 +92,32 @@ export default function CompanyListToolbar({
             {searchInput ? (
               <button
                 type="button"
-                onClick={onClearSearch}
+                onClick={() => {
+                  onClearSearch();
+                  setShowSuggestions(false);
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
                 aria-label="Clear search"
               >
                 <X className="h-4 w-4" />
               </button>
+            ) : null}
+            {showSuggestions && searchSuggestions.length > 0 ? (
+              <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-card p-1 shadow-lg">
+                {searchSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => {
+                      onSearchInputChange(suggestion);
+                      setShowSuggestions(false);
+                    }}
+                    className="block w-full rounded px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
             ) : null}
           </div>
 

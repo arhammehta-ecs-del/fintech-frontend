@@ -1,4 +1,4 @@
-import { useMemo, useState, type DragEvent } from "react";
+import { useState, type DragEvent } from "react";
 import CompanyHistorySidebar from "@/features/company-list/components/CompanyHistorySidebar";
 import type { Company } from "@/contexts/AppContext";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { GripVertical, History, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DragPayload, VisibleColumn } from "@/features/company-list/types";
-import { formatDisplayDate, statusColors } from "@/features/company-list/utils";
+import { formatDisplayDate, getCodeBadgeStyle, statusColors } from "@/features/company-list/utils";
 
 type StandaloneCompanyRowProps = {
   company: Company;
@@ -52,7 +52,7 @@ export default function StandaloneCompanyRow({
     <tbody>
       <tr
         className={cn(
-          "border-b border-border transition-colors hover:bg-sky-50/70",
+          "border-b border-border/70 transition-colors hover:bg-sky-50/50",
           isDragging && "opacity-50",
           isDropTarget && "bg-primary/5",
         )}
@@ -74,11 +74,12 @@ export default function StandaloneCompanyRow({
         {visibleColumns.has("groupName") && (
           <td className="px-4 py-3 text-sm text-muted-foreground">
             <div className="flex flex-col">
-              <span>{groupLabel}</span>
+              <span className="font-medium text-slate-700">{groupLabel}</span>
               {groupCode ? (
                 <Badge
                   variant="outline"
-                  className="mt-1 w-fit border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600"
+                  className="mt-1 w-fit text-[10px] font-semibold uppercase tracking-[0.12em]"
+                  style={getCodeBadgeStyle(groupCode)}
                 >
                   {groupCode}
                 </Badge>
@@ -101,11 +102,12 @@ export default function StandaloneCompanyRow({
         {visibleColumns.has("code") && (
           <td className="px-4 py-3 text-sm text-muted-foreground">
             <div className="flex flex-col">
-              <span>{company.legalName}</span>
+              <span className="font-medium text-slate-700">{company.legalName}</span>
               {company.companyCode ? (
                 <Badge
                   variant="outline"
-                  className="mt-1 w-fit border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600"
+                  className="mt-1 w-fit text-[10px] font-semibold uppercase tracking-[0.12em]"
+                  style={getCodeBadgeStyle(company.companyCode)}
                 >
                   {company.companyCode}
                 </Badge>

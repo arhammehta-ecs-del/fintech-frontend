@@ -31,23 +31,15 @@ const isCookiesPresent = (headers: Record<string, string>) => {
   return value.toLowerCase() === "true";
 };
 
-const companyBadgeClass = (code: string) => {
-  const palette = [
-    "bg-blue-100 text-blue-700",
-    "bg-teal-100 text-teal-700",
-    "bg-rose-100 text-rose-700",
-    "bg-amber-100 text-amber-700",
-    "bg-indigo-100 text-indigo-700",
-    "bg-emerald-100 text-emerald-700",
-    "bg-cyan-100 text-cyan-700",
-    "bg-fuchsia-100 text-fuchsia-700",
-    "bg-violet-100 text-violet-700",
-    "bg-orange-100 text-orange-700",
-    "bg-lime-100 text-lime-700",
-    "bg-sky-100 text-sky-700",
-  ];
-  const hash = code.split("").reduce((acc, ch, index) => acc + (ch.charCodeAt(0) * (index + 1)), 0);
-  return palette[Math.abs(hash) % palette.length];
+const companyBadgeStyle = (code: string) => {
+  const source = (code || "N/A").trim();
+  const hash = source.split("").reduce((acc, ch, index) => acc + (ch.charCodeAt(0) * (index + 1)), 0);
+  const hue = Math.abs(hash) % 360;
+  return {
+    backgroundColor: `hsl(${hue} 85% 92%)`,
+    color: `hsl(${hue} 65% 28%)`,
+    borderColor: `hsl(${hue} 70% 78%)`,
+  };
 };
 
 function StepPathText({ path }: { path: string }) {
@@ -152,8 +144,8 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
                   <span
                     className={cn(
                       "inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold",
-                      companyBadgeClass(log.company.code),
                     )}
+                    style={companyBadgeStyle(log.company.code)}
                   >
                     {log.company.code}
                   </span>
