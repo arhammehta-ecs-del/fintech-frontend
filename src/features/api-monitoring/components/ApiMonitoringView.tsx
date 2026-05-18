@@ -83,7 +83,7 @@ export default function ApiMonitoringView() {
                   onClick={async () => {
                     setSelectedLog(log);
                     try {
-                      const details = await fetchDetailsForTrack(log.id);
+                      const details = await fetchDetailsForTrack(log.trackId || log.id);
                       setSelectedLog((current) => {
                         if (!current || current.trackId !== log.trackId) return current;
                         const parsed = details.mainRequest.timeString.split(" ");
@@ -99,7 +99,7 @@ export default function ApiMonitoringView() {
                           timeString: details.mainRequest.timeString,
                           timeStr: nextTime,
                           dateStr: nextDate,
-                          subApis: details.childSpans,
+                          subApis: [details.mainRequest, ...details.childSpans],
                         };
                       });
                     } catch {
@@ -126,7 +126,7 @@ export default function ApiMonitoringView() {
                   <td className="px-4 py-3 align-top">
                     <p className="max-w-[280px] truncate font-mono text-sm text-foreground">{log.path}</p>
                     <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700">
-                      {log.totalSpanCount} sub-tasks
+                      {log.spanCount} sub-tracks
                     </p>
                   </td>
                   <td className="px-4 py-3">

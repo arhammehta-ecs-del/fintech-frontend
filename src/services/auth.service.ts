@@ -82,10 +82,10 @@ const mapUser = (record?: RawLoginUser | null): CurrentUser => {
   };
 };
 
-export async function login(email: string, password: string, action = false) {
+export async function login(email: string, password: string, action = false, forceLogToken?: string) {
   const payload = await apiFetch<{ message: string; user: RawLoginUser }>(LOGIN_PATH, {
     method: "POST",
-    body: JSON.stringify({ email, password, action: action ? 1 : 0 }),
+    body: JSON.stringify({ email, password, action: action ? 1 : 0, forceLogToken }),
   });
 
   return {

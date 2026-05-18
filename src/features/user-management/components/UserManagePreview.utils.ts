@@ -51,6 +51,10 @@ export const formatLooseDateLabel = (value?: string) => {
   const cleaned = (value || "").trim();
   if (!cleaned) return "-";
 
+  // Prefer full timestamp rendering in IST when an ISO/date-like value is provided.
+  const istDateTime = formatToIst(cleaned);
+  if (istDateTime && istDateTime !== cleaned) return istDateTime;
+
   const slashMatch = cleaned.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (slashMatch) {
     const [, day, month, year] = slashMatch;
@@ -202,7 +206,7 @@ export const getUserStatusClass = (status?: string) =>
 
 export const buildPreviewUserData = (member: AppUser) => {
   const rawJoiningDate = member.basicDetails?.companyOnboardingDate || "";
-  const formattedJoiningDate = formatDateLabel(rawJoiningDate);
+  const formattedJoiningDate = formatLooseDateLabel(rawJoiningDate);
   const rawCreatedAt = member.basicDetails?.createdAt || "";
   const formattedCreatedAt = formatLooseDateLabel(rawCreatedAt);
   const rawReportingManagerName = member.basicDetails?.reportingManagerName || "";

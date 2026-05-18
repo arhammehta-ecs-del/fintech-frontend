@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Building2 } from "lucide-react";
 import { login } from "@/services/auth.service";
+import { ApiRequestError } from "@/services/client";
 
 export default function Login() {
   const [email, setEmail] = useState("admin@globaltech.com");
@@ -22,6 +23,7 @@ export default function Login() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForceLoginDialog, setShowForceLoginDialog] = useState(false);
+  const [forceLogToken, setForceLogToken] = useState("");
   const { setIsAuthenticated, setCurrentUser } = useAppContext();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -65,10 +67,11 @@ export default function Login() {
   const submitLogin = async (action = false) => {
     try {
       setIsSubmitting(true);
-      const response = await login(email, password, action);
+      const response = await login(email, password, action, action ? forceLogToken : undefined);
       setIsAuthenticated(true);
       setCurrentUser(response.user);
       setShowForceLoginDialog(false);
+      setForceLogToken("");
       toast({ title: "Welcome back!", description: "You have been logged in." });
       navigate("/");
     } catch (error) {
@@ -76,6 +79,10 @@ export default function Login() {
       const statusCode = statusMatch ? Number(statusMatch[1]) : null;
 
       if (statusCode === 409 && !action) {
+        if (error instanceof ApiRequestError) {
+          const token = typeof error.payload?.forceLogToken === "string" ? error.payload.forceLogToken.trim() : "";
+          setForceLogToken(token);
+        }
         setShowForceLoginDialog(true);
         return;
       }

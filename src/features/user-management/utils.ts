@@ -36,13 +36,6 @@ const SYSTEM_ACCESS_SCOPE_ITEMS = new Set([
 ]);
 
 const normalizeScopeKey = (value: string) => value.trim().toUpperCase();
-const isRootNode = (nodePath: string, nodeType?: string) => {
-  if ((nodeType || "").trim().toUpperCase() === "ROOT") return true;
-  const trimmed = nodePath.trim();
-  if (!trimmed) return true;
-  return !trimmed.includes(".");
-};
-
 export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): UserOnboardingPayload => {
   const selectedNodeEntries =
     formData.nodeSelections.length > 0
@@ -88,7 +81,7 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
                   roleSubCategory: subCategory,
                   roleName: `${roleNameBase} ${action[0].toUpperCase()}${action.slice(1)}`,
                   nodeName: nodeEntry.nodeName,
-                  nodePath: isRootNode(nodeEntry.nodePath, nodeEntry.nodeType) ? undefined : nodeEntry.nodePath,
+                  nodePath: nodeEntry.nodePath.trim(),
                   accessCategory:
                     category.trim().toUpperCase() === "SYSTEM_ACCESS" && SYSTEM_ACCESS_SCOPE_ITEMS.has(normalizeScopeKey(subCategory))
                       ? scope
@@ -152,7 +145,7 @@ export const buildSignatoryOnboardingPayload = (
       roleCategory: "ALL",
       roleSubCategory: "ALL",
       nodeName: companyNode.nodeName.trim(),
-      nodePath: isRootNode(companyNode.nodePath, companyNode.nodeType) ? undefined : companyNode.nodePath.trim(),
+      nodePath: companyNode.nodePath.trim(),
     },
   ],
   levelsHash: null,

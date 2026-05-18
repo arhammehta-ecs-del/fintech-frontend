@@ -21,7 +21,13 @@ const getStatusIcon = (status: number | null) => {
 };
 
 const isCookiesPresent = (headers: Record<string, string>) => {
-  const value = headers.cookies_present ?? headers["cookies_present"] ?? "";
+  const value = headers.cookiePresent
+    ?? headers.cookie_present
+    ?? headers.cookies_present
+    ?? headers["cookiePresent"]
+    ?? headers["cookie_present"]
+    ?? headers["cookies_present"]
+    ?? "";
   return value.toLowerCase() === "true";
 };
 
@@ -83,7 +89,8 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
   }, [log]);
 
   const activeStep = steps[activeIndex] ?? null;
-  const authOk = activeStep ? isCookiesPresent(activeStep.reqHeaders) : false;
+  const parentStep = steps[0] ?? null;
+  const authOk = parentStep ? isCookiesPresent(parentStep.reqHeaders) : false;
 
   if (!log || !activeStep) return null;
 
@@ -172,7 +179,7 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
                   "relative -ml-4 h-[54px] min-w-[180px] shrink-0 px-6 text-white transition first:ml-0 focus:outline-none",
                   activeIndex === index ? "z-20 saturate-110 brightness-[1.02]" : "z-10 hover:brightness-95",
                 )}
-                title={`${step.spanType || "UNKNOWN"} | ${step.id}`}
+                title={`${step.spanType || "UNKNOWN"} | ${step.path || "-"}`}
               >
                 <span
                   className="absolute inset-0"
@@ -192,7 +199,7 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
                 <span className="relative z-10 flex h-full items-center justify-center px-2 text-[12px] font-bold tracking-[0.02em]">
                   <span className="flex max-w-[170px] flex-col items-center leading-tight">
                     <span className="text-[9px] uppercase opacity-90">{step.spanType || "UNKNOWN"}</span>
-                    <span className="max-w-[165px] truncate font-mono text-[11px]">{step.id}</span>
+                    <span className="max-w-[165px] truncate font-mono text-[11px]">{step.path || "-"}</span>
                   </span>
                 </span>
               </button>

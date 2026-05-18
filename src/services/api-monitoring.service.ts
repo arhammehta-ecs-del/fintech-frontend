@@ -5,50 +5,77 @@ const API_MONITORING_FETCH_ALL_PATH = "/api/v1/admin/monitoring/fetch-all";
 const API_MONITORING_DETAILS_PATH = "/api/v1/admin/monitoring/details";
 
 type FetchAllItem = {
-  id: string;
-  trackingId: string;
-  companyName: string;
-  companyCode: string;
-  userName: string;
-  userEmail: string;
-  timestamp: string;
-  method: string;
-  endpoint: string;
+  id?: string;
+  trackingId?: string;
+  companyName?: string | null;
+  companyCode?: string | null;
+  userName?: string | null;
+  userEmail?: string | null;
+  timestamp?: string;
+  createdAt?: string;
+  method?: string;
+  apiUrl?: string;
+  endpoint?: string;
+  url?: string;
   status?: number | null;
   statusCode?: number | null;
-  latency: number | null;
+  latency?: number | null;
+  ip?: string | null;
+  ipAddress?: string | null;
   clientIp?: string | null;
-  spanCount: number;
+  spanCount?: number;
+  subCount?: string;
   totalSpanCount?: number;
-};
-
-type DetailsResponse = {
-  data?: unknown;
 };
 
 type DetailMainRequest = {
   trackingId?: string;
+  subCount?: string;
+  type?: string;
   method?: string;
+  apiUrl?: string;
   url?: string;
   statusCode?: number | null;
   status?: number | null;
+  ip?: string | null;
   clientIp?: string | null;
   startedAt?: string;
+  createdAt?: string;
+  req?: {
+    header?: Record<string, unknown>;
+    body?: unknown;
+  };
+  res?: {
+    header?: Record<string, unknown>;
+    body?: unknown;
+  };
 };
 
 type DetailChildSpan = {
   id?: string;
   parentSpanId?: string | null;
+  subCount?: string;
   type?: string;
   method?: string;
+  apiUrl?: string;
   url?: string;
   statusCode?: number | null;
   status?: number | null;
+  ip?: string | null;
   clientIp?: string | null;
   reqBody?: unknown;
   resBody?: unknown;
+  req?: {
+    header?: Record<string, unknown>;
+    body?: unknown;
+  };
+  res?: {
+    header?: Record<string, unknown>;
+    body?: unknown;
+  };
   headers?: Record<string, unknown>;
   startedAt?: string;
+  createdAt?: string;
 };
 
 const asObject = (value: unknown): Record<string, unknown> => (
@@ -60,6 +87,18 @@ const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : [
 const toHeaderValue = (value: unknown): string => {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+};
+
+const resolveSpanTypeFromSubCount = (subCount: unknown): string => {
+  const normalized = asString(subCount).toLowerCase();
+  if (!normalized) return "";
+
+  const prefix = normalized[0];
+  const numericPart = normalized.slice(1).replace(/[^\d]/g, "");
+
+  if (prefix === "m") return "MIDDLELAYER";
+  if (prefix === "b") return numericPart ? `BACKEND-${numericPart}` : "BACKEND";
   return "";
 };
 
@@ -92,10 +131,15 @@ const parseTimestamp = (timestamp: string) => {
 };
 
 const mapListItem = (item: FetchAllItem): ApiMonitoringLog => {
-  const { timeStr, dateStr, timeString } = parseTimestamp(asString(item.timestamp));
+  const timestampValue = asString(item.createdAt) || asString(item.timestamp);
+  const { timeStr, dateStr, timeString } = parseTimestamp(timestampValue);
   const statusValue = typeof item.statusCode === "number"
     ? item.statusCode
     : (typeof item.status === "number" ? item.status : null);
+  const parsedSubCount = Number.parseInt(asString(item.subCount).replace(/[^\d]/g, ""), 10);
+  const spanCountValue = typeof item.spanCount === "number"
+    ? item.spanCount
+    : (typeof item.totalSpanCount === "number" ? item.totalSpanCount : (Number.isFinite(parsedSubCount) ? parsedSubCount : 0));
 
   return {
     id: asString(item.id) || asString(item.trackingId),
@@ -110,15 +154,15 @@ const mapListItem = (item: FetchAllItem): ApiMonitoringLog => {
     },
     timeStr,
     dateStr,
-    spanCount: typeof item.spanCount === "number" ? item.spanCount : 0,
+    spanCount: spanCountValue,
     totalSpanCount: typeof item.totalSpanCount === "number"
       ? item.totalSpanCount
-      : (typeof item.spanCount === "number" ? item.spanCount : 0),
+      : spanCountValue,
     subApis: [],
     method: asString(item.method) || "-",
-    path: asString(item.endpoint) || "-",
+    path: asString(item.apiUrl) || asString(item.url) || asString(item.endpoint) || "-",
     status: statusValue,
-    clientIp: asString(item.clientIp) || undefined,
+    clientIp: asString(item.ip) || asString(item.clientIp) || asString(item.ipAddress) || undefined,
     timeString,
     accessToken: "",
     refreshToken: "",
@@ -141,24 +185,27 @@ const mapHeaders = (value: unknown): Record<string, string> => {
 
 const mapDetailStep = (value: unknown, fallbackTrackId: string, index: number): ApiMonitoringStep => {
   const row = asObject(value);
-  const headers = mapHeaders(row.headers);
+  const reqObj = asObject(row.req);
+  const resObj = asObject(row.res);
+  const headers = mapHeaders(row.headers ?? reqObj.header);
+  const resHeaders = mapHeaders(row.resHeaders ?? resObj.header);
   const parentSpanId = asString(row.parentSpanId) || asString(headers["parent-span-id"]);
-  const type = asString(row.type).toUpperCase();
-  const id = asString(row.id) || parentSpanId || (type ? `${type}-${index + 1}` : `SPAN-${index + 1}`);
+  const type = resolveSpanTypeFromSubCount(row.subCount) || asString(row.type).toUpperCase();
+  const id = asString(row.id) || asString(row.subCount) || parentSpanId || (type ? `${type}-${index + 1}` : `SPAN-${index + 1}`);
   const trackId = asString(row.trackingId) || asString(row.trackId) || fallbackTrackId;
-  const timestamp = asString(row.startedAt) || asString(row.timestamp);
+  const timestamp = asString(row.createdAt) || asString(row.startedAt) || asString(row.timestamp);
   const { timeString } = parseTimestamp(timestamp);
 
   const statusRaw = row.statusCode ?? row.status;
   const status = typeof statusRaw === "number" ? statusRaw : null;
-  const clientIp = asString(row.clientIp) || asString(headers["client-ip"]) || asString(headers["x-client-ip"]);
+  const clientIp = asString(row.ip) || asString(row.clientIp) || asString(headers["client-ip"]) || asString(headers["x-client-ip"]);
 
   return {
     id,
     trackId,
     spanType: type || "SPAN",
     method: asString(row.method) || "-",
-    path: asString(row.url) || asString(row.endpoint) || asString(row.path) || "-",
+    path: asString(row.apiUrl) || asString(row.url) || asString(row.endpoint) || asString(row.path) || "-",
     status,
     clientIp: clientIp || undefined,
     timeString,
@@ -166,36 +213,43 @@ const mapDetailStep = (value: unknown, fallbackTrackId: string, index: number): 
     refreshToken: asString(row.refreshToken),
     cookies: asString(row.cookies),
     reqHeaders: headers,
-    reqBody: row.reqBody && typeof row.reqBody === "object" ? (row.reqBody as Record<string, unknown>) : null,
-    resHeaders: asObject(row.resHeaders) as Record<string, string>,
-    resBody: asObject(row.resBody),
+    reqBody: (row.reqBody ?? reqObj.body) && typeof (row.reqBody ?? reqObj.body) === "object"
+      ? ((row.reqBody ?? reqObj.body) as Record<string, unknown>)
+      : null,
+    resHeaders,
+    resBody: asObject(row.resBody ?? resObj.body),
   };
 };
 
 const mapMainRequest = (value: unknown, fallbackId: string): ApiMonitoringStep => {
   const row = asObject(value);
   const trackId = asString(row.trackingId) || fallbackId;
-  const timestamp = asString(row.startedAt) || asString(row.timestamp);
+  const timestamp = asString(row.createdAt) || asString(row.startedAt) || asString(row.timestamp);
   const { timeString } = parseTimestamp(timestamp);
   const statusRaw = row.statusCode ?? row.status;
-  const clientIp = asString(row.clientIp);
+  const reqObj = asObject(row.req);
+  const resObj = asObject(row.res);
+  const clientIp = asString(row.ip) || asString(row.clientIp);
+  const type = resolveSpanTypeFromSubCount(row.subCount) || asString(row.type).toUpperCase();
 
   return {
     id: trackId,
     trackId,
-    spanType: "MAIN",
+    spanType: type || "MAIN",
     method: asString(row.method) || "-",
-    path: asString(row.url) || asString(row.endpoint) || "-",
+    path: asString(row.apiUrl) || asString(row.url) || asString(row.endpoint) || "-",
     status: typeof statusRaw === "number" ? statusRaw : null,
     clientIp: clientIp || undefined,
     timeString,
     accessToken: "",
     refreshToken: "",
     cookies: "",
-    reqHeaders: {},
-    reqBody: null,
-    resHeaders: {},
-    resBody: {},
+    reqHeaders: mapHeaders(row.reqHeaders ?? row.requestHeaders ?? reqObj.header),
+    reqBody: (row.reqBody ?? row.requestBody ?? reqObj.body) && typeof (row.reqBody ?? row.requestBody ?? reqObj.body) === "object"
+      ? ((row.reqBody ?? row.requestBody ?? reqObj.body) as Record<string, unknown>)
+      : null,
+    resHeaders: mapHeaders(row.resHeaders ?? row.responseHeaders ?? resObj.header),
+    resBody: asObject(row.resBody ?? row.responseBody ?? resObj.body),
   };
 };
 
@@ -214,21 +268,19 @@ export async function fetchApiMonitoringList(): Promise<ApiMonitoringLog[]> {
   return wrappedRows.map((item) => mapListItem(item as FetchAllItem));
 }
 
-export async function fetchApiMonitoringDetails(id: string): Promise<ApiMonitoringDetailsData> {
-  const response = await apiFetch<DetailsResponse>(API_MONITORING_DETAILS_PATH, {
+export async function fetchApiMonitoringDetails(trackId: string): Promise<ApiMonitoringDetailsData> {
+  const response = await apiFetch<unknown>(API_MONITORING_DETAILS_PATH, {
     method: "POST",
-    body: JSON.stringify({ id }),
+    body: JSON.stringify({ trackingId: trackId }),
   });
 
   const root = asObject(response);
-  const data = asObject(response.data);
+  const data = asObject(root.data);
   const details = Object.keys(data).length > 0 ? data : root;
-
-  const mainRequest = asObject(details.mainRequest) as DetailMainRequest;
-  const trackingId = asString(mainRequest.trackingId) || id;
-
-  const childSpans = asArray(details.childSpans) as DetailChildSpan[];
-  const mainRequestStep = mapMainRequest(details.mainRequest, id);
+  const mainRequest = asObject(details.mainRequest ?? details.parent) as DetailMainRequest;
+  const trackingId = asString(mainRequest.trackingId) || trackId;
+  const childSpans = asArray(details.childSpans ?? details.child) as DetailChildSpan[];
+  const mainRequestStep = mapMainRequest(details.mainRequest ?? details.parent, trackId);
 
   if (childSpans.length > 0) {
     return {
@@ -237,7 +289,7 @@ export async function fetchApiMonitoringDetails(id: string): Promise<ApiMonitori
     };
   }
 
-  const fallbackRows = asArray(details.steps ?? details.subApis ?? details.details ?? response.data);
+  const fallbackRows = asArray(details.steps ?? details.subApis ?? details.details ?? root.data);
   return {
     mainRequest: { ...mainRequestStep, trackId: trackingId, id: trackingId },
     childSpans: fallbackRows.map((row, index) => mapDetailStep(row, trackingId, index)),
