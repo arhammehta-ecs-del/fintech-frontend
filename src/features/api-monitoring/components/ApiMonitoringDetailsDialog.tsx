@@ -50,6 +50,24 @@ const companyBadgeClass = (code: string) => {
   return palette[Math.abs(hash) % palette.length];
 };
 
+function StepPathText({ path }: { path: string }) {
+  const text = path || "-";
+  const needsMarquee = text.length > 24;
+
+  if (!needsMarquee) {
+    return <span className="max-w-[165px] truncate font-mono text-[11px]">{text}</span>;
+  }
+
+  return (
+    <span className="api-marquee-wrap max-w-[165px] font-mono text-[11px]">
+      <span className="api-marquee-track">
+        <span>{text}</span>
+        <span className="px-6">{text}</span>
+      </span>
+    </span>
+  );
+}
+
 function PayloadCard({ title, headers, body, bodyTone = "text-emerald-300" }: {
   title: string;
   headers: Record<string, string>;
@@ -179,7 +197,6 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
                   "relative -ml-4 h-[54px] min-w-[180px] shrink-0 px-6 text-white transition first:ml-0 focus:outline-none",
                   activeIndex === index ? "z-20 saturate-110 brightness-[1.02]" : "z-10 hover:brightness-95",
                 )}
-                title={`${step.spanType || "UNKNOWN"} | ${step.path || "-"}`}
               >
                 <span
                   className="absolute inset-0"
@@ -198,8 +215,10 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
                 ) : null}
                 <span className="relative z-10 flex h-full items-center justify-center px-2 text-[12px] font-bold tracking-[0.02em]">
                   <span className="flex max-w-[170px] flex-col items-center leading-tight">
-                    <span className="text-[9px] uppercase opacity-90">{step.spanType || "UNKNOWN"}</span>
-                    <span className="max-w-[165px] truncate font-mono text-[11px]">{step.path || "-"}</span>
+                    <span className="text-[9px] uppercase opacity-90">
+                      {(step.spanType || "UNKNOWN")}({step.method || "UNKNOWN"})
+                    </span>
+                    <StepPathText path={step.path || "-"} />
                   </span>
                 </span>
               </button>

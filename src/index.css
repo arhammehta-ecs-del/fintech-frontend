@@ -121,3 +121,29 @@
     transform: translateY(0);
   }
 }
+
+@keyframes api-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.api-marquee-wrap {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.api-marquee-track {
+  display: inline-flex;
+  min-width: max-content;
+  animation: none;
+  will-change: transform;
+}
+
+.api-marquee-wrap:hover .api-marquee-track {
+  animation: api-marquee 9s linear infinite;
+}
