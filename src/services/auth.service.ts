@@ -28,6 +28,22 @@ type RawLoginUser = {
 const LOGIN_PATH = "/api/v1/auth/login";
 const LOGOUT_PATH = "/api/v1/auth/logout";
 const ME_PATH = "/api/v1/auth/me";
+const ACCESS_RIGHTS_PATH = "/api/v1/auth/access-rights";
+
+export type AccessRight = {
+  roleCategory: string;
+  roleSubCategory: string;
+  roleName: string;
+  nodeName: string;
+  nodePath: string;
+  nodeType: string;
+  accessCategory: string;
+};
+
+export type AccessRightsResponse = {
+  primary: AccessRight[];
+  secondary: AccessRight[];
+};
 
 const getPacketString = (value: string | null | undefined) => (typeof value === "string" ? value.trim() : "");
 const toUpperValue = (value: string) => value.toUpperCase();
@@ -111,5 +127,39 @@ export async function getCurrentUser() {
   return {
     message: payload.message ?? "Current user fetched",
     user: mapUser(payload.user),
+  };
+}
+
+const mapAccessRights = (value: unknown): AccessRight[] => {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    const row = (item && typeof item === "object") ? (item as Record<string, unknown>) : {};
+    return {
+      roleCategory: getPacketString(String(row.roleCategory ?? "")),
+      roleSubCategory: getPacketString(String(row.roleSubCategory ?? "")),
+      roleName: getPacketString(String(row.roleName ?? "")),
+      nodeName: getPacketString(String(row.nodeName ?? "")),
+      nodePath: getPacketString(String(row.nodePath ?? "")),
+      nodeType: getPacketString(String(row.nodeType ?? "")),
+      accessCategory: getPacketString(String(row.accessCategory ?? "")),
+    };
+  });
+};
+
+export async function getAccessRights(email: string, companyCode: string): Promise<AccessRightsResponse> {
+  const payload = await apiFetch<unknown>(ACCESS_RIGHTS_PATH, {
+    method: "POST",
+    body: JSON.stringify({
+      email,
+      companyCode,
+    }),
+  });
+
+  const root = (payload && typeof payload === "object") ? (payload as Record<string, unknown>) : {};
+  const data = (root.data && typeof root.data === "object") ? (root.data as Record<string, unknown>) : root;
+
+  return {
+    primary: mapAccessRights(data.primary),
+    secondary: mapAccessRights(data.secondary),
   };
 }
