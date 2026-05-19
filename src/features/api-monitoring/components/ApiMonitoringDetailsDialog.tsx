@@ -20,15 +20,24 @@ const getStatusIcon = (status: number | null) => {
   return <XCircle className="h-5 w-5 text-red-600" />;
 };
 
-const isCookiesPresent = (headers: Record<string, string>) => {
-  const value = headers.cookiePresent
-    ?? headers.cookie_present
-    ?? headers.cookies_present
-    ?? headers["cookiePresent"]
-    ?? headers["cookie_present"]
-    ?? headers["cookies_present"]
-    ?? "";
-  return value.toLowerCase() === "true";
+const parseBooleanHeader = (value: string | undefined) => {
+  if (!value) return false;
+  return value.toString().trim().toLowerCase() === "true";
+};
+
+const readAuthCookieFlag = (headers: Record<string, string>, keys: string[]) => {
+  for (const key of keys) {
+    const direct = headers[key];
+    if (direct !== undefined) {
+      return parseBooleanHeader(direct);
+    }
+    const lowerKey = key.toLowerCase();
+    const matchedKey = Object.keys(headers).find((headerKey) => headerKey.toLowerCase() === lowerKey);
+    if (matchedKey) {
+      return parseBooleanHeader(headers[matchedKey]);
+    }
+  }
+  return false;
 };
 
 const companyBadgeStyle = (code: string) => {
@@ -100,7 +109,30 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
 
   const activeStep = steps[activeIndex] ?? null;
   const parentStep = steps[0] ?? null;
-  const authOk = parentStep ? isCookiesPresent(parentStep.reqHeaders) : false;
+  const authBadges = useMemo(() => {
+    if (!parentStep) {
+      return [
+        { label: "Access token", enabled: false },
+        { label: "Refresh Token", enabled: false },
+        { label: "Version", enabled: false },
+      ];
+    }
+
+    return [
+      {
+        label: "Access token",
+        enabled: readAuthCookieFlag(parentStep.reqHeaders, ["cookieAccessToken", "cookie_access_token"]),
+      },
+      {
+        label: "Refresh Token",
+        enabled: readAuthCookieFlag(parentStep.reqHeaders, ["cookieRefreshToken", "cookie_refresh_token"]),
+      },
+      {
+        label: "Version",
+        enabled: readAuthCookieFlag(parentStep.reqHeaders, ["cookiesHashVersion", "cookies_hash_version"]),
+      },
+    ];
+  }, [parentStep]);
 
   if (!log || !activeStep) return null;
 
@@ -179,9 +211,15 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
               <div>
                 <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Auth</p>
                 <div className="flex flex-col items-start gap-2 pt-1">
-                  <Badge variant="outline" className={cn("text-[10px]", authOk ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>Access Token</Badge>
-                  <Badge variant="outline" className={cn("text-[10px]", authOk ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>Refresh Token</Badge>
-                  <Badge variant="outline" className={cn("text-[10px]", authOk ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>Cookies</Badge>
+                  {authBadges.map((item) => (
+                    <Badge
+                      key={item.label}
+                      variant="outline"
+                      className={cn("text-[10px]", item.enabled ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}
+                    >
+                      {item.label}
+                    </Badge>
+                  ))}
                 </div>
               </div>
             </div>

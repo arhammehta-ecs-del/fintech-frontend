@@ -445,7 +445,7 @@ export default function WorkflowManagementView() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm md:flex md:h-[calc(100dvh-21rem)] md:min-h-[420px] md:flex-col">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
           <h3 className="text-xl font-semibold text-slate-800">
             {activeStatus} Workflows ({filteredWorkflows.length})
@@ -459,8 +459,8 @@ export default function WorkflowManagementView() {
         {filteredWorkflows.length === 0 ? (
           <div className="p-8 text-sm text-slate-500">No {activeStatus.toLowerCase()} workflows available.</div>
         ) : (
-          <div>
-            <div className="grid grid-cols-1 gap-2 border-b border-slate-200 bg-slate-50/60 px-4 py-3 md:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.75fr)_minmax(110px,0.55fr)_minmax(96px,0.45fr)] md:items-center md:gap-x-4">
+          <div className="min-h-0 flex-1 overflow-auto">
+            <div className="sticky top-0 z-20 grid grid-cols-1 gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur md:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.75fr)_minmax(110px,0.55fr)_minmax(96px,0.45fr)] md:items-center md:gap-x-4">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Workflow</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Alias</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Module</div>
@@ -526,7 +526,7 @@ export default function WorkflowManagementView() {
           </div>
         )}
         {filteredWorkflows.length > 0 ? (
-          <div className="flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="shrink-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Rows/page</span>
               <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value) as WorkflowPageSize)}>

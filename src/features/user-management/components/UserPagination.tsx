@@ -9,6 +9,7 @@ type UserPaginationProps = {
   totalPages: number;
   onPrevPage: () => void;
   onNextPage: () => void;
+  className?: string;
 };
 
 export default function UserPagination({
@@ -19,6 +20,7 @@ export default function UserPagination({
   totalPages,
   onPrevPage,
   onNextPage,
+  className,
 }: UserPaginationProps) {
   return (
     <PaginationFooter
@@ -30,6 +32,7 @@ export default function UserPagination({
       totalPages={totalPages}
       onPrevPage={onPrevPage}
       onNextPage={onNextPage}
+      className={className}
     />
   );
 }

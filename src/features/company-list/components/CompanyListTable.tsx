@@ -1,4 +1,3 @@
-import { Card } from "@/components/ui/card";
 import SortableGroupBody from "@/features/company-list/components/SortableGroupBody";
 import StandaloneCompanyRow from "@/features/company-list/components/StandaloneCompanyRow";
 import type { CompanyListTableProps } from "@/features/company-list/types";
@@ -17,39 +16,39 @@ export default function CompanyListTable({
   onDrop,
 }: CompanyListTableProps) {
   return (
-    <Card className="hidden overflow-hidden border-slate-200/80 shadow-[0_10px_30px_rgba(15,23,42,0.08)] md:block">
-      <div className="overflow-x-auto">
+    <div className="hidden h-full md:block">
+      <div className="h-full overflow-auto">
         <table className="min-w-[760px] w-full">
-          <thead>
-            <tr className="border-b border-border bg-muted/50">
-              <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider w-16"></th>
+          <thead className="relative z-30">
+            <tr className="border-b border-border bg-slate-100">
+              <th className="sticky top-0 z-30 w-16 bg-slate-100 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"></th>
               {visibleColumns.has("groupName") && (
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="sticky top-0 z-30 bg-slate-100 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Group Name
                 </th>
               )}
               {visibleColumns.has("companyName") && (
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="sticky top-0 z-30 bg-slate-100 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Company Name
                 </th>
               )}
               {visibleColumns.has("code") && (
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="sticky top-0 z-30 bg-slate-100 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Legal Name
                 </th>
               )}
               {visibleColumns.has("createdDate") && (
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="sticky top-0 z-30 bg-slate-100 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Incorporation Date
                 </th>
               )}
               {showStatusColumn && visibleColumns.has("status") && (
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="sticky top-0 z-30 bg-slate-100 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Status
                 </th>
               )}
               {visibleColumns.has("manage") && (
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="sticky top-0 z-30 bg-slate-100 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Manage
                 </th>
               )}
@@ -91,6 +90,6 @@ export default function CompanyListTable({
           )}
         </table>
       </div>
-    </Card>
+    </div>
   );
 }

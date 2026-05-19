@@ -109,20 +109,35 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
       ) : displayRows.length === 0 ? (
         <CompanyListEmptyState selectedStatusTab={selectedStatusTab} onOpenOnboarding={() => setIsOnboardingOpen(true)} />
       ) : (
-        <CompanyListTable
-          displayRows={paginatedDisplayRows}
-          expanded={expanded}
-          visibleColumns={visibleColumns}
-          showStatusColumn={showStatusColumn}
-          dragState={dragState}
-          onToggleGroup={toggleGroup}
-          onOpenCompany={openModal}
-          onToggleActive={handleToggleCompanyActive}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-        />
+        <Card className="hidden min-h-[520px] overflow-hidden border-slate-200/80 shadow-[0_10px_30px_rgba(15,23,42,0.08)] md:flex md:h-[calc(100vh-17.5rem)] md:flex-col">
+          <div className="min-h-0 flex-1">
+            <CompanyListTable
+              displayRows={paginatedDisplayRows}
+              expanded={expanded}
+              visibleColumns={visibleColumns}
+              showStatusColumn={showStatusColumn}
+              dragState={dragState}
+              onToggleGroup={toggleGroup}
+              onOpenCompany={openModal}
+              onToggleActive={handleToggleCompanyActive}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            />
+          </div>
+          <PaginationFooter
+            currentCount={displayRows.length}
+            pageSize={pageSize}
+            pageSizeOptions={pageSizeOptions}
+            onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}
+            safePage={safePage}
+            totalPages={totalPages}
+            onPrevPage={() => setPage((previous) => Math.max(1, previous - 1))}
+            onNextPage={() => setPage((previous) => Math.min(totalPages, previous + 1))}
+            className="shrink-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          />
+        </Card>
       )}
       {!isLoading && !error && displayRows.length > 0 ? (
         <PaginationFooter
@@ -134,7 +149,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
           totalPages={totalPages}
           onPrevPage={() => setPage((previous) => Math.max(1, previous - 1))}
           onNextPage={() => setPage((previous) => Math.min(totalPages, previous + 1))}
-          className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between md:hidden"
         />
       ) : null}
 

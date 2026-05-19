@@ -59,6 +59,41 @@ type CompanyUsersResponse = {
   data?: CompanyUsersPayload;
 };
 
+type UserPageInfo = {
+  nextCursor: string | null;
+  topCursor: string | null;
+  hasNext: boolean;
+  hasNewData: boolean;
+  newCount: number;
+};
+
+type UserPaginatedResponse = {
+  data?: RawUserRecord[];
+  activeCount?: number;
+  inactiveCount?: number;
+  pendingCount?: number;
+  pageInfo?: Partial<UserPageInfo>;
+};
+
+export type UserListStatusTab = "active" | "pending";
+
+export type UserPaginatedRequest = {
+  companyCode: string;
+  limit: number;
+  cursor: string | null;
+  topCursor: string | null;
+};
+
+export type UserPaginatedResult = {
+  users: AppUser[];
+  counts: {
+    active: number;
+    pending: number;
+    inactive: number;
+  };
+  pageInfo: UserPageInfo;
+};
+
 type CompanyNodeWorkflow = {
   levelsHash: string;
   name: string;
@@ -102,6 +137,8 @@ export type GlobalSignatoryOnboardingPayload = {
 };
 
 const COMPANY_USERS_PATH = "/api/v1/company-settings/user/fetch-all-users";
+const COMPANY_ACTIVE_USERS_PATH = "/api/v1/company-settings/user/fetch-all-active-user";
+const COMPANY_PENDING_USERS_PATH = "/api/v1/company-settings/user/fetch-all-pending-user";
 const COMPANY_NODES_PATH = "/api/v1/company-settings/user/fetch-company-nodes";
 const NEW_USER_ONBOARD_PATH = "/api/v1/company-settings/user/initiate";
 const NEW_GLOBAL_SIGNATORY_ONBOARD_PATH = "/api/v1/company-settings/user/initiate-global-signatory";
@@ -230,6 +267,14 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   };
 };
 
+const mapUserPageInfo = (pageInfo?: Partial<UserPageInfo>): UserPageInfo => ({
+  nextCursor: readString(pageInfo?.nextCursor).trim() || null,
+  topCursor: readString(pageInfo?.topCursor).trim() || null,
+  hasNext: Boolean(pageInfo?.hasNext),
+  hasNewData: Boolean(pageInfo?.hasNewData),
+  newCount: Number(pageInfo?.newCount ?? 0) || 0,
+});
+
 export async function createUserOnboarding(payload: UserOnboardingPayload) {
   return apiFetch<UserOnboardingResponse>(NEW_USER_ONBOARD_PATH, {
     method: "POST",
@@ -332,4 +377,33 @@ export async function getCompanyUsers(_companyCode: string): Promise<AppUser[]> 
   const mappedInactiveUsers = inactiveUsers.map((record) => mapCompanyUser(record, "Inactive"));
 
   return [...mappedActiveUsers, ...mappedPendingUsers, ...mappedInactiveUsers];
+}
+
+export async function fetchCompanyUsersPaginated(
+  statusTab: UserListStatusTab,
+  payload: UserPaginatedRequest,
+): Promise<UserPaginatedResult> {
+  const path = statusTab === "pending" ? COMPANY_PENDING_USERS_PATH : COMPANY_ACTIVE_USERS_PATH;
+  const response = await apiFetch<UserPaginatedResponse>(path, {
+    method: "POST",
+    body: JSON.stringify({
+      companyCode: payload.companyCode.trim().toUpperCase(),
+      limit: payload.limit,
+      cursor: payload.cursor ?? null,
+      topCursor: payload.topCursor ?? null,
+    }),
+  });
+
+  const records = Array.isArray(response.data) ? response.data : [];
+  const mappedUsers = records.map((record) => mapCompanyUser(record, statusTab === "pending" ? "Pending" : "Active"));
+
+  return {
+    users: mappedUsers,
+    counts: {
+      active: Number(response.activeCount ?? 0) || 0,
+      inactive: Number(response.inactiveCount ?? 0) || 0,
+      pending: Number(response.pendingCount ?? 0) || 0,
+    },
+    pageInfo: mapUserPageInfo(response.pageInfo),
+  };
 }

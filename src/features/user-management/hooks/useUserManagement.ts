@@ -4,7 +4,7 @@ import type { AppUser } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
-import { getCompanyUsers } from "@/services/user.service";
+import { fetchCompanyUsersPaginated } from "@/services/user.service";
 import { USER_DEFAULT_PAGE_SIZE, USER_FILTER_CONFIG, USER_PAGE_SIZE_OPTIONS, USER_SEARCH_DEBOUNCE_MS } from "@/features/user-management/constants";
 import type { MemberStatusTab, SortOrder } from "@/features/user-management/types";
 import { filterMembersList } from "@/features/user-management/hooks/useUserManagement.filtering";
@@ -64,6 +64,16 @@ export function useUserManagement() {
   const [isLoading, setIsLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<(typeof USER_PAGE_SIZE_OPTIONS)[number]>(USER_DEFAULT_PAGE_SIZE);
+  const [statusCounts, setStatusCounts] = useState<Record<MemberStatusTab, number>>({
+    active: 0,
+    pending: 0,
+    inactive: 0,
+  });
+  const [topCursor, setTopCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasNext, setHasNext] = useState(false);
+  const [loadedPages, setLoadedPages] = useState<Record<number, AppUser[]>>({});
+  const [pageCursors, setPageCursors] = useState<Record<number, string | null>>({ 1: null });
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [viewingMember, setViewingMember] = useState<AppUser | null>(null);
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
@@ -77,8 +87,21 @@ export function useUserManagement() {
 
       setIsLoading(true);
       try {
-        const nextUsers = await getCompanyUsers(companyCode);
-        setUsers(nextUsers);
+        const targetTab = statusTab === "pending" ? "pending" : "active";
+        const response = await fetchCompanyUsersPaginated(targetTab, {
+          companyCode,
+          limit: pageSize,
+          cursor: null,
+          topCursor: null,
+        });
+        setUsers(response.users);
+        setLoadedPages({ 1: response.users });
+        setPageCursors({ 1: null, 2: response.pageInfo.nextCursor });
+        setPage(1);
+        setTopCursor(response.pageInfo.topCursor);
+        setNextCursor(response.pageInfo.nextCursor);
+        setHasNext(response.pageInfo.hasNext);
+        setStatusCounts(response.counts);
         if (showRefreshToast) {
           toast({
             title: "Users refreshed",
@@ -96,12 +119,22 @@ export function useUserManagement() {
         setIsLoading(false);
       }
     },
-    [currentUser?.companyCode, setUsers, toast],
+    [currentUser?.companyCode, pageSize, setUsers, statusTab, toast],
   );
 
   useEffect(() => {
+    if (statusTab === "inactive") {
+      setUsers([]);
+      setLoadedPages({});
+      setPageCursors({ 1: null });
+      setPage(1);
+      setTopCursor(null);
+      setNextCursor(null);
+      setHasNext(false);
+      return;
+    }
     void loadUsers();
-  }, [loadUsers]);
+  }, [loadUsers, pageSize, setUsers, statusTab]);
 
   useEffect(() => {
     const trimmedSearch = search.trim();
@@ -134,7 +167,6 @@ export function useUserManagement() {
     onboardingDateFrom,
     onboardingDateTo,
     sortOrder,
-    pageSize,
     linkedNodeFilter,
     linkedNodePathFilter,
     linkedCategoryFilter,
@@ -295,21 +327,21 @@ export function useUserManagement() {
     const nextStatusTab = resolveStatusTabAfterFiltering({
       statusTab,
       hasAppliedRefinement,
-      activeCount: activeMembers.length,
-      pendingCount: pendingMembers.length,
-      inactiveCount: inactiveMembers.length,
+      activeCount: statusCounts.active,
+      pendingCount: statusCounts.pending,
+      inactiveCount: statusCounts.inactive,
     });
     if (nextStatusTab) setStatusTab(nextStatusTab);
   }, [
     accessCategoryFilters.length,
     accessScopeFilters.length,
     accessSubcategoryFilters.length,
-    activeMembers.length,
+    statusCounts.active,
     debouncedSearch,
     departmentFilters.length,
     designationFilters.length,
     hasAppliedRefinement,
-    inactiveMembers.length,
+    statusCounts.inactive,
     linkedActionFilter,
     linkedCategoryFilter,
     linkedNodeFilter,
@@ -317,7 +349,7 @@ export function useUserManagement() {
     linkedSubcategoryFilter,
     onboardingDateFrom,
     onboardingDateTo,
-    pendingMembers.length,
+    statusCounts.pending,
     primaryNodeFilters.length,
     reportingManagerFilters.length,
     roleTypeFilters.length,
@@ -327,9 +359,65 @@ export function useUserManagement() {
 
   const currentMembers =
     statusTab === "pending" ? pendingMembers : statusTab === "inactive" ? inactiveMembers : activeMembers;
-  const totalPages = Math.max(1, Math.ceil(currentMembers.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const paginatedMembers = currentMembers.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const totalPages = hasNext ? page + 1 : page;
+  const safePage = page;
+  const paginatedMembers = currentMembers;
+
+  const handlePrevPage = useCallback(() => {
+    if (page <= 1) return;
+    const previousPage = page - 1;
+    const previousRows = loadedPages[previousPage];
+    if (previousRows) {
+      setUsers(previousRows);
+      setPage(previousPage);
+      setHasNext(Boolean(pageCursors[page]));
+      setNextCursor(pageCursors[page] ?? null);
+    }
+  }, [loadedPages, page, pageCursors, setUsers]);
+
+  const handleNextPage = useCallback(async () => {
+    if (statusTab === "inactive") return;
+    if (!hasNext) return;
+    const companyCode = currentUser?.companyCode?.trim().toUpperCase();
+    if (!companyCode) return;
+    const upcomingPage = page + 1;
+    if (loadedPages[upcomingPage]) {
+      setUsers(loadedPages[upcomingPage]);
+      setPage(upcomingPage);
+      setHasNext(Boolean(pageCursors[upcomingPage + 1]));
+      setNextCursor(pageCursors[upcomingPage + 1] ?? null);
+      return;
+    }
+    const cursor = pageCursors[upcomingPage] ?? nextCursor;
+    if (!cursor) return;
+
+    setIsLoading(true);
+    try {
+      const targetTab = statusTab === "pending" ? "pending" : "active";
+      const response = await fetchCompanyUsersPaginated(targetTab, {
+        companyCode,
+        limit: pageSize,
+        cursor,
+        topCursor,
+      });
+      setUsers(response.users);
+      setLoadedPages((current) => ({ ...current, [upcomingPage]: response.users }));
+      setPageCursors((current) => ({ ...current, [upcomingPage + 1]: response.pageInfo.nextCursor }));
+      setPage(upcomingPage);
+      setTopCursor(response.pageInfo.topCursor || topCursor);
+      setNextCursor(response.pageInfo.nextCursor);
+      setHasNext(response.pageInfo.hasNext);
+      setStatusCounts(response.counts);
+    } catch (error) {
+      toast({
+        title: "Unable to load next page",
+        description: getApiErrorMessage(error, "Unable to fetch next users page."),
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentUser?.companyCode, hasNext, loadedPages, nextCursor, page, pageCursors, pageSize, setUsers, statusTab, topCursor, toast]);
 
   const {
     updateUsersStatus,
@@ -419,6 +507,9 @@ export function useUserManagement() {
     totalPages,
     safePage,
     paginatedMembers,
+    statusCounts,
+    handlePrevPage,
+    handleNextPage,
     updateUsersStatus,
     handleAddUser,
     handleActivateMember,

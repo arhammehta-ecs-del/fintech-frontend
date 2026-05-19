@@ -1,6 +1,7 @@
 import { v7 as uuidv7 } from "uuid";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "");
+export const buildApiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 const generateTrackId = () => uuidv7();
 
@@ -46,7 +47,7 @@ export const getApiErrorMessage = (error: unknown, fallback: string) => {
 };
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL}${path}`;
+  const url = buildApiUrl(path);
   const headers = new Headers(options.headers ?? {});
   headers.set("x-tracking-id", generateTrackId());
 

@@ -48,9 +48,6 @@ export function UserManagementView() {
     secondaryNodeOptions,
     toggleFilterValue,
     clearAdvancedFilters,
-    activeMembers,
-    pendingMembers,
-    inactiveMembers,
     isLoading,
     currentMembers,
     paginatedMembers,
@@ -58,7 +55,9 @@ export function UserManagementView() {
     setPageSize,
     safePage,
     totalPages,
-    setPage,
+    statusCounts,
+    handlePrevPage,
+    handleNextPage,
     addDialogOpen,
     setAddDialogOpen,
     handleOpenAddUserDialog,
@@ -202,18 +201,18 @@ export function UserManagementView() {
         primaryNodeOptions={primaryNodeOptions}
         secondaryNodeOptions={secondaryNodeOptions}
         statusCounts={{
-          active: activeMembers.length,
-          pending: pendingMembers.length,
-          inactive: inactiveMembers.length,
+          active: statusCounts.active,
+          pending: statusCounts.pending,
+          inactive: statusCounts.inactive,
         }}
       />
 
-      <Card className="overflow-hidden border-slate-200 shadow-sm">
+      <Card className="overflow-hidden border-slate-200 shadow-sm md:flex md:h-[calc(100dvh-21rem)] md:min-h-[420px] md:flex-col">
         <CardHeader className="flex flex-col gap-4 border-b border-slate-200 bg-white sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-800">
               {statusTab === "inactive" ? <EyeOff className="h-4 w-4" /> : <Users className="h-4 w-4" />}
-              {statusHeading} ({currentMembers.length})
+              {statusHeading} ({statusCounts[statusTab]})
             </CardTitle>
           </div>
 
@@ -225,8 +224,8 @@ export function UserManagementView() {
           </div>
         </CardHeader>
 
-        <CardContent className="p-0">
-          <div className="relative overflow-x-auto">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+          <div className="relative min-h-0 flex-1 overflow-auto">
             <UserTable
               isLoading={isLoading}
               currentMembers={currentMembers}
@@ -241,8 +240,9 @@ export function UserManagementView() {
             onPageSizeChange={setPageSize}
             safePage={safePage}
             totalPages={totalPages}
-            onPrevPage={() => setPage((previous) => Math.max(1, previous - 1))}
-            onNextPage={() => setPage((previous) => Math.min(totalPages, previous + 1))}
+            onPrevPage={handlePrevPage}
+            onNextPage={() => void handleNextPage()}
+            className="sticky bottom-0 z-20 shrink-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
           />
         </CardContent>
       </Card>
