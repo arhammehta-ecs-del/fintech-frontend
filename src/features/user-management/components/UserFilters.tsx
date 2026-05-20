@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { ArrowUpDown, ChevronDown, Filter, Search, X } from "lucide-react";
+import { ArrowUpDown, ChevronDown, Filter, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatRoleTokenLabel } from "@/features/user-management/roleLabels";
 import type { MemberStatusTab, SortOrder } from "@/features/user-management/types";
@@ -65,6 +66,8 @@ type UserFiltersProps = {
   }) => void;
   sortOrder: SortOrder;
   onSortOrderChange: (value: SortOrder) => void;
+  hasNewUserEvent: boolean;
+  onRefresh: () => void | Promise<void>;
   roles: string[];
   accessCategories: string[];
   accessSubcategories: string[];
@@ -101,6 +104,8 @@ export default function UserFilters({
   onOnboardingDateToChange,
   onClearAdvancedFilters,
   onApplyAdvancedFilters,
+  hasNewUserEvent,
+  onRefresh,
   onSortOrderChange,
   roles,
   accessCategories,
@@ -132,6 +137,17 @@ export default function UserFilters({
   const [draftPrimaryNodeFilters, setDraftPrimaryNodeFilters] = useState<string[]>(primaryNodeFilters);
   const [draftSecondaryNodeFilters, setDraftSecondaryNodeFilters] = useState<string[]>(secondaryNodeFilters);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [refreshTooltipOpen, setRefreshTooltipOpen] = useState(false);
+
+  useEffect(() => {
+    if (!hasNewUserEvent) {
+      setRefreshTooltipOpen(false);
+      return;
+    }
+    setRefreshTooltipOpen(true);
+    const timeoutId = window.setTimeout(() => setRefreshTooltipOpen(false), 2600);
+    return () => window.clearTimeout(timeoutId);
+  }, [hasNewUserEvent]);
 
   const toggleValue = (current: string[], value: string) =>
     current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
@@ -381,6 +397,30 @@ export default function UserFilters({
               <DropdownMenuItem onClick={() => onSortOrderChange("desc")}>Name (Z-A)</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <TooltipProvider delayDuration={120}>
+            <Tooltip open={refreshTooltipOpen || undefined} onOpenChange={setRefreshTooltipOpen}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Refresh users"
+                  onClick={() => {
+                    setRefreshTooltipOpen(false);
+                    void onRefresh();
+                  }}
+                  className={cn(
+                    "h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm",
+                    hasNewUserEvent && "border-red-200 text-red-600 hover:text-red-700",
+                  )}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              {hasNewUserEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
     </div>

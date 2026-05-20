@@ -285,8 +285,8 @@ function NodePermissionCard({
                 const orderedLabels = getOrderedPermissionLabels(item.activeRights);
                 return (
                   <div key={`${node.id}-${section.categoryKey}-${item.itemKey}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 text-sm leading-[1.35]">
-                    <span className="min-w-0 truncate pt-0.5 pr-1 font-medium text-slate-600">{formatRoleTokenLabel(item.itemKey)}</span>
-                    <span className="flex max-w-[360px] flex-wrap justify-end gap-2">
+                    <span className="min-w-0 break-words pt-0.5 pr-1 font-medium text-slate-600">{formatRoleTokenLabel(item.itemKey)}</span>
+                    <span className="flex max-w-[520px] flex-wrap justify-end gap-2">
                       {orderedLabels.map((label) => {
                         const theme = getPermissionBadgeTheme(label);
                         const BadgeIcon = theme.Icon;
@@ -465,16 +465,16 @@ export function UserOnboardingStepReviewSubmit({
 
                 {!isGlobalSignatory ? (
                   <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100/70">
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-8 lg:whitespace-nowrap">
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-8">
                       <div className="flex min-w-0 items-center gap-1">
                         <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
                         <span className="shrink-0 text-slate-400">:</span>
-                        <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerName}</span>
+                        <span className="min-w-0 break-words font-semibold text-slate-900">{reportingManagerName}</span>
                       </div>
                       <div className="flex min-w-0 items-center gap-1">
                         <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
                         <span className="shrink-0 text-slate-400">:</span>
-                        <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerEmail}</span>
+                        <span className="min-w-0 break-all font-semibold text-slate-900">{reportingManagerEmail}</span>
                       </div>
                     </div>
                   </div>
@@ -561,16 +561,16 @@ export function UserOnboardingStepReviewSubmit({
 
                 {!isGlobalSignatory ? (
                   <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100/70">
-                    <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-6 lg:whitespace-nowrap">
+                    <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-6">
                       <div className="flex min-w-0 items-center gap-1">
                         <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
                         <span className="shrink-0 text-slate-400">:</span>
-                        <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerName}</span>
+                        <span className="min-w-0 break-words font-semibold text-slate-900">{reportingManagerName}</span>
                       </div>
                       <div className="flex min-w-0 items-center gap-1">
                         <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
                         <span className="shrink-0 text-slate-400">:</span>
-                        <span className="min-w-0 truncate font-semibold text-slate-900">{reportingManagerEmail}</span>
+                        <span className="min-w-0 break-all font-semibold text-slate-900">{reportingManagerEmail}</span>
                       </div>
                     </div>
                   </div>
@@ -611,9 +611,9 @@ export function UserOnboardingStepReviewSubmit({
                           P1
                         </div>
                         <div className="min-w-0">
-                          <div className="truncate text-xs font-semibold text-slate-700">{primaryNode.name}</div>
+                          <div className="text-xs font-semibold text-slate-700">{primaryNode.name}</div>
                           {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(primaryNode.id) ? (
-                            <div className="truncate text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(primaryNode.id) || "")}</div>
+                            <div className="break-words text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(primaryNode.id) || "")}</div>
                           ) : null}
                           {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" ? (
                             <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{primaryNode.nodeType}</div>
@@ -669,9 +669,9 @@ export function UserOnboardingStepReviewSubmit({
                           {`S${selectedNodes.findIndex((n) => n.id === node.id) + 1}`}
                         </div>
                         <div className="min-w-0">
-                          <div className="truncate text-xs font-semibold text-slate-700">{node.name}</div>
+                          <div className="text-xs font-semibold text-slate-700">{node.name}</div>
                           {node.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(node.id) ? (
-                            <div className="truncate text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "")}</div>
+                            <div className="break-words text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "")}</div>
                           ) : null}
                           {node.nodeType.trim().toUpperCase() !== "ROOT" ? (
                             <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</div>

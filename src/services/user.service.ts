@@ -60,9 +60,13 @@ type CompanyUsersResponse = {
 };
 
 type UserPageInfo = {
+  page: number;
+  totalPages: number;
   nextCursor: string | null;
+  prevCursor: string | null;
   topCursor: string | null;
   hasNext: boolean;
+  hasPrev: boolean;
   hasNewData: boolean;
   newCount: number;
 };
@@ -82,6 +86,8 @@ export type UserPaginatedRequest = {
   limit: number;
   cursor: string | null;
   topCursor: string | null;
+  page?: number | null;
+  direction?: "NEXT" | "PREV";
 };
 
 export type UserPaginatedResult = {
@@ -268,9 +274,13 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
 };
 
 const mapUserPageInfo = (pageInfo?: Partial<UserPageInfo>): UserPageInfo => ({
+  page: Number(pageInfo?.page ?? 1) || 1,
+  totalPages: Number(pageInfo?.totalPages ?? 0) || 0,
   nextCursor: readString(pageInfo?.nextCursor).trim() || null,
+  prevCursor: readString(pageInfo?.prevCursor).trim() || null,
   topCursor: readString(pageInfo?.topCursor).trim() || null,
   hasNext: Boolean(pageInfo?.hasNext),
+  hasPrev: Boolean(pageInfo?.hasPrev),
   hasNewData: Boolean(pageInfo?.hasNewData),
   newCount: Number(pageInfo?.newCount ?? 0) || 0,
 });
@@ -359,24 +369,62 @@ export async function fetchCompanyNodes(subCategory: string): Promise<CompanyNod
 
 
 export async function getCompanyUsers(_companyCode: string): Promise<AppUser[]> {
-  const payload = await apiFetch<CompanyUsersResponse>(COMPANY_USERS_PATH, {
-    method: "POST",
-    body: JSON.stringify({ companyCode: _companyCode.trim().toUpperCase() }),
-  });
+  const companyCode = _companyCode.trim().toUpperCase();
 
-  if (!payload.data) {
-    throw new Error("Invalid users response: missing data object");
+  // Backward compatibility: older backends may still expose the unified endpoint.
+  try {
+    const payload = await apiFetch<CompanyUsersResponse>(COMPANY_USERS_PATH, {
+      method: "POST",
+      body: JSON.stringify({ companyCode }),
+    });
+
+    if (!payload.data) {
+      throw new Error("Invalid users response: missing data object");
+    }
+    const { activeUsers, pendingUsers, inactiveUsers } = payload.data;
+    if (!Array.isArray(activeUsers) || !Array.isArray(pendingUsers) || !Array.isArray(inactiveUsers)) {
+      throw new Error("Invalid users response: user buckets must be arrays");
+    }
+
+    const mappedActiveUsers = activeUsers.map((record) => mapCompanyUser(record, "Active"));
+    const mappedPendingUsers = pendingUsers.map((record) => mapCompanyUser(record, "Pending"));
+    const mappedInactiveUsers = inactiveUsers.map((record) => mapCompanyUser(record, "Inactive"));
+    return [...mappedActiveUsers, ...mappedPendingUsers, ...mappedInactiveUsers];
+  } catch {
+    // Newer backends split user listing by status + cursor pagination.
   }
-  const { activeUsers, pendingUsers, inactiveUsers } = payload.data;
-  if (!Array.isArray(activeUsers) || !Array.isArray(pendingUsers) || !Array.isArray(inactiveUsers)) {
-    throw new Error("Invalid users response: user buckets must be arrays");
-  }
 
-  const mappedActiveUsers = activeUsers.map((record) => mapCompanyUser(record, "Active"));
-  const mappedPendingUsers = pendingUsers.map((record) => mapCompanyUser(record, "Pending"));
-  const mappedInactiveUsers = inactiveUsers.map((record) => mapCompanyUser(record, "Inactive"));
+  const collectUsersByStatus = async (statusTab: UserListStatusTab) => {
+    const allUsers: AppUser[] = [];
+    let cursor: string | null = null;
+    let topCursor: string | null = null;
+    let hasNext = true;
+    let safetyCounter = 0;
 
-  return [...mappedActiveUsers, ...mappedPendingUsers, ...mappedInactiveUsers];
+    while (hasNext && safetyCounter < 100) {
+      safetyCounter += 1;
+      const response = await fetchCompanyUsersPaginated(statusTab, {
+        companyCode,
+        limit: 100,
+        cursor,
+        topCursor,
+        direction: "NEXT",
+      });
+      allUsers.push(...response.users);
+      cursor = response.pageInfo.nextCursor;
+      topCursor = response.pageInfo.topCursor || topCursor;
+      hasNext = Boolean(response.pageInfo.hasNext && response.pageInfo.nextCursor);
+    }
+
+    return allUsers;
+  };
+
+  const [activeUsers, pendingUsers] = await Promise.all([
+    collectUsersByStatus("active"),
+    collectUsersByStatus("pending"),
+  ]);
+
+  return [...activeUsers, ...pendingUsers];
 }
 
 export async function fetchCompanyUsersPaginated(
@@ -391,6 +439,8 @@ export async function fetchCompanyUsersPaginated(
       limit: payload.limit,
       cursor: payload.cursor ?? null,
       topCursor: payload.topCursor ?? null,
+      page: payload.page ?? null,
+      direction: payload.direction ?? "NEXT",
     }),
   });
 

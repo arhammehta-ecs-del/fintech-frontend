@@ -66,36 +66,36 @@ export function AppTopBar({
     return "User";
   };
 
-  const formatRelativeTime = (occurredAt: string, nowMs: number) => {
-    const timestampMs = new Date(occurredAt).getTime();
-    if (!Number.isFinite(timestampMs)) return "";
-    const diffMs = Math.max(0, nowMs - timestampMs);
-    const minutes = Math.floor(diffMs / (60 * 1000));
-    if (minutes < 1) return "just now";
-    if (minutes < 60) return `${minutes} min ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours} hr ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
-    const weeks = Math.floor(days / 7);
-    if (weeks < 5) return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
-    return new Date(timestampMs).toLocaleString();
+  const formatRelativeTime = (occurredAt: string) => {
+    const parsed = new Date(occurredAt);
+    if (Number.isNaN(parsed.getTime())) return "";
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+    const startOfTomorrow = new Date(startOfToday);
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+    const timeLabel = parsed.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+    if (parsed >= startOfToday && parsed < startOfTomorrow) return `Today, ${timeLabel}`;
+    if (parsed >= startOfYesterday && parsed < startOfToday) return `Yesterday, ${timeLabel}`;
+    return `${parsed.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" })}, ${timeLabel}`;
   };
 
   const mapPacketToNotification = (packet: NotificationSsePacket): NotificationItem => {
     const status = mapTypeToStatus(packet.type);
     const entity = mapRefTypeToEntity(packet.refType);
-    const displayName = String(packet.name ?? "").trim();
+    const title = String(packet.name ?? "").trim();
+    const message = String(packet.message ?? "").trim();
     const createdAt = String(packet.createat_timestamp ?? "").trim() || new Date().toISOString();
     const unread = String(packet.status ?? "").trim().toUpperCase() === "UNREAD";
 
     return {
       id: String(packet.id ?? `${createdAt}-${Math.random().toString(36).slice(2, 10)}`),
       status,
-      title: `${entity} ${status}`,
+      title: title || `${entity} ${status}`,
       entity,
-      userName: displayName,
-      userEmail: String(packet.message ?? "").trim(),
+      userName: message,
+      userEmail: "",
       initiatedByName: String(packet.createdByname ?? "").trim() || "-",
       initiatedByEmail: String(packet.createdByemail ?? "").trim() || "-",
       occurredAt: createdAt,
@@ -106,21 +106,12 @@ export function AppTopBar({
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [pastNotifications, setPastNotifications] = useState<NotificationItem[]>([]);
   const [pastLoading, setPastLoading] = useState(false);
-  const [nowMs, setNowMs] = useState(() => Date.now());
   const INITIAL_VISIBLE_NOTIFICATIONS = 7;
   const [showAllNotifications, setShowAllNotifications] = useState(false);
   const [allNotificationsOpen, setAllNotificationsOpen] = useState(false);
   const [notificationsPopoverOpen, setNotificationsPopoverOpen] = useState(false);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, 60 * 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, []);
+  const COMPACT_NOTIFICATIONS_LIMIT = 10;
+  const TODAY_ONLY_THRESHOLD = 3;
 
   useEffect(() => {
     const disconnect = connectNotificationStream({
@@ -138,6 +129,34 @@ export function AppTopBar({
     return disconnect;
   }, []);
 
+  useEffect(() => {
+    if (!currentUser?.email) return;
+
+    let isActive = true;
+    const loadUnreadNotifications = async () => {
+      try {
+        const packets = await fetchNotificationPage({
+          status: "ALL",
+          limit: COMPACT_NOTIFICATIONS_LIMIT,
+          offset: 0,
+        });
+        if (!isActive) return;
+        const nextNotifications = packets
+          .map(mapPacketToNotification)
+          .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+        setNotifications(nextNotifications);
+      } catch {
+        if (!isActive) return;
+      }
+    };
+
+    void loadUnreadNotifications();
+
+    return () => {
+      isActive = false;
+    };
+  }, [currentUser?.email]);
+
   const todaysNotifications = useMemo(() => {
     const now = new Date();
     return notifications.filter((item) => {
@@ -149,42 +168,50 @@ export function AppTopBar({
       );
     });
   }, [notifications]);
-  const { yesterdayNotifications, olderNotifications } = useMemo(() => {
+  const { todayDialogNotifications, yesterdayNotifications, olderNotifications, upcomingNotifications } = useMemo(() => {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfYesterday = new Date(startOfToday);
     startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+    const startOfTomorrow = new Date(startOfToday);
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
 
     return {
+      todayDialogNotifications: pastNotifications.filter((item) => {
+        const d = new Date(item.occurredAt);
+        return d >= startOfToday && d < startOfTomorrow;
+      }),
       yesterdayNotifications: pastNotifications.filter((item) => {
         const d = new Date(item.occurredAt);
         return d >= startOfYesterday && d < startOfToday;
       }),
       olderNotifications: pastNotifications.filter((item) => new Date(item.occurredAt) < startOfYesterday),
+      upcomingNotifications: pastNotifications.filter((item) => new Date(item.occurredAt) >= startOfTomorrow),
     };
   }, [pastNotifications]);
 
-  const unreadCount = useMemo(
-    () => todaysNotifications.reduce((total, item) => total + (item.unread ? 1 : 0), 0),
-    [todaysNotifications]
-  );
+  const unreadCount = useMemo(() => notifications.reduce((total, item) => total + (item.unread ? 1 : 0), 0), [notifications]);
+  const compactNotifications = useMemo(() => {
+    const nonTodayNotifications = notifications.filter((item) => !todaysNotifications.some((today) => today.id === item.id));
+    if (todaysNotifications.length <= TODAY_ONLY_THRESHOLD) {
+      return [...todaysNotifications, ...nonTodayNotifications].slice(0, COMPACT_NOTIFICATIONS_LIMIT);
+    }
+    return todaysNotifications.slice(0, COMPACT_NOTIFICATIONS_LIMIT);
+  }, [notifications, todaysNotifications]);
   const visibleNotifications = useMemo(
-    () =>
-      showAllNotifications
-        ? todaysNotifications
-        : todaysNotifications.slice(0, INITIAL_VISIBLE_NOTIFICATIONS),
-    [showAllNotifications, todaysNotifications]
+    () => (showAllNotifications ? compactNotifications : compactNotifications.slice(0, INITIAL_VISIBLE_NOTIFICATIONS)),
+    [compactNotifications, showAllNotifications],
   );
-  const hasMoreNotifications = todaysNotifications.length > INITIAL_VISIBLE_NOTIFICATIONS;
+  const hasMoreNotifications = compactNotifications.length > INITIAL_VISIBLE_NOTIFICATIONS;
   const hasPastNotifications = useMemo(() => {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     return notifications.some((item) => new Date(item.occurredAt) < startOfToday);
   }, [notifications]);
-  const shouldShowSeeAll = !showAllNotifications && (hasMoreNotifications || hasPastNotifications);
+  const shouldShowSeeAll = notifications.length > 0;
 
+  const unreadCountBadgeLabel = unreadCount > 99 ? "99+" : String(unreadCount);
   const notificationCountLabel = notifications.length > 99 ? "99+" : String(notifications.length);
-  const todayCountLabel = todaysNotifications.length > 99 ? "99+" : String(todaysNotifications.length);
   const unreadCountLabel = unreadCount === 1 ? "1 unread" : `${unreadCount} unread`;
 
   const statusStyles: Record<
@@ -208,18 +235,25 @@ export function AppTopBar({
     },
   };
 
-  const markAllAsRead = () => {
-    setNotifications((current) =>
-      current.map((item) => {
-        const d = new Date(item.occurredAt);
-        const now = new Date();
-        const isToday =
-          d.getFullYear() === now.getFullYear() &&
-          d.getMonth() === now.getMonth() &&
-          d.getDate() === now.getDate();
-        return isToday ? { ...item, unread: false } : item;
-      })
-    );
+  const markAllAsRead = async () => {
+    const unreadIds = notifications.filter((item) => item.unread).map((item) => item.id);
+    if (unreadIds.length === 0) return;
+
+    const previous = notifications;
+    setNotifications((current) => current.map((item) => ({ ...item, unread: false })));
+
+    try {
+      await Promise.all(
+        unreadIds.map((id) =>
+          updateNotificationReadStatus({
+            id,
+            status: "READ",
+          })
+        )
+      );
+    } catch {
+      setNotifications(previous);
+    }
   };
 
   const markAsRead = async (id: string) => {
@@ -246,7 +280,12 @@ export function AppTopBar({
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfYesterday = new Date(startOfToday);
     startOfYesterday.setDate(startOfYesterday.getDate() - 1);
-    const timeLabel = parsed.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const startOfTomorrow = new Date(startOfToday);
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+    const timeLabel = parsed.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+    if (parsed >= startOfToday && parsed < startOfTomorrow) {
+      return `Today, ${timeLabel}`;
+    }
     if (parsed >= startOfYesterday && parsed < startOfToday) {
       return `Yesterday, ${timeLabel}`;
     }
@@ -262,16 +301,15 @@ export function AppTopBar({
     try {
       const packets = await fetchNotificationPage({
         status: "ALL",
-        limit: 10,
-        offset: 0,
+        limit: 50,
+        offset: compactNotifications.length,
       });
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-      const pastOnly = packets
+      const compactIds = new Set(compactNotifications.map((item) => item.id));
+      const allNotifications = packets
         .map(mapPacketToNotification)
-        .filter((item) => new Date(item.occurredAt) < startOfToday)
+        .filter((item) => !compactIds.has(item.id))
         .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
-      setPastNotifications(pastOnly);
+      setPastNotifications(allNotifications);
     } catch {
       setPastNotifications([]);
     } finally {
@@ -313,9 +351,9 @@ export function AppTopBar({
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5 text-muted-foreground" />
-              {notifications.length > 0 ? (
+              {unreadCount > 0 ? (
                 <span className="absolute -right-1 -top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
-                  {notificationCountLabel}
+                  {unreadCountBadgeLabel}
                 </span>
               ) : null}
             </Button>
@@ -327,7 +365,7 @@ export function AppTopBar({
             <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
               <div className="flex items-center gap-2">
                 <p className="text-[1.05rem] font-semibold tracking-tight text-slate-900">
-                  Notifications ({todayCountLabel})
+                  Notifications ({notificationCountLabel})
                 </p>
                 <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
                   {unreadCountLabel}
@@ -335,7 +373,7 @@ export function AppTopBar({
               </div>
               <button
                 type="button"
-                onClick={markAllAsRead}
+                onClick={() => void markAllAsRead()}
                 className="text-xs font-medium text-slate-600 transition-colors hover:text-slate-900"
               >
                 Mark all as read
@@ -343,11 +381,11 @@ export function AppTopBar({
             </div>
             <div className="relative max-h-[520px] bg-slate-50/60">
               <div className="max-h-[520px] overflow-y-auto p-3">
-                {todaysNotifications.length === 0 ? (
+                {compactNotifications.length === 0 ? (
                   <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/80 px-4 text-center">
                     <div>
-                      <p className="text-sm font-semibold text-slate-800">All caught up for today</p>
-                      <p className="mt-1 text-xs text-slate-500">No notifications from today.</p>
+                      <p className="text-sm font-semibold text-slate-800">All caught up</p>
+                      <p className="mt-1 text-xs text-slate-500">No recent notifications available.</p>
                     </div>
                   </div>
                 ) : visibleNotifications.map((notification, index) => {
@@ -393,7 +431,7 @@ export function AppTopBar({
                         </div>
                       </div>
                       <p className="mt-2 text-right text-xs font-medium text-slate-500">
-                        {formatRelativeTime(notification.occurredAt, nowMs)}
+                        {formatRelativeTime(notification.occurredAt)}
                       </p>
                     </button>
                   );
@@ -423,11 +461,10 @@ export function AppTopBar({
           >
             <DialogHeader className="border-b border-slate-200 px-6 py-4">
               <DialogTitle className="flex items-center justify-between text-slate-900">
-                <span>Past Notifications</span>
+                <span>
+                  All Notifications ({todayDialogNotifications.length + yesterdayNotifications.length + olderNotifications.length + upcomingNotifications.length})
+                </span>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                    {yesterdayNotifications.length + olderNotifications.length}
-                  </span>
                   <button
                     type="button"
                     onClick={() => setAllNotificationsOpen(false)}
@@ -445,14 +482,68 @@ export function AppTopBar({
                   <p className="text-sm font-semibold text-slate-700">Loading past notifications...</p>
                 </div>
               ) : null}
-              {!pastLoading && yesterdayNotifications.length + olderNotifications.length === 0 ? (
+              {!pastLoading &&
+              todayDialogNotifications.length + yesterdayNotifications.length + olderNotifications.length + upcomingNotifications.length === 0 ? (
                 <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/80 px-4 text-center">
                   <div>
-                    <p className="text-sm font-semibold text-slate-800">No past notifications</p>
-                    <p className="mt-1 text-xs text-slate-500">Yesterday and older updates will appear here.</p>
+                    <p className="text-sm font-semibold text-slate-800">No notifications</p>
+                    <p className="mt-1 text-xs text-slate-500">Latest updates will appear here.</p>
                   </div>
                 </div>
               ) : null}
+
+              {todayDialogNotifications.length > 0 ? (
+                <p className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Today</p>
+              ) : null}
+              {todayDialogNotifications.map((notification) => {
+                const styles = statusStyles[notification.status];
+                return (
+                  <button
+                    type="button"
+                    key={`today-${notification.id}`}
+                    onClick={() => void markAsRead(notification.id)}
+                    className={`w-full overflow-hidden rounded-xl border border-l-4 ${
+                      notification.unread ? styles.unreadBorder : styles.readBorder
+                    } bg-transparent px-4 py-4 text-left shadow-sm transition-colors ${
+                      notification.unread
+                        ? "border-slate-300 bg-slate-100/70 hover:bg-slate-100"
+                        : "border-slate-200 bg-white hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex items-center gap-2">
+                          {notification.unread ? (
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-red-100" />
+                          ) : null}
+                          <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
+                        </div>
+                        <p className="mb-1 text-[11px] font-medium lowercase tracking-wide text-slate-400">
+                          {notification.entity.toLowerCase()}
+                        </p>
+                        <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
+                          <span>{notification.userName}</span>{" "}
+                          <span className="font-normal text-slate-500">{notification.userEmail}</span>
+                        </p>
+                        <p className="mt-1 text-xs leading-[1.35] text-slate-500">
+                          Initiated by {notification.initiatedByName}
+                        </p>
+                        <p className="mt-0.5 text-xs leading-[1.35] text-slate-500">
+                          ({notification.initiatedByEmail})
+                        </p>
+                      </div>
+                      <div className="shrink-0">
+                        <span
+                          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}
+                        >
+                          {notification.status}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-right text-xs font-medium text-slate-500">{formatPastTimeline(notification.occurredAt)}</p>
+                  </button>
+                );
+              })}
 
               {yesterdayNotifications.length > 0 ? (
                 <p className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Yesterday</p>
@@ -516,6 +607,59 @@ export function AppTopBar({
                   <button
                     type="button"
                     key={`older-${notification.id}`}
+                    onClick={() => void markAsRead(notification.id)}
+                    className={`w-full overflow-hidden rounded-xl border border-l-4 ${
+                      notification.unread ? styles.unreadBorder : styles.readBorder
+                    } bg-transparent px-4 py-4 text-left shadow-sm transition-colors ${
+                      notification.unread
+                        ? "border-slate-300 bg-slate-100/70 hover:bg-slate-100"
+                        : "border-slate-200 bg-white hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex items-center gap-2">
+                          {notification.unread ? (
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-red-100" />
+                          ) : null}
+                          <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
+                        </div>
+                        <p className="mb-1 text-[11px] font-medium lowercase tracking-wide text-slate-400">
+                          {notification.entity.toLowerCase()}
+                        </p>
+                        <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
+                          <span>{notification.userName}</span>{" "}
+                          <span className="font-normal text-slate-500">{notification.userEmail}</span>
+                        </p>
+                        <p className="mt-1 text-xs leading-[1.35] text-slate-500">
+                          Initiated by {notification.initiatedByName}
+                        </p>
+                        <p className="mt-0.5 text-xs leading-[1.35] text-slate-500">
+                          ({notification.initiatedByEmail})
+                        </p>
+                      </div>
+                      <div className="shrink-0">
+                        <span
+                          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}
+                        >
+                          {notification.status}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-right text-xs font-medium text-slate-500">{formatPastTimeline(notification.occurredAt)}</p>
+                  </button>
+                );
+              })}
+
+              {upcomingNotifications.length > 0 ? (
+                <p className="pt-2 px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Upcoming</p>
+              ) : null}
+              {upcomingNotifications.map((notification) => {
+                const styles = statusStyles[notification.status];
+                return (
+                  <button
+                    type="button"
+                    key={`upcoming-${notification.id}`}
                     onClick={() => void markAsRead(notification.id)}
                     className={`w-full overflow-hidden rounded-xl border border-l-4 ${
                       notification.unread ? styles.unreadBorder : styles.readBorder

@@ -37,6 +37,17 @@ export type NotificationFetchRequest = {
   offset: number;
 };
 
+type NotificationFetchResponse = {
+  data?: NotificationSsePacket[];
+  count?: number;
+  limit?: number;
+  offset?: number;
+  status?: string;
+  cursorId?: string | null;
+  nextCursorId?: string | null;
+  hasNextPage?: boolean;
+};
+
 type NotificationSseCallbacks = {
   onNotification: (packet: NotificationSsePacket) => void;
   onError?: (error: Event) => void;
@@ -77,8 +88,11 @@ export async function updateNotificationReadStatus(payload: NotificationReadRequ
 }
 
 export async function fetchNotificationPage(payload: NotificationFetchRequest) {
-  return apiFetch<NotificationSsePacket[]>(NOTIFICATION_FETCH_PATH, {
+  const response = await apiFetch<NotificationFetchResponse | NotificationSsePacket[]>(NOTIFICATION_FETCH_PATH, {
     method: "POST",
     body: JSON.stringify(payload),
   });
+
+  if (Array.isArray(response)) return response;
+  return Array.isArray(response.data) ? response.data : [];
 }

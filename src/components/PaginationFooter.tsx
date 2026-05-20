@@ -1,5 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type PaginationFooterProps = {
@@ -11,6 +13,7 @@ type PaginationFooterProps = {
   totalPages: number;
   onPrevPage: () => void;
   onNextPage: () => void;
+  onJumpToPage: (value: number) => void;
   className?: string;
 };
 
@@ -23,9 +26,25 @@ export default function PaginationFooter({
   totalPages,
   onPrevPage,
   onNextPage,
+  onJumpToPage,
   className,
 }: PaginationFooterProps) {
+  const [pageInput, setPageInput] = useState(String(safePage));
+
+  useEffect(() => {
+    setPageInput(String(safePage));
+  }, [safePage]);
+
   if (currentCount <= 0) return null;
+
+  const commitPageInput = () => {
+    const parsed = Number(pageInput);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > totalPages) {
+      setPageInput(String(safePage));
+      return;
+    }
+    if (parsed !== safePage) onJumpToPage(parsed);
+  };
 
   return (
     <div className={className ?? "flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"}>
@@ -50,9 +69,20 @@ export default function PaginationFooter({
           <ChevronLeft className="mr-1 h-4 w-4" />
           Prev
         </Button>
-        <span className="text-sm text-muted-foreground">
-          Page {safePage} of {totalPages}
-        </span>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Page</span>
+          <Input
+            value={pageInput}
+            onChange={(event) => setPageInput(event.target.value.replace(/[^\d]/g, ""))}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              commitPageInput();
+            }}
+            onBlur={commitPageInput}
+            className="h-8 w-16 text-center"
+          />
+          <span>of {totalPages}</span>
+        </div>
         <Button variant="ghost" size="sm" onClick={onNextPage} disabled={safePage === totalPages}>
           Next
           <ChevronRight className="ml-1 h-4 w-4" />

@@ -39,6 +39,8 @@ export function UserManagementView() {
     setOnboardingDateTo,
     sortOrder,
     setSortOrder,
+    hasNewUserEvent,
+    setHasNewUserEvent,
     roles,
     accessCategories,
     accessSubcategories,
@@ -58,6 +60,7 @@ export function UserManagementView() {
     statusCounts,
     handlePrevPage,
     handleNextPage,
+    handleJumpToPage,
     addDialogOpen,
     setAddDialogOpen,
     handleOpenAddUserDialog,
@@ -76,6 +79,7 @@ export function UserManagementView() {
     setRemarkDialogOpen,
     pendingAction,
     processUserStatusAction,
+    loadUsers,
   } = useUserManagement();
   const [historyOpenForMember, setHistoryOpenForMember] = useState(false);
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
@@ -193,6 +197,11 @@ export function UserManagementView() {
         }}
         sortOrder={sortOrder}
         onSortOrderChange={setSortOrder}
+        hasNewUserEvent={hasNewUserEvent}
+        onRefresh={async () => {
+          await loadUsers(true);
+          setHasNewUserEvent(false);
+        }}
         roles={roles}
         accessCategories={accessCategories}
         accessSubcategories={accessSubcategories}
@@ -240,8 +249,9 @@ export function UserManagementView() {
             onPageSizeChange={setPageSize}
             safePage={safePage}
             totalPages={totalPages}
-            onPrevPage={handlePrevPage}
+            onPrevPage={() => void handlePrevPage()}
             onNextPage={() => void handleNextPage()}
+            onJumpToPage={(value) => void handleJumpToPage(value)}
             className="sticky bottom-0 z-20 shrink-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
           />
         </CardContent>

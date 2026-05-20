@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { AppUser } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
+import { connectNotificationStream } from "@/services/notification.service";
 import { fetchCompanyUsersPaginated } from "@/services/user.service";
 import { USER_DEFAULT_PAGE_SIZE, USER_FILTER_CONFIG, USER_PAGE_SIZE_OPTIONS, USER_SEARCH_DEBOUNCE_MS } from "@/features/user-management/constants";
 import type { MemberStatusTab, SortOrder } from "@/features/user-management/types";
@@ -64,6 +65,7 @@ export function useUserManagement() {
   const [isLoading, setIsLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<(typeof USER_PAGE_SIZE_OPTIONS)[number]>(USER_DEFAULT_PAGE_SIZE);
+  const [resolvedTotalPages, setResolvedTotalPages] = useState(1);
   const [statusCounts, setStatusCounts] = useState<Record<MemberStatusTab, number>>({
     active: 0,
     pending: 0,
@@ -72,13 +74,31 @@ export function useUserManagement() {
   const [topCursor, setTopCursor] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
-  const [loadedPages, setLoadedPages] = useState<Record<number, AppUser[]>>({});
   const [pageCursors, setPageCursors] = useState<Record<number, string | null>>({ 1: null });
+  const lastActivityToastKeyRef = useRef<string>("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [viewingMember, setViewingMember] = useState<AppUser | null>(null);
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
   const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ member: AppUser; action: "activate" | "deactivate" } | null>(null);
+  const [hasNewUserEvent, setHasNewUserEvent] = useState(false);
+
+  const maybeShowActivityToast = useCallback(
+    (response: Awaited<ReturnType<typeof fetchCompanyUsersPaginated>>, tab: MemberStatusTab) => {
+      const count = response.pageInfo.newCount;
+      if (count <= 0) return;
+
+      const toastKey = `${tab}-new-${count}-${response.pageInfo.topCursor ?? "no-top-cursor"}`;
+      if (lastActivityToastKeyRef.current === toastKey) return;
+      lastActivityToastKeyRef.current = toastKey;
+
+      toast({
+        title: "Activity updated",
+        description: `Activity for ${count} user${count === 1 ? "" : "s"} has been executed.`,
+      });
+    },
+    [toast],
+  );
 
   const loadUsers = useCallback(
     async (showRefreshToast = false) => {
@@ -93,15 +113,21 @@ export function useUserManagement() {
           limit: pageSize,
           cursor: null,
           topCursor: null,
+          page: null,
+          direction: "NEXT",
         });
         setUsers(response.users);
-        setLoadedPages({ 1: response.users });
         setPageCursors({ 1: null, 2: response.pageInfo.nextCursor });
-        setPage(1);
+        setPage(response.pageInfo.page || 1);
         setTopCursor(response.pageInfo.topCursor);
         setNextCursor(response.pageInfo.nextCursor);
         setHasNext(response.pageInfo.hasNext);
+        setResolvedTotalPages(
+          response.pageInfo.totalPages ||
+            Math.max(1, Math.ceil((statusTab === "pending" ? response.counts.pending : response.counts.active) / pageSize)),
+        );
         setStatusCounts(response.counts);
+        maybeShowActivityToast(response, statusTab);
         if (showRefreshToast) {
           toast({
             title: "Users refreshed",
@@ -119,22 +145,35 @@ export function useUserManagement() {
         setIsLoading(false);
       }
     },
-    [currentUser?.companyCode, pageSize, setUsers, statusTab, toast],
+    [currentUser?.companyCode, maybeShowActivityToast, pageSize, setUsers, statusTab, toast],
   );
 
   useEffect(() => {
     if (statusTab === "inactive") {
       setUsers([]);
-      setLoadedPages({});
       setPageCursors({ 1: null });
       setPage(1);
       setTopCursor(null);
       setNextCursor(null);
       setHasNext(false);
+      setResolvedTotalPages(1);
       return;
     }
     void loadUsers();
   }, [loadUsers, pageSize, setUsers, statusTab]);
+
+  useEffect(() => {
+    const disconnect = connectNotificationStream({
+      onNotification: (packet) => {
+        const refType = String(packet.refType ?? "").trim().toLowerCase();
+        if (refType === "user") {
+          setHasNewUserEvent(true);
+        }
+      },
+    });
+
+    return disconnect;
+  }, []);
 
   useEffect(() => {
     const trimmedSearch = search.trim();
@@ -359,21 +398,55 @@ export function useUserManagement() {
 
   const currentMembers =
     statusTab === "pending" ? pendingMembers : statusTab === "inactive" ? inactiveMembers : activeMembers;
-  const totalPages = hasNext ? page + 1 : page;
+  const derivedTotalPages = Math.max(
+    1,
+    Math.ceil((statusTab === "pending" ? statusCounts.pending : statusTab === "active" ? statusCounts.active : statusCounts.inactive) / pageSize),
+  );
+  const totalPages = Math.max(resolvedTotalPages, derivedTotalPages);
   const safePage = page;
   const paginatedMembers = currentMembers;
 
-  const handlePrevPage = useCallback(() => {
+  const handlePrevPage = useCallback(async () => {
+    if (statusTab === "inactive") return;
     if (page <= 1) return;
+    const companyCode = currentUser?.companyCode?.trim().toUpperCase();
+    if (!companyCode) return;
     const previousPage = page - 1;
-    const previousRows = loadedPages[previousPage];
-    if (previousRows) {
-      setUsers(previousRows);
+    const prevCursor = pageCursors[previousPage] ?? null;
+
+    setIsLoading(true);
+    try {
+      const targetTab = statusTab === "pending" ? "pending" : "active";
+      const response = await fetchCompanyUsersPaginated(targetTab, {
+        companyCode,
+        limit: pageSize,
+        cursor: prevCursor,
+        topCursor,
+        page: null,
+        direction: "PREV",
+      });
+      setUsers(response.users);
       setPage(previousPage);
-      setHasNext(Boolean(pageCursors[page]));
-      setNextCursor(pageCursors[page] ?? null);
+      setPageCursors((current) => ({ ...current, [previousPage]: prevCursor }));
+      setTopCursor(response.pageInfo.topCursor || topCursor);
+      setNextCursor(response.pageInfo.nextCursor);
+      setHasNext(response.pageInfo.hasNext);
+      setResolvedTotalPages(
+        response.pageInfo.totalPages ||
+          Math.max(1, Math.ceil((statusTab === "pending" ? response.counts.pending : response.counts.active) / pageSize)),
+      );
+      setStatusCounts(response.counts);
+      maybeShowActivityToast(response, statusTab);
+    } catch (error) {
+      toast({
+        title: "Unable to load previous page",
+        description: getApiErrorMessage(error, "Unable to fetch previous users page."),
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-  }, [loadedPages, page, pageCursors, setUsers]);
+  }, [currentUser?.companyCode, maybeShowActivityToast, page, pageCursors, pageSize, setUsers, statusTab, toast, topCursor]);
 
   const handleNextPage = useCallback(async () => {
     if (statusTab === "inactive") return;
@@ -381,13 +454,6 @@ export function useUserManagement() {
     const companyCode = currentUser?.companyCode?.trim().toUpperCase();
     if (!companyCode) return;
     const upcomingPage = page + 1;
-    if (loadedPages[upcomingPage]) {
-      setUsers(loadedPages[upcomingPage]);
-      setPage(upcomingPage);
-      setHasNext(Boolean(pageCursors[upcomingPage + 1]));
-      setNextCursor(pageCursors[upcomingPage + 1] ?? null);
-      return;
-    }
     const cursor = pageCursors[upcomingPage] ?? nextCursor;
     if (!cursor) return;
 
@@ -399,15 +465,25 @@ export function useUserManagement() {
         limit: pageSize,
         cursor,
         topCursor,
+        page: null,
+        direction: "NEXT",
       });
       setUsers(response.users);
-      setLoadedPages((current) => ({ ...current, [upcomingPage]: response.users }));
-      setPageCursors((current) => ({ ...current, [upcomingPage + 1]: response.pageInfo.nextCursor }));
+      setPageCursors((current) => ({
+        ...current,
+        [upcomingPage]: cursor,
+        [upcomingPage + 1]: response.pageInfo.nextCursor,
+      }));
       setPage(upcomingPage);
       setTopCursor(response.pageInfo.topCursor || topCursor);
       setNextCursor(response.pageInfo.nextCursor);
       setHasNext(response.pageInfo.hasNext);
+      setResolvedTotalPages(
+        response.pageInfo.totalPages ||
+          Math.max(1, Math.ceil((statusTab === "pending" ? response.counts.pending : response.counts.active) / pageSize)),
+      );
       setStatusCounts(response.counts);
+      maybeShowActivityToast(response, statusTab);
     } catch (error) {
       toast({
         title: "Unable to load next page",
@@ -417,7 +493,55 @@ export function useUserManagement() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser?.companyCode, hasNext, loadedPages, nextCursor, page, pageCursors, pageSize, setUsers, statusTab, topCursor, toast]);
+  }, [currentUser?.companyCode, hasNext, maybeShowActivityToast, nextCursor, page, pageCursors, pageSize, setUsers, statusTab, topCursor, toast]);
+
+  const handleJumpToPage = useCallback(
+    async (requestedPage: number) => {
+      if (statusTab === "inactive") return;
+      const companyCode = currentUser?.companyCode?.trim().toUpperCase();
+      if (!companyCode) return;
+      const targetPage = Math.max(1, Math.min(totalPages, requestedPage));
+      if (targetPage === page) return;
+
+      setIsLoading(true);
+      try {
+        const targetTab = statusTab === "pending" ? "pending" : "active";
+        const jumpCursor = pageCursors[targetPage] ?? nextCursor ?? topCursor ?? "";
+        const response = await fetchCompanyUsersPaginated(targetTab, {
+          companyCode,
+          limit: pageSize,
+          cursor: jumpCursor,
+          topCursor: topCursor ?? "",
+          page: targetPage,
+          direction: "NEXT",
+        });
+        setUsers(response.users);
+        setPage(targetPage);
+        setPageCursors((current) => ({
+          ...current,
+          [targetPage]: jumpCursor,
+          [targetPage + 1]: response.pageInfo.nextCursor,
+        }));
+        setTopCursor(response.pageInfo.topCursor || topCursor);
+        setNextCursor(response.pageInfo.nextCursor);
+        setHasNext(response.pageInfo.hasNext);
+        setResolvedTotalPages(
+          response.pageInfo.totalPages ||
+            Math.max(1, Math.ceil((statusTab === "pending" ? response.counts.pending : response.counts.active) / pageSize)),
+        );
+        setStatusCounts(response.counts);
+      } catch (error) {
+        toast({
+          title: "Unable to jump to page",
+          description: getApiErrorMessage(error, "Unable to fetch the selected users page."),
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [currentUser?.companyCode, nextCursor, page, pageCursors, pageSize, setUsers, statusTab, toast, topCursor, totalPages],
+  );
 
   const {
     updateUsersStatus,
@@ -477,6 +601,8 @@ export function useUserManagement() {
     setOnboardingDateTo,
     sortOrder,
     setSortOrder,
+    hasNewUserEvent,
+    setHasNewUserEvent,
     isLoading,
     page,
     setPage,
@@ -510,6 +636,7 @@ export function useUserManagement() {
     statusCounts,
     handlePrevPage,
     handleNextPage,
+    handleJumpToPage,
     updateUsersStatus,
     handleAddUser,
     handleActivateMember,

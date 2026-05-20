@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppContext, type OrgNode } from "@/contexts/AppContext";
+import type { AppUser } from "@/contexts/AppContext";
 import type { RoleRecord } from "@/services/role.service";
 import { getCompanyRoles } from "@/services/role.service";
-import { fetchCompanyNodesWithAccess } from "@/services/user.service";
+import { fetchCompanyNodesWithAccess, fetchCompanyUsersPaginated } from "@/services/user.service";
 import type {
   UserOnboardingFormData,
   NodePermissionBuckets,
@@ -44,6 +45,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   const [nodePermissionScopes, setNodePermissionScopes] = useState<Record<string, NodePermissionScopeBuckets>>({});
   const [infoNodeId, setInfoNodeId] = useState<string | null>(null);
   const [isReviewAccessExpanded, setIsReviewAccessExpanded] = useState(true);
+  const [activeUsersForManagers, setActiveUsersForManagers] = useState<AppUser[]>([]);
   const reviewAccessNodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const orgStructure = localOrgStructure;
@@ -56,6 +58,48 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
       if (!ignore) setRoles(data);
     });
     return () => { ignore = true; };
+  }, [open, companyCode]);
+
+  useEffect(() => {
+    if (!open) return;
+    const normalizedCompanyCode = companyCode.trim().toUpperCase();
+    if (!normalizedCompanyCode) return;
+
+    let ignore = false;
+    const loadActiveUsersForManagerDropdown = async () => {
+      try {
+        const allActiveUsers: AppUser[] = [];
+        let cursor: string | null = null;
+        let topCursor: string | null = null;
+        let hasNext = true;
+        let safetyCounter = 0;
+
+        while (hasNext && safetyCounter < 100) {
+          safetyCounter += 1;
+          const response = await fetchCompanyUsersPaginated("active", {
+            companyCode: normalizedCompanyCode,
+            limit: 100,
+            cursor,
+            topCursor,
+            direction: "NEXT",
+          });
+
+          allActiveUsers.push(...response.users);
+          cursor = response.pageInfo.nextCursor;
+          topCursor = response.pageInfo.topCursor || topCursor;
+          hasNext = Boolean(response.pageInfo.hasNext && response.pageInfo.nextCursor);
+        }
+
+        if (!ignore) setActiveUsersForManagers(allActiveUsers);
+      } catch {
+        if (!ignore) setActiveUsersForManagers([]);
+      }
+    };
+
+    void loadActiveUsersForManagerDropdown();
+    return () => {
+      ignore = true;
+    };
   }, [open, companyCode]);
 
   useEffect(() => {
@@ -123,9 +167,9 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   );
 
   const reportingManagerOptions = useMemo(() => {
+    const sourceUsers = activeUsersForManagers.length > 0 ? activeUsersForManagers : users.filter((user) => user.status === "Active");
     const seenEmails = new Set<string>();
-    const options = users
-      .filter((user) => user.status === "Active")
+    const options = sourceUsers
       .map((user) => {
         const name = user.name.trim();
         const email = user.email.trim().toLowerCase();
@@ -141,7 +185,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
       .filter((option): option is { id: string; name: string; email: string; designation: string } => Boolean(option));
 
     return options.sort((a, b) => a.name.localeCompare(b.name) || a.email.localeCompare(b.email));
-  }, [users]);
+  }, [activeUsersForManagers, users]);
 
   useEffect(() => {
     if (step !== 4 || !isReviewAccessExpanded || expandedAccessNodeIds.length === 0) return;
