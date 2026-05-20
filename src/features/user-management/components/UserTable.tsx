@@ -138,7 +138,7 @@ export default function UserTable({
         <tr className="border-b border-slate-200">
           <th className="sticky top-0 z-20 w-[28%] bg-slate-50 pl-7 pr-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Name</th>
           <th className="sticky top-0 z-20 w-[18%] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Designation</th>
-          <th className="sticky top-0 z-20 w-[20%] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Department</th>
+          <th className="sticky top-0 z-20 w-[20%] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Node Name</th>
           <th className="sticky top-0 z-20 w-[20%] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Contact Number</th>
           <th className="sticky top-0 z-20 w-[14%] bg-slate-50 px-4 py-4 text-center text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Manage</th>
         </tr>

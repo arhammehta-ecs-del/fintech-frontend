@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { AppUser, OrgNode } from "@/contexts/AppContext";
 import { getApiErrorMessage } from "@/services/client";
-import { createUserOnboarding, updateUserStatus } from "@/services/user.service";
+import { createUserOnboarding, fetchCompanyNodesWithAccess, updateUserStatus } from "@/services/user.service";
 import type { UserOnboardingFormData } from "@/features/user-management/types";
 import { buildSignatoryOnboardingPayload, buildUserOnboardingPayload } from "@/features/user-management/utils";
 
@@ -77,8 +77,18 @@ export const createUserManagementActions = ({
     }
   };
 
-  const handleOpenAddUserDialog = () => {
-    setAddDialogOpen(true);
+  const handleOpenAddUserDialog = async () => {
+    try {
+      await fetchCompanyNodesWithAccess("USER_ACC");
+      setAddDialogOpen(true);
+    } catch (error) {
+      setAddDialogOpen(false);
+      toast({
+        title: "Access denied",
+        description: getApiErrorMessage(error, "You do not have permission to initiate USER_ACC onboarding."),
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSaveEdit = () => {

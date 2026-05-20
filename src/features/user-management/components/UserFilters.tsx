@@ -308,8 +308,8 @@ export default function UserFilters({
                       onToggle={(value) => setDraftDesignationFilters((current) => toggleValue(current, value))}
                     />
                     <FilterDropdown
-                      title="Department"
-                      placeholder="All departments"
+                      title="Node Name"
+                      placeholder="All node names"
                       options={departments}
                       selected={draftDepartmentFilters}
                       onToggle={(value) => setDraftDepartmentFilters((current) => toggleValue(current, value))}

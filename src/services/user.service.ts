@@ -110,6 +110,8 @@ type CompanyNodeWithWorkflows = {
   nodeName: string;
   nodePath: string;
   nodeType: string;
+  roleCode?: string;
+  roleName?: string;
   workflows: CompanyNodeWorkflow[];
 };
 
@@ -126,6 +128,8 @@ type CompanyNodesResponse = {
 export type CompanyNodesAccessMeta = {
   designation: string;
   isGlobalUser: boolean;
+  roleName: string;
+  roleCode: string;
 };
 
 export type CompanyNodesFetchResult = {
@@ -150,6 +154,9 @@ const NEW_USER_ONBOARD_PATH = "/api/v1/company-settings/user/initiate";
 const NEW_GLOBAL_SIGNATORY_ONBOARD_PATH = "/api/v1/company-settings/user/initiate-global-signatory";
 const USER_STATUS_UPDATE_PATH = "/api/v1/company-settings/user/action";
 const USER_HISTORY_PATH = "/api/v1/company-settings/user/fetch-history";
+const COMPANY_NODES_CACHE_TTL_MS = 5000;
+const companyNodesInFlight = new Map<string, Promise<CompanyNodesFetchResult>>();
+const companyNodesCache = new Map<string, { expiresAt: number; value: CompanyNodesFetchResult }>();
 
 const toRecord = (value: unknown): RawUserRecord =>
   typeof value === "object" && value !== null ? (value as RawUserRecord) : {};
@@ -321,6 +328,19 @@ export async function fetchUserHistory(email: string, companyCode: string) {
 }
 
 export async function fetchCompanyNodesWithAccess(subCategory: string): Promise<CompanyNodesFetchResult> {
+  const cacheKey = (subCategory || "").trim().toUpperCase();
+  const now = Date.now();
+  const cached = companyNodesCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+
+  const inFlight = companyNodesInFlight.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const requestPromise = (async () => {
   const payload = await apiFetch<CompanyNodesResponse>(COMPANY_NODES_PATH, {
     method: "POST",
     body: JSON.stringify({
@@ -348,17 +368,40 @@ export async function fetchCompanyNodesWithAccess(subCategory: string): Promise<
       nodeName: readString(record.nodeName).trim(),
       nodePath: readString(record.nodePath).trim(),
       nodeType: readString(record.nodeType).trim(),
+      roleCode: readString(record.roleCode).trim().toUpperCase() || undefined,
+      roleName: readString(record.roleName).trim() || undefined,
       workflows,
     };
   });
 
-  return {
+    const result: CompanyNodesFetchResult = {
     nodes,
     access: {
       designation: readString(payload.access?.designation).trim(),
       isGlobalUser: Boolean(payload.access?.isGlobalUser),
+      roleName:
+        readString((payload.access as Record<string, unknown> | undefined)?.roleName).trim() ||
+        nodes.find((node) => (node.roleName || "").trim())?.roleName?.trim() ||
+        "",
+      roleCode:
+        readString((payload.access as Record<string, unknown> | undefined)?.roleCode).trim().toUpperCase() ||
+        nodes.find((node) => (node.roleCode || "").trim())?.roleCode?.trim().toUpperCase() ||
+        "",
     },
   };
+    companyNodesCache.set(cacheKey, {
+      expiresAt: Date.now() + COMPANY_NODES_CACHE_TTL_MS,
+      value: result,
+    });
+    return result;
+  })();
+
+  companyNodesInFlight.set(cacheKey, requestPromise);
+  try {
+    return await requestPromise;
+  } finally {
+    companyNodesInFlight.delete(cacheKey);
+  }
 }
 
 export async function fetchCompanyNodes(subCategory: string): Promise<CompanyNodeWithWorkflows[]> {

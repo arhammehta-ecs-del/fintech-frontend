@@ -29,11 +29,25 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
 
   const [moduleGroups, setModuleGroups] = useState<ModuleGroup[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string; nodeType?: string }>>([]);
+  const [companyNodesWithWorkflows, setCompanyNodesWithWorkflows] = useState<
+    Array<{ nodePath: string; workflows: Array<{ levelsHash: string; name: string; alias?: string }> }>
+  >([]);
   const [workflowOptions, setWorkflowOptions] = useState<Array<{ levelsHash: string; label: string }>>([]);
   const [selectedWorkflowLevelsHash, setSelectedWorkflowLevelsHash] = useState("");
   const [levels, setLevels] = useState(INITIAL_LEVELS);
 
   const isWorkflowMetaComplete = [wfName, wfModule, wfNode].every((value) => Boolean(String(value).trim()));
+
+  const hasGlobalAliasWorkflow = useMemo(
+    () =>
+      companyNodesWithWorkflows.some((node) =>
+        node.workflows.some((workflow) => {
+          const alias = workflow.alias?.trim().toUpperCase();
+          return Boolean(alias && alias.endsWith("_D"));
+        }),
+      ),
+    [companyNodesWithWorkflows],
+  );
 
   const isRMUsedGlobally = useMemo(
     () => levels.slice(0, visibleLevels).some((level) => level.approvals.some((approval) => approval.option === "reporting_manager")),
@@ -119,23 +133,18 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
         );
         setDepartmentOptions(nextDepartments);
         setWfNode((current) => (nextDepartments.some((option) => option.value === current) ? current : ""));
-        const options = nodes
-          .flatMap((node) => node.workflows)
-          .map((workflow) => {
-            const levelsHash = workflow.levelsHash.trim();
-            const name = workflow.name.trim();
-            const alias = workflow.alias?.trim();
-            if (!levelsHash || !name) return null;
-            return { levelsHash, label: alias ? `${name} (${alias})` : name };
-          })
-          .filter((option): option is { levelsHash: string; label: string } => Boolean(option));
-
-        setWorkflowOptions(Array.from(new Map(options.map((option) => [option.levelsHash, option])).values()));
+        setCompanyNodesWithWorkflows(
+          nodes.map((node) => ({
+            nodePath: node.nodePath.trim(),
+            workflows: node.workflows,
+          })),
+        );
       } catch (error) {
         if (ignore) return;
         const message = getApiErrorMessage(error, "Unable to load workflow dependencies.");
         setErrorMsg(message);
         setDepartmentOptions([]);
+        setCompanyNodesWithWorkflows([]);
         setWorkflowOptions([]);
         toast({ title: "Unable to load workflow dependencies", description: message, variant: "destructive" });
       }
@@ -146,6 +155,28 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
       ignore = true;
     };
   }, [currentUser?.companyCode, isOpen, toast]);
+
+  useEffect(() => {
+    const scopedNodes = !hasGlobalAliasWorkflow && wfNode
+      ? companyNodesWithWorkflows.filter((node) => node.nodePath === wfNode)
+      : companyNodesWithWorkflows;
+    const options = scopedNodes
+      .flatMap((node) => node.workflows)
+      .map((workflow) => {
+        const levelsHash = workflow.levelsHash.trim();
+        const name = workflow.name.trim();
+        const alias = workflow.alias?.trim();
+        if (!levelsHash || !name) return null;
+        return { levelsHash, label: alias ? `${name} (${alias})` : name };
+      })
+      .filter((option): option is { levelsHash: string; label: string } => Boolean(option));
+    const nextWorkflowOptions = Array.from(new Map(options.map((option) => [option.levelsHash, option])).values());
+
+    setWorkflowOptions(nextWorkflowOptions);
+    setSelectedWorkflowLevelsHash((current) =>
+      current && !nextWorkflowOptions.some((option) => option.levelsHash === current) ? "" : current,
+    );
+  }, [companyNodesWithWorkflows, hasGlobalAliasWorkflow, wfNode]);
 
   useEffect(() => {
     if (!isOpen) return;

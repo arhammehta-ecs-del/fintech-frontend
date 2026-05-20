@@ -1,5 +1,5 @@
 import { Briefcase, Building2, Check, ChevronDown, Search, X, Zap } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,6 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { ModuleGroup } from "./types";
 import { getWorkflowPathPreview } from "@/features/workflow-management/utils/workflowRecord.utils";
+import { isRootWorkflowNode } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 type WorkflowStepInputsProps = {
   wfName: string;
@@ -229,8 +230,20 @@ export default function WorkflowStepInputs({
   const nodeOptions = departmentOptions.map((option) => ({
     value: option.value,
     label: option.label,
-    pathLabel: getWorkflowPathPreview(option.value, 3),
+    pathLabel: isRootWorkflowNode(option.value) ? undefined : getWorkflowPathPreview(option.value, 3),
   }));
+
+  useEffect(() => {
+    if (!wfModule.trim() && moduleOptions.length === 1) {
+      onSetWfModule(moduleOptions[0].value);
+    }
+  }, [wfModule, moduleOptions, onSetWfModule]);
+
+  useEffect(() => {
+    if (!wfNode.trim() && nodeOptions.length === 1) {
+      onSetWfNode(nodeOptions[0].value);
+    }
+  }, [wfNode, nodeOptions, onSetWfNode]);
 
   return (
     <div className="h-full overflow-auto p-6 custom-scrollbar">

@@ -4,6 +4,8 @@ import { getApiErrorMessage } from "@/services/client";
 import { createNewOrgNode, getCompanyOrgStructure, updateOrgNodeAction } from "@/services/org.service";
 import { getCompanyRoles } from "@/services/role.service";
 import { createUserOnboarding, getCompanyUsers, updateUserStatus, type UserOnboardingPermission, type UserOnboardingPayload } from "@/services/user.service";
+import { createWorkflow, fetchWorkflows, updateWorkflowAction } from "@/services/workflow.service";
+import { mapWorkflowRecord } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 export type SeedSummary = {
   companiesCreated: number;
@@ -29,6 +31,12 @@ export type SeedConfig = {
   pendingOrgNodesPerCompany: number;
 };
 
+export type FrontendBulkConfig = {
+  totalOrgNodes: number;
+  totalUsers: number;
+  totalWorkflows: number;
+};
+
 export const DEFAULT_SEED_CONFIG: SeedConfig = {
   approvedCompanyCount: 10,
   pendingCompanyCount: 5,
@@ -38,6 +46,12 @@ export const DEFAULT_SEED_CONFIG: SeedConfig = {
   orgLevels: 7,
   nodesPerLevel: 5,
   pendingOrgNodesPerCompany: 5,
+};
+
+export const DEFAULT_FRONTEND_BULK_CONFIG: FrontendBulkConfig = {
+  totalOrgNodes: 100,
+  totalUsers: 10_000,
+  totalWorkflows: 100,
 };
 
 const SEED_COMPANY_NAMES = [
@@ -365,6 +379,12 @@ const getCompanyEmailDomain = (companyName: string, companyCode: string) => {
   return `${rawDomain}.com`;
 };
 
+const getBulkCompanyEmailDomain = (companyName: string, companyCode: string) => {
+  const compactName = companyName.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  const compactCode = companyCode.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  return `${compactName || compactCode || "company"}.com`;
+};
+
 const shouldSeedIndependentCompany = (index: number) => (index + 1) % 4 === 0;
 
 const createCompanySeedPayload = (
@@ -473,6 +493,346 @@ const generateSeedUser = (
     employeeId: `EMP-${normalizePathSegment(companyCode).slice(0, 8)}-${pad(userNumber)}`,
   };
 };
+
+const flattenActiveNodes = (root: OrgNode | null) => flattenOrg(root).filter(isActiveNode);
+
+const generateBulkUser = (
+  companyCode: string,
+  companyBrand: string,
+  userNumber: number,
+): { name: string; email: string; phone: string; designation: string; employeeId: string } => {
+  const email = `u${userNumber}@${getBulkCompanyEmailDomain(companyBrand, companyCode)}`;
+  return {
+    name: `User ${userNumber}`,
+    email,
+    phone: `8${String(userNumber).padStart(9, "0").slice(-9)}`,
+    designation: "Executive",
+    employeeId: `EMP-${normalizePathSegment(companyCode).slice(0, 10)}-${String(userNumber).padStart(5, "0")}`,
+  };
+};
+
+const chunked = async <T>(items: T[], size: number, worker: (item: T, index: number) => Promise<void>) => {
+  for (let offset = 0; offset < items.length; offset += size) {
+    const slice = items.slice(offset, offset + size);
+    await Promise.all(slice.map((item, index) => worker(item, offset + index)));
+  }
+};
+
+const buildBulkPermissionFactory = async (companyCode: string) => {
+  const [orgTree, roles] = await Promise.all([getCompanyOrgStructure(companyCode), getCompanyRoles(companyCode)]);
+  if (!orgTree) throw new Error("Org root not available");
+  const nodes = flattenActiveNodes(orgTree);
+  if (!nodes.length) throw new Error("No active org nodes available");
+  const validRoles = roles.filter(
+    (role) =>
+      role.roleName.trim().toUpperCase() !== "CORP ADMIN" &&
+      role.category.trim().toUpperCase() !== "ALL",
+  );
+  if (!validRoles.length) throw new Error("No valid roles available for bulk user onboarding");
+
+  const accessCategories: Array<"NODE" | "IMMEDIATE_CHILD" | "ALL_CHILD"> = [
+    "NODE",
+    "IMMEDIATE_CHILD",
+    "ALL_CHILD",
+  ];
+  const roleCount = validRoles.length;
+  const nodeCount = nodes.length;
+  const categoryCount = accessCategories.length;
+  const combinationSpace =
+    nodeCount * roleCount * categoryCount * nodeCount * roleCount * categoryCount * roleCount * categoryCount;
+
+  return (userIndex: number): UserOnboardingPermission[] => {
+    let x = userIndex % combinationSpace;
+    const take = (base: number) => {
+      const value = x % base;
+      x = Math.floor(x / base);
+      return value;
+    };
+
+    const pNode = take(nodeCount);
+    const pRole = take(roleCount);
+    const pCat = take(categoryCount);
+    const sNodeA = take(nodeCount);
+    const sRoleA = take(roleCount);
+    const sCatA = take(categoryCount);
+    const sRoleB = take(roleCount);
+    const sCatB = take(categoryCount);
+
+    const primaryNode = nodes[pNode];
+    const secondaryNode = nodes[sNodeA];
+    const primaryRole = validRoles[pRole];
+    const secondaryRoleA = validRoles[sRoleA];
+    const secondaryRoleB = validRoles[sRoleB];
+
+    return [
+      {
+        accessType: "PRIMARY",
+        roleCategory: normalizeRoleCategory(primaryRole.category),
+        roleSubCategory: primaryRole.subCategory,
+        roleName: primaryRole.roleName,
+        nodeName: primaryNode.name,
+        nodePath: primaryNode.nodePath,
+        accessCategory: accessCategories[pCat],
+      },
+      {
+        accessType: "SECONDARY",
+        roleCategory: normalizeRoleCategory(secondaryRoleA.category),
+        roleSubCategory: secondaryRoleA.subCategory,
+        roleName: secondaryRoleA.roleName,
+        nodeName: secondaryNode.name,
+        nodePath: secondaryNode.nodePath,
+        accessCategory: accessCategories[sCatA],
+      },
+      {
+        accessType: "SECONDARY",
+        roleCategory: normalizeRoleCategory(secondaryRoleB.category),
+        roleSubCategory: secondaryRoleB.subCategory,
+        roleName: secondaryRoleB.roleName,
+        nodeName: primaryNode.name,
+        nodePath: primaryNode.nodePath,
+        accessCategory: accessCategories[sCatB],
+      },
+    ];
+  };
+};
+
+const approvePendingOrgNodesWithRetries = async (
+  companyCode: string,
+  summary: SeedSummary,
+  onProgress?: (message: string) => void,
+  maxRounds = 6,
+) => {
+  for (let round = 1; round <= maxRounds; round += 1) {
+    const tree = await getCompanyOrgStructure(companyCode);
+    const pending = flattenOrg(tree).filter((node) => node.status === "Pending" && node.id?.trim());
+    if (!pending.length) return;
+    onProgress?.(`Approving pending org nodes round ${round}/${maxRounds} (${pending.length} pending)`);
+    for (const node of pending) {
+      try {
+        await updateOrgNodeAction(node.id, "approve", "Bulk org auto-approval");
+        summary.orgNodesApproved += 1;
+        await wait(120);
+      } catch (error) {
+        summary.failedOrgNodes += 1;
+        pushError(summary, `Org pending approval failed (${node.name}): ${getApiErrorMessage(error, "Unknown error")}`, onProgress);
+      }
+    }
+    await wait(500);
+  }
+};
+
+const seedBinaryOrgTree = async (
+  companyCode: string,
+  totalOrgNodes: number,
+  summary: SeedSummary,
+  onProgress?: (message: string) => void,
+) => {
+  let tree = await getCompanyOrgStructureWithRetry(companyCode, 5, 200);
+  if (!tree) throw new Error(`Org root unavailable for ${companyCode}`);
+  let activeNodes = flattenActiveNodes(tree);
+  if (activeNodes.length >= totalOrgNodes) {
+    onProgress?.(`Org already has ${activeNodes.length} active nodes; skipping org bulk creation.`);
+    return;
+  }
+
+  const root = activeNodes[0];
+  const queue: OrgNode[] = [root];
+  let serial = activeNodes.length + 1;
+
+  while (activeNodes.length < totalOrgNodes && queue.length > 0) {
+    const parent = queue.shift()!;
+    const remaining = totalOrgNodes - activeNodes.length;
+    const childrenToCreate = Math.min(2, remaining);
+
+    for (let i = 0; i < childrenToCreate; i += 1) {
+      const nodeName = `BULK_NODE_${String(serial).padStart(3, "0")}`;
+      serial += 1;
+      try {
+        await createNewOrgNode({
+          companyCode,
+          newNodeName: nodeName,
+          nodeType: "TEAM",
+          parentNode: {
+            nodeName: parent.name,
+            nodePath: parent.nodePath,
+          },
+        });
+        summary.orgNodesCreated += 1;
+        await wait(120);
+      } catch (error) {
+        summary.failedOrgNodes += 1;
+        pushError(summary, `Bulk org create failed (${nodeName}): ${getApiErrorMessage(error, "Unknown error")}`, onProgress);
+      }
+    }
+
+    await approvePendingOrgNodesWithRetries(companyCode, summary, onProgress);
+
+    tree = await getCompanyOrgStructureWithRetry(companyCode, 5, 250);
+    if (!tree) break;
+    activeNodes = flattenActiveNodes(tree);
+    const byPath = new Map(activeNodes.map((node) => [node.nodePath, node] as const));
+    const refreshedParent = byPath.get(parent.nodePath);
+    if (refreshedParent) {
+      refreshedParent.children.forEach((child) => queue.push(child));
+    }
+    onProgress?.(`Org bulk progress: ${activeNodes.length}/${totalOrgNodes} active nodes`);
+  }
+};
+
+const seedBulkWorkflowsForCompany = async (
+  companyCode: string,
+  totalWorkflows: number,
+  summary: SeedSummary,
+  onProgress?: (message: string) => void,
+) => {
+  const orgTree = await getCompanyOrgStructure(companyCode);
+  const nodes = flattenActiveNodes(orgTree);
+  if (!nodes.length) throw new Error("No active nodes found for workflow bulk seed");
+
+  const roles = await getCompanyRoles(companyCode);
+  const validRoleModules = roles
+    .filter((role) => role.roleName.trim().toUpperCase() !== "CORP ADMIN" && role.category.trim().toUpperCase() !== "ALL")
+    .map((role) => ({ module: role.category.trim().toUpperCase(), subModule: role.subCategory.trim().toUpperCase() }))
+    .filter((pair) => Boolean(pair.module) && Boolean(pair.subModule));
+  const modulePairs = Array.from(
+    new Map(validRoleModules.map((pair) => [`${pair.module}|${pair.subModule}`, pair])).values(),
+  );
+  if (!modulePairs.length) throw new Error("No valid module/submodule pairs available for workflow bulk seed");
+
+  const levelOptions = ["REPORTING_MANAGER", "NODE_APPROVER", "HIERARCHY_APPROVER"] as const;
+
+  for (let i = 0; i < totalWorkflows; i += 1) {
+    const node = nodes[i % nodes.length];
+    const pair = modulePairs[i % modulePairs.length];
+    const alias = `BULKWF-${String(i + 1).padStart(3, "0")}`;
+    const checkerCount = (i % 4) + 1;
+    const levels: Record<string, Record<string, string>> = {};
+    for (let l = 1; l <= checkerCount; l += 1) {
+      levels[`l${l}`] = {
+        approver1: levelOptions[(i + l) % levelOptions.length],
+      };
+    }
+
+    try {
+      await createWorkflow({
+        companyCode,
+        name: `Bulk Workflow ${i + 1}`,
+        alias,
+        module: pair.module,
+        subModule: pair.subModule,
+        nodePath: node.nodePath,
+        levels,
+        levelsHash: null,
+      });
+      onProgress?.(`Workflow bulk initiated ${i + 1}/${totalWorkflows}`);
+      await wait(100);
+    } catch (error) {
+      summary.failedUsers += 1;
+      pushError(summary, `Bulk workflow create failed (${alias}): ${getApiErrorMessage(error, "Unknown error")}`, onProgress);
+    }
+  }
+};
+
+export async function seedBulkUsersForCompany(
+  companyCode: string,
+  companyBrand: string,
+  totalUsers: number,
+  onProgress?: (msg: string) => void,
+): Promise<SeedSummary> {
+  const summary = defaultSummary();
+  const existingUsers = await getCompanyUsers(companyCode);
+  const managerEmail = getPreferredReportingManagerEmail(existingUsers, companyCode, companyBrand);
+  if (!managerEmail) throw new Error(`No active reporting manager found in ${companyCode}`);
+
+  const permissionFactory = await buildBulkPermissionFactory(companyCode);
+  const domain = getBulkCompanyEmailDomain(companyBrand, companyCode).toLowerCase();
+  const existingEmails = new Set(existingUsers.map((user) => user.email.trim().toLowerCase()));
+
+  const users = Array.from({ length: totalUsers }, (_, idx) => idx + 1);
+  await chunked(users, 3, async (userNo) => {
+    const seededUser = generateBulkUser(companyCode, companyBrand, userNo);
+    const lowerEmail = seededUser.email.toLowerCase();
+    if (existingEmails.has(lowerEmail)) return;
+
+    const payload: UserOnboardingPayload = {
+      basicDetails: {
+        name: seededUser.name,
+        email: seededUser.email,
+        phone: seededUser.phone,
+        designation: seededUser.designation,
+        employeeId: seededUser.employeeId,
+        reportingManager: managerEmail,
+      },
+      permissions: permissionFactory(userNo - 1),
+      levelsHash: null,
+    };
+
+    try {
+      await createUserOnboarding(payload);
+      summary.usersCreated += 1;
+      existingEmails.add(lowerEmail);
+      await wait(60);
+    } catch (error) {
+      summary.failedUsers += 1;
+      pushError(summary, `Bulk user create failed (${seededUser.email}): ${getApiErrorMessage(error, "Unknown error")}`, onProgress);
+    }
+  });
+
+  onProgress?.(`Bulk users initiated for domain ${domain}: ${summary.usersCreated}/${totalUsers}`);
+  return summary;
+}
+
+export async function seedBulkAllForCompany(
+  companyCode: string,
+  companyBrand: string,
+  config: FrontendBulkConfig,
+  onProgress?: (msg: string) => void,
+): Promise<SeedSummary> {
+  const summary = defaultSummary();
+  onProgress?.(`Bulk add start: org=${config.totalOrgNodes}, users=${config.totalUsers}, workflows=${config.totalWorkflows}`);
+  await seedBinaryOrgTree(companyCode, config.totalOrgNodes, summary, onProgress);
+  await seedBulkWorkflowsForCompany(companyCode, config.totalWorkflows, summary, onProgress);
+  const userSummary = await seedBulkUsersForCompany(companyCode, companyBrand, config.totalUsers, onProgress);
+  addSummary(summary, userSummary);
+  onProgress?.("Bulk add completed.");
+  return summary;
+}
+
+export async function approveBulkForCompany(
+  companyCode: string,
+  onProgress?: (msg: string) => void,
+): Promise<SeedSummary> {
+  const summary = defaultSummary();
+  const orgSummary = await approveAllPendingOrgNodesForCompany(companyCode, onProgress);
+  addSummary(summary, orgSummary);
+  const userSummary = await approveAllPendingUsersForCompany(companyCode, onProgress);
+  addSummary(summary, userSummary);
+
+  try {
+    const workflowResponse = await fetchWorkflows();
+    const pending = Array.isArray((workflowResponse as any)?.data?.pending)
+      ? (workflowResponse as any).data.pending.map((entry: unknown) => mapWorkflowRecord(entry, "Pending"))
+      : [];
+    const bulkPending = pending.filter((w) => w.alias?.trim().toUpperCase().startsWith("BULKWF-"));
+    for (const [index, workflow] of bulkPending.entries()) {
+      const hash = (workflow.levelsHash || workflow.workflowId || workflow.id || "").trim();
+      if (!hash) continue;
+      try {
+        await updateWorkflowAction(hash, "approve", "Bulk workflow approval from dashboard");
+        summary.orgNodesApproved += 1;
+        onProgress?.(`Approved bulk workflow ${index + 1}/${bulkPending.length}`);
+      } catch (error) {
+        summary.failedOrgNodes += 1;
+        pushError(summary, `Bulk workflow approval failed (${workflow.alias}): ${getApiErrorMessage(error, "Unknown error")}`, onProgress);
+      }
+    }
+  } catch (error) {
+    pushError(summary, `Failed to fetch workflows for bulk approval: ${getApiErrorMessage(error, "Unknown error")}`, onProgress);
+  }
+
+  onProgress?.("Bulk approval completed.");
+  return summary;
+}
 
 const createOrgNodeMatrix = async (
   companyCode: string,

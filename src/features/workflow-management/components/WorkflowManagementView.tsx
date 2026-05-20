@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronLeft, ChevronRight, Filter, Plus, Search, Settings, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,21 @@ const statusBadgeClassName: Record<string, string> = {
   Pending: "border-amber-200 bg-amber-50 text-amber-700",
   Inactive: "border-rose-200 bg-rose-50 text-rose-700",
 };
+
+const tabCountBadgeClassName: Record<string, string> = {
+  Active: "bg-emerald-100 text-emerald-700",
+  Pending: "bg-amber-100 text-amber-700",
+  Inactive: "bg-rose-100 text-rose-700",
+};
+
+// Configurable thresholds and table templates.
+const WORKFLOW_NAME_WRAP_THRESHOLD = 40;
+const MODULE_NAME_ADAPT_THRESHOLD = 20;
+const NODE_NAME_TRUNCATE_THRESHOLD = 20;
+const DEFAULT_WORKFLOW_TABLE_GRID =
+  "md:grid-cols-[minmax(16ch,1.65fr)_minmax(9ch,0.95fr)_minmax(10ch,0.95fr)_minmax(13ch,1.2fr)_minmax(7ch,0.7fr)_minmax(9ch,0.8fr)_minmax(72px,0.45fr)]";
+const ADAPTIVE_PENDING_WORKFLOW_TABLE_GRID =
+  "md:grid-cols-[minmax(18ch,1.85fr)_minmax(9ch,0.95fr)_minmax(10ch,0.95fr)_minmax(12ch,1.15fr)_minmax(7ch,0.7fr)_minmax(9ch,0.8fr)_minmax(72px,0.45fr)]";
 
 function NodePathMarquee({ text }: { text: string }) {
   const viewportRef = useRef<HTMLSpanElement | null>(null);
@@ -152,6 +167,18 @@ export default function WorkflowManagementView() {
   const [draftNodeNameFilters, setDraftNodeNameFilters] = useState<string[]>(nodeNameFilters);
   const [draftTypeFilters, setDraftTypeFilters] = useState<string[]>(typeFilters);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const shouldUseAdaptivePendingLayout = useMemo(
+    () =>
+      filteredWorkflows.some(
+        (workflow) =>
+          (workflow.name || "").trim().length > WORKFLOW_NAME_WRAP_THRESHOLD ||
+          (workflow.module || "").trim().length > MODULE_NAME_ADAPT_THRESHOLD,
+      ),
+    [filteredWorkflows],
+  );
+  const workflowGridTemplateClass = shouldUseAdaptivePendingLayout
+    ? ADAPTIVE_PENDING_WORKFLOW_TABLE_GRID
+    : DEFAULT_WORKFLOW_TABLE_GRID;
 
   const toggleValue = (current: string[], value: string) =>
     current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
@@ -302,7 +329,9 @@ export default function WorkflowManagementView() {
                     <span
                       className={cn(
                         "inline-flex min-w-7 items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                        activeStatus === tab.id ? "bg-white/15 text-white ring-1 ring-white/20" : "bg-white text-slate-500 border border-slate-200",
+                        activeStatus === tab.id
+                          ? "bg-white/15 text-white ring-1 ring-white/20"
+                          : tabCountBadgeClassName[tab.id] || "bg-white text-slate-500 border border-slate-200",
                       )}
                     >
                       {tab.count}
@@ -460,7 +489,7 @@ export default function WorkflowManagementView() {
           <div className="p-8 text-sm text-slate-500">No {activeStatus.toLowerCase()} workflows available.</div>
         ) : (
           <div className="min-h-0 flex-1 overflow-auto">
-            <div className="sticky top-0 z-20 grid grid-cols-1 gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur md:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.75fr)_minmax(110px,0.55fr)_minmax(96px,0.45fr)] md:items-center md:gap-x-4">
+            <div className={cn("sticky top-0 z-20 grid grid-cols-1 gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur md:items-center md:gap-x-4", workflowGridTemplateClass)}>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Workflow</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Alias</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Module</div>
@@ -472,12 +501,29 @@ export default function WorkflowManagementView() {
 
             <div className="divide-y divide-slate-100">
               {paginatedWorkflows.map((workflow) => (
-                <div key={workflow.id} className="grid grid-cols-1 gap-2 p-4 md:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.75fr)_minmax(110px,0.55fr)_minmax(96px,0.45fr)] md:items-center md:gap-x-4">
-                  <div className="text-sm font-semibold text-slate-800">{workflow.name}</div>
-                  <div className="text-sm text-slate-700">{workflow.alias}</div>
-                  <div className="text-sm text-slate-700">{workflow.module}</div>
+                <div key={workflow.id} className={cn("grid grid-cols-1 gap-2 p-4 md:items-center md:gap-x-4", workflowGridTemplateClass)}>
+                  <div
+                    className={cn(
+                      "text-sm font-semibold text-slate-800",
+                      shouldUseAdaptivePendingLayout
+                        ? "[overflow-wrap:anywhere]"
+                        : "truncate whitespace-nowrap",
+                    )}
+                    style={shouldUseAdaptivePendingLayout ? { maxWidth: `${WORKFLOW_NAME_WRAP_THRESHOLD}ch` } : undefined}
+                    title={workflow.name}
+                  >
+                    {workflow.name || "—"}
+                  </div>
+                  <div className="truncate whitespace-nowrap text-sm text-slate-700" title={workflow.alias}>{workflow.alias}</div>
+                  <div className="truncate whitespace-nowrap text-sm text-slate-700" title={workflow.module}>{workflow.module}</div>
                   <div className="min-w-0 text-sm text-slate-700">
-                    <p className="truncate text-sm text-slate-700">{workflow.nodeName || "—"}</p>
+                    <p
+                      className="text-sm text-slate-700 [overflow-wrap:anywhere]"
+                      style={{ maxWidth: `${NODE_NAME_TRUNCATE_THRESHOLD}ch` }}
+                      title={workflow.nodeName || "—"}
+                    >
+                      {workflow.nodeName || "—"}
+                    </p>
                     {workflow.nodePath && !isRootWorkflowNode(workflow.nodePath, workflow.nodeType) ? (() => {
                       const pathPreview = getWorkflowPathPreview(workflow.nodePath, 3);
                       return pathPreview ? (
@@ -485,7 +531,7 @@ export default function WorkflowManagementView() {
                       ) : null;
                     })() : null}
                   </div>
-                  <div className="text-sm text-slate-700">{workflow.nodeType}</div>
+                  <div className="truncate whitespace-nowrap text-sm text-slate-700">{workflow.nodeType}</div>
                   <div>
                     <span
                       className={cn(

@@ -7,14 +7,18 @@ import { getAllCompanies } from "@/services/company.service";
 import {
   approveAllPendingOrgNodesForCompany,
   approveAllPendingUsersForCompany,
+  approveBulkForCompany,
+  DEFAULT_FRONTEND_BULK_CONFIG,
   DEFAULT_SEED_CONFIG,
+  seedBulkAllForCompany,
+  seedBulkUsersForCompany,
   seedCompanies,
   seedOrgForCompany,
   seedUsersForCompany,
   type SeedSummary,
 } from "@/services/seed.service";
 
-type SeedAction = "companies" | "org" | "users" | "approve-users" | "approve-org" | null;
+type SeedAction = "companies" | "org" | "users" | "approve-users" | "approve-org" | "bulk-add" | "bulk-approve" | "bulk-users" | null;
 
 type ApprovedCompanyOption = {
   id: string;
@@ -233,6 +237,37 @@ export default function Dashboard() {
     );
   };
 
+  const handleBulkAdd = () => {
+    if (!selectedCompany?.companyCode) return;
+    void runAction("bulk-add", () =>
+      seedBulkAllForCompany(
+        selectedCompany.companyCode,
+        selectedCompany.brand,
+        DEFAULT_FRONTEND_BULK_CONFIG,
+        appendProgress,
+      ),
+    );
+  };
+
+  const handleBulkApprove = () => {
+    if (!selectedCompany?.companyCode) return;
+    void runAction("bulk-approve", () =>
+      approveBulkForCompany(selectedCompany.companyCode, appendProgress),
+    );
+  };
+
+  const handleBulkUsers = () => {
+    if (!selectedCompany?.companyCode) return;
+    void runAction("bulk-users", () =>
+      seedBulkUsersForCompany(
+        selectedCompany.companyCode,
+        selectedCompany.brand,
+        DEFAULT_FRONTEND_BULK_CONFIG.totalUsers,
+        appendProgress,
+      ),
+    );
+  };
+
   return (
     <div className="flex min-h-[calc(100vh-12rem)] items-center justify-center px-4 py-8">
       <Card className="w-full max-w-4xl border border-slate-200 shadow-sm">
@@ -299,6 +334,17 @@ export default function Dashboard() {
                   {runningAction === "approve-users" ? "Approving Pending Users..." : "✅ Approve All Pending Users"}
                 </Button>
               </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 md:grid-cols-3">
+              <Button onClick={handleBulkAdd} disabled={isRunning || !selectedCompany} className="h-11 w-full">
+                {runningAction === "bulk-add" ? "Adding Bulk..." : "🚀 Add Bulk"}
+              </Button>
+              <Button onClick={handleBulkApprove} disabled={isRunning || !selectedCompany} variant="outline" className="h-11 w-full">
+                {runningAction === "bulk-approve" ? "Approving Bulk..." : "✅ Approve Bulk"}
+              </Button>
+              <Button onClick={handleBulkUsers} disabled={isRunning || !selectedCompany} variant="outline" className="h-11 w-full">
+                {runningAction === "bulk-users" ? "Seeding 10k Users..." : "👥 Seed Bulk Users"}
+              </Button>
             </div>
           </div>
 

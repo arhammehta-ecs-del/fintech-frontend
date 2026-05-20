@@ -34,7 +34,11 @@ export function NodeAccessCard({
   const badgeCls = getNodeBadgeClass(nodeIndex, isPrimary);
   const badgeLabel = `${isPrimary ? "P" : "S"}${nodeIndex + 1}`;
 
-  const presentCats = CATEGORY_ORDER.filter((cat) => (categories[cat]?.length ?? 0) > 0);
+  const orderedCats = CATEGORY_ORDER.filter((cat) => (categories[cat]?.length ?? 0) > 0);
+  const extraCats = Object.keys(categories).filter(
+    (cat) => !CATEGORY_ORDER.includes(cat) && (categories[cat]?.length ?? 0) > 0,
+  );
+  const presentCats = [...orderedCats, ...extraCats];
   const getBadgeStyle = (label: string) => {
     if (label === "Global Access") return "bg-emerald-50 text-emerald-700";
     if (label === "Checker") return "bg-violet-50 text-violet-700";

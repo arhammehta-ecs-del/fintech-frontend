@@ -20,7 +20,7 @@ import {
   findOrgNode,
   validateUserOnboardingStep,
 } from "@/features/user-management/utils";
-import { buildOrgTreeFromCompanyNodes, buildWorkflowOptions } from "./useUserOnboardingForm.utils";
+import { buildOrgTreeFromCompanyNodes, buildWorkflowOptions, hasGlobalAliasWorkflow } from "./useUserOnboardingForm.utils";
 
 type UseUserOnboardingFormOptions = {
   open: boolean;
@@ -32,6 +32,9 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   const { currentUser, users } = useAppContext();
   const companyCode = currentUser?.companyCode ?? "";
   const [roles, setRoles] = useState<RoleRecord[]>([]);
+  const [companyNodesWithWorkflows, setCompanyNodesWithWorkflows] = useState<
+    Array<{ nodePath: string; workflows: Array<{ levelsHash: string; name: string; alias?: string }> }>
+  >([]);
   const [workflowOptions, setWorkflowOptions] = useState<Array<{ levelsHash: string; label: string }>>([]);
   const [localOrgStructure, setLocalOrgStructure] = useState<OrgNode | null>(null);
   const [step, setStep] = useState(1);
@@ -108,12 +111,19 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
     fetchCompanyNodesWithAccess("USER_ACC")
       .then(({ nodes, access }) => {
         if (ignore) return;
+        const normalizedRoleName = (access.roleName || "")
+          .trim()
+          .toUpperCase()
+          .replace(/[_-]+/g, " ")
+          .replace(/\s+/g, " ");
+        const isCorpAdmin =
+          normalizedRoleName === "CORP ADMIN" || (access.roleCode || "").trim().toUpperCase() === "CORP_ADMIN";
+        setCompanyNodesWithWorkflows(nodes);
         setLocalOrgStructure(buildOrgTreeFromCompanyNodes(nodes));
-        setWorkflowOptions(buildWorkflowOptions(nodes));
         setFormData((current) => ({
           ...current,
-          isGlobalUserEligible: access.isGlobalUser,
-          isGlobalSignatory: access.isGlobalUser ? current.isGlobalSignatory : false,
+          isGlobalUserEligible: isCorpAdmin,
+          isGlobalSignatory: isCorpAdmin ? current.isGlobalSignatory : false,
           basic: access.designation
             ? {
               ...current.basic,
@@ -124,6 +134,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
       })
       .catch(() => {
         if (!ignore) {
+          setCompanyNodesWithWorkflows([]);
           setWorkflowOptions([]);
           setLocalOrgStructure(null);
           setFormData((current) => ({
@@ -138,6 +149,30 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
       ignore = true;
     };
   }, [open, companyCode]);
+
+  useEffect(() => {
+    const selectedNodePathSet = new Set(selectedNodeIds);
+    const useGlobalWorkflowOptions = hasGlobalAliasWorkflow(companyNodesWithWorkflows);
+    const scopedNodes =
+      !useGlobalWorkflowOptions && selectedNodePathSet.size > 0
+        ? companyNodesWithWorkflows.filter((node) => selectedNodePathSet.has(node.nodePath))
+        : companyNodesWithWorkflows;
+    const nextWorkflowOptions = buildWorkflowOptions(scopedNodes);
+    setWorkflowOptions(nextWorkflowOptions);
+
+    setFormData((current) => {
+      if (!current.selectedWorkflowLevelsHash) return current;
+      const stillAvailable = nextWorkflowOptions.some(
+        (option) => option.levelsHash === current.selectedWorkflowLevelsHash,
+      );
+      if (stillAvailable) return current;
+      return {
+        ...current,
+        selectedWorkflowLevelsHash: "",
+        selectedWorkflow: "",
+      };
+    });
+  }, [companyNodesWithWorkflows, selectedNodeIds]);
 
   useEffect(() => {
     if (!open) return;

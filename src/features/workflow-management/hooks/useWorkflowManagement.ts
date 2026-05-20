@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
 import { fetchWorkflows, updateWorkflowAction } from "@/services/workflow.service";
+import { fetchCompanyNodesWithAccess } from "@/services/user.service";
 import type { WorkflowPageSize, WorkflowRecord, WorkflowStatus } from "@/features/workflow-management/types/workflow.types";
 import { WORKFLOW_PAGE_SIZE_OPTIONS } from "@/features/workflow-management/types/workflow.types";
 import { mapWorkflowRecord } from "@/features/workflow-management/utils/workflowRecord.utils";
@@ -126,8 +127,18 @@ export function useWorkflowManagement() {
     }
   };
 
-  const handleOpenAddWorkflowDialog = () => {
-    setAddDialogOpen(true);
+  const handleOpenAddWorkflowDialog = async () => {
+    try {
+      await fetchCompanyNodesWithAccess("WORK_FLOW");
+      setAddDialogOpen(true);
+    } catch (error) {
+      setAddDialogOpen(false);
+      toast({
+        title: "Access denied",
+        description: getApiErrorMessage(error, "You do not have permission to initiate WORK_FLOW."),
+        variant: "destructive",
+      });
+    }
   };
 
   const statusScopedWorkflows = useMemo(

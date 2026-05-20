@@ -205,7 +205,17 @@ export function useOrgStructure() {
     if (node.status?.trim().toUpperCase() === "PENDING") return;
     try {
       const nodes = await fetchCompanyNodes("ORG_STR");
-      const options = nodes
+      const selectedNodePath = node.nodePath.trim().toUpperCase();
+      const hasGlobalAliasWorkflow = nodes.some((item) =>
+        item.workflows.some((workflow) => {
+          const alias = workflow.alias?.trim().toUpperCase();
+          return Boolean(alias && alias.endsWith("_D"));
+        }),
+      );
+      const scopedNodes = hasGlobalAliasWorkflow
+        ? nodes
+        : nodes.filter((item) => item.nodePath.trim().toUpperCase() === selectedNodePath);
+      const options = scopedNodes
         .flatMap((item) => item.workflows)
         .map((workflow) => {
           const id = workflow.levelsHash.trim();
@@ -219,10 +229,13 @@ export function useOrgStructure() {
     } catch (error) {
       setNewNodeWorkflowOptions([]);
       toast({
-        title: "Unable to pre-load organization nodes",
-        description: getApiErrorMessage(error, "Continuing to add node."),
+        title: "Access denied",
+        description: getApiErrorMessage(error, "You do not have permission to initiate ORG_STR."),
         variant: "destructive",
       });
+      setIsNewNodePopupOpen(false);
+      setNewNodeParent(null);
+      return;
     }
     setNewNodeParent(node);
     setIsNewNodePopupOpen(true);
