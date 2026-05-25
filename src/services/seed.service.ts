@@ -368,6 +368,16 @@ const normalizeDomainSegment = (value: string) =>
 const randomDigits = (length: number) =>
   Array.from({ length }, () => String(Math.floor(Math.random() * 10))).join("");
 
+const indexToLetters = (index: number) => {
+  let value = index;
+  let token = "";
+  do {
+    token = String.fromCharCode(65 + (value % 26)) + token;
+    value = Math.floor(value / 26) - 1;
+  } while (value >= 0);
+  return token;
+};
+
 const getSeedCompanyBaseName = (index: number) => {
   const base = SEED_COMPANY_NAMES[index % SEED_COMPANY_NAMES.length];
   const cycle = Math.floor(index / SEED_COMPANY_NAMES.length);
@@ -396,7 +406,10 @@ const createCompanySeedPayload = (
   const companyLabel = getSeedCompanyBaseName(index);
   const companyCode = `${normalizePathSegment(companyLabel)}${companyIndex}`;
   const companyDomain = getCompanyEmailDomain(companyLabel, companyCode);
-  const groupLabel = isIndependent ? "Independent" : `SEED GROUP ${Math.ceil((index + 1) / 5)}`;
+  const groupLabel = isIndependent
+    ? "Independent Group"
+    : `Seed Group ${indexToLetters(Math.floor(index / 5))}`;
+  const signatoryNameByIndex = ["Primary Signatory", "Secondary Signatory", "Additional Signatory"] as const;
 
   return {
     group: {
@@ -415,7 +428,7 @@ const createCompanySeedPayload = (
     signatories: Array.from({ length: signatoriesPerCompany }, (_, signatoryIndex) => {
       const signatoryLabel = signatoryIndex + 1;
       return {
-        name: `Signatory ${signatoryLabel}`,
+        name: signatoryNameByIndex[signatoryIndex] ?? `Signatory ${indexToLetters(signatoryIndex)}`,
         email: `s${signatoryLabel}@${companyDomain}`,
         phone: `900000${pad(index + 1)}${pad(signatoryLabel)}`,
         designation: signatoryLabel === 1 ? "Operations Manager" : "Finance Manager",

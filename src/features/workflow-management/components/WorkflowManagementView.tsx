@@ -769,7 +769,7 @@ function WorkflowFilterDropdown({
         <DropdownMenuContent
           align="start"
           className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[260px] border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
-          onOpenAutoFocus={(event) => event.preventDefault()}
+          onCloseAutoFocus={(event) => event.preventDefault()}
         >
           <div className="mt-1 flex items-center justify-between gap-2 px-1">
             <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">{title}</div>

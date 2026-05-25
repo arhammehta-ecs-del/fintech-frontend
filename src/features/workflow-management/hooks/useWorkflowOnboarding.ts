@@ -38,17 +38,6 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
 
   const isWorkflowMetaComplete = [wfName, wfModule, wfNode].every((value) => Boolean(String(value).trim()));
 
-  const hasGlobalAliasWorkflow = useMemo(
-    () =>
-      companyNodesWithWorkflows.some((node) =>
-        node.workflows.some((workflow) => {
-          const alias = workflow.alias?.trim().toUpperCase();
-          return Boolean(alias && alias.endsWith("_D"));
-        }),
-      ),
-    [companyNodesWithWorkflows],
-  );
-
   const isRMUsedGlobally = useMemo(
     () => levels.slice(0, visibleLevels).some((level) => level.approvals.some((approval) => approval.option === "reporting_manager")),
     [levels, visibleLevels],
@@ -157,11 +146,16 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
   }, [currentUser?.companyCode, isOpen, toast]);
 
   useEffect(() => {
-    const scopedNodes = !hasGlobalAliasWorkflow && wfNode
-      ? companyNodesWithWorkflows.filter((node) => node.nodePath === wfNode)
-      : companyNodesWithWorkflows;
-    const options = scopedNodes
-      .flatMap((node) => node.workflows)
+    const selectedNodePath = wfNode.trim().toUpperCase();
+    const options = companyNodesWithWorkflows
+      .flatMap((node) =>
+        node.workflows.filter((workflow) => {
+          const nodePath = node.nodePath.trim().toUpperCase();
+          if (selectedNodePath && nodePath === selectedNodePath) return true;
+          const alias = workflow.alias?.trim().toUpperCase();
+          return Boolean(alias && alias.endsWith("D"));
+        }),
+      )
       .map((workflow) => {
         const levelsHash = workflow.levelsHash.trim();
         const name = workflow.name.trim();
@@ -176,7 +170,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
     setSelectedWorkflowLevelsHash((current) =>
       current && !nextWorkflowOptions.some((option) => option.levelsHash === current) ? "" : current,
     );
-  }, [companyNodesWithWorkflows, hasGlobalAliasWorkflow, wfNode]);
+  }, [companyNodesWithWorkflows, wfNode]);
 
   useEffect(() => {
     if (!isOpen) return;

@@ -20,7 +20,7 @@ import {
   findOrgNode,
   validateUserOnboardingStep,
 } from "@/features/user-management/utils";
-import { buildOrgTreeFromCompanyNodes, buildWorkflowOptions, hasGlobalAliasWorkflow } from "./useUserOnboardingForm.utils";
+import { buildOrgTreeFromCompanyNodes, buildWorkflowOptions } from "./useUserOnboardingForm.utils";
 
 type UseUserOnboardingFormOptions = {
   open: boolean;
@@ -151,12 +151,31 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   }, [open, companyCode]);
 
   useEffect(() => {
-    const selectedNodePathSet = new Set(selectedNodeIds);
-    const useGlobalWorkflowOptions = hasGlobalAliasWorkflow(companyNodesWithWorkflows);
-    const scopedNodes =
-      !useGlobalWorkflowOptions && selectedNodePathSet.size > 0
-        ? companyNodesWithWorkflows.filter((node) => selectedNodePathSet.has(node.nodePath))
-        : companyNodesWithWorkflows;
+    const isSameOrAncestorPath = (candidatePath: string, selectedPath: string) => {
+      if (candidatePath === selectedPath) return true;
+      const boundaries = [".", ">", "/", "|", ":"];
+      return boundaries.some(
+        (boundary) =>
+          selectedPath.startsWith(`${candidatePath}${boundary}`) ||
+          selectedPath.startsWith(`${candidatePath} ${boundary}`),
+      );
+    };
+
+    const selectedNodePathSet = new Set(
+      selectedNodeIds.map((nodePath) => nodePath.trim().toUpperCase()).filter(Boolean),
+    );
+    const scopedNodes = companyNodesWithWorkflows.map((node) => ({
+      ...node,
+      workflows: node.workflows.filter((workflow) => {
+        const nodePath = node.nodePath.trim().toUpperCase();
+        const isSelectedOrAncestor =
+          selectedNodePathSet.size > 0 &&
+          Array.from(selectedNodePathSet).some((selectedPath) => isSameOrAncestorPath(nodePath, selectedPath));
+        if (isSelectedOrAncestor) return true;
+        const alias = workflow.alias?.trim().toUpperCase();
+        return Boolean(alias && alias.endsWith("D"));
+      }),
+    }));
     const nextWorkflowOptions = buildWorkflowOptions(scopedNodes);
     setWorkflowOptions(nextWorkflowOptions);
 

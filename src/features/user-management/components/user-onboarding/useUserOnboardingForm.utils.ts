@@ -64,15 +64,5 @@ export const buildWorkflowOptions = (nodes: Array<{ workflows: Array<{ levelsHas
     })
     .filter((option): option is { levelsHash: string; label: string } => Boolean(option));
 
-  return Array.from(new Map(options.map((option) => [option.levelsHash, option])).values());
+  return Array.from(new Map(options.map((option) => [`${option.levelsHash}::${option.label}`, option])).values());
 };
-
-export const hasGlobalAliasWorkflow = (
-  nodes: Array<{ workflows: Array<{ alias?: string }> }>,
-) =>
-  nodes.some((node) =>
-    node.workflows.some((workflow) => {
-      const alias = workflow.alias?.trim().toUpperCase();
-      return Boolean(alias && alias.endsWith("_D"));
-    }),
-  );

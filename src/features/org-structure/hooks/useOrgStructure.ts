@@ -206,17 +206,15 @@ export function useOrgStructure() {
     try {
       const nodes = await fetchCompanyNodes("ORG_STR");
       const selectedNodePath = node.nodePath.trim().toUpperCase();
-      const hasGlobalAliasWorkflow = nodes.some((item) =>
-        item.workflows.some((workflow) => {
-          const alias = workflow.alias?.trim().toUpperCase();
-          return Boolean(alias && alias.endsWith("_D"));
-        }),
-      );
-      const scopedNodes = hasGlobalAliasWorkflow
-        ? nodes
-        : nodes.filter((item) => item.nodePath.trim().toUpperCase() === selectedNodePath);
-      const options = scopedNodes
-        .flatMap((item) => item.workflows)
+      const options = nodes
+        .flatMap((item) =>
+          item.workflows.filter((workflow) => {
+            const nodePath = item.nodePath.trim().toUpperCase();
+            if (nodePath === selectedNodePath) return true;
+            const alias = workflow.alias?.trim().toUpperCase();
+            return Boolean(alias && alias.endsWith("D"));
+          }),
+        )
         .map((workflow) => {
           const id = workflow.levelsHash.trim();
           const name = workflow.name.trim();
