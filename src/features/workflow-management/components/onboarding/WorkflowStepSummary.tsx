@@ -54,7 +54,7 @@ export default function WorkflowStepSummary({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <h4 className="mb-3 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Logic Chain</h4>
+        <h4 className="mb-3 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Levels</h4>
         <div className="custom-scrollbar flex-1 space-y-2 overflow-y-auto pr-2 pb-4">
           {levels.slice(0, visibleLevels).map((level) => (
             <div

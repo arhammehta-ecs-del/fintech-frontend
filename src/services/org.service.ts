@@ -329,7 +329,11 @@ export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNo
   throw new Error("Empty data or invalid tree returned");
 }
 
-export async function fetchOrgHistory(companyCode: string, nodeName: string, nodePath?: string) {
+export async function fetchOrgHistory(
+  companyCode: string,
+  nodeName: string,
+  nodePath?: string,
+) {
 
   return apiFetch<OrgHistoryResponse>(ORG_HISTORY_PATH, {
     method: "POST",

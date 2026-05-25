@@ -368,6 +368,47 @@ const normalizeDomainSegment = (value: string) =>
 const randomDigits = (length: number) =>
   Array.from({ length }, () => String(Math.floor(Math.random() * 10))).join("");
 
+const SEED_FIRST_NAMES = [
+  "Aarav",
+  "Vivaan",
+  "Aditya",
+  "Arjun",
+  "Ishaan",
+  "Kabir",
+  "Reyansh",
+  "Rohan",
+  "Kunal",
+  "Neel",
+  "Aanya",
+  "Diya",
+  "Ira",
+  "Kiara",
+  "Meera",
+  "Naina",
+  "Priya",
+  "Riya",
+  "Sara",
+  "Tanvi",
+] as const;
+
+const SEED_LAST_NAMES = [
+  "Sharma",
+  "Verma",
+  "Patel",
+  "Singh",
+  "Gupta",
+  "Mehta",
+  "Kapoor",
+  "Joshi",
+  "Nair",
+  "Iyer",
+  "Kulkarni",
+  "Reddy",
+  "Chopra",
+  "Bansal",
+  "Malhotra",
+] as const;
+
 const indexToLetters = (index: number) => {
   let value = index;
   let token = "";
@@ -376,6 +417,12 @@ const indexToLetters = (index: number) => {
     value = Math.floor(value / 26) - 1;
   } while (value >= 0);
   return token;
+};
+
+const getSeedPersonName = (userNumber: number) => {
+  const firstName = SEED_FIRST_NAMES[(userNumber - 1) % SEED_FIRST_NAMES.length];
+  const lastName = SEED_LAST_NAMES[Math.floor((userNumber - 1) / SEED_FIRST_NAMES.length) % SEED_LAST_NAMES.length];
+  return `${firstName} ${lastName}`;
 };
 
 const getSeedCompanyBaseName = (index: number) => {
@@ -499,7 +546,7 @@ const generateSeedUser = (
   const companyDomain = getCompanyEmailDomain(companyBrand, companyCode);
   const email = `u${userNumber}@${companyDomain}`;
   return {
-    name: `User ${userNumber}`,
+    name: getSeedPersonName(userNumber),
     email,
     phone: `9${randomDigits(9)}`,
     designation: "Executive",
@@ -516,7 +563,7 @@ const generateBulkUser = (
 ): { name: string; email: string; phone: string; designation: string; employeeId: string } => {
   const email = `u${userNumber}@${getBulkCompanyEmailDomain(companyBrand, companyCode)}`;
   return {
-    name: `User ${userNumber}`,
+    name: getSeedPersonName(userNumber),
     email,
     phone: `8${String(userNumber).padStart(9, "0").slice(-9)}`,
     designation: "Executive",

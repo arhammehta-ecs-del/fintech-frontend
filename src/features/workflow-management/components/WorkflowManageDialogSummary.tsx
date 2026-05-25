@@ -117,7 +117,7 @@ export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <h4 className="mb-3 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Logic Chain</h4>
+        <h4 className="mb-3 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Levels</h4>
         <div className="max-h-[220px] space-y-2 overflow-y-auto pr-1 pb-1">
           {summaryLevels.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">No level details available.</div>

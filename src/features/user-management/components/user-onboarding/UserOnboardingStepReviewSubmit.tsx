@@ -284,9 +284,14 @@ function NodePermissionCard({
               {section.selectedItems.map((item) => {
                 const orderedLabels = getOrderedPermissionLabels(item.activeRights);
                 return (
-                  <div key={`${node.id}-${section.categoryKey}-${item.itemKey}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 text-sm leading-[1.35]">
-                    <span className="min-w-0 break-words pt-0.5 pr-1 font-medium text-slate-600">{formatRoleTokenLabel(item.itemKey)}</span>
-                    <span className="flex max-w-[520px] flex-wrap justify-end gap-2">
+                  <div
+                    key={`${node.id}-${section.categoryKey}-${item.itemKey}`}
+                    className="grid grid-cols-1 items-start gap-2 text-sm leading-[1.35] md:grid-cols-[minmax(0,1fr)_auto] md:gap-x-4"
+                  >
+                    <span className="min-w-0 whitespace-normal pt-0.5 pr-1 font-medium text-slate-600">
+                      {formatRoleTokenLabel(item.itemKey)}
+                    </span>
+                    <span className="flex max-w-[520px] flex-wrap justify-start gap-2 md:justify-end">
                       {orderedLabels.map((label) => {
                         const theme = getPermissionBadgeTheme(label);
                         const BadgeIcon = theme.Icon;
@@ -492,7 +497,7 @@ export function UserOnboardingStepReviewSubmit({
                     No secondary access assigned.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3">
                     {secondaryNodesWithRights.map((node) => (
                       <NodePermissionCard
                         key={node.id}

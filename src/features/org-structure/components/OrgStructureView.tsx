@@ -353,8 +353,12 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         isHistoryOpen={isOrgHistoryOpen}
         dockOffset={historyLayoutOffset}
         onOpenHistory={(node) => {
+          const currentNodePath = (node.nodePath || "").trim();
+          const parentPath = currentNodePath.includes(".")
+            ? currentNodePath.split(".").slice(0, -1).join(".").trim()
+            : "";
           setHistoryNodeName(node.name.trim());
-          setHistoryNodePath((node.nodePath || "").trim());
+          setHistoryNodePath(parentPath || currentNodePath);
           setHistoryViewContext("pending");
           setIsOrgHistoryOpen(true);
         }}

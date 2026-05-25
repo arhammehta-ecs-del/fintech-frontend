@@ -1,4 +1,4 @@
-import { useMemo, useState, type HTMLAttributes, type ReactNode } from "react";
+import { useMemo, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
 import { Briefcase, Check, ChevronDown, IdCard, Mail, Phone, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -89,6 +89,7 @@ function ReportingManagerField({
   onSelect: (option: ReportingManagerOption) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const listRef = useRef<HTMLDivElement | null>(null);
   const currentValueNormalized = currentValue.trim().toLowerCase();
   const selectedOption = useMemo(
     () => options.find((option) => option.email.toLowerCase() === currentValueNormalized) ?? null,
@@ -119,7 +120,17 @@ function ReportingManagerField({
           <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-0">
             <Command>
               <CommandInput placeholder="Search manager by name or email..." className="h-11 text-sm" />
-              <CommandList className="max-h-72">
+              <CommandList
+                ref={listRef}
+                className="max-h-72"
+                onWheelCapture={(event) => {
+                  const target = listRef.current;
+                  if (!target) return;
+                  if (target.scrollHeight <= target.clientHeight) return;
+                  event.preventDefault();
+                  target.scrollTop += event.deltaY;
+                }}
+              >
                 <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">No active users found</CommandEmpty>
                 {options.map((option) => {
                   const isSelected = option.email.toLowerCase() === currentValueNormalized;

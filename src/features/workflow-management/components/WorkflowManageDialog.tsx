@@ -104,7 +104,7 @@ export default function WorkflowManageDialog({
             event.preventDefault();
           }
         }}
-        className={cn("flex max-h-[88vh] w-[min(92vw,44rem)] max-w-[44rem] flex-col overflow-hidden p-0", contentClassName)}
+        className={cn("flex max-h-[88vh] w-[min(96vw,56rem)] max-w-[56rem] flex-col overflow-hidden p-0", contentClassName)}
         style={contentStyle}
       >
         <DialogDescription className="sr-only">
@@ -112,7 +112,7 @@ export default function WorkflowManageDialog({
         </DialogDescription>
         <DialogHeader className="border-b border-slate-200 bg-slate-50/40 px-6 py-4">
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2.5">
                 <DialogTitle className="text-xl text-slate-900">{workflow.name}</DialogTitle>
                 <span className={cn(
@@ -127,94 +127,54 @@ export default function WorkflowManageDialog({
                 </span>
               </div>
               {isPending ? (
-                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
-                  {isHistoryOpen ? (
-                    <div className="overflow-x-auto text-[12px]">
-                      <div className="flex w-max min-w-full flex-nowrap items-center gap-2">
+                <div className="mt-3 min-w-0 overflow-x-hidden rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
+                  <div className="space-y-2 text-[12px]">
+                    <div>
+                      <div className="min-w-0 flex flex-nowrap items-center gap-2 overflow-hidden">
                         {initiatorName ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                          <span className="inline-flex min-w-0 shrink items-center gap-1.5 rounded-full bg-white/90 px-2 py-1 text-slate-600 ring-1 ring-slate-200/70">
                             <UserCheck size={12} className="text-slate-400" />
-                            <span className="text-slate-500">By</span>
-                            <span className="font-medium text-slate-700">{initiatorName}</span>
+                            <span className="shrink-0 text-slate-500">By</span>
+                            <span className="truncate font-medium text-slate-700">{initiatorName}</span>
                           </span>
                         ) : null}
                         {initiatorEmail ? (
-                          <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                          <span className="inline-flex min-w-0 shrink items-center gap-1.5 rounded-full bg-white/90 px-2 py-1 text-slate-600 ring-1 ring-slate-200/70">
                             <Mail size={12} className="text-slate-400" />
-                            <span className="text-slate-500">Email</span>
+                            <span className="shrink-0 text-slate-500">Email</span>
                             <span className="truncate font-medium text-slate-700">{initiatorEmail}</span>
                           </span>
                         ) : null}
                         {initiatedOn ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                          <span className="inline-flex min-w-0 shrink items-center gap-1.5 rounded-full bg-white/90 px-2 py-1 text-slate-600 ring-1 ring-slate-200/70">
                             <Calendar size={12} className="text-slate-400" />
-                            <span className="text-slate-500">Initiated</span>
-                            <span className="font-medium text-slate-700">{initiatedOn}</span>
+                            <span className="shrink-0 text-slate-500">Initiated</span>
+                            <span className="truncate font-medium text-slate-700">{initiatedOn}</span>
                           </span>
                         ) : null}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="min-w-0 flex flex-nowrap items-center gap-2 overflow-hidden">
                         {pendingWorkflowName ? (
-                          <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                            <span className="text-slate-500">Workflow</span>
+                          <span className="inline-flex min-w-0 shrink items-center gap-1.5 rounded-full bg-white/90 px-2 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                            <span className="shrink-0 text-slate-500">Workflow</span>
                             <span className="truncate font-medium text-slate-700">{pendingWorkflowName}</span>
                           </span>
                         ) : null}
                         {pendingWorkflowAlias ? (
-                          <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                            <span className="text-slate-500">Alias</span>
+                          <span className="inline-flex min-w-0 shrink items-center gap-1.5 rounded-full bg-white/90 px-2 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                            <span className="shrink-0 text-slate-500">Alias</span>
                             <span className="truncate font-medium text-slate-700">{pendingWorkflowAlias}</span>
                           </span>
                         ) : null}
                       </div>
                     </div>
-                  ) : (
-                    <div className="space-y-2 text-[12px]">
-                      <div className="overflow-x-auto">
-                        <div className="flex w-max min-w-full flex-nowrap items-center gap-2">
-                          {initiatorName ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                              <UserCheck size={12} className="text-slate-400" />
-                              <span className="text-slate-500">By</span>
-                              <span className="font-medium text-slate-700">{initiatorName}</span>
-                            </span>
-                          ) : null}
-                          {initiatorEmail ? (
-                            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                              <Mail size={12} className="text-slate-400" />
-                              <span className="text-slate-500">Email</span>
-                              <span className="truncate font-medium text-slate-700">{initiatorEmail}</span>
-                            </span>
-                          ) : null}
-                          {initiatedOn ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                              <Calendar size={12} className="text-slate-400" />
-                              <span className="text-slate-500">Initiated</span>
-                              <span className="font-medium text-slate-700">{initiatedOn}</span>
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <div className="flex w-max min-w-full flex-nowrap items-center gap-2">
-                          {pendingWorkflowName ? (
-                            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                              <span className="text-slate-500">Workflow</span>
-                              <span className="truncate font-medium text-slate-700">{pendingWorkflowName}</span>
-                            </span>
-                          ) : null}
-                          {pendingWorkflowAlias ? (
-                            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                              <span className="text-slate-500">Alias</span>
-                              <span className="truncate font-medium text-slate-700">{pendingWorkflowAlias}</span>
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
               ) : null}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               {isPending && onToggleHistory ? (
                 <TooltipProvider delayDuration={120}>
                   <Tooltip>

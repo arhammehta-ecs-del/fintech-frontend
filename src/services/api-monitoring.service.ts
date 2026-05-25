@@ -138,10 +138,9 @@ const mapListItem = (item: FetchAllItem): ApiMonitoringLog => {
   const statusValue = typeof item.statusCode === "number"
     ? item.statusCode
     : (typeof item.status === "number" ? item.status : null);
-  const parsedSubCount = Number.parseInt(asString(item.subCount).replace(/[^\d]/g, ""), 10);
   const spanCountValue = typeof item.spanCount === "number"
     ? item.spanCount
-    : (typeof item.totalSpanCount === "number" ? item.totalSpanCount : (Number.isFinite(parsedSubCount) ? parsedSubCount : 0));
+    : (typeof item.totalSpanCount === "number" ? item.totalSpanCount : 0);
 
   return {
     id: asString(item.id) || asString(item.trackingId),

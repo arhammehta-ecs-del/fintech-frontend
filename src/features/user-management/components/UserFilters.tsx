@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { ArrowUpDown, ChevronDown, Filter, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -137,17 +137,6 @@ export default function UserFilters({
   const [draftPrimaryNodeFilters, setDraftPrimaryNodeFilters] = useState<string[]>(primaryNodeFilters);
   const [draftSecondaryNodeFilters, setDraftSecondaryNodeFilters] = useState<string[]>(secondaryNodeFilters);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [refreshTooltipOpen, setRefreshTooltipOpen] = useState(false);
-
-  useEffect(() => {
-    if (!hasNewUserEvent) {
-      setRefreshTooltipOpen(false);
-      return;
-    }
-    setRefreshTooltipOpen(true);
-    const timeoutId = window.setTimeout(() => setRefreshTooltipOpen(false), 2600);
-    return () => window.clearTimeout(timeoutId);
-  }, [hasNewUserEvent]);
 
   const toggleValue = (current: string[], value: string) =>
     current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
@@ -399,7 +388,7 @@ export default function UserFilters({
           </DropdownMenu>
 
           <TooltipProvider delayDuration={120}>
-            <Tooltip open={refreshTooltipOpen || undefined} onOpenChange={setRefreshTooltipOpen}>
+            <Tooltip open={hasNewUserEvent ? true : undefined}>
               <TooltipTrigger asChild>
                 <Button
                   type="button"
@@ -407,12 +396,12 @@ export default function UserFilters({
                   size="icon"
                   aria-label="Refresh users"
                   onClick={() => {
-                    setRefreshTooltipOpen(false);
                     void onRefresh();
                   }}
                   className={cn(
                     "h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm",
-                    hasNewUserEvent && "border-red-200 text-red-600 hover:text-red-700",
+                    hasNewUserEvent &&
+                      "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
                   )}
                 >
                   <RefreshCw className="h-4 w-4" />
