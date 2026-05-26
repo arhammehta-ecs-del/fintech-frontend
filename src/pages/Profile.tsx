@@ -90,7 +90,7 @@ const handleViewAccessRights = async () => {
 
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
+    <div className="mx-auto max-w-7xl space-y-4">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">My Profile</h1>
         <p className="mt-1 text-sm text-muted-foreground">Profile details for your current account</p>
@@ -207,7 +207,7 @@ const handleViewAccessRights = async () => {
                   {secondaryEntries.length === 0 ? (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No secondary access found.</div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                       {secondaryEntries.map(([nodeKey, node], index) => (
                         <NodeAccessCard
                           key={`s-${nodeKey}`}

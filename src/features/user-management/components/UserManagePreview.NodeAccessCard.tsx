@@ -126,19 +126,19 @@ export function NodeAccessCard({
                   Array.from(labels).filter((token) => token.startsWith(`${label}::`)),
                 );
                 return (
-                  <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-7 text-[15px] leading-[1.35]">
-                    <span className="min-w-0 truncate pt-0.5 pr-1 font-medium text-slate-600">{formatKey(roleSubCategory)}</span>
-                    <span className="flex max-w-[360px] flex-wrap justify-end gap-2">
+                  <div key={i} className="grid grid-cols-1 items-start gap-2 text-[15px] leading-[1.35] sm:grid-cols-[minmax(120px,1fr)_minmax(0,2fr)] sm:gap-x-5">
+                    <span className="min-w-0 break-words pt-0.5 pr-1 font-medium text-slate-600">{formatKey(roleSubCategory)}</span>
+                    <span className="flex min-w-0 flex-nowrap gap-2 sm:justify-end">
                       {orderedBadgeTokens.map((token) => {
                         const [label, scope] = token.split("::");
                         const BadgeIcon = getBadgeIcon(label || "Viewer");
                         return (
                           <span
                             key={`${roleSubCategory}-${token}`}
-                            className={cn("inline-flex min-w-[96px] items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium", getBadgeStyle(label || "Viewer"))}
+                            className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium whitespace-nowrap", getBadgeStyle(label || "Viewer"))}
                           >
                             <BadgeIcon className="h-3.5 w-3.5 shrink-0" />
-                            {`${label || "Viewer"} - ${scope || "Node"}`}
+                            <span>{`${label || "Viewer"} - ${scope || "Node"}`}</span>
                           </span>
                         );
                       })}

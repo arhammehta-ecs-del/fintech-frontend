@@ -13,6 +13,8 @@ type OrgHistorySidebarProps = {
   subtitle: string;
   nodeName?: string;
   nodePath?: string;
+  pending?: boolean;
+  parentNodePath?: string;
   dockOffset?: {
     top: number;
     left: number;
@@ -166,6 +168,8 @@ export default function OrgHistorySidebar({
   subtitle,
   nodeName = "",
   nodePath = "",
+  isPending = false,
+  parentNodePath = "",
   dockOffset,
   splitView = false,
 }: OrgHistorySidebarProps) {
@@ -185,6 +189,10 @@ export default function OrgHistorySidebar({
           companyCode.trim().toUpperCase(),
           (nodeName || subtitle).trim(),
           nodePath.trim(),
+          {
+            isPending,
+            parentNodePath: isPending ? parentNodePath.trim() : "",
+          },
         );
         if (!isMounted) return;
         const mappedHistory = Array.isArray(response?.data)
@@ -203,7 +211,7 @@ export default function OrgHistorySidebar({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, companyCode, subtitle, nodeName, nodePath, toast]);
+  }, [isOpen, companyCode, subtitle, nodeName, nodePath, isPending, parentNodePath, toast]);
 
   return (
     <HistorySidebar

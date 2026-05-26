@@ -333,6 +333,10 @@ export async function fetchOrgHistory(
   companyCode: string,
   nodeName: string,
   nodePath?: string,
+  options?: {
+    isPending?: boolean;
+    parentNodePath?: string;
+  },
 ) {
 
   return apiFetch<OrgHistoryResponse>(ORG_HISTORY_PATH, {
@@ -341,6 +345,8 @@ export async function fetchOrgHistory(
       companyCode: companyCode.trim().toUpperCase(),
       nodeName: nodeName.trim(),
       ...(nodePath?.trim() ? { nodePath: nodePath.trim() } : {}),
+      ...(options?.isPending ? { pending: true } : {}),
+      ...(options?.parentNodePath?.trim() ? { parentNodePath: options.parentNodePath.trim() } : {}),
     })
   });
 }

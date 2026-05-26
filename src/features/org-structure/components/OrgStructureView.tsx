@@ -60,6 +60,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [isOrgHistoryOpen, setIsOrgHistoryOpen] = useState(false);
   const [historyNodeName, setHistoryNodeName] = useState("");
   const [historyNodePath, setHistoryNodePath] = useState("");
+  const [historyParentNodePath, setHistoryParentNodePath] = useState("");
   const [historyViewContext, setHistoryViewContext] = useState<"active" | "pending">("active");
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const historyLayoutOffset =
@@ -279,6 +280,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
               onOpenHistory={() => {
                 setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
                 setHistoryNodePath((selectedDepartment?.nodePath || "").trim());
+                setHistoryParentNodePath("");
                 setHistoryViewContext("active");
                 setIsOrgHistoryOpen(true);
               }}
@@ -304,6 +306,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
             onOpenHistory={() => {
               setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
               setHistoryNodePath((selectedDepartment?.nodePath || "").trim());
+              setHistoryParentNodePath("");
               setHistoryViewContext("active");
               setIsOrgHistoryOpen(true);
             }}
@@ -358,7 +361,8 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
             ? currentNodePath.split(".").slice(0, -1).join(".").trim()
             : "";
           setHistoryNodeName(node.name.trim());
-          setHistoryNodePath(parentPath || currentNodePath);
+          setHistoryNodePath(currentNodePath);
+          setHistoryParentNodePath(parentPath);
           setHistoryViewContext("pending");
           setIsOrgHistoryOpen(true);
         }}
@@ -369,11 +373,14 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         onClose={() => {
           setIsOrgHistoryOpen(false);
           setHistoryViewContext("active");
+          setHistoryParentNodePath("");
         }}
         companyCode={companyCode}
         subtitle={historyNodeName || companyName}
         nodeName={historyNodeName}
         nodePath={historyNodePath}
+        isPending={historyViewContext === "pending"}
+        parentNodePath={historyParentNodePath}
         dockOffset={historyLayoutOffset}
         splitView
       />
