@@ -131,6 +131,11 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
 const normalize = (value: string | null | undefined) => (value || "").trim();
 
 export const buildUserUpdatePayload = (formData: UserOnboardingFormData, seedMember: AppUser): UserOnboardingPayload => {
+  const targetUserEmail = normalize(seedMember.email);
+  if (!targetUserEmail) {
+    throw new Error("Target user email is required for update payload.");
+  }
+
   const fullPayload = buildUserOnboardingPayload(formData);
   const seedBasic = seedMember.basicDetails;
   const nextBasic = fullPayload.basicDetails;
@@ -174,10 +179,10 @@ export const buildUserUpdatePayload = (formData: UserOnboardingFormData, seedMem
 
   return {
     type: "update",
-    targetUserEmail: normalize(seedMember.email) || null,
+    targetUserEmail,
     basicDetails: changedBasicDetails,
     levelsHash: formData.selectedWorkflowLevelsHash.trim() || null,
-    permissions: changedPermissions.length > 0 ? changedPermissions : [{}],
+    permissions: changedPermissions,
   };
 };
 

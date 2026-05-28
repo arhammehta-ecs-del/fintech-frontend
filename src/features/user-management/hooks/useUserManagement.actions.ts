@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { AppUser, OrgNode } from "@/contexts/AppContext";
 import { getApiErrorMessage } from "@/services/client";
-import { createUserOnboarding, fetchCompanyNodesWithAccess } from "@/services/user.service";
+import { createUserOnboarding, fetchCompanyNodesWithAccess, updateUserStatus } from "@/services/user.service";
 // import { acquireEditLock } from "@/services/edit-lock.service";
 import type { UserOnboardingFormData } from "@/features/user-management/types";
 import { buildSignatoryOnboardingPayload, buildUserOnboardingPayload, buildUserUpdatePayload } from "@/features/user-management/utils";
@@ -137,8 +137,8 @@ export const createUserManagementActions = ({
   const executeUserStatusAction = async (
     member: AppUser,
     action: StatusAction,
-    _remark?: string,
-    levelsHash?: string | null,
+    remark?: string,
+    _levelsHash?: string | null,
   ) => {
     if (!member.id) {
       toast({ title: "Action failed", description: "User ID is missing", variant: "destructive" });
@@ -152,21 +152,39 @@ export const createUserManagementActions = ({
       // Temporarily disabled user edit-lock.
       // await acquireEditLock({ type: "user", target: member.email.trim() });
 
-      await createUserOnboarding({
-        type: action === "activate" ? "active" : "inactive",
-        targetUserEmail: member.email.trim(),
-        basicDetails: {},
-        permissions: [{}],
-        levelsHash: levelsHash?.trim() || null,
-      });
+      if (member.status === "Pending") {
+        await updateUserStatus(
+          member.id,
+          action === "activate" ? "approve" : "reject",
+          remark?.trim() || "",
+        );
+      } else {
+        const normalizedRemark = (remark || "").trim();
+        await createUserOnboarding({
+          type: action === "activate" ? "active" : "inactive",
+          targetUserEmail: member.email.trim(),
+          ...(normalizedRemark.length >= 2 ? { remarks: normalizedRemark } : {}),
+          levelsHash: null,
+        });
+      }
       await loadUsers();
       setViewingMember(null);
       if (action === "activate") {
         setStatusTab("active");
       }
       toast({
-        title: action === "activate" ? "User activated" : "User deactivated",
-        description: `${member.name} ${action === "activate" ? "activation" : "inactivation"} request submitted.`,
+        title:
+          member.status === "Pending"
+            ? action === "activate"
+              ? "User approved"
+              : "User rejected"
+            : action === "activate"
+              ? "User activated"
+              : "User deactivated",
+        description:
+          member.status === "Pending"
+            ? `${member.name} ${action === "activate" ? "approval" : "rejection"} submitted.`
+            : `${member.name} ${action === "activate" ? "activation" : "inactivation"} request submitted.`,
       });
     } catch (error) {
       toast({

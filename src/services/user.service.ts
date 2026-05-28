@@ -14,7 +14,7 @@ export type UserOnboardingPermission = {
 export type UserOnboardingPayload = {
   type?: "initiate" | "update" | "archive" | "active" | "inactive";
   targetUserEmail?: string | null;
-  basicDetails: {
+  basicDetails?: {
     name?: string;
     email?: string;
     phone?: string;
@@ -22,7 +22,8 @@ export type UserOnboardingPayload = {
     employeeId?: string | null;
     reportingManager?: string | null;
   };
-  permissions: Array<Partial<UserOnboardingPermission>>;
+  permissions?: Array<Partial<UserOnboardingPermission>>;
+  remarks?: string;
   levelsHash?: string | null;
 };
 
