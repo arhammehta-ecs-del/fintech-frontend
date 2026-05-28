@@ -1,20 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
-import { fetchWorkflows, updateWorkflowAction } from "@/services/workflow.service";
+import { connectNotificationStream } from "@/services/notification.service";
+import { createWorkflow, fetchWorkflowsPaginated, updateWorkflowAction } from "@/services/workflow.service";
+import { fetchCompanyNodes } from "@/services/user.service";
 import { fetchCompanyNodesWithAccess } from "@/services/user.service";
+import { acquireEditLock } from "@/services/edit-lock.service";
 import type { WorkflowPageSize, WorkflowRecord, WorkflowStatus } from "@/features/workflow-management/types/workflow.types";
 import { WORKFLOW_PAGE_SIZE_OPTIONS } from "@/features/workflow-management/types/workflow.types";
 import { mapWorkflowRecord } from "@/features/workflow-management/utils/workflowRecord.utils";
 
-const normalizeLoose = (value: string) => value.toLowerCase().trim().replace(/\s+/g, " ");
-const extractDigits = (value: string) => value.match(/\d+/g) ?? [];
-const splitAlphaNumericTokens = (value: string) =>
-  value
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .map((token) => token.trim())
-    .filter(Boolean);
+const WORKFLOW_SEARCH_DEBOUNCE_MS = 500;
 
 const fuzzyMatch = (text: string, query: string) => {
   const source = text.trim().toLowerCase().replace(/\s+/g, "");
@@ -29,39 +25,11 @@ const fuzzyMatch = (text: string, query: string) => {
   return false;
 };
 
-const isWithinTwoEdits = (left: string, right: string) => {
-  if (!left || !right) return false;
-  const a = left.toLowerCase();
-  const b = right.toLowerCase();
-  const aLen = a.length;
-  const bLen = b.length;
-  if (Math.abs(aLen - bLen) > 2) return false;
-
-  const prev = Array.from({ length: bLen + 1 }, (_, idx) => idx);
-  for (let i = 1; i <= aLen; i += 1) {
-    let diagonal = prev[0];
-    prev[0] = i;
-    let rowMin = prev[0];
-    for (let j = 1; j <= bLen; j += 1) {
-      const temp = prev[j];
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      prev[j] = Math.min(
-        prev[j] + 1,
-        prev[j - 1] + 1,
-        diagonal + cost,
-      );
-      diagonal = temp;
-      if (prev[j] < rowMin) rowMin = prev[j];
-    }
-    if (rowMin > 2) return false;
-  }
-  return prev[bLen] <= 2;
-};
-
 export function useWorkflowManagement() {
   const { toast } = useToast();
   const [activeStatus, setActiveStatus] = useState<WorkflowStatus>("Active");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [workflowFilters, setWorkflowFilters] = useState<string[]>([]);
   const [aliasFilters, setAliasFilters] = useState<string[]>([]);
   const [moduleFilters, setModuleFilters] = useState<string[]>([]);
@@ -70,24 +38,84 @@ export function useWorkflowManagement() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<WorkflowPageSize>(15);
+  const [resolvedTotalPages, setResolvedTotalPages] = useState(1);
+  const [topCursor, setTopCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasNext, setHasNext] = useState(false);
+  const [pageCursors, setPageCursors] = useState<Record<number, string | null>>({ 1: null });
+  const [statusCounts, setStatusCounts] = useState({ active: 0, pending: 0 });
   const [historyWorkflow, setHistoryWorkflow] = useState<WorkflowRecord | null>(null);
   const [manageWorkflow, setManageWorkflow] = useState<WorkflowRecord | null>(null);
   const [workflows, setWorkflows] = useState<WorkflowRecord[]>([]);
+  const [hasNewWorkflowEvent, setHasNewWorkflowEvent] = useState(false);
 
-  const loadWorkflows = async () => {
-    const response = await fetchWorkflows();
-    if (!response?.data) return;
+  useEffect(() => {
+    const trimmedSearch = search.trim();
+    if (!trimmedSearch) {
+      setDebouncedSearch("");
+      return;
+    }
 
-    const activeWorkflows = Array.isArray(response.data.active)
-      ? response.data.active.map((w: unknown) => mapWorkflowRecord(w, "Active"))
-      : [];
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(trimmedSearch);
+    }, WORKFLOW_SEARCH_DEBOUNCE_MS);
 
-    const pendingWorkflows = Array.isArray(response.data.pending)
-      ? response.data.pending.map((w: unknown) => mapWorkflowRecord(w, "Pending"))
-      : [];
+    return () => window.clearTimeout(timeoutId);
+  }, [search]);
 
-    setWorkflows([...activeWorkflows, ...pendingWorkflows]);
-  };
+  const fetchPage = useCallback(
+    async (
+      params: {
+        cursor: string | null;
+        topCursor: string | null;
+        page: number | null;
+        direction: "NEXT" | "PREV";
+        targetPage: number;
+      },
+      showLoader = false,
+    ) => {
+      if (showLoader) setPage(params.targetPage);
+      const type = activeStatus === "Pending" ? "pending" : "active";
+      const response = await fetchWorkflowsPaginated(type, {
+        limit: pageSize,
+        cursor: params.cursor,
+        topCursor: params.topCursor,
+        page: params.page,
+        direction: params.direction,
+        query: debouncedSearch || "",
+      });
+      const mapped = response.rows.map((row) => mapWorkflowRecord(row, activeStatus));
+      setWorkflows(mapped);
+      setStatusCounts(response.counts);
+      setPage(params.targetPage);
+      setTopCursor(response.pageInfo.topCursor || params.topCursor || null);
+      setNextCursor(response.pageInfo.nextCursor);
+      setHasNext(response.pageInfo.hasNext);
+      setPageCursors((current) => ({
+        ...current,
+        [params.targetPage]: params.cursor,
+        [params.targetPage + 1]: response.pageInfo.nextCursor,
+      }));
+      const targetCount = activeStatus === "Pending" ? response.counts.pending : response.counts.active;
+      const fallbackTotalPages = Math.max(1, Math.ceil((targetCount || mapped.length) / pageSize));
+      setResolvedTotalPages(Math.max(response.pageInfo.totalPages || 0, fallbackTotalPages));
+    },
+    [activeStatus, debouncedSearch, pageSize],
+  );
+
+  const loadWorkflows = useCallback(async () => {
+    setPageCursors({ 1: null });
+    setTopCursor(null);
+    setNextCursor(null);
+    setHasNext(false);
+    await fetchPage({
+      cursor: null,
+      topCursor: null,
+      page: null,
+      direction: "NEXT",
+      targetPage: 1,
+    }, true);
+  }, [fetchPage]);
 
   useEffect(() => {
     let isMounted = true;
@@ -107,7 +135,20 @@ export function useWorkflowManagement() {
     return () => {
       isMounted = false;
     };
-  }, [toast]);
+  }, [loadWorkflows, toast]);
+
+  useEffect(() => {
+    const disconnect = connectNotificationStream({
+      onNotification: (packet) => {
+        const refType = String(packet.refType ?? "").trim().toLowerCase();
+        if (refType === "workflow") {
+          setHasNewWorkflowEvent(true);
+        }
+      },
+    });
+
+    return disconnect;
+  }, []);
 
   const handleWorkflowAction = async (workflow: WorkflowRecord, action: "approve" | "reject", remark: string) => {
     const levelsHash = workflow.levelsHash?.trim() || workflow.workflowId?.trim() || workflow.id?.trim();
@@ -121,6 +162,78 @@ export function useWorkflowManagement() {
       toast({
         title: action === "approve" ? "Approval failed" : "Rejection failed",
         description: getApiErrorMessage(error, "Unable to update workflow request."),
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const requestStatusWorkflowOptions = async (workflow: WorkflowRecord) => {
+    await acquireEditLock({
+      type: "workflow",
+      target: {
+        nodePath: (workflow.nodePath || "").trim(),
+        levelsHash: (workflow.levelsHash || workflow.workflowId || workflow.id || "").trim(),
+        subModule: (workflow.subModule || "").trim(),
+        module: (workflow.rawModule || workflow.module || "").trim(),
+      },
+    });
+
+    const selectedNodePath = (workflow.nodePath || "").trim().toUpperCase();
+    const nodes = await fetchCompanyNodes("WORK_FLOW");
+    const options = nodes
+      .flatMap((item) =>
+        item.workflows.filter((entry) => {
+          const nodePath = (item.nodePath || "").trim().toUpperCase();
+          if (selectedNodePath && nodePath === selectedNodePath) return true;
+          const alias = (entry.alias || "").trim().toUpperCase();
+          return Boolean(alias && alias.endsWith("D"));
+        }),
+      )
+      .map((entry) => {
+        const id = (entry.levelsHash || "").trim();
+        const name = (entry.name || "").trim();
+        const alias = (entry.alias || "").trim();
+        if (!id || !name) return null;
+        return { id, label: alias ? `${name} (${alias})` : name };
+      })
+      .filter((item): item is { id: string; label: string } => Boolean(item));
+    return Array.from(new Map(options.map((option) => [option.id, option])).values());
+  };
+
+  const submitWorkflowStatusUpdate = async (input: {
+    workflow: WorkflowRecord;
+    nextStatus: "active" | "inactive";
+    remark: string;
+    levelsHash: string | null;
+  }) => {
+    const target = {
+      module: (input.workflow.rawModule || input.workflow.module || "").trim(),
+      subModule: (input.workflow.subModule || "").trim(),
+      nodePath: (input.workflow.nodePath || "").trim(),
+      levelsHash: (input.workflow.levelsHash || "").trim(),
+    };
+    try {
+      await acquireEditLock({
+        type: "workflow",
+        target: {
+          nodePath: (input.workflow.nodePath || "").trim(),
+          levelsHash: target.levelsHash,
+          subModule: target.subModule,
+          module: target.module,
+        },
+      });
+      await createWorkflow({
+        type: input.nextStatus,
+        target,
+        remarks: input.remark.trim(),
+        levelsHash: input.levelsHash?.trim() || null,
+      });
+      await loadWorkflows();
+    } catch (error) {
+      toast({
+        title: "Unable to update workflow status",
+        description: getApiErrorMessage(error, "Failed to update workflow status."),
         variant: "destructive",
       });
       throw error;
@@ -141,10 +254,7 @@ export function useWorkflowManagement() {
     }
   };
 
-  const statusScopedWorkflows = useMemo(
-    () => workflows.filter((workflow) => workflow.status === activeStatus),
-    [activeStatus, workflows],
-  );
+  const statusScopedWorkflows = useMemo(() => workflows, [workflows]);
 
   const workflowOptions = useMemo(
     () => Array.from(new Set(workflows.map((workflow) => workflow.name).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
@@ -172,7 +282,7 @@ export function useWorkflowManagement() {
     if (!q) return [];
     const values = new Set<string>();
     workflows.forEach((workflow) => {
-      [workflow.name, workflow.alias, workflow.module, workflow.nodeName, workflow.nodeType].forEach((field) => {
+      [workflow.name, workflow.alias, workflow.module].forEach((field) => {
         if (field && fuzzyMatch(field, q)) values.add(field);
       });
     });
@@ -187,54 +297,16 @@ export function useWorkflowManagement() {
     setTypeFilters([]);
   };
 
-  const baseFilteredWorkflows = useMemo(() => {
-    const query = normalizeLoose(search);
-    const queryTokens = splitAlphaNumericTokens(query).filter((token) => token.length >= 3);
-    const queryDigits = extractDigits(query);
+  const filteredWorkflows = useMemo(() => {
     return workflows.filter((workflow) => {
       const matchesWorkflow = workflowFilters.length === 0 || workflowFilters.includes(workflow.name);
       const matchesAlias = aliasFilters.length === 0 || aliasFilters.includes(workflow.alias);
       const matchesModule = moduleFilters.length === 0 || moduleFilters.includes(workflow.module);
       const matchesNodeName = nodeNameFilters.length === 0 || nodeNameFilters.includes(workflow.nodeName);
       const matchesType = typeFilters.length === 0 || typeFilters.includes(workflow.nodeType);
-      if (!(matchesWorkflow && matchesAlias && matchesModule && matchesNodeName && matchesType)) return false;
-      if (!query) return true;
-
-      const rawFields = [workflow.name, workflow.alias, workflow.module, workflow.nodeName];
-      const normalizedFields = rawFields.map((field) => normalizeLoose(field));
-      const candidateDigits = extractDigits(normalizedFields.join(" "));
-      const hasAllDigits =
-        queryDigits.length === 0 || queryDigits.every((digit) => candidateDigits.includes(digit));
-      if (!hasAllDigits) return false;
-
-      const directMatch = normalizedFields.some((field) => field.includes(query));
-      if (directMatch) return true;
-
-      if (queryTokens.length === 0) return false;
-      const candidateTokens = splitAlphaNumericTokens(normalizedFields.join(" "));
-      return queryTokens.every((queryToken) =>
-        candidateTokens.some((candidateToken) => isWithinTwoEdits(queryToken, candidateToken)),
-      );
+      return matchesWorkflow && matchesAlias && matchesModule && matchesNodeName && matchesType;
     });
-  }, [aliasFilters, moduleFilters, nodeNameFilters, search, typeFilters, workflowFilters, workflows]);
-
-  const filteredWorkflows = useMemo(
-    () => baseFilteredWorkflows.filter((workflow) => workflow.status === activeStatus),
-    [baseFilteredWorkflows, activeStatus],
-  );
-
-  const statusCounts = useMemo(
-    () =>
-      baseFilteredWorkflows.reduce(
-        (counts, workflow) => {
-          if (workflow.status === "Active") counts.active += 1;
-          if (workflow.status === "Pending") counts.pending += 1;
-          return counts;
-        },
-        { active: 0, pending: 0 },
-      ),
-    [baseFilteredWorkflows],
-  );
+  }, [aliasFilters, moduleFilters, nodeNameFilters, typeFilters, workflowFilters, workflows]);
 
   useEffect(() => {
     if (activeStatus === "Pending" && statusCounts.pending === 0) {
@@ -253,15 +325,78 @@ export function useWorkflowManagement() {
   }, [activeStatus, statusCounts.active, statusCounts.pending]);
 
   useEffect(() => {
-    setPage(1);
-  }, [activeStatus, search, pageSize, workflowFilters, aliasFilters, moduleFilters, nodeNameFilters, typeFilters]);
+    void loadWorkflows();
+  }, [activeStatus, debouncedSearch, pageSize, loadWorkflows]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredWorkflows.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const paginatedWorkflows = useMemo(() => {
-    const start = (safePage - 1) * pageSize;
-    return filteredWorkflows.slice(start, start + pageSize);
-  }, [filteredWorkflows, safePage, pageSize]);
+  const totalPages = Math.max(1, resolvedTotalPages);
+  const safePage = page;
+  const paginatedWorkflows = filteredWorkflows;
+
+  const handlePrevPage = useCallback(async () => {
+    if (page <= 1) return;
+    const previousPage = page - 1;
+    const prevCursor = pageCursors[previousPage] ?? null;
+    try {
+      await fetchPage({
+        cursor: prevCursor,
+        topCursor,
+        page: null,
+        direction: "PREV",
+        targetPage: previousPage,
+      }, true);
+    } catch (error) {
+      toast({
+        title: "Unable to load previous page",
+        description: getApiErrorMessage(error, "Unable to fetch previous workflows page."),
+        variant: "destructive",
+      });
+    }
+  }, [fetchPage, page, pageCursors, toast, topCursor]);
+
+  const handleNextPage = useCallback(async () => {
+    if (!hasNext) return;
+    const upcomingPage = page + 1;
+    const cursor = pageCursors[upcomingPage] ?? nextCursor;
+    if (!cursor) return;
+
+    try {
+      await fetchPage({
+        cursor,
+        topCursor,
+        page: null,
+        direction: "NEXT",
+        targetPage: upcomingPage,
+      }, true);
+    } catch (error) {
+      toast({
+        title: "Unable to load next page",
+        description: getApiErrorMessage(error, "Unable to fetch next workflows page."),
+        variant: "destructive",
+      });
+    }
+  }, [fetchPage, hasNext, nextCursor, page, pageCursors, toast, topCursor]);
+
+  const handleJumpToPage = useCallback(async (requestedPage: number) => {
+    const targetPage = Math.max(1, Math.min(totalPages, requestedPage));
+    if (targetPage === page) return;
+    const direction: "NEXT" | "PREV" = targetPage > page ? "NEXT" : "PREV";
+    const jumpCursor = pageCursors[targetPage] ?? (direction === "NEXT" ? nextCursor : topCursor) ?? null;
+    try {
+      await fetchPage({
+        cursor: jumpCursor,
+        topCursor,
+        page: targetPage,
+        direction,
+        targetPage,
+      }, true);
+    } catch (error) {
+      toast({
+        title: "Unable to jump to page",
+        description: getApiErrorMessage(error, "Unable to fetch selected workflows page."),
+        variant: "destructive",
+      });
+    }
+  }, [fetchPage, nextCursor, page, pageCursors, toast, topCursor, totalPages]);
 
   return {
     WORKFLOW_PAGE_SIZE_OPTIONS,
@@ -303,6 +438,13 @@ export function useWorkflowManagement() {
     totalPages,
     statusCounts,
     loadWorkflows,
+    handlePrevPage,
+    handleNextPage,
+    handleJumpToPage,
     handleWorkflowAction,
+    requestStatusWorkflowOptions,
+    submitWorkflowStatusUpdate,
+    hasNewWorkflowEvent,
+    setHasNewWorkflowEvent,
   };
 }

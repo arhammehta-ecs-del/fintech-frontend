@@ -12,15 +12,17 @@ export type UserOnboardingPermission = {
 };
 
 export type UserOnboardingPayload = {
+  type?: "initiate" | "update" | "archive" | "active" | "inactive";
+  targetUserEmail?: string | null;
   basicDetails: {
-    name: string;
-    email: string;
-    phone: string;
-    designation: string;
-    employeeId: string | null;
-    reportingManager: string | null;
+    name?: string;
+    email?: string;
+    phone?: string;
+    designation?: string;
+    employeeId?: string | null;
+    reportingManager?: string | null;
   };
-  permissions: UserOnboardingPermission[];
+  permissions: Array<Partial<UserOnboardingPermission>>;
   levelsHash?: string | null;
 };
 
@@ -88,6 +90,7 @@ export type UserPaginatedRequest = {
   topCursor: string | null;
   page?: number | null;
   direction?: "NEXT" | "PREV";
+  query?: string | null;
 };
 
 export type UserPaginatedResult = {
@@ -146,9 +149,7 @@ export type GlobalSignatoryOnboardingPayload = {
   isGlobalUser: true;
 };
 
-const COMPANY_USERS_PATH = "/api/v1/company-settings/user/fetch-all-users";
-const COMPANY_ACTIVE_USERS_PATH = "/api/v1/company-settings/user/fetch-all-active-user";
-const COMPANY_PENDING_USERS_PATH = "/api/v1/company-settings/user/fetch-all-pending-user";
+const COMPANY_USERS_PATH = "/api/v1/company-settings/user/fetch-all-user";
 const COMPANY_NODES_PATH = "/api/v1/company-settings/user/fetch-company-nodes";
 const NEW_USER_ONBOARD_PATH = "/api/v1/company-settings/user/initiate";
 const NEW_GLOBAL_SIGNATORY_ONBOARD_PATH = "/api/v1/company-settings/user/initiate-global-signatory";
@@ -474,17 +475,18 @@ export async function fetchCompanyUsersPaginated(
   statusTab: UserListStatusTab,
   payload: UserPaginatedRequest,
 ): Promise<UserPaginatedResult> {
-  const path = statusTab === "pending" ? COMPANY_PENDING_USERS_PATH : COMPANY_ACTIVE_USERS_PATH;
-  const response = await apiFetch<UserPaginatedResponse>(path, {
+  const requestBody: Record<string, unknown> = {
+    type: statusTab,
+    limit: payload.limit,
+    cursor: payload.cursor ?? null,
+    topCursor: payload.topCursor ?? null,
+    page: payload.page ?? null,
+    direction: payload.direction ?? "NEXT",
+    query: readString(payload.query).trim() || null,
+  };
+  const response = await apiFetch<UserPaginatedResponse>(COMPANY_USERS_PATH, {
     method: "POST",
-    body: JSON.stringify({
-      companyCode: payload.companyCode.trim().toUpperCase(),
-      limit: payload.limit,
-      cursor: payload.cursor ?? null,
-      topCursor: payload.topCursor ?? null,
-      page: payload.page ?? null,
-      direction: payload.direction ?? "NEXT",
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   const records = Array.isArray(response.data) ? response.data : [];

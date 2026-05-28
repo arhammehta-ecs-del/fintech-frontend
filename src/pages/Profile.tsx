@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { ShieldCheck, X } from "lucide-react";
 import { useAppContext } from "@/contexts/AppContext";
 import type { AppUser } from "@/contexts/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +31,7 @@ const [isAccessLoading, setIsAccessLoading] = useState(false);
 const [accessDetails, setAccessDetails] = useState<NonNullable<AppUser["accessDetails"]>>([]);
 const [hasLoadedAccessRights, setHasLoadedAccessRights] = useState(false);
 const accessRightsSectionRef = useRef<HTMLDivElement | null>(null);
+const stickyProfileRef = useRef<HTMLDivElement | null>(null);
 
 const base = currentUser?.name || currentUser?.email || "User";
 const initials = getInitials(base);
@@ -44,6 +45,32 @@ const secondaryItems = useMemo(
 );
 const primaryEntries = useMemo(() => Object.entries(groupByNode(primaryItems)), [primaryItems]);
 const secondaryEntries = useMemo(() => Object.entries(groupByNode(secondaryItems)), [secondaryItems]);
+const globalAccessNode = useMemo(
+  () =>
+    primaryItems.find((item) => {
+      const roleCategory = (item.roleCategory || "").trim().toUpperCase();
+      const roleSubCategory = (item.roleSubCategory || "").trim().toUpperCase();
+      const accessCategory = (item.accessCategory || "").trim().toUpperCase();
+      return Boolean(roleCategory) && roleCategory === roleSubCategory && accessCategory === "ALL_CHILD";
+    }) ?? null,
+  [primaryItems],
+);
+const globalAccessScopeLabel = ((globalAccessNode?.accessCategory || "").trim().toUpperCase() === "ALL_CHILD"
+  ? "All Child"
+  : (globalAccessNode?.accessCategory || "").trim().toUpperCase() === "IMMEDIATE_CHILD"
+    ? "Immediate Child"
+    : "Node");
+const globalAccessTitle = (globalAccessNode?.roleName || "").trim();
+
+const scrollToAccessRights = () => {
+  const section = accessRightsSectionRef.current;
+  if (!section) return;
+  const stickyHeight = stickyProfileRef.current?.getBoundingClientRect().height ?? 0;
+  const topBar = document.querySelector("header");
+  const topBarHeight = topBar ? topBar.getBoundingClientRect().height : 0;
+  const targetTop = window.scrollY + section.getBoundingClientRect().top - stickyHeight - topBarHeight - 12;
+  window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+};
 
 const handleViewAccessRights = async () => {
   const email = currentUser?.email?.trim();
@@ -72,9 +99,9 @@ const handleViewAccessRights = async () => {
     }));
     setAccessDetails([...mappedPrimary, ...mappedSecondary]);
     setHasLoadedAccessRights(true);
-    setTimeout(() => {
-      accessRightsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(scrollToAccessRights);
+    });
   } catch (error) {
     setAccessDetails([]);
     setHasLoadedAccessRights(false);
@@ -90,29 +117,31 @@ const handleViewAccessRights = async () => {
 
 
   return (
-    <div className="mx-auto max-w-7xl space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">My Profile</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Profile details for your current account</p>
-      </div>
+    <div className="mx-auto max-w-7xl space-y-4 pb-4">
+      <div ref={stickyProfileRef} className="sticky top-[56px] z-30 space-y-4 rounded-2xl bg-white/95 px-1 pb-3 pt-2 backdrop-blur supports-[backdrop-filter]:bg-white/85">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">My Profile</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Profile details for your current account</p>
+        </div>
 
-      <Card className="overflow-hidden rounded-3xl border-border bg-white shadow-sm">
-        <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">
-              {initials}
+        <Card className="overflow-hidden rounded-3xl border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+          <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-xl font-semibold text-foreground">{currentUser?.name || "—"}</p>
+                <p className="mt-1 truncate text-sm text-muted-foreground">{currentUser?.email || "—"}</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="truncate text-xl font-semibold text-foreground">{currentUser?.name || "—"}</p>
-              <p className="mt-1 truncate text-sm text-muted-foreground">{currentUser?.email || "—"}</p>
-            </div>
-          </div>
-          <Badge className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700 hover:bg-emerald-50">
-            Active
-          </Badge>
-        </CardContent>
-      </Card>
-      <Card className="rounded-3xl border-border bg-white shadow-sm">
+            <Badge className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700 hover:bg-emerald-50">
+              Active
+            </Badge>
+          </CardContent>
+        </Card>
+      </div>
+      <Card className="rounded-3xl border-slate-200/80 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
         <CardHeader className="p-5 pb-3">
           <CardTitle className="text-lg">Personal Info</CardTitle>
         </CardHeader>
@@ -126,7 +155,7 @@ const handleViewAccessRights = async () => {
         </CardContent>
       </Card>
 
-      <Card className="rounded-3xl border-border bg-white shadow-sm">
+      <Card className="rounded-3xl border-slate-200/80 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
         <CardHeader className="p-5 pb-3">
           <CardTitle className="text-lg">Company Info</CardTitle>
         </CardHeader>
@@ -140,7 +169,7 @@ const handleViewAccessRights = async () => {
         </CardContent>
       </Card>
 
-      <Card className="rounded-3xl border-border bg-white shadow-sm">
+      <Card className="rounded-3xl border-slate-200/80 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
         <CardHeader className="p-5 pb-3">
           <CardTitle className="text-lg">Group Info</CardTitle>
         </CardHeader>
@@ -153,14 +182,14 @@ const handleViewAccessRights = async () => {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end pt-1">
         <Button onClick={() => void handleViewAccessRights()} disabled={isAccessLoading}>
           {isAccessLoading ? "Loading Access Rights..." : "View Access Rights"}
         </Button>
       </div>
       {hasLoadedAccessRights ? (
-        <Card ref={accessRightsSectionRef} className="rounded-3xl border-border bg-white shadow-sm">
-          <CardHeader className="p-5 pb-3">
+        <Card ref={accessRightsSectionRef} className="rounded-3xl border-slate-200/80 bg-white shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+          <CardHeader className="border-b border-slate-200/80 bg-white p-5 pb-3">
             <div className="flex items-center justify-between gap-3">
               <CardTitle className="text-lg">Access Rights</CardTitle>
               <button
@@ -177,14 +206,36 @@ const handleViewAccessRights = async () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-4 p-5 pt-0">
-            <Separator />
+            <Separator className="hidden" />
             {isAccessLoading ? (
               <div className="py-4 text-sm text-muted-foreground">Loading access rights...</div>
             ) : (
               <div className="space-y-4">
                 <div>
                   <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Primary Access</p>
-                  {primaryEntries.length === 0 ? (
+                  {globalAccessNode && globalAccessTitle ? (
+                    <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-b from-emerald-50/70 to-white p-4 shadow-[0_8px_24px_rgba(16,185,129,0.10)]">
+                      <div className="rounded-xl border border-emerald-200/80 bg-white p-4">
+                        <span className="inline-flex h-20 w-20 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50/40 text-emerald-700 shadow-[0_8px_20px_rgba(16,185,129,0.12)]">
+                          <ShieldCheck className="h-9 w-9" />
+                        </span>
+                        <p className="mt-3 text-sm font-extrabold uppercase tracking-[0.12em] text-emerald-700">{globalAccessTitle}</p>
+                        <div className="mt-3 rounded-lg border border-emerald-200/80 bg-emerald-50/30 p-3 text-sm">
+                          <div className="grid grid-cols-[110px_10px_1fr] items-center gap-x-2">
+                            <span className="text-slate-500">Node Name</span>
+                            <span className="text-slate-400">:</span>
+                            <span className="font-semibold text-slate-900">{globalAccessNode.nodeName || "—"}</span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="text-slate-500">Access Category</span>
+                            <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold leading-none text-emerald-700">
+                              {globalAccessScopeLabel}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : primaryEntries.length === 0 ? (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No primary access found.</div>
                   ) : (
                     <div className="space-y-3">
@@ -202,25 +253,27 @@ const handleViewAccessRights = async () => {
                   )}
                 </div>
 
-                <div>
-                  <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Secondary Access</p>
-                  {secondaryEntries.length === 0 ? (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No secondary access found.</div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                      {secondaryEntries.map(([nodeKey, node], index) => (
-                        <NodeAccessCard
-                          key={`s-${nodeKey}`}
-                          nodeName={node.nodeName}
-                          parentSubtitle={node.parentSubtitle}
-                          nodeIndex={index}
-                          categories={node.categories}
-                          isPrimary={false}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {!globalAccessNode ? (
+                  <div>
+                    <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Secondary Access</p>
+                    {secondaryEntries.length === 0 ? (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No secondary access found.</div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                        {secondaryEntries.map(([nodeKey, node], index) => (
+                          <NodeAccessCard
+                            key={`s-${nodeKey}`}
+                            nodeName={node.nodeName}
+                            parentSubtitle={node.parentSubtitle}
+                            nodeIndex={index}
+                            categories={node.categories}
+                            isPrimary={false}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </div>
             )}
           </CardContent>

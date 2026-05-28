@@ -1,5 +1,7 @@
 import { ChevronRight, Rocket } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import WorkflowStepper from "@/features/workflow-management/components/onboarding/WorkflowStepper";
 import WorkflowStepInputs from "@/features/workflow-management/components/onboarding/WorkflowStepInputs";
 import WorkflowStepLevels from "@/features/workflow-management/components/onboarding/WorkflowStepLevels";
@@ -9,10 +11,14 @@ import { useWorkflowOnboarding } from "@/features/workflow-management/hooks/useW
 type WorkflowOnboardingViewProps = {
   isOpen?: boolean;
   onPublished?: () => void | Promise<void>;
+  mode?: "create" | "edit";
+  seedWorkflow?: import("@/features/workflow-management/types/workflow.types").WorkflowRecord | null;
 };
 
-export default function WorkflowOnboardingView({ isOpen = false, onPublished }: WorkflowOnboardingViewProps) {
+export default function WorkflowOnboardingView({ isOpen = false, onPublished, mode = "create", seedWorkflow = null }: WorkflowOnboardingViewProps) {
+  const [showPrevious, setShowPrevious] = useState(false);
   const {
+    mode: resolvedMode,
     step,
     visibleLevels,
     errorMsg,
@@ -25,15 +31,18 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
     departmentOptions,
     workflowOptions,
     selectedWorkflowLevelsHash,
+    remarks,
     levels,
     isRMUsedGlobally,
     currentLevelComplete,
     selectedModuleLabel,
     selectedNodeNameLabel,
+    seedSnapshot,
     setWfName,
     setWfModule,
     setWfNode,
     setSelectedWorkflowLevelsHash,
+    setRemarks,
     updateLevelApprover,
     addApproverToLevel,
     removeApproverFromLevel,
@@ -42,7 +51,12 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
     removeLastLevel,
     handleNext,
     handleBack,
-  } = useWorkflowOnboarding({ isOpen, onPublished });
+  } = useWorkflowOnboarding({ isOpen, onPublished, mode, seedWorkflow });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setShowPrevious(false);
+  }, [isOpen, mode, seedWorkflow?.id]);
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -83,12 +97,12 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
 
           {step === 3 ? (
             <WorkflowStepSummary
-              wfName={wfName}
-              wfAlias={wfAlias}
-              moduleLabel={selectedModuleLabel}
-              nodeNameLabel={selectedNodeNameLabel}
-              levels={levels}
-              visibleLevels={visibleLevels}
+              wfName={showPrevious && seedSnapshot ? seedSnapshot.wfName : wfName}
+              wfAlias={showPrevious && seedSnapshot ? seedSnapshot.wfAlias : wfAlias}
+              moduleLabel={showPrevious && seedSnapshot ? seedSnapshot.selectedModuleLabel : selectedModuleLabel}
+              nodeNameLabel={showPrevious && seedSnapshot ? seedSnapshot.selectedNodeNameLabel : selectedNodeNameLabel}
+              levels={showPrevious && seedSnapshot ? seedSnapshot.levels : levels}
+              visibleLevels={showPrevious && seedSnapshot ? seedSnapshot.visibleLevels : visibleLevels}
             />
           ) : null}
         </div>
@@ -106,20 +120,44 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
         </button>
 
         <div className="flex items-center gap-2">
+          {step === 3 && resolvedMode === "edit" && seedSnapshot ? (
+            <button
+              type="button"
+              onClick={() => setShowPrevious((current) => !current)}
+              className={`h-11 rounded-xl border px-4 text-sm font-semibold transition ${
+                showPrevious
+                  ? "border-emerald-300 bg-emerald-100 text-emerald-700"
+                  : "border-amber-300 bg-amber-100 text-amber-700"
+              }`}
+            >
+              {showPrevious ? "Show Updated" : "Show Previous"}
+            </button>
+          ) : null}
           {step === 3 ? (
-            <Select value={selectedWorkflowLevelsHash || "__none__"} onValueChange={(value) => setSelectedWorkflowLevelsHash(value === "__none__" ? "" : value)}>
-              <SelectTrigger className="h-11 w-[220px] border-blue-200 text-blue-700">
-                <SelectValue placeholder="Select Workflow" />
-              </SelectTrigger>
-              <SelectContent side="top" align="end">
-                <SelectItem value="__none__">No Workflow</SelectItem>
-                {workflowOptions.map((option) => (
-                  <SelectItem key={option.levelsHash} value={option.levelsHash}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-end gap-2">
+              <div>
+                <Textarea
+                  value={remarks}
+                  onChange={(event) => setRemarks(event.target.value)}
+                  placeholder="Add remarks..."
+                  className="min-h-[44px] w-[220px] resize-none text-sm"
+                  maxLength={250}
+                />
+              </div>
+              <Select value={selectedWorkflowLevelsHash || "__none__"} onValueChange={(value) => setSelectedWorkflowLevelsHash(value === "__none__" ? "" : value)}>
+                <SelectTrigger className="h-11 w-[220px] border-blue-200 text-blue-700">
+                  <SelectValue placeholder="Select Workflow" />
+                </SelectTrigger>
+                <SelectContent side="top" align="end">
+                  <SelectItem value="__none__">No Workflow</SelectItem>
+                  {workflowOptions.map((option) => (
+                    <SelectItem key={option.levelsHash} value={option.levelsHash}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
           <button
             type="button"
@@ -128,7 +166,7 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished }: 
               step === 3 ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"
             }`}
           >
-            {step === 1 ? "Next Step" : step === 2 ? "Generate Summary" : "Publish Workflow"}
+            {step === 1 ? "Next Step" : step === 2 ? "Generate Summary" : resolvedMode === "edit" ? "Update Workflow" : "Publish Workflow"}
             {step < 3 ? <ChevronRight className="h-4 w-4" /> : <Rocket className="h-4 w-4" />}
           </button>
         </div>

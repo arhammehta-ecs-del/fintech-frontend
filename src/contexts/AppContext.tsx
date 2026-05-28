@@ -52,6 +52,10 @@ export interface OrgNode {
   alias?: string;
   disabled?: boolean;
   status?: "Active" | "Pending" | "Inactive";
+  requestedStatus?: "ACTIVE" | "INACTIVE" | null;
+  pendingRequestType?: string;
+  pendingOldData?: Record<string, unknown>;
+  pendingNewData?: Record<string, unknown>;
   children: OrgNode[];
 }
 

@@ -37,6 +37,7 @@ export function OrgCard({
   const accentBorderClass = getNodeAccentBorderLeft(branchIndex, branchDepth, isRoot);
   const plusButtonAccentClass = getPlusButtonAccentClass(accentBackgroundClass);
   const isPendingNode = node.status?.trim().toUpperCase() === "PENDING";
+  const hasUpdateRequest = (node.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
 
   return (
     <div className="group relative">
@@ -57,6 +58,13 @@ export function OrgCard({
         <div className={cn("flex items-center justify-center rounded-full", isRoot ? "h-8 w-8 bg-white text-indigo-600 shadow-sm" : "h-7 w-7 bg-white/75")}>
           <Icon className={cn(isRoot ? "h-4 w-4 text-indigo-600" : "h-3.5 w-3.5", !isRoot && theme.iconColor)} />
         </div>
+        {hasUpdateRequest ? (
+          <span
+            className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white"
+            aria-label="Update request available"
+            title="Update request available"
+          />
+        ) : null}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className={cn("truncate font-semibold", isRoot ? "text-[16px] font-bold tracking-[-0.01em] text-white" : "text-[16px]")}>{node.name}</p>

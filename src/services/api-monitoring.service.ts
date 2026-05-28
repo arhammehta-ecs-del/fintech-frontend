@@ -28,6 +28,37 @@ type FetchAllItem = {
   totalSpanCount?: number;
 };
 
+type ApiMonitoringPageInfo = {
+  page: number;
+  totalPages: number;
+  nextCursor: string | null;
+  prevCursor: string | null;
+  topCursor: string | null;
+  hasNext: boolean;
+  hasPrev: boolean;
+};
+
+type ApiMonitoringFetchAllResponse = {
+  data?: unknown;
+  pageInfo?: Partial<ApiMonitoringPageInfo>;
+  totalCount?: number;
+};
+
+export type ApiMonitoringPaginatedRequest = {
+  limit: number;
+  cursor: string | null;
+  topCursor: string | null;
+  page?: number | null;
+  direction?: "NEXT" | "PREV";
+  query?: string | null;
+};
+
+export type ApiMonitoringPaginatedResult = {
+  logs: ApiMonitoringLog[];
+  pageInfo: ApiMonitoringPageInfo;
+  totalCount: number;
+};
+
 type DetailMainRequest = {
   trackingId?: string;
   subCount?: string;
@@ -85,6 +116,10 @@ const asObject = (value: unknown): Record<string, unknown> => (
 );
 
 const asString = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+const asNullableString = (value: unknown): string | null => {
+  const parsed = asString(value);
+  return parsed || null;
+};
 const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 const toHeaderValue = (value: unknown): string => {
   if (typeof value === "string") return value;
@@ -271,6 +306,52 @@ export async function fetchApiMonitoringList(): Promise<ApiMonitoringLog[]> {
 
   const wrappedRows = asArray(asObject(response).data);
   return wrappedRows.map((item) => mapListItem(item as FetchAllItem));
+}
+
+const mapPageInfo = (pageInfo?: Partial<ApiMonitoringPageInfo>): ApiMonitoringPageInfo => ({
+  page: Number(pageInfo?.page ?? 1) || 1,
+  totalPages: Number(pageInfo?.totalPages ?? 0) || 0,
+  nextCursor: asNullableString(pageInfo?.nextCursor),
+  prevCursor: asNullableString(pageInfo?.prevCursor),
+  topCursor: asNullableString(pageInfo?.topCursor),
+  hasNext: Boolean(pageInfo?.hasNext),
+  hasPrev: Boolean(pageInfo?.hasPrev),
+});
+
+export async function fetchApiMonitoringListPaginated(
+  payload: ApiMonitoringPaginatedRequest,
+): Promise<ApiMonitoringPaginatedResult> {
+  const response = await apiFetch<unknown>(API_MONITORING_FETCH_ALL_PATH, {
+    method: "POST",
+    body: JSON.stringify({
+      limit: payload.limit,
+      cursor: payload.cursor ?? null,
+      topCursor: payload.topCursor ?? null,
+      page: payload.page ?? null,
+      direction: payload.direction ?? "NEXT",
+      query: asNullableString(payload.query),
+    }),
+  });
+
+  const rootRows = asArray(response);
+  if (rootRows.length > 0) {
+    return {
+      logs: rootRows.map((item) => mapListItem(item as FetchAllItem)),
+      pageInfo: mapPageInfo(undefined),
+      totalCount: rootRows.length,
+    };
+  }
+
+  const wrapped = asObject(response) as ApiMonitoringFetchAllResponse;
+  const wrappedRows = asArray(wrapped.data);
+  const pageInfo = mapPageInfo(wrapped.pageInfo);
+  const totalCount = Number(wrapped.totalCount ?? 0) || wrappedRows.length;
+
+  return {
+    logs: wrappedRows.map((item) => mapListItem(item as FetchAllItem)),
+    pageInfo,
+    totalCount,
+  };
 }
 
 export async function fetchApiMonitoringDetails(trackId: string): Promise<ApiMonitoringDetailsData> {

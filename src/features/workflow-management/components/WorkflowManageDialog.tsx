@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { BadgeCheck, Calendar, CheckCircle2, GitBranch, History, Mail, Settings2, UserCheck, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { BadgeCheck, Calendar, CheckCircle2, GitBranch, History, Mail, Pencil, Settings2, UserCheck, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 import { APPROVAL_OPTIONS } from "@/features/workflow-management/constants";
@@ -15,7 +16,15 @@ type WorkflowManageDialogProps = {
   workflow: WorkflowRecord | null;
   onClose: () => void;
   onSubmitAction: (workflow: WorkflowRecord, action: "approve" | "reject", remark: string) => Promise<void>;
+  onRequestStatusWorkflowOptions?: (workflow: WorkflowRecord) => Promise<Array<{ id: string; label: string }>>;
+  onSubmitStatusUpdate?: (input: {
+    workflow: WorkflowRecord;
+    nextStatus: "active" | "inactive";
+    remark: string;
+    levelsHash: string | null;
+  }) => Promise<void>;
   onToggleHistory?: () => void;
+  onEdit?: (workflow: WorkflowRecord) => void;
   isHistoryOpen?: boolean;
   overlayClassName?: string;
   contentClassName?: string;
@@ -29,19 +38,55 @@ export default function WorkflowManageDialog({
   workflow,
   onClose,
   onSubmitAction,
+  onRequestStatusWorkflowOptions,
+  onSubmitStatusUpdate,
   onToggleHistory,
+  onEdit,
   isHistoryOpen = false,
   overlayClassName,
   contentClassName,
   contentStyle,
   preventOutsideClose = false,
 }: WorkflowManageDialogProps) {
+  const toRecord = (value: unknown): Record<string, unknown> =>
+    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+  const applyPendingDataView = (
+    base: WorkflowRecord,
+    source: Record<string, unknown>,
+  ): WorkflowRecord => {
+    const next = { ...base };
+    const target = toRecord(source.target);
+
+    if ("name" in source) next.name = readString(source.name) || next.name;
+    if ("alias" in source) next.alias = readString(source.alias) || next.alias;
+    if ("module" in source) next.rawModule = readString(source.module) || next.rawModule;
+    if ("subModule" in source) next.subModule = readString(source.subModule) || next.subModule;
+    if ("nodePath" in source) next.nodePath = readString(source.nodePath) || next.nodePath;
+    if ("levels" in source) next.levels = source.levels ?? next.levels;
+
+    if ("module" in target) next.rawModule = readString(target.module) || next.rawModule;
+    if ("subModule" in target) next.subModule = readString(target.subModule) || next.subModule;
+    if ("nodePath" in target) next.nodePath = readString(target.nodePath) || next.nodePath;
+    if ("levelsHash" in target) next.levelsHash = readString(target.levelsHash) || next.levelsHash;
+
+    return next;
+  };
+
   const remarkCardRef = useRef<HTMLDivElement | null>(null);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [remark, setRemark] = useState("");
   const [remarkTouched, setRemarkTouched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusSubmitting, setStatusSubmitting] = useState(false);
   const [pendingDecision, setPendingDecision] = useState<"approve" | "reject" | null>(null);
+  const [isEditTooltipOpen, setIsEditTooltipOpen] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<"active" | "inactive" | null>(null);
+  const [statusRemark, setStatusRemark] = useState("");
+  const [statusWorkflowHash, setStatusWorkflowHash] = useState("");
+  const [statusWorkflowOptions, setStatusWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [showPrevious, setShowPrevious] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -49,6 +94,13 @@ export default function WorkflowManageDialog({
       setRemarkTouched(false);
       setIsSubmitting(false);
       setPendingDecision(null);
+      setIsEditTooltipOpen(false);
+      setPendingStatus(null);
+      setStatusRemark("");
+      setStatusWorkflowHash("");
+      setStatusWorkflowOptions([]);
+      setStatusSubmitting(false);
+      setShowPrevious(false);
     }
   }, [open, workflow?.id]);
 
@@ -60,9 +112,18 @@ export default function WorkflowManageDialog({
     });
   }, [pendingDecision]);
 
-  if (!workflow) return null;
+  const displayWorkflow = useMemo(() => {
+    if (!workflow) return null;
+    const isUpdateRequest = (workflow.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
+    if (!isUpdateRequest) return workflow;
+    const source = showPrevious ? toRecord(workflow.pendingOldData) : toRecord(workflow.pendingNewData);
+    if (!Object.keys(source).length) return workflow;
+    return applyPendingDataView(workflow, source);
+  }, [showPrevious, workflow]);
+  if (!workflow || !displayWorkflow) return null;
+  const isUpdateRequest = (workflow.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
 
-  const isPending = workflow.status === "Pending";
+  const isPending = workflow.status === "Pending" || isUpdateRequest;
   const isRemarkValid = Boolean(remark.trim());
   const showRemarkError = remarkTouched && !isRemarkValid;
   const initiatorName = workflow.initiatorName?.trim() || "";
@@ -94,6 +155,35 @@ export default function WorkflowManageDialog({
     }
   };
 
+  const handleStatusToggle = async (nextStatus: "active" | "inactive") => {
+    if (!onSubmitStatusUpdate || !onRequestStatusWorkflowOptions) return;
+    setPendingStatus(nextStatus);
+    setStatusRemark("");
+    setStatusWorkflowHash("");
+    try {
+      const options = await onRequestStatusWorkflowOptions(workflow);
+      setStatusWorkflowOptions(options);
+    } catch {
+      setStatusWorkflowOptions([]);
+    }
+  };
+
+  const handleSubmitStatusUpdate = async () => {
+    if (!onSubmitStatusUpdate || !pendingStatus || !statusRemark.trim()) return;
+    setStatusSubmitting(true);
+    try {
+      await onSubmitStatusUpdate({
+        workflow,
+        nextStatus: pendingStatus,
+        remark: statusRemark.trim(),
+        levelsHash: statusWorkflowHash.trim() || null,
+      });
+      onClose();
+    } finally {
+      setStatusSubmitting(false);
+    }
+  };
+
   return (
     <Dialog modal={false} open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent
@@ -114,17 +204,7 @@ export default function WorkflowManageDialog({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2.5">
-                <DialogTitle className="text-xl text-slate-900">{workflow.name}</DialogTitle>
-                <span className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider",
-                  workflow.status === "Pending"
-                    ? "border-amber-200 bg-amber-100 text-amber-700"
-                    : workflow.status === "Inactive"
-                      ? "border-rose-200 bg-rose-100 text-rose-700"
-                      : "border-emerald-200 bg-emerald-100 text-emerald-700",
-                )}>
-                  {workflow.status || "Active"}
-                </span>
+                <DialogTitle className="text-xl text-slate-900">{displayWorkflow.name}</DialogTitle>
               </div>
               {isPending ? (
                 <div className="mt-3 min-w-0 overflow-x-hidden rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
@@ -198,6 +278,69 @@ export default function WorkflowManageDialog({
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
+              {onEdit && !isPending ? (
+                <TooltipProvider delayDuration={120}>
+                  <Tooltip open={isEditTooltipOpen}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => onEdit(workflow)}
+                        onMouseEnter={() => setIsEditTooltipOpen(true)}
+                        onMouseLeave={() => setIsEditTooltipOpen(false)}
+                        onFocus={() => setIsEditTooltipOpen(false)}
+                        onBlur={() => setIsEditTooltipOpen(false)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
+                        aria-label="Edit workflow"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Edit</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
+              {!isPending && onSubmitStatusUpdate ? (
+                <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
+                  <button
+                    type="button"
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-semibold transition",
+                      (pendingStatus ?? (workflow.status === "Inactive" ? "inactive" : "active")) === "active"
+                        ? "bg-[#3553e9] text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100",
+                    )}
+                    onClick={() => void handleStatusToggle("active")}
+                  >
+                    Active
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-semibold transition",
+                      (pendingStatus ?? (workflow.status === "Inactive" ? "inactive" : "active")) === "inactive"
+                        ? "bg-[#3553e9] text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100",
+                    )}
+                    onClick={() => void handleStatusToggle("inactive")}
+                  >
+                    Inactive
+                  </button>
+                </div>
+              ) : null}
+              {isUpdateRequest ? (
+                <button
+                  type="button"
+                  onClick={() => setShowPrevious((current) => !current)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-semibold transition",
+                    showPrevious
+                      ? "border-amber-300 bg-amber-50 text-amber-700"
+                      : "border-emerald-300 bg-emerald-50 text-emerald-700",
+                  )}
+                >
+                  {showPrevious ? "Show Updated" : "Show Previous"}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={onClose}
@@ -211,7 +354,37 @@ export default function WorkflowManageDialog({
         </DialogHeader>
 
         <div className="space-y-4 overflow-y-auto px-5 py-4">
-          <SummaryPreview workflow={workflow} />
+          <SummaryPreview workflow={displayWorkflow} />
+
+          {!isPending && pendingStatus && onSubmitStatusUpdate ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+                {pendingStatus === "inactive" ? "Submit Inactive Request" : "Submit Active Request"}
+              </div>
+              <div className="space-y-3">
+                <Textarea
+                  value={statusRemark}
+                  onChange={(event) => setStatusRemark(event.target.value)}
+                  placeholder="Add remark"
+                  maxLength={250}
+                  className="min-h-[90px]"
+                />
+                <Select value={statusWorkflowHash || "__none__"} onValueChange={(value) => setStatusWorkflowHash(value === "__none__" ? "" : value)}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Select workflow" />
+                  </SelectTrigger>
+                  <SelectContent side="top">
+                    <SelectItem value="__none__">No Workflow</SelectItem>
+                    {statusWorkflowOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : null}
 
           {isPending && pendingDecision ? (
             <div ref={remarkCardRef} className="rounded-xl border border-slate-200 bg-white p-4">
@@ -278,9 +451,20 @@ export default function WorkflowManageDialog({
               </>
             )
           ) : (
-            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
-              Close
-            </Button>
+            <>
+              <Button variant="outline" onClick={onClose} disabled={isSubmitting || statusSubmitting}>
+                Close
+              </Button>
+              {pendingStatus && onSubmitStatusUpdate ? (
+                <Button
+                  className="rounded-full px-6 bg-[#3553E9] text-white hover:bg-[#2f49cf]"
+                  onClick={() => void handleSubmitStatusUpdate()}
+                  disabled={!statusRemark.trim() || statusSubmitting}
+                >
+                  {pendingStatus === "inactive" ? "Set Inactive" : "Set Active"}
+                </Button>
+              ) : null}
+            </>
           )}
         </div>
       </DialogContent>

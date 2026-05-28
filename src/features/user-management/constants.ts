@@ -1,6 +1,6 @@
 export const USER_DEFAULT_PAGE_SIZE = 15;
 export const USER_PAGE_SIZE_OPTIONS = [15, 25, 35, 50] as const;
-export const USER_SEARCH_DEBOUNCE_MS = 300;
+export const USER_SEARCH_DEBOUNCE_MS = 500;
 
 export const USER_FILTER_CONFIG = {
   roleType: {

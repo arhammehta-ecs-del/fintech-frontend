@@ -1,4 +1,4 @@
-export type WorkflowStatus = "Active" | "Pending";
+export type WorkflowStatus = "Active" | "Pending" | "Inactive";
 
 export type WorkflowRecord = {
   id: string;
@@ -19,6 +19,9 @@ export type WorkflowRecord = {
   initiatedDate?: string;
   workflowName?: string;
   workflowAlias?: string;
+  pendingRequestType?: string;
+  pendingOldData?: Record<string, unknown>;
+  pendingNewData?: Record<string, unknown>;
   status: WorkflowStatus;
 };
 

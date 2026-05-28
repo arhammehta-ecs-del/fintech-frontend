@@ -43,6 +43,7 @@ export function NodeAccessCard({
     if (label === "Global Access") return "bg-emerald-50 text-emerald-700";
     if (label === "Checker") return "bg-violet-50 text-violet-700";
     if (label === "Maker") return "bg-amber-50 text-amber-700";
+    if (label === "Corp Admin") return "bg-emerald-50 text-emerald-700";
     return "bg-slate-100 text-slate-600";
   };
 
@@ -50,6 +51,7 @@ export function NodeAccessCard({
     if (label === "Global Access") return ShieldCheck;
     if (label === "Checker") return ShieldCheck;
     if (label === "Maker") return Pencil;
+    if (label === "Corp Admin") return ShieldCheck;
     return Eye;
   };
 
@@ -122,14 +124,24 @@ export function NodeAccessCard({
                 {formatKey(cat)}
               </div>
               {Array.from(groupedRows.entries()).map(([roleSubCategory, labels], i) => {
-                const orderedBadgeTokens = ["Global Access", "Checker", "Maker", "Viewer"].flatMap((label) =>
-                  Array.from(labels).filter((token) => token.startsWith(`${label}::`)),
+                const allBadgeTokens = Array.from(labels);
+                const labelPriority = ["Global Access", "Corp Admin", "Checker", "Maker", "Viewer"];
+                const orderedBadgeTokens = labelPriority.flatMap((label) =>
+                  allBadgeTokens.filter((token) => token.startsWith(`${label}::`)),
                 );
+                const remainingBadgeTokens = allBadgeTokens
+                  .filter((token) => !labelPriority.some((label) => token.startsWith(`${label}::`)))
+                  .sort((left, right) => {
+                    const leftLabel = left.split("::")[0] || "";
+                    const rightLabel = right.split("::")[0] || "";
+                    return leftLabel.localeCompare(rightLabel);
+                  });
+                const finalBadgeTokens = [...orderedBadgeTokens, ...remainingBadgeTokens];
                 return (
                   <div key={i} className="grid grid-cols-1 items-start gap-2 text-[15px] leading-[1.35] sm:grid-cols-[minmax(120px,1fr)_minmax(0,2fr)] sm:gap-x-5">
                     <span className="min-w-0 break-words pt-0.5 pr-1 font-medium text-slate-600">{formatKey(roleSubCategory)}</span>
                     <span className="flex min-w-0 flex-nowrap gap-2 sm:justify-end">
-                      {orderedBadgeTokens.map((token) => {
+                      {finalBadgeTokens.map((token) => {
                         const [label, scope] = token.split("::");
                         const BadgeIcon = getBadgeIcon(label || "Viewer");
                         return (

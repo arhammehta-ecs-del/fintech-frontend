@@ -5,15 +5,82 @@ import { getApiErrorMessage } from "@/services/client";
 import { getCompanyRoles } from "@/services/role.service";
 import { fetchCompanyNodes } from "@/services/user.service";
 import { createWorkflow } from "@/services/workflow.service";
+import { acquireEditLock } from "@/services/edit-lock.service";
 import type { ModuleGroup, WorkflowStep } from "@/features/workflow-management/components/onboarding/types";
 import { createResetLevels, getCategoryLabel, INITIAL_LEVELS, formatTokenLabel, toApiApprover } from "@/features/workflow-management/utils/workflowOnboarding.utils";
+import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 
 type UseWorkflowOnboardingOptions = {
   isOpen?: boolean;
   onPublished?: () => void | Promise<void>;
+  mode?: "create" | "edit";
+  seedWorkflow?: WorkflowRecord | null;
 };
 
-export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkflowOnboardingOptions) {
+const fromApiApprover = (value: string) => {
+  const normalized = value.trim().toUpperCase();
+  if (normalized === "REPORTING_MANAGER") return "reporting_manager";
+  if (normalized === "NODE_APPROVER") return "node_approver";
+  if (normalized === "HIERARCHY_APPROVER") return "hierarchy_approver";
+  return normalized.toLowerCase();
+};
+
+const parseSeedLevels = (source: unknown) => {
+  const reset = createResetLevels();
+  const toLevel = (id: number, approver1?: string | null, approver2?: string | null, approverType?: string | null) => ({
+    id,
+    approvals: [
+      { option: approver1 ? fromApiApprover(approver1) : "" },
+      ...(approver2 ? [{ option: fromApiApprover(approver2) }] : []),
+    ],
+    type: (approverType || "AND").toUpperCase() === "OR" ? ("OR" as const) : ("AND" as const),
+  });
+
+  if (Array.isArray(source)) {
+    source.forEach((rawLevel, index) => {
+      if (!rawLevel || typeof rawLevel !== "object") return;
+      const level = rawLevel as Record<string, unknown>;
+      const levelId = Number(level.level ?? index + 1);
+      if (!levelId || levelId < 1 || levelId > reset.length) return;
+      reset[levelId - 1] = toLevel(
+        levelId,
+        typeof level.approver1 === "string" ? level.approver1 : null,
+        typeof level.approver2 === "string" ? level.approver2 : null,
+        typeof level.approverType === "string" ? level.approverType : null,
+      );
+    });
+    return reset;
+  }
+
+  if (source && typeof source === "object") {
+    const byKey = source as Record<string, unknown>;
+    Object.entries(byKey).forEach(([key, value]) => {
+      if (!/^l\d+$/i.test(key) || !value || typeof value !== "object") return;
+      const level = value as Record<string, unknown>;
+      const levelId = Number(key.replace(/[^0-9]/g, ""));
+      if (!levelId || levelId < 1 || levelId > reset.length) return;
+      reset[levelId - 1] = toLevel(
+        levelId,
+        typeof level.approver1 === "string" ? level.approver1 : null,
+        typeof level.approver2 === "string" ? level.approver2 : null,
+        typeof level.type === "string" ? level.type : null,
+      );
+    });
+  }
+
+  return reset;
+};
+
+const getVisibleLevelCount = (levels: typeof INITIAL_LEVELS) => {
+  for (let index = levels.length - 1; index >= 0; index -= 1) {
+    if (levels[index].approvals.some((approval) => Boolean(approval.option))) {
+      return index + 1;
+    }
+  }
+  return 1;
+};
+
+export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "create", seedWorkflow = null }: UseWorkflowOnboardingOptions) {
   const { currentUser } = useAppContext();
   const { toast } = useToast();
 
@@ -34,7 +101,16 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
   >([]);
   const [workflowOptions, setWorkflowOptions] = useState<Array<{ levelsHash: string; label: string }>>([]);
   const [selectedWorkflowLevelsHash, setSelectedWorkflowLevelsHash] = useState("");
+  const [remarks, setRemarks] = useState("");
   const [levels, setLevels] = useState(INITIAL_LEVELS);
+  const [seedSnapshot, setSeedSnapshot] = useState<{
+    wfName: string;
+    wfAlias: string;
+    selectedModuleLabel: string;
+    selectedNodeNameLabel: string;
+    levels: typeof INITIAL_LEVELS;
+    visibleLevels: number;
+  } | null>(null);
 
   const isWorkflowMetaComplete = [wfName, wfModule, wfNode].every((value) => Boolean(String(value).trim()));
 
@@ -175,16 +251,47 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
   useEffect(() => {
     if (!isOpen) return;
     setStep(1);
-    setVisibleLevels(1);
     setErrorMsg("");
     setShowMetaErrors(false);
+
+    if (mode === "edit" && seedWorkflow) {
+      const nextLevels = parseSeedLevels(seedWorkflow.levels);
+      const nextVisibleLevels = getVisibleLevelCount(nextLevels);
+
+      setVisibleLevels(nextVisibleLevels);
+      setWfName(seedWorkflow.name || "");
+      setWfAlias(seedWorkflow.alias === "-" ? "" : seedWorkflow.alias || "");
+      setWfModule(seedWorkflow.subModule || "");
+      setWfNode(seedWorkflow.nodePath || "");
+      setSelectedWorkflowLevelsHash(seedWorkflow.levelsHash || "");
+      setLevels(nextLevels);
+      return;
+    }
+
+    setVisibleLevels(1);
     setWfName("");
     setWfAlias("");
     setWfModule("");
     setWfNode("");
     setSelectedWorkflowLevelsHash("");
+    setRemarks("");
     setLevels(createResetLevels());
-  }, [isOpen]);
+    setSeedSnapshot(null);
+  }, [isOpen, mode, seedWorkflow]);
+
+  useEffect(() => {
+    if (!isOpen || mode !== "edit" || !seedWorkflow) return;
+    const snapshotLevels = parseSeedLevels(seedWorkflow.levels);
+    const snapshotVisibleLevels = getVisibleLevelCount(snapshotLevels);
+    setSeedSnapshot({
+      wfName: seedWorkflow.name || "",
+      wfAlias: seedWorkflow.alias === "-" ? "" : seedWorkflow.alias || "",
+      selectedModuleLabel: seedWorkflow.module || "-",
+      selectedNodeNameLabel: seedWorkflow.nodeName || "-",
+      levels: snapshotLevels,
+      visibleLevels: snapshotVisibleLevels,
+    });
+  }, [isOpen, mode, seedWorkflow]);
 
   const updateLevelApprover = (levelId: number, index: number, value: string) => {
     setErrorMsg("");
@@ -271,34 +378,60 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
       return;
     }
 
-    const companyCode = currentUser?.companyCode?.trim().toUpperCase();
-    if (!companyCode) {
-      setErrorMsg("Company code unavailable. Please re-login and try again.");
-      return;
-    }
-
     try {
-      const payloadLevels = levels.slice(0, visibleLevels).reduce<Record<string, Record<string, string>>>((acc, level, idx) => {
-        const levelKey = `l${idx + 1}`;
-        const approver1 = level.approvals[0]?.option ? toApiApprover(level.approvals[0].option) : "";
-        const approver2 = level.approvals[1]?.option ? toApiApprover(level.approvals[1].option) : "";
-
-        acc[levelKey] = {
-          approver1,
-          ...(approver2 ? { approver2 } : {}),
-          ...(level.approvals.length > 1 ? { type: level.type } : {}),
-        };
-        return acc;
-      }, {});
+      const payloadLevels = toPayloadLevels(levels, visibleLevels);
 
       const normalizedNodePath = wfNode.trim();
+      const normalizedModule = (selectedModuleCategoryKey || wfModule.trim()).trim();
+      const normalizedSubModule = wfModule.trim();
+      const nextRemarks = remarks.trim();
+
+      if (mode === "edit" && seedWorkflow) {
+        const target = {
+          module: (seedWorkflow.rawModule || seedWorkflow.module || "").trim(),
+          subModule: (seedWorkflow.subModule || "").trim(),
+          nodePath: (seedWorkflow.nodePath || "").trim(),
+          levelsHash: (seedWorkflow.levelsHash || "").trim(),
+        };
+
+        await acquireEditLock({
+          type: "workflow",
+          target: {
+            nodePath: (seedWorkflow.nodePath || "").trim(),
+            levelsHash: target.levelsHash,
+            subModule: target.subModule,
+            module: target.module,
+          },
+        });
+
+        const changedPayload: Record<string, unknown> = {};
+        if (wfName.trim() !== (seedWorkflow.name || "").trim()) changedPayload.name = wfName.trim();
+        if (normalizedModule !== (seedWorkflow.rawModule || seedWorkflow.module || "").trim()) changedPayload.module = normalizedModule;
+        if (normalizedSubModule !== (seedWorkflow.subModule || "").trim()) changedPayload.subModule = normalizedSubModule;
+        if (normalizedNodePath !== (seedWorkflow.nodePath || "").trim()) changedPayload.nodePath = normalizedNodePath;
+
+        const seedLevels = parseSeedLevels(seedWorkflow.levels);
+        const seedVisibleLevels = getVisibleLevelCount(seedLevels);
+        const seedPayloadLevels = toPayloadLevels(seedLevels, seedVisibleLevels);
+        if (JSON.stringify(payloadLevels) !== JSON.stringify(seedPayloadLevels)) changedPayload.levels = payloadLevels;
+
+        await createWorkflow({
+          type: "update",
+          target,
+          ...changedPayload,
+          remarks: nextRemarks,
+          levelsHash: selectedWorkflowLevelsHash.trim() || null,
+        });
+        await onPublished?.();
+        return;
+      }
 
       await createWorkflow({
-        companyCode,
+        type: "initiate",
         name: wfName.trim(),
         ...(wfAlias.trim() ? { alias: wfAlias.trim() } : {}),
-        module: selectedModuleCategoryKey || wfModule.trim(),
-        subModule: wfModule.trim(),
+        module: normalizedModule,
+        subModule: normalizedSubModule,
         ...(normalizedNodePath ? { nodePath: normalizedNodePath } : {}),
         levels: payloadLevels,
         levelsHash: selectedWorkflowLevelsHash.trim() || null,
@@ -318,6 +451,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
   };
 
   return {
+    mode,
     step,
     visibleLevels,
     errorMsg,
@@ -330,16 +464,19 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
     departmentOptions,
     workflowOptions,
     selectedWorkflowLevelsHash,
+    remarks,
     levels,
     isRMUsedGlobally,
     currentLevelComplete,
     selectedModuleLabel,
     selectedNodeNameLabel,
+    seedSnapshot,
     setWfName,
     setWfAlias,
     setWfModule,
     setWfNode,
     setSelectedWorkflowLevelsHash,
+    setRemarks,
     updateLevelApprover,
     addApproverToLevel,
     removeApproverFromLevel,
@@ -350,3 +487,16 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished }: UseWorkfl
     handleBack,
   };
 }
+  const toPayloadLevels = (sourceLevels: typeof INITIAL_LEVELS, visibleLevelCount: number) =>
+    sourceLevels.slice(0, visibleLevelCount).reduce<Record<string, Record<string, string>>>((acc, level, idx) => {
+      const levelKey = `l${idx + 1}`;
+      const approver1 = level.approvals[0]?.option ? toApiApprover(level.approvals[0].option) : "";
+      const approver2 = level.approvals[1]?.option ? toApiApprover(level.approvals[1].option) : "";
+
+      acc[levelKey] = {
+        approver1,
+        ...(approver2 ? { approver2 } : {}),
+        ...(level.approvals.length > 1 ? { type: level.type } : {}),
+      };
+      return acc;
+    }, {});

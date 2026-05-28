@@ -25,10 +25,11 @@ import { buildOrgTreeFromCompanyNodes, buildWorkflowOptions } from "./useUserOnb
 type UseUserOnboardingFormOptions = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit?: (data: UserOnboardingFormData) => void | Promise<void>;
+  onSubmit?: (data: UserOnboardingFormData, context?: { seedMember?: AppUser | null }) => void | Promise<void>;
+  seedMember?: AppUser | null;
 };
 
-export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserOnboardingFormOptions) {
+export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember = null }: UseUserOnboardingFormOptions) {
   const { currentUser, users } = useAppContext();
   const companyCode = currentUser?.companyCode ?? "";
   const [roles, setRoles] = useState<RoleRecord[]>([]);
@@ -49,9 +50,29 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   const [infoNodeId, setInfoNodeId] = useState<string | null>(null);
   const [isReviewAccessExpanded, setIsReviewAccessExpanded] = useState(true);
   const [activeUsersForManagers, setActiveUsersForManagers] = useState<AppUser[]>([]);
+  const [reviewSnapshot, setReviewSnapshot] = useState<{
+    basic: UserOnboardingFormData["basic"];
+    selectedNodes: OrgNode[];
+    primaryNodeId: string | null;
+    nodePermissions: Record<string, NodePermissionBuckets>;
+    nodePermissionScopes: Record<string, NodePermissionScopeBuckets>;
+    selectedWorkflow: string;
+  } | null>(null);
   const reviewAccessNodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const orgStructure = localOrgStructure;
+  const parsePermissionAction = (roleName: string): PermissionAction => {
+    const normalized = roleName.trim().toLowerCase();
+    if (normalized.includes("viewer")) return "viewer";
+    if (normalized.includes("checker") || normalized.includes("maker") || normalized.includes("manager")) return "manager";
+    return "user";
+  };
+  const parseSystemAccessScope = (scope: string): SystemAccessScope => {
+    const normalized = scope.trim().toUpperCase();
+    if (normalized === "ALL_CHILD") return "ALL_CHILD";
+    if (normalized === "IMMEDIATE_CHILD") return "IMMEDIATE_CHILD";
+    return "NODE";
+  };
 
   // Fetch live roles when dialog opens
   useEffect(() => {
@@ -196,21 +217,143 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
   useEffect(() => {
     if (!open) return;
     setStep(1);
-    setFormData((current) => ({
-      ...createInitialUserOnboardingFormData(),
-      isGlobalUserEligible: current.isGlobalUserEligible,
-      isGlobalSignatory: current.isGlobalSignatory,
-    }));
     setErrors({});
-    setSelectedNodeId(orgStructure?.id ?? null);
-    setSelectedNodeIds([]);
-    setExpandedAccessNodeIds([]);
-    setPrimaryNodeId(null);
-    setNodePermissions({});
-    setNodePermissionScopes({});
     setInfoNodeId(null);
     setIsReviewAccessExpanded(true);
-  }, [open, orgStructure]);
+
+    if (!seedMember) {
+      setFormData((current) => ({
+        ...createInitialUserOnboardingFormData(),
+        isGlobalUserEligible: current.isGlobalUserEligible,
+        isGlobalSignatory: current.isGlobalSignatory,
+      }));
+      setSelectedNodeId(orgStructure?.id ?? null);
+      setSelectedNodeIds([]);
+      setExpandedAccessNodeIds([]);
+      setPrimaryNodeId(null);
+      setNodePermissions({});
+      setNodePermissionScopes({});
+      setReviewSnapshot(null);
+      return;
+    }
+
+    const accessRows = seedMember.accessDetails ?? [];
+    const nodeOrder: string[] = [];
+    const nextNodePermissions: Record<string, NodePermissionBuckets> = {};
+    const nextNodePermissionScopes: Record<string, NodePermissionScopeBuckets> = {};
+
+    const ensureNode = (nodePath: string) => {
+      if (nextNodePermissions[nodePath]) return;
+      nextNodePermissions[nodePath] = {
+        primary: createInitialPermissions(roles),
+        secondary: createInitialPermissions(roles),
+      };
+      nextNodePermissionScopes[nodePath] = {
+        primary: createInitialPermissionScopes(roles),
+        secondary: createInitialPermissionScopes(roles),
+      };
+      nodeOrder.push(nodePath);
+    };
+
+    accessRows.forEach((row) => {
+      const nodePath = (row.nodePath || "").trim();
+      if (!nodePath) return;
+      ensureNode(nodePath);
+      const permissionBucket = row.accessType === "PRIMARY" ? "primary" : "secondary";
+      const roleCategory = (row.roleCategory || "").trim().toUpperCase();
+      const roleSubCategory = (row.roleSubCategory || "").trim();
+      if (!roleCategory || !roleSubCategory) return;
+
+      if (!nextNodePermissions[nodePath][permissionBucket][roleCategory]) {
+        nextNodePermissions[nodePath][permissionBucket][roleCategory] = {};
+      }
+      if (!nextNodePermissions[nodePath][permissionBucket][roleCategory][roleSubCategory]) {
+        nextNodePermissions[nodePath][permissionBucket][roleCategory][roleSubCategory] = { manager: false, user: false, viewer: false };
+      }
+      const action = parsePermissionAction(row.roleName || "");
+      nextNodePermissions[nodePath][permissionBucket][roleCategory][roleSubCategory][action] = true;
+
+      if (!nextNodePermissionScopes[nodePath][permissionBucket][roleCategory]) {
+        nextNodePermissionScopes[nodePath][permissionBucket][roleCategory] = {};
+      }
+      if (!nextNodePermissionScopes[nodePath][permissionBucket][roleCategory][roleSubCategory]) {
+        nextNodePermissionScopes[nodePath][permissionBucket][roleCategory][roleSubCategory] = {};
+      }
+      nextNodePermissionScopes[nodePath][permissionBucket][roleCategory][roleSubCategory][action] = parseSystemAccessScope(
+        row.accessCategory || "NODE",
+      );
+    });
+
+    const primaryCandidate = accessRows.find((row) => row.accessType === "PRIMARY" && (row.nodePath || "").trim())?.nodePath?.trim() || null;
+    const selectedPrimaryNodeId = primaryCandidate || nodeOrder[0] || null;
+    const selectedWorkflow = (seedMember.basicDetails?.workflowName || "").trim();
+    const selectedWorkflowAlias = (seedMember.basicDetails?.alias || "").trim();
+
+    setFormData((current) => ({
+      ...current,
+      basic: {
+        name: seedMember.name || "",
+        email: seedMember.email || "",
+        phone: seedMember.phone || "",
+        designation: seedMember.designation || "",
+        employeeId: seedMember.employeeId || "",
+        reportingManager: seedMember.basicDetails?.reportingManagerEmail || seedMember.basicDetails?.reportingManager || "",
+        reportingManagerName: seedMember.basicDetails?.reportingManagerName || seedMember.manager?.name || "",
+        reportingManagerEmail: seedMember.basicDetails?.reportingManagerEmail || seedMember.manager?.email || "",
+      },
+      nodeSelections: nodeOrder.map((nodePath) => {
+        const nodeMeta =
+          accessRows.find((row) => (row.nodePath || "").trim() === nodePath) ||
+          findOrgNode(orgStructure, nodePath);
+        return {
+          nodeId: nodePath,
+          nodeName: "nodeName" in (nodeMeta || {}) ? ((nodeMeta as { nodeName?: string }).nodeName || "") : ((nodeMeta as { name?: string })?.name || ""),
+          nodeType: "nodeType" in (nodeMeta || {}) ? ((nodeMeta as { nodeType?: string }).nodeType || "") : undefined,
+          nodePath,
+          immediateChildren: [],
+          allChildren: [],
+          permissions: nextNodePermissions[nodePath] ?? {
+            primary: createInitialPermissions(roles),
+            secondary: createInitialPermissions(roles),
+          },
+          permissionScopes: nextNodePermissionScopes[nodePath] ?? {
+            primary: createInitialPermissionScopes(roles),
+            secondary: createInitialPermissionScopes(roles),
+          },
+        };
+      }),
+      permissions: createInitialPermissions(roles),
+      primaryNodeId: selectedPrimaryNodeId,
+      selectedWorkflow: selectedWorkflowAlias ? `${selectedWorkflow} (${selectedWorkflowAlias})` : selectedWorkflow,
+      selectedWorkflowLevelsHash: "",
+    }));
+    setSelectedNodeId(selectedPrimaryNodeId || orgStructure?.id || null);
+    setSelectedNodeIds(nodeOrder);
+    setExpandedAccessNodeIds(nodeOrder);
+    setPrimaryNodeId(selectedPrimaryNodeId);
+    setNodePermissions(nextNodePermissions);
+    setNodePermissionScopes(nextNodePermissionScopes);
+    const snapshotSelectedNodes = nodeOrder
+      .map((nodePath) => findOrgNode(orgStructure, nodePath))
+      .filter((node): node is OrgNode => Boolean(node));
+    setReviewSnapshot({
+      basic: {
+        name: seedMember.name || "",
+        email: seedMember.email || "",
+        phone: seedMember.phone || "",
+        designation: seedMember.designation || "",
+        employeeId: seedMember.employeeId || "",
+        reportingManager: seedMember.basicDetails?.reportingManagerEmail || seedMember.basicDetails?.reportingManager || "",
+        reportingManagerName: seedMember.basicDetails?.reportingManagerName || seedMember.manager?.name || "",
+        reportingManagerEmail: seedMember.basicDetails?.reportingManagerEmail || seedMember.manager?.email || "",
+      },
+      selectedNodes: snapshotSelectedNodes,
+      primaryNodeId: selectedPrimaryNodeId,
+      nodePermissions: JSON.parse(JSON.stringify(nextNodePermissions)) as Record<string, NodePermissionBuckets>,
+      nodePermissionScopes: JSON.parse(JSON.stringify(nextNodePermissionScopes)) as Record<string, NodePermissionScopeBuckets>,
+      selectedWorkflow: selectedWorkflowAlias ? `${selectedWorkflow} (${selectedWorkflowAlias})` : selectedWorkflow,
+    });
+  }, [open, orgStructure, roles, seedMember]);
 
   const selectedNodes = useMemo(
     () =>
@@ -577,7 +720,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
           primaryNodeId: null,
           selectedWorkflow: "",
           selectedWorkflowLevelsHash: "",
-        });
+        }, { seedMember });
       }
       onOpenChange(false);
       return;
@@ -653,7 +796,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
         selectedWorkflowLevelsHash: formData.selectedWorkflowLevelsHash,
       };
 
-      await onSubmit(payloadFormData);
+      await onSubmit(payloadFormData, { seedMember });
     }
 
     onOpenChange(false);
@@ -678,6 +821,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit }: UseUserO
     infoNodeId,
     isReviewAccessExpanded,
     reviewAccessNodeRefs,
+    reviewSnapshot,
     clearError,
     updateBasic,
     setSelectedWorkflow,

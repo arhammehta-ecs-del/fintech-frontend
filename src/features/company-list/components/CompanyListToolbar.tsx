@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, Filter, Plus, Search, X } from "lucide-react";
+import { ChevronDown, Filter, Plus, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,6 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { CompanyListToolbarProps, StatusTab } from "@/features/company-list/types";
 
@@ -38,6 +39,8 @@ export default function CompanyListToolbar({
   legalNameOptions,
   onClearAdvancedFilters,
   onOpenOnboarding,
+  hasNewCompanyListEvent,
+  onRefresh,
 }: CompanyListToolbarProps) {
   const visibleStatusTabs = STATUS_TABS.filter((option) => option.id === "active" || statusCounts[option.id] > 0);
   const activeFilterCount = groupNameFilters.length + companyNameFilters.length + legalNameFilters.length;
@@ -258,6 +261,30 @@ export default function CompanyListToolbar({
                 </div>
               </PopoverContent>
             </Popover>
+
+            <TooltipProvider delayDuration={120}>
+              <Tooltip open={hasNewCompanyListEvent ? true : undefined}>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Refresh company list"
+                    onClick={() => {
+                      void onRefresh();
+                    }}
+                    className={cn(
+                      "h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm",
+                      hasNewCompanyListEvent &&
+                        "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
+                    )}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                {hasNewCompanyListEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </div>

@@ -111,6 +111,21 @@ export function CompanyPreviewDialog({
     setRemarkTouched(false);
   };
 
+  const renderSignatoryCard = (signatory: (typeof signatoriesForPreview)[number], index: number) => (
+    <div key={`${signatory.email}-${index}`} className="rounded-xl border border-border/70 bg-muted/20 p-4">
+      <p className="inline-block border-b border-slate-200 pb-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+        Signatory {index + 1}
+      </p>
+      <div className="mt-2 space-y-1">
+        <SignatoryDetailRow label="Name" value={displayValue(signatory.fullName)} />
+        <SignatoryDetailRow label="Email" value={displayValue(signatory.email)} />
+        <SignatoryDetailRow label="Phone" value={displayValue(signatory.phone)} />
+        <SignatoryDetailRow label="Designation" value={displayValue(signatory.designation)} />
+        {signatory.employeeId?.trim() ? <SignatoryDetailRow label="Employee ID" value={displayValue(signatory.employeeId)} /> : null}
+      </div>
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -177,7 +192,7 @@ export function CompanyPreviewDialog({
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-5 sm:px-6 sm:pb-6 sm:pt-5">
+          <div className="relative min-h-0 flex-1 overflow-hidden px-4 pb-4 pt-5 sm:px-6 sm:pb-6 sm:pt-5">
             {showPendingActions ? (
               <div className="mb-4 rounded-xl border border-slate-200/90 bg-gradient-to-r from-slate-50 to-white p-3 shadow-[0_6px_18px_rgba(15,23,42,0.06)]">
                 <div className="flex flex-wrap items-center gap-2 text-[13px] text-slate-700">
@@ -203,7 +218,7 @@ export function CompanyPreviewDialog({
               <h3 className={sectionHeadingClassName}>Company Information</h3>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid min-h-0 gap-4 lg:grid-cols-2">
               <div className="space-y-4">
                 <Card className="overflow-hidden border-border/70 bg-background shadow-sm">
                   <div className="p-5">
@@ -242,24 +257,9 @@ export function CompanyPreviewDialog({
                     <h4 className="text-sm font-semibold text-foreground">New Signatories</h4>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="max-h-[52vh] space-y-3 overflow-y-auto pr-1">
                     {signatoriesForPreview.length > 0 ? (
-                      signatoriesForPreview.map((signatory, index) => (
-                        <div key={`${signatory.email}-${index}`} className="rounded-xl border border-border/70 bg-muted/20 p-4">
-                          <p className="inline-block border-b border-slate-200 pb-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                            Signatory {index + 1}
-                          </p>
-                          <div className="mt-2 space-y-1">
-                            <SignatoryDetailRow label="Name" value={displayValue(signatory.fullName)} />
-                            <SignatoryDetailRow label="Email" value={displayValue(signatory.email)} />
-                            <SignatoryDetailRow label="Phone" value={displayValue(signatory.phone)} />
-                            <SignatoryDetailRow label="Designation" value={displayValue(signatory.designation)} />
-                            {signatory.employeeId?.trim() ? (
-                              <SignatoryDetailRow label="Employee ID" value={displayValue(signatory.employeeId)} />
-                            ) : null}
-                          </div>
-                        </div>
-                      ))
+                      signatoriesForPreview.map((signatory, index) => renderSignatoryCard(signatory, index))
                     ) : (
                       <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-5 text-sm text-muted-foreground">
                         No signatory details available.

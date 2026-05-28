@@ -142,7 +142,7 @@ export const buildIndependentDisplayRows = (filteredGroups: GroupCompany[]): Dis
   filteredGroups
     .filter((group) => isUngroupedGroup(group))
     .flatMap((group) =>
-      sortCompaniesLifo(group.subsidiaries).map((company) => ({
+      group.subsidiaries.map((company) => ({
         type: "company" as const,
         company,
         groupId: group.id,
@@ -155,7 +155,7 @@ export const buildIndependentDisplayRows = (filteredGroups: GroupCompany[]): Dis
 export const buildAllDisplayRows = (filteredGroups: GroupCompany[]): DisplayRow[] =>
   filteredGroups
     .flatMap((group) =>
-      sortCompaniesLifo(group.subsidiaries).map((company) => ({
+      group.subsidiaries.map((company) => ({
         type: "company" as const,
         company,
         groupId: group.id,

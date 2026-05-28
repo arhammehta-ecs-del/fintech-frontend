@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ApiMonitoringDetailsData, ApiMonitoringLog } from "@/features/api-monitoring/types";
 import { getApiErrorMessage } from "@/services/client";
-import { fetchApiMonitoringDetails, fetchApiMonitoringList } from "@/services/api-monitoring.service";
+import { fetchApiMonitoringDetails, fetchApiMonitoringListPaginated } from "@/services/api-monitoring.service";
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -21,11 +21,13 @@ const fuzzyMatch = (text: string, query: string) => {
 
 export function useApiMonitoring() {
   const PAGE_SIZE_OPTIONS = [15, 25, 35, 50] as const;
+  const SEARCH_DEBOUNCE_MS = 500;
   const [logs, setLogs] = useState<ApiMonitoringLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchText, setSearchText] = useState("");
+  const [debouncedSearchText, setDebouncedSearchText] = useState("");
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [companyCodeFilters, setCompanyCodeFilters] = useState<string[]>([]);
   const [userEmailFilters, setUserEmailFilters] = useState<string[]>([]);
@@ -34,31 +36,100 @@ export function useApiMonitoring() {
   const [dateFilters, setDateFilters] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(15);
+  const [resolvedTotalPages, setResolvedTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [topCursor, setTopCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasNext, setHasNext] = useState(false);
+  const [pageCursors, setPageCursors] = useState<Record<number, string | null>>({ 1: null });
 
   useEffect(() => {
-    let mounted = true;
+    const trimmedSearch = searchInput.trim();
+    if (!trimmedSearch) {
+      setSearchText("");
+      setDebouncedSearchText("");
+      return;
+    }
 
-    const load = async () => {
-      setLoading(true);
-      setError(null);
+    setSearchText(trimmedSearch);
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchText(trimmedSearch);
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchInput]);
+
+  const fetchPage = useCallback(
+    async (
+      params: {
+        cursor: string | null;
+        topCursor: string | null;
+        page: number | null;
+        direction: "NEXT" | "PREV";
+        targetPage: number;
+      },
+      showLoader = false,
+    ) => {
+      if (showLoader) setLoading(true);
       try {
-        const data = await fetchApiMonitoringList();
-        if (!mounted) return;
-        setLogs(data);
+        setError(null);
+        const response = await fetchApiMonitoringListPaginated({
+          limit: pageSize,
+          cursor: params.cursor,
+          topCursor: params.topCursor,
+          page: params.page,
+          direction: params.direction,
+          query: debouncedSearchText || null,
+        });
+
+        setLogs(response.logs);
+        setPage(params.targetPage);
+        setTotalCount(response.totalCount);
+        setTopCursor(response.pageInfo.topCursor || params.topCursor || null);
+        setNextCursor(response.pageInfo.nextCursor);
+        setHasNext(response.pageInfo.hasNext);
+        setPageCursors((current) => ({
+          ...current,
+          [params.targetPage]: params.cursor,
+          [params.targetPage + 1]: response.pageInfo.nextCursor,
+        }));
+        const fallbackTotalPages = Math.max(1, Math.ceil((response.totalCount || response.logs.length) / pageSize));
+        setResolvedTotalPages(Math.max(response.pageInfo.totalPages || 0, fallbackTotalPages));
       } catch (err) {
-        if (!mounted) return;
+        setLogs([]);
+        setTotalCount(0);
+        setResolvedTotalPages(1);
         setError(getApiErrorMessage(err, "Unable to load API monitoring logs"));
       } finally {
-        if (mounted) setLoading(false);
+        if (showLoader) setLoading(false);
       }
-    };
+    },
+    [debouncedSearchText, pageSize],
+  );
 
-    void load();
+  const loadFirstPage = useCallback(
+    async (showLoader = false) => {
+      setPageCursors({ 1: null });
+      setTopCursor(null);
+      setNextCursor(null);
+      setHasNext(false);
+      await fetchPage(
+        {
+          cursor: null,
+          topCursor: null,
+          page: null,
+          direction: "NEXT",
+          targetPage: 1,
+        },
+        showLoader,
+      );
+    },
+    [fetchPage],
+  );
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  useEffect(() => {
+    void loadFirstPage(true);
+  }, [loadFirstPage]);
 
   const statusOptions = useMemo(() => {
     const values = new Set<string>();
@@ -107,7 +178,6 @@ export function useApiMonitoring() {
   }, [logs]);
 
   const filteredLogs = useMemo(() => {
-    const q = normalize(searchText);
     return logs.filter((log) => {
       const logStatus = String(log.status ?? "NA");
       const matchesStatus = statusFilters.length === 0 || statusFilters.includes(logStatus);
@@ -120,26 +190,9 @@ export function useApiMonitoring() {
       if (!(matchesStatus && matchesCompanyCode && matchesUserEmail && matchesIp && matchesApiUrl && matchesDate)) {
         return false;
       }
-
-      if (!q) return true;
-
-      const searchable = [
-        log.path,
-        log.trackId,
-        log.company.name,
-        log.company.code,
-        log.user.name,
-        log.user.email,
-        log.clientIp || "",
-        log.dateStr,
-        log.timeStr,
-        log.timeString,
-        String(log.status ?? ""),
-      ];
-
-      return searchable.some((item) => fuzzyMatch(item || "", q));
+      return true;
     });
-  }, [logs, searchText, statusFilters, companyCodeFilters, userEmailFilters, ipFilters, apiUrlFilters, dateFilters]);
+  }, [logs, statusFilters, companyCodeFilters, userEmailFilters, ipFilters, apiUrlFilters, dateFilters]);
 
   const suggestions = useMemo(() => {
     const q = normalize(searchInput);
@@ -166,12 +219,15 @@ export function useApiMonitoring() {
   }, [logs, searchInput]);
 
   const applySearch = () => {
-    setSearchText(searchInput.trim());
+    const normalized = searchInput.trim();
+    setSearchText(normalized);
+    setDebouncedSearchText(normalized);
   };
 
   const clearSearch = () => {
     setSearchInput("");
     setSearchText("");
+    setDebouncedSearchText("");
   };
 
   const clearFilters = () => {
@@ -183,16 +239,64 @@ export function useApiMonitoring() {
     setDateFilters([]);
   };
 
-  useEffect(() => {
-    setPage(1);
-  }, [searchText, statusFilters, companyCodeFilters, userEmailFilters, ipFilters, apiUrlFilters, dateFilters, pageSize]);
+  const totalPages = Math.max(1, resolvedTotalPages);
+  const safePage = page;
+  const paginatedLogs = filteredLogs;
 
-  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const paginatedLogs = useMemo(() => {
-    const start = (safePage - 1) * pageSize;
-    return filteredLogs.slice(start, start + pageSize);
-  }, [filteredLogs, safePage, pageSize]);
+  const handlePrevPage = useCallback(async () => {
+    if (page <= 1) return;
+    const previousPage = page - 1;
+    const prevCursor = pageCursors[previousPage] ?? null;
+    await fetchPage(
+      {
+        cursor: prevCursor,
+        topCursor,
+        page: null,
+        direction: "PREV",
+        targetPage: previousPage,
+      },
+      true,
+    );
+  }, [fetchPage, page, pageCursors, topCursor]);
+
+  const handleNextPage = useCallback(async () => {
+    if (!hasNext) return;
+    const upcomingPage = page + 1;
+    const cursor = pageCursors[upcomingPage] ?? nextCursor;
+    if (!cursor) return;
+
+    await fetchPage(
+      {
+        cursor,
+        topCursor,
+        page: null,
+        direction: "NEXT",
+        targetPage: upcomingPage,
+      },
+      true,
+    );
+  }, [fetchPage, hasNext, nextCursor, page, pageCursors, topCursor]);
+
+  const handleJumpToPage = useCallback(
+    async (requestedPage: number) => {
+      const targetPage = Math.max(1, Math.min(totalPages, requestedPage));
+      if (targetPage === page) return;
+
+      const direction: "NEXT" | "PREV" = targetPage > page ? "NEXT" : "PREV";
+      const jumpCursor = pageCursors[targetPage] ?? (direction === "NEXT" ? nextCursor : topCursor) ?? null;
+      await fetchPage(
+        {
+          cursor: jumpCursor,
+          topCursor,
+          page: targetPage,
+          direction,
+          targetPage,
+        },
+        true,
+      );
+    },
+    [fetchPage, nextCursor, page, pageCursors, topCursor, totalPages],
+  );
 
   const fetchDetailsForTrack = async (trackId: string): Promise<ApiMonitoringDetailsData> => {
     return fetchApiMonitoringDetails(trackId);
@@ -236,7 +340,11 @@ export function useApiMonitoring() {
     setPageSize,
     safePage,
     totalPages,
+    totalCount,
     pageSizeOptions: PAGE_SIZE_OPTIONS,
+    handlePrevPage,
+    handleNextPage,
+    handleJumpToPage,
     fetchDetailsForTrack,
   };
 }

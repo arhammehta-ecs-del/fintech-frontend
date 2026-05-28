@@ -3,8 +3,10 @@ import type { OrgNode } from "@/contexts/AppContext";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
+import { connectNotificationStream } from "@/services/notification.service";
 import { createNewOrgNode, fetchUsersByNodePathCount, getCompanyOrgStructure, updateOrgNodeAction } from "@/services/org.service";
 import { fetchCompanyNodes } from "@/services/user.service";
+import { acquireEditLock } from "@/services/edit-lock.service";
 import { collectNodeTrail, findOrgNodeById, findParentNodeById, flattenOrg } from "@/features/org-structure/orgNode.utils";
 import type { DepartmentSidebarDepartment, NewNodeType } from "@/features/org-structure/types";
 import {
@@ -35,8 +37,14 @@ export function useOrgStructure() {
   const [newNodeParent, setNewNodeParent] = useState<OrgNode | null>(null);
   const [newNodeWorkflowOptions, setNewNodeWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [pendingNodeForReview, setPendingNodeForReview] = useState<OrgNode | null>(null);
+  const [statusUpdateNode, setStatusUpdateNode] = useState<DepartmentSidebarDepartment | null>(null);
+  const [statusUpdateTargetStatus, setStatusUpdateTargetStatus] = useState<"active" | "inactive">("inactive");
+  const [statusUpdateWorkflowHash, setStatusUpdateWorkflowHash] = useState("");
+  const [statusUpdateRemarks, setStatusUpdateRemarks] = useState("");
+  const [statusUpdateWorkflowOptions, setStatusUpdateWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [nodePermissionRows, setNodePermissionRows] = useState<PermissionMatrixRow[]>(buildEmptyPermissionRows);
   const [nodePermissionLoading, setNodePermissionLoading] = useState(false);
+  const [hasNewOrgEvent, setHasNewOrgEvent] = useState(false);
   const treeScrollRef = useRef<HTMLDivElement | null>(null);
   const bottomScrollRef = useRef<HTMLDivElement | null>(null);
   const graphContentRef = useRef<HTMLDivElement | null>(null);
@@ -98,6 +106,19 @@ export function useOrgStructure() {
       cancelled = true;
     };
   }, [companyCode, setOrgStructure, toast]);
+
+  useEffect(() => {
+    const disconnect = connectNotificationStream({
+      onNotification: (packet) => {
+        const refType = String(packet.refType ?? "").trim().toLowerCase();
+        if (refType === "org") {
+          setHasNewOrgEvent(true);
+        }
+      },
+    });
+
+    return disconnect;
+  }, []);
 
   useEffect(() => {
     if (!orgStructure) {
@@ -239,12 +260,35 @@ export function useOrgStructure() {
     setIsNewNodePopupOpen(true);
   };
 
+  const fetchNodeWorkflowOptions = async (nodePath: string) => {
+    const selectedNodePath = nodePath.trim().toUpperCase();
+    const nodes = await fetchCompanyNodes("ORG_STR");
+    const options = nodes
+      .flatMap((item) =>
+        item.workflows.filter((workflow) => {
+          const currentNodePath = item.nodePath.trim().toUpperCase();
+          if (currentNodePath === selectedNodePath) return true;
+          const alias = workflow.alias?.trim().toUpperCase();
+          return Boolean(alias && alias.endsWith("D"));
+        }),
+      )
+      .map((workflow) => {
+        const id = workflow.levelsHash.trim();
+        const name = workflow.name.trim();
+        const alias = workflow.alias?.trim();
+        if (!id || !name) return null;
+        return { id, label: alias ? `${name} (${alias})` : name };
+      })
+      .filter((option): option is { id: string; label: string } => Boolean(option));
+    return Array.from(new Map(options.map((option) => [option.id, option])).values());
+  };
+
   const handleCreateNode = async (name: string, nodeType: NewNodeType, selectedLevelsHash?: string) => {
     if (!newNodeParent || !companyCode) return;
 
     try {
       await createNewOrgNode({
-        companyCode,
+        // TEMP: keep type/status omitted until backend confirms contract.
         newNodeName: name,
         nodeType,
         levelsHash: selectedLevelsHash?.trim() || null,
@@ -316,10 +360,15 @@ export function useOrgStructure() {
         parentId: parentNode?.id ?? null,
         nodeType: node.nodeType,
         nodePath: node.nodePath,
+        status: node.status ?? "Active",
+        pendingRequestType: node.pendingRequestType,
+        pendingOldData: node.pendingOldData,
+        pendingNewData: node.pendingNewData,
         companyId: node.companyId,
         childCount: node.children.length,
         breadcrumbs,
         parentName: parentNode?.name ?? null,
+        parentNodePath: parentNode?.nodePath ?? null,
         children: (currentNode?.children ?? []).map((child) => ({
           id: child.id,
           name: child.name,
@@ -346,6 +395,70 @@ export function useOrgStructure() {
         setSelectedDepartment(null);
       }
     });
+  };
+
+  const handleRequestNodeStatusChange = async (
+    department: DepartmentSidebarDepartment,
+    isActive: boolean,
+  ) => {
+    const nodePath = (department.nodePath || "").trim();
+    if (!nodePath || !companyCode) return;
+    const targetStatus: "active" | "inactive" = isActive ? "active" : "inactive";
+    const currentStatus = department.status === "Inactive" ? "inactive" : "active";
+    if (currentStatus === targetStatus) return;
+
+    try {
+      await acquireEditLock({
+        type: "org",
+        target: { nodePath },
+      });
+      const options = await fetchNodeWorkflowOptions(nodePath);
+      setStatusUpdateWorkflowOptions(options);
+      setStatusUpdateWorkflowHash("");
+      setStatusUpdateRemarks("");
+      setStatusUpdateTargetStatus(targetStatus);
+      setStatusUpdateNode(department);
+    } catch (error) {
+      toast({
+        title: "Unable to open status update",
+        description: getApiErrorMessage(error, "Unable to fetch workflow options."),
+        variant: "destructive",
+      });
+    }
+  };
+
+  const submitNodeStatusUpdate = async () => {
+    if (!statusUpdateNode || !companyCode) return;
+    const nodePath = (statusUpdateNode.nodePath || "").trim();
+    if (!nodePath) return;
+    try {
+      await acquireEditLock({
+        type: "org",
+        target: { nodePath },
+      });
+      await createNewOrgNode({
+        type: "update",
+        status: statusUpdateTargetStatus === "inactive" ? "INACTIVE" : "ACTIVE",
+        nodePath,
+        remarks: statusUpdateRemarks.trim(),
+        levelsHash: statusUpdateWorkflowHash.trim() || null,
+      });
+      await loadOrgForCompanyCode(companyCode);
+      setStatusUpdateNode(null);
+      setStatusUpdateWorkflowHash("");
+      setStatusUpdateRemarks("");
+      setStatusUpdateWorkflowOptions([]);
+      toast({
+        title: "Status request submitted",
+        description: `Node ${statusUpdateNode.name} ${statusUpdateTargetStatus} request initiated.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Unable to submit status request",
+        description: getApiErrorMessage(error, "Failed to submit org status update."),
+        variant: "destructive",
+      });
+    }
   };
 
   const handleApproveNode = async (node: OrgNode, remark: string) => {
@@ -380,6 +493,10 @@ export function useOrgStructure() {
 
   const zoomOut = () => setZoom((current) => Math.max(MIN_ZOOM, Number((current - ZOOM_STEP).toFixed(2))));
   const zoomIn = () => setZoom((current) => Math.min(MAX_ZOOM, Number((current + ZOOM_STEP).toFixed(2))));
+  const refreshOrgStructure = async () => {
+    if (!companyCode) return;
+    await loadOrgForCompanyCode(companyCode);
+  };
 
   return {
     companyCode, orgStructure, selectedDepartment, sidebarOpen, orgLoading, orgError, canvasWidth, bottomScrollContentWidth,
@@ -387,6 +504,8 @@ export function useOrgStructure() {
     nodePermissionLoading, treeScrollRef, bottomScrollRef, graphContentRef, companyName, nodeCount, canZoomOut, canZoomIn,
     viewportEdgePadding: VIEWPORT_EDGE_PADDING, setCanvasWidth, setIsNewNodePopupOpen, setNewNodeParent, newNodeWorkflowOptions,
     setPendingNodeForReview, handleOpenNewNodePopup, handleCreateNode, handleDepartmentClick, handleSidebarOpenChange,
-    handleApproveNode, handleRejectNode, zoomOut, zoomIn,
+    handleApproveNode, handleRejectNode, zoomOut, zoomIn, hasNewOrgEvent, setHasNewOrgEvent, refreshOrgStructure,
+    statusUpdateNode, statusUpdateTargetStatus, statusUpdateWorkflowHash, statusUpdateWorkflowOptions,
+    statusUpdateRemarks, setStatusUpdateNode, setStatusUpdateWorkflowHash, setStatusUpdateRemarks, handleRequestNodeStatusChange, submitNodeStatusUpdate,
   };
 }

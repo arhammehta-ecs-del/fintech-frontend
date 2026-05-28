@@ -13,7 +13,7 @@ type OrgHistorySidebarProps = {
   subtitle: string;
   nodeName?: string;
   nodePath?: string;
-  pending?: boolean;
+  isPending?: boolean;
   parentNodePath?: string;
   dockOffset?: {
     top: number;
@@ -186,7 +186,6 @@ export default function OrgHistorySidebar({
     const loadHistory = async () => {
       try {
         const response = await fetchOrgHistory(
-          companyCode.trim().toUpperCase(),
           (nodeName || subtitle).trim(),
           nodePath.trim(),
           {

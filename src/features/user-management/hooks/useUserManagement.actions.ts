@@ -1,9 +1,10 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { AppUser, OrgNode } from "@/contexts/AppContext";
 import { getApiErrorMessage } from "@/services/client";
-import { createUserOnboarding, fetchCompanyNodesWithAccess, updateUserStatus } from "@/services/user.service";
+import { createUserOnboarding, fetchCompanyNodesWithAccess } from "@/services/user.service";
+import { acquireEditLock } from "@/services/edit-lock.service";
 import type { UserOnboardingFormData } from "@/features/user-management/types";
-import { buildSignatoryOnboardingPayload, buildUserOnboardingPayload } from "@/features/user-management/utils";
+import { buildSignatoryOnboardingPayload, buildUserOnboardingPayload, buildUserUpdatePayload } from "@/features/user-management/utils";
 
 type StatusAction = "activate" | "deactivate";
 type PendingAction = { member: AppUser; action: StatusAction } | null;
@@ -41,13 +42,17 @@ export const createUserManagementActions = ({
     setUsers((previous) => previous.map((user) => (ids.has(user.id) ? { ...user, status } : user)));
   };
 
-  const handleAddUser = async (userData: UserOnboardingFormData) => {
+  const handleAddUser = async (userData: UserOnboardingFormData, context?: { seedMember?: AppUser | null }) => {
     if (!userData.basic.name.trim() || !userData.basic.email.trim()) return;
 
     try {
       const isGlobalSignatoryFlow = userData.isGlobalUserEligible && userData.isGlobalSignatory;
       if (isGlobalSignatoryFlow && (!orgStructure?.name?.trim() || !orgStructure?.nodePath?.trim())) {
         throw new Error("Company node name/path is missing for signatory onboarding.");
+      }
+      const isUpdateRequest = Boolean(context?.seedMember);
+      if (isUpdateRequest && context?.seedMember?.email?.trim()) {
+        await acquireEditLock({ type: "user", target: context.seedMember.email.trim() });
       }
       const response = isGlobalSignatoryFlow
         ? await createUserOnboarding(
@@ -57,14 +62,22 @@ export const createUserManagementActions = ({
             nodeType: orgStructure?.nodeType?.trim() || "",
           }),
         )
-        : await createUserOnboarding(buildUserOnboardingPayload(userData));
+        : await createUserOnboarding(
+          isUpdateRequest && context?.seedMember
+            ? buildUserUpdatePayload(userData, context.seedMember)
+            : buildUserOnboardingPayload(userData),
+        );
       setAddDialogOpen(false);
       setStatusTab("pending");
       await loadUsers(true);
 
       toast({
-        title: "User added",
-        description: response.message || `${userData.basic.name.trim()} was created as a pending user request.`,
+        title: isUpdateRequest ? "Update initiated" : "User added",
+        description:
+          response.message ||
+          (isUpdateRequest
+            ? `${userData.basic.name.trim()} update request was submitted.`
+            : `${userData.basic.name.trim()} was created as a pending user request.`),
       });
     } catch (error) {
       const description = getApiErrorMessage(error, "Unable to submit user onboarding.");
@@ -102,16 +115,29 @@ export const createUserManagementActions = ({
     });
   };
 
-  const removeMember = (userId: string) => {
-    setUsers((previous) => previous.filter((user) => user.id !== userId));
+  const removeMember = async (targetMail: string, levelsHash?: string | null) => {
+    await acquireEditLock({ type: "user", target: targetMail.trim() });
+    await createUserOnboarding({
+      type: "archive",
+      targetUserEmail: targetMail.trim() || null,
+      basicDetails: {},
+      permissions: [{}],
+      levelsHash: levelsHash?.trim() || null,
+    });
+    setUsers((previous) => previous.filter((user) => user.email !== targetMail));
     toast({
-      title: "User removed",
-      description: "The user was removed from the company list.",
+      title: "Archive initiated",
+      description: "Delete user request has been submitted.",
       variant: "destructive",
     });
   };
 
-  const executeUserStatusAction = async (member: AppUser, action: StatusAction, remark?: string) => {
+  const executeUserStatusAction = async (
+    member: AppUser,
+    action: StatusAction,
+    _remark?: string,
+    levelsHash?: string | null,
+  ) => {
     if (!member.id) {
       toast({ title: "Action failed", description: "User ID is missing", variant: "destructive" });
       return;
@@ -121,8 +147,15 @@ export const createUserManagementActions = ({
       if (!member.email?.trim()) {
         throw new Error("User email is missing");
       }
+      await acquireEditLock({ type: "user", target: member.email.trim() });
 
-      await updateUserStatus(member.id, action === "activate" ? "approve" : "reject", remark ?? "");
+      await createUserOnboarding({
+        type: action === "activate" ? "active" : "inactive",
+        targetUserEmail: member.email.trim(),
+        basicDetails: {},
+        permissions: [{}],
+        levelsHash: levelsHash?.trim() || null,
+      });
       await loadUsers();
       setViewingMember(null);
       if (action === "activate") {
@@ -130,7 +163,7 @@ export const createUserManagementActions = ({
       }
       toast({
         title: action === "activate" ? "User activated" : "User deactivated",
-        description: `${member.name} was moved to ${action === "activate" ? "active" : "inactive"} users.`,
+        description: `${member.name} ${action === "activate" ? "activation" : "inactivation"} request submitted.`,
       });
     } catch (error) {
       toast({
@@ -182,5 +215,6 @@ export const createUserManagementActions = ({
     processUserStatusAction,
     handleActivateMember,
     handleDeactivateMember,
+    executeUserStatusAction,
   };
 };

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronLeft, ChevronRight, Filter, Plus, Search, Settings, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Eye, Filter, Plus, RefreshCw, Search, Settings, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import WorkflowOnboardingView from "@/features/workflow-management/components/WorkflowOnboardingView";
 import WorkflowHistorySidebar from "./WorkflowHistorySidebar";
 import { History } from "lucide-react";
@@ -21,6 +22,8 @@ import type { WorkflowPageSize } from "@/features/workflow-management/types/work
 import { useWorkflowManagement } from "@/features/workflow-management/hooks/useWorkflowManagement";
 import { cn } from "@/lib/utils";
 import { getWorkflowPathPreview, isRootWorkflowNode } from "@/features/workflow-management/utils/workflowRecord.utils";
+import { acquireEditLock } from "@/services/edit-lock.service";
+import { useToast } from "@/hooks/use-toast";
 
 const tabClassName =
   "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:shadow-sm";
@@ -47,17 +50,23 @@ const ADAPTIVE_PENDING_WORKFLOW_TABLE_GRID =
   "md:grid-cols-[minmax(18ch,1.85fr)_minmax(9ch,0.95fr)_minmax(10ch,0.95fr)_minmax(12ch,1.15fr)_minmax(7ch,0.7fr)_minmax(9ch,0.8fr)_minmax(72px,0.45fr)]";
 
 function NodePathMarquee({ text }: { text: string }) {
+  const MARQUEE_DURATION_SECONDS = 6;
+  const MARQUEE_GAP_PX = 24;
   const viewportRef = useRef<HTMLSpanElement | null>(null);
   const textRef = useRef<HTMLSpanElement | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [isActivated, setIsActivated] = useState(false);
   const [overflowPx, setOverflowPx] = useState(0);
+  const [textWidthPx, setTextWidthPx] = useState(0);
 
   useEffect(() => {
     const measure = () => {
       const viewport = viewportRef.current;
       const label = textRef.current;
       if (!viewport || !label) return;
-      const nextOverflow = Math.max(0, Math.ceil(label.scrollWidth - viewport.clientWidth));
+      const fullTextWidth = Math.ceil(label.scrollWidth);
+      const nextOverflow = Math.max(0, Math.ceil(fullTextWidth - viewport.clientWidth));
+      setTextWidthPx(fullTextWidth);
       setOverflowPx(nextOverflow);
     };
 
@@ -78,29 +87,54 @@ function NodePathMarquee({ text }: { text: string }) {
     };
   }, [text]);
 
-  const shouldAnimate = isHovered && overflowPx > 0;
-  const durationSeconds = Math.min(12, Math.max(2, overflowPx / 34));
+  const shouldAnimate = (isHovered || isActivated) && overflowPx > 0;
+  const marqueeTravelPx = textWidthPx + MARQUEE_GAP_PX;
 
   return (
-    <span
-      className="mt-1 inline-flex max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <span ref={viewportRef} className="block max-w-full overflow-hidden whitespace-nowrap">
-        <span
-          ref={textRef}
-          className="inline-block whitespace-nowrap will-change-transform"
-          style={
-            shouldAnimate
-              ? {
-                  animation: `workflow-node-path-marquee ${durationSeconds}s linear infinite alternate`,
-                  ["--node-path-shift" as string]: `${overflowPx}px`,
-                }
-              : undefined
-          }
+    <span className="mt-1 inline-flex max-w-full items-center gap-1.5">
+      {overflowPx > 0 ? (
+        <button
+          type="button"
+          onClick={() => setIsActivated((current) => !current)}
+          className={cn(
+            "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border transition",
+            isActivated
+              ? "border-sky-300 bg-sky-100 text-sky-700"
+              : "border-sky-200 bg-sky-50 text-sky-600 hover:border-sky-300 hover:bg-sky-100",
+          )}
+          aria-label={isActivated ? "Stop node path marquee" : "Start node path marquee"}
         >
-          {text}
+          <Eye className="h-3 w-3" />
+        </button>
+      ) : null}
+      <span
+        className="inline-flex min-w-0 max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <span ref={viewportRef} className="block max-w-full overflow-hidden whitespace-nowrap">
+          <span
+            className="inline-flex items-center whitespace-nowrap will-change-transform"
+            style={
+              shouldAnimate
+                ? {
+                    animation: `workflow-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
+                    ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
+                    transform: "translate3d(0,0,0)",
+                  }
+                : undefined
+            }
+          >
+            <span ref={textRef} className="inline-block whitespace-nowrap">
+              {text}
+            </span>
+            {overflowPx > 0 ? (
+              <span aria-hidden className="inline-flex items-center whitespace-nowrap">
+                <span className="inline-block" style={{ width: `${MARQUEE_GAP_PX}px` }} />
+                <span className="inline-block whitespace-nowrap">{text}</span>
+              </span>
+            ) : null}
+          </span>
         </span>
       </span>
     </span>
@@ -108,6 +142,7 @@ function NodePathMarquee({ text }: { text: string }) {
 }
 
 export default function WorkflowManagementView() {
+  const { toast } = useToast();
   const {
     WORKFLOW_PAGE_SIZE_OPTIONS,
     activeStatus,
@@ -136,7 +171,6 @@ export default function WorkflowManagementView() {
     handleOpenAddWorkflowDialog,
     pageSize,
     setPageSize,
-    setPage,
     historyWorkflow,
     setHistoryWorkflow,
     manageWorkflow,
@@ -147,7 +181,13 @@ export default function WorkflowManagementView() {
     totalPages,
     statusCounts,
     loadWorkflows,
+    handlePrevPage,
+    handleNextPage,
     handleWorkflowAction,
+    requestStatusWorkflowOptions,
+    submitWorkflowStatusUpdate,
+    hasNewWorkflowEvent,
+    setHasNewWorkflowEvent,
   } = useWorkflowManagement();
 
   const visibleTabs = [
@@ -167,6 +207,8 @@ export default function WorkflowManagementView() {
   const [draftNodeNameFilters, setDraftNodeNameFilters] = useState<string[]>(nodeNameFilters);
   const [draftTypeFilters, setDraftTypeFilters] = useState<string[]>(typeFilters);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [onboardingMode, setOnboardingMode] = useState<"create" | "edit">("create");
+  const [workflowSeedForEdit, setWorkflowSeedForEdit] = useState<(typeof manageWorkflow) | null>(null);
   const shouldUseAdaptivePendingLayout = useMemo(
     () =>
       filteredWorkflows.some(
@@ -256,11 +298,15 @@ export default function WorkflowManagementView() {
     MIN_HISTORY_WIDTH,
     Math.min(MAX_HISTORY_WIDTH, availableContentWidth - MIN_DIALOG_SPLIT_WIDTH),
   );
+  const manageWorkflowIsPendingLike =
+    !!manageWorkflow &&
+    (manageWorkflow.status === "Pending" ||
+      (manageWorkflow.pendingRequestType || "").trim().toUpperCase() === "UPDATE");
   const canSplitManageHistoryLayout =
-    manageWorkflow?.status === "Pending" &&
+    manageWorkflowIsPendingLike &&
     availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
   const canUseSplitManageHistory =
-    manageWorkflow?.status === "Pending" &&
+    manageWorkflowIsPendingLike &&
     manageHistoryOpen &&
     availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
   const splitHistoryTopOverlap = 2;
@@ -279,7 +325,7 @@ export default function WorkflowManagementView() {
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by workflow, alias, module, or node name..."
+              placeholder="Search by workflow name, alias, or module..."
               className="pl-9 pr-9"
             />
             {search ? (
@@ -470,6 +516,31 @@ export default function WorkflowManagementView() {
                 </div>
               </PopoverContent>
             </Popover>
+
+            <TooltipProvider delayDuration={120}>
+              <Tooltip open={hasNewWorkflowEvent ? true : undefined}>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Refresh workflows"
+                    onClick={async () => {
+                      await loadWorkflows();
+                      setHasNewWorkflowEvent(false);
+                    }}
+                    className={cn(
+                      "h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm",
+                      hasNewWorkflowEvent &&
+                        "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
+                    )}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                {hasNewWorkflowEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </div>
@@ -479,7 +550,14 @@ export default function WorkflowManagementView() {
           <h3 className="text-xl font-semibold text-slate-800">
             {activeStatus} Workflows ({filteredWorkflows.length})
           </h3>
-          <Button className="w-full lg:w-auto" onClick={() => void handleOpenAddWorkflowDialog()}>
+          <Button
+            className="w-full lg:w-auto"
+            onClick={() => {
+              setOnboardingMode("create");
+              setWorkflowSeedForEdit(null);
+              void handleOpenAddWorkflowDialog();
+            }}
+          >
             <Plus className="mr-2 h-4 w-4" />
             Add Workflow
           </Button>
@@ -533,14 +611,23 @@ export default function WorkflowManagementView() {
                   </div>
                   <div className="truncate whitespace-nowrap text-sm text-slate-700">{workflow.nodeType}</div>
                   <div>
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
-                        statusBadgeClassName[workflow.status] ?? "border-slate-200 bg-slate-50 text-slate-700",
-                      )}
-                    >
-                      {workflow.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {(workflow.pendingRequestType || "").trim().toUpperCase() !== "UPDATE" ? (
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
+                            statusBadgeClassName[workflow.status] ?? "border-slate-200 bg-slate-50 text-slate-700",
+                          )}
+                        >
+                          {workflow.status}
+                        </span>
+                      ) : null}
+                      {(workflow.pendingRequestType || "").trim().toUpperCase() === "UPDATE" ? (
+                        <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                          Update
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="flex md:justify-center">
                     <div className="flex items-center gap-1">
@@ -590,7 +677,7 @@ export default function WorkflowManagementView() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" onClick={() => setPage((previous) => Math.max(1, previous - 1))} disabled={safePage === 1}>
+              <Button variant="ghost" size="sm" onClick={() => void handlePrevPage()} disabled={safePage === 1}>
                 <ChevronLeft className="mr-1 h-4 w-4" />
                 Prev
               </Button>
@@ -600,7 +687,7 @@ export default function WorkflowManagementView() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setPage((previous) => Math.min(totalPages, previous + 1))}
+                onClick={() => void handleNextPage()}
                 disabled={safePage === totalPages}
               >
                 Next
@@ -611,9 +698,18 @@ export default function WorkflowManagementView() {
         ) : null}
       </div>
 
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+      <Dialog
+        open={addDialogOpen}
+        onOpenChange={(nextOpen) => {
+          setAddDialogOpen(nextOpen);
+          if (!nextOpen) {
+            setOnboardingMode("create");
+            setWorkflowSeedForEdit(null);
+          }
+        }}
+      >
         <DialogContent className="flex h-[90vh] w-[min(94vw,72rem)] max-w-[72rem] flex-col gap-0 overflow-hidden rounded-lg p-0">
-          <DialogTitle className="sr-only">Add Workflow</DialogTitle>
+          <DialogTitle className="sr-only">{onboardingMode === "edit" ? "Edit Workflow" : "Add Workflow"}</DialogTitle>
           <DialogDescription className="sr-only">
             Create a new workflow by configuring name, alias, module, node, and approval levels.
           </DialogDescription>
@@ -622,15 +718,19 @@ export default function WorkflowManagementView() {
               <div className="rounded-lg bg-blue-600 p-1.5">
                 <Settings className="h-4 w-4 text-white" />
               </div>
-              <h2 className="text-sm font-semibold text-slate-900">Add Workflow</h2>
+              <h2 className="text-sm font-semibold text-slate-900">{onboardingMode === "edit" ? "Edit Workflow" : "Add Workflow"}</h2>
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
             <WorkflowOnboardingView
               isOpen={addDialogOpen}
+              mode={onboardingMode}
+              seedWorkflow={workflowSeedForEdit}
               onPublished={async () => {
                 await loadWorkflows();
                 setAddDialogOpen(false);
+                setOnboardingMode("create");
+                setWorkflowSeedForEdit(null);
               }}
             />
           </div>
@@ -683,7 +783,35 @@ export default function WorkflowManagementView() {
           setManageWorkflow(null);
         }}
         onSubmitAction={handleWorkflowAction}
-        onToggleHistory={manageWorkflow?.status === "Pending" ? () => setManageHistoryOpen((current) => !current) : undefined}
+        onRequestStatusWorkflowOptions={requestStatusWorkflowOptions}
+        onSubmitStatusUpdate={submitWorkflowStatusUpdate}
+        onEdit={(workflow) => {
+          void (async () => {
+            try {
+              await acquireEditLock({
+                type: "workflow",
+                target: {
+                  nodePath: (workflow.nodePath || "").trim(),
+                  levelsHash: (workflow.levelsHash || workflow.workflowId || workflow.id || "").trim(),
+                  subModule: (workflow.subModule || "").trim(),
+                  module: (workflow.rawModule || workflow.module || "").trim(),
+                },
+              });
+              setOnboardingMode("edit");
+              setWorkflowSeedForEdit(workflow);
+              setManageHistoryOpen(false);
+              setManageWorkflow(null);
+              setAddDialogOpen(true);
+            } catch (error) {
+              toast({
+                title: "Edit unavailable",
+                description: error instanceof Error ? error.message : "Unable to lock workflow for edit.",
+                variant: "destructive",
+              });
+            }
+          })();
+        }}
+        onToggleHistory={manageWorkflowIsPendingLike ? () => setManageHistoryOpen((current) => !current) : undefined}
         isHistoryOpen={canUseSplitManageHistory}
         overlayClassName="hidden"
         contentClassName={
@@ -708,7 +836,7 @@ export default function WorkflowManagementView() {
       <style
         dangerouslySetInnerHTML={{
           __html:
-            "@keyframes workflow-node-path-marquee{from{transform:translateX(0)}to{transform:translateX(calc(-1 * var(--node-path-shift, 0px)))}}",
+            "@keyframes workflow-node-path-marquee{from{transform:translate3d(0,0,0)}to{transform:translate3d(calc(-1 * var(--node-path-shift, 0px)),0,0)}}",
         }}
       />
     </div>

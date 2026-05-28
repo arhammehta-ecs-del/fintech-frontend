@@ -111,16 +111,76 @@ type CompanyListApiResponse = {
     pending?: RawCompanyGroup[] | null;
     inactive?: RawCompanyGroup[] | null;
   } | null;
+  activeCount?: number;
+  pendingCount?: number;
+  inactiveCount?: number;
+  pageInfo?: Partial<CompanyPageInfo>;
+};
+
+export type CompanyListDirection = "NEXT" | "PREV";
+
+export type CompanyPaginatedRequest = {
+  type?: "active" | "pending";
+  limit: number;
+  cursor: string | null;
+  topCursor: string | null;
+  page?: number | null;
+  direction?: CompanyListDirection;
+  query?: string | null;
+};
+
+type CompanyPageInfo = {
+  page: number;
+  totalPages: number;
+  nextCursor: string | null;
+  prevCursor: string | null;
+  topCursor: string | null;
+  hasNext: boolean;
+  hasPrev: boolean;
+};
+
+export type CompanyPaginatedResult = {
+  groups: GroupCompany[];
+  counts: {
+    active: number;
+    pending: number;
+    inactive: number;
+  };
+  pageInfo: CompanyPageInfo;
 };
 
 const COMPANY_LIST_PATH = "/api/v1/admin/groups";
 const COMPANY_CREATE_PATH = "/api/v1/admin/initiate";
 const COMPANY_ACTION_PATH = "/api/v1/admin/action";
 const COMPANY_HISTORY_PATH = "/api/v1/admin/fetch-history";
+const DEFAULT_COMPANY_PAGE_LIMIT = 15;
 
 
 const getPacketString = (value: string | null | undefined) => (typeof value === "string" ? value.trim() : "");
 const toUpperValue = (value: string) => value.toUpperCase();
+const toNullableString = (value: unknown) => {
+  const parsed = typeof value === "string" ? value.trim() : "";
+  return parsed ? parsed : null;
+};
+
+const normalizeCompanyStatus = (value: unknown): Company["status"] | null => {
+  const normalized = getPacketString(typeof value === "string" ? value : "").toUpperCase();
+  if (normalized === "APPROVED" || normalized === "ACTIVE") return "Approved";
+  if (normalized === "PENDING") return "Pending";
+  if (normalized === "INACTIVE" || normalized === "REJECTED" || normalized === "REJECT") return "Inactive";
+  return null;
+};
+
+const resolveCompanyStatus = (
+  company: RawCompanyListItem,
+  bucketStatus?: Company["status"],
+): Company["status"] => {
+  const fromCompany = normalizeCompanyStatus(company.status);
+  if (fromCompany) return fromCompany;
+  if (bucketStatus) return bucketStatus;
+  if (company.isActive === false) return "Inactive";
+  return "Approved";
+};
 
 const mapSignatories = (signatories: Array<RawSignatory | null> | null | undefined) =>
   (signatories ?? [])
@@ -135,7 +195,7 @@ const mapSignatories = (signatories: Array<RawSignatory | null> | null | undefin
 
 const mapCompany = (
   company: RawCompanyListItem,
-  bucketStatus: Company["status"],
+  bucketStatus?: Company["status"],
   inheritedSignatories?: Array<RawSignatory | null> | null,
 ): Company => {
   const legalName = getPacketString(company.name);
@@ -164,7 +224,7 @@ const mapCompany = (
     address: getPacketString(company.address),
     gstin: getPacketString(company.gst),
     ieCode,
-    status: bucketStatus,
+    status: resolveCompanyStatus(company, bucketStatus),
     signatories,
     requesterName: getPacketString(company.initiatorName),
     requesterEmail: getPacketString(company.initiatorEmail),
@@ -189,7 +249,7 @@ const getGroupCompanies = (group: RawCompanyGroup) => {
   return companies;
 };
 
-const mapGroups = (groups: RawCompanyGroup[], bucketStatus: Company["status"]): GroupCompany[] =>
+const mapGroups = (groups: RawCompanyGroup[], bucketStatus?: Company["status"]): GroupCompany[] =>
   groups.map((group, index) => {
     const rawGroupName = getGroupName(group).toUpperCase() === "INDEPENDENT" ? "Independent" : getGroupName(group);
     const groupCode = getGroupCode(group);
@@ -210,24 +270,107 @@ const mapGroups = (groups: RawCompanyGroup[], bucketStatus: Company["status"]): 
     };
   });
 
-export async function getAllCompanies(): Promise<GroupCompany[]> {
+const mapCompanyPageInfo = (pageInfo?: Partial<CompanyPageInfo>): CompanyPageInfo => ({
+  page: Number(pageInfo?.page ?? 1) || 1,
+  totalPages: Number(pageInfo?.totalPages ?? 0) || 0,
+  nextCursor: toNullableString(pageInfo?.nextCursor),
+  prevCursor: toNullableString(pageInfo?.prevCursor),
+  topCursor: toNullableString(pageInfo?.topCursor),
+  hasNext: Boolean(pageInfo?.hasNext),
+  hasPrev: Boolean(pageInfo?.hasPrev),
+});
+
+const getGroupsFromResponse = (
+  payload: CompanyListApiResponse,
+  fallbackStatus?: Company["status"],
+): GroupCompany[] => {
+  if (payload.companies) {
+    const { active, pending, inactive } = payload.companies;
+    if (!Array.isArray(active) || !Array.isArray(pending) || !Array.isArray(inactive)) {
+      throw new Error("Invalid admin/groups response: companies buckets must be arrays");
+    }
+
+    const activeGroups = mapGroups(active, "Approved");
+    const pendingGroups = mapGroups(pending, "Pending");
+    const inactiveGroups = mapGroups(inactive, "Inactive");
+    return [...activeGroups, ...pendingGroups, ...inactiveGroups];
+  }
+
+  if (Array.isArray(payload.data)) {
+    return mapGroups(payload.data, fallbackStatus);
+  }
+
+  throw new Error("Invalid admin/groups response: missing companies object");
+};
+
+const countCompaniesByStatus = (groups: GroupCompany[]) =>
+  groups.reduce(
+    (counts, group) => {
+      group.subsidiaries.forEach((company) => {
+        if (company.status === "Approved") counts.active += 1;
+        else if (company.status === "Pending") counts.pending += 1;
+        else if (company.status === "Inactive") counts.inactive += 1;
+      });
+      return counts;
+    },
+    { active: 0, pending: 0, inactive: 0 },
+  );
+
+export async function fetchCompaniesPaginated(request: CompanyPaginatedRequest): Promise<CompanyPaginatedResult> {
   const payload = await apiFetch<CompanyListApiResponse>(COMPANY_LIST_PATH, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify({
+      type: request.type ?? "active",
+      limit: request.limit,
+      cursor: request.cursor ?? null,
+      topCursor: request.topCursor ?? null,
+      page: request.page ?? null,
+      direction: request.direction ?? "NEXT",
+      query: toNullableString(request.query),
+    }),
   });
 
-  if (!payload.companies) {
-    throw new Error("Invalid admin/groups response: missing companies object");
-  }
-  const { active, pending, inactive } = payload.companies;
-  if (!Array.isArray(active) || !Array.isArray(pending) || !Array.isArray(inactive)) {
-    throw new Error("Invalid admin/groups response: companies buckets must be arrays");
+  const fallbackStatus: Company["status"] | undefined =
+    request.type === "pending" ? "Pending" : request.type === "active" ? "Approved" : undefined;
+  const groups = getGroupsFromResponse(payload, fallbackStatus);
+  const derivedCounts = countCompaniesByStatus(groups);
+
+  return {
+    groups,
+    counts: {
+      active: Number(payload.activeCount ?? derivedCounts.active) || derivedCounts.active,
+      pending: Number(payload.pendingCount ?? derivedCounts.pending) || derivedCounts.pending,
+      inactive: Number(payload.inactiveCount ?? derivedCounts.inactive) || derivedCounts.inactive,
+    },
+    pageInfo: mapCompanyPageInfo(payload.pageInfo),
+  };
+}
+
+export async function getAllCompanies(): Promise<GroupCompany[]> {
+  const allGroups: GroupCompany[] = [];
+  let cursor: string | null = null;
+  let topCursor: string | null = null;
+  let hasNext = true;
+  let safetyCounter = 0;
+
+  while (hasNext && safetyCounter < 200) {
+    safetyCounter += 1;
+    const response = await fetchCompaniesPaginated({
+      limit: DEFAULT_COMPANY_PAGE_LIMIT,
+      cursor,
+      topCursor,
+      page: null,
+      direction: "NEXT",
+      query: null,
+    });
+
+    allGroups.push(...response.groups);
+    cursor = response.pageInfo.nextCursor;
+    topCursor = response.pageInfo.topCursor || topCursor;
+    hasNext = Boolean(response.pageInfo.hasNext && response.pageInfo.nextCursor);
   }
 
-  const activeGroups = mapGroups(active, "Approved");
-  const pendingGroups = mapGroups(pending, "Pending");
-  const inactiveGroups = mapGroups(inactive, "Inactive");
-  return [...activeGroups, ...pendingGroups, ...inactiveGroups];
+  return allGroups;
 }
 
 export async function createCompanyOnboarding(payload: OnboardingPayload, file?: File | null) {

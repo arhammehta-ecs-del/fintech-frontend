@@ -6,14 +6,30 @@ import { NodeSidebar } from "@/features/org-structure/components/NodeSidebar";
 import { NewNodePopup } from "@/features/org-structure/components/NewNodePopup";
 import { OrgTreeCanvas } from "@/features/org-structure/components/OrgTreeCanvas";
 import { PendingNodePopup } from "@/features/org-structure/components/PendingNodePopup";
+import { OrgStatusUpdatePopup } from "@/features/org-structure/components/OrgStatusUpdatePopup";
 import OrgHistorySidebar from "@/features/org-structure/components/OrgHistorySidebar";
 import { useOrgStructure } from "@/features/org-structure/hooks/useOrgStructure";
 import { collectNodeTrail } from "@/features/org-structure/orgNode.utils";
 import { countNodes, countPendingNodes, filterPendingNodes, hasPendingNodes } from "@/features/org-structure/components/OrgStructureView.utils";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useEffect } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import type { NewNodeType } from "@/features/org-structure/types";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+const countInactivePendingNodes = (root: OrgNode | null): number => {
+  if (!root) return 0;
+  let count = 0;
+  const queue: OrgNode[] = [root];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current.status === "Pending" && current.requestedStatus === "INACTIVE") {
+      count += 1;
+    }
+    queue.push(...current.children);
+  }
+  return count;
+};
 
 export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [, setSearchParams] = useSearchParams();
@@ -54,6 +70,19 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     setPendingNodeForReview,
     handleApproveNode,
     handleRejectNode,
+    hasNewOrgEvent,
+    setHasNewOrgEvent,
+    refreshOrgStructure,
+    statusUpdateNode,
+    statusUpdateTargetStatus,
+    statusUpdateWorkflowHash,
+    statusUpdateWorkflowOptions,
+    statusUpdateRemarks,
+    setStatusUpdateNode,
+    setStatusUpdateWorkflowHash,
+    setStatusUpdateRemarks,
+    handleRequestNodeStatusChange,
+    submitNodeStatusUpdate,
   } = useOrgStructure();
 
   const [showPending, setShowPending] = useState(true);
@@ -106,6 +135,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const hasPending = useMemo(() => hasPendingNodes(orgStructure), [orgStructure]);
   const approvedBaseCount = useMemo(() => countNodes(filterPendingNodes(orgStructure)), [orgStructure]);
   const pendingCount = useMemo(() => countPendingNodes(orgStructure), [orgStructure]);
+  const inactivePendingCount = useMemo(() => countInactivePendingNodes(orgStructure), [orgStructure]);
   const newNodeParentTrail = useMemo(() => {
     if (!orgStructure || !newNodeParent?.id) return [];
     return collectNodeTrail(orgStructure, newNodeParent.id);
@@ -177,8 +207,13 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                   </div>
                 </div>
 
-                {hasPending ? (
-                  <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
+                <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
+                  {inactivePendingCount > 0 ? (
+                    <div className="group relative flex items-center gap-2.5 rounded-full border border-rose-200 bg-rose-50/60 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-rose-700 shadow-[0_2px_10px_rgba(225,29,72,0.08)]">
+                      Inactive Nodes
+                    </div>
+                  ) : null}
+                  {hasPending ? (
                     <button
                       type="button"
                       onClick={() => setShowPending(!showPending)}
@@ -201,8 +236,30 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                         </span>
                       )}
                     </button>
-                  </div>
-                ) : null}
+                  ) : null}
+                  <TooltipProvider delayDuration={120}>
+                    <Tooltip open={hasNewOrgEvent ? true : undefined}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="Refresh organisation structure"
+                          onClick={async () => {
+                            await refreshOrgStructure();
+                            setHasNewOrgEvent(false);
+                          }}
+                          className={cn(
+                            "flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900",
+                            hasNewOrgEvent &&
+                              "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
+                          )}
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </button>
+                      </TooltipTrigger>
+                      {hasNewOrgEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </div>
 
               {orgError ? (
@@ -277,13 +334,14 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
               permissionRows={nodePermissionRows}
               countsLoading={nodePermissionLoading}
               onNavigateToUsers={handleNavigateToUsers}
-              onOpenHistory={() => {
-                setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
-                setHistoryNodePath((selectedDepartment?.nodePath || "").trim());
+              onOpenHistory={(input) => {
+                setHistoryNodeName((input?.nodeName || selectedDepartment?.name || companyName || "").trim());
+                setHistoryNodePath((input?.nodePath || selectedDepartment?.nodePath || "").trim());
                 setHistoryParentNodePath("");
                 setHistoryViewContext("active");
                 setIsOrgHistoryOpen(true);
               }}
+              onRequestStatusChange={handleRequestNodeStatusChange}
             />
           </div>
         </section>
@@ -303,13 +361,14 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
             permissionRows={nodePermissionRows}
             countsLoading={nodePermissionLoading}
             onNavigateToUsers={handleNavigateToUsers}
-            onOpenHistory={() => {
-              setHistoryNodeName((selectedDepartment?.name || companyName || "").trim());
-              setHistoryNodePath((selectedDepartment?.nodePath || "").trim());
+            onOpenHistory={(input) => {
+              setHistoryNodeName((input?.nodeName || selectedDepartment?.name || companyName || "").trim());
+              setHistoryNodePath((input?.nodePath || selectedDepartment?.nodePath || "").trim());
               setHistoryParentNodePath("");
               setHistoryViewContext("active");
               setIsOrgHistoryOpen(true);
             }}
+            onRequestStatusChange={handleRequestNodeStatusChange}
           />
         </div>
 
@@ -345,6 +404,26 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
           });
         }}
         onConfirm={handleCreateNode}
+      />
+
+      <OrgStatusUpdatePopup
+        open={Boolean(statusUpdateNode)}
+        nodeName={statusUpdateNode?.name || ""}
+        nodeType={statusUpdateNode?.nodeType || ""}
+        selectedLevelsHash={statusUpdateWorkflowHash}
+        remarks={statusUpdateRemarks}
+        workflowOptions={statusUpdateWorkflowOptions}
+        submitLabel={statusUpdateTargetStatus === "inactive" ? "Submit Inactive Request" : "Submit Active Request"}
+        onOpenChange={(open) => {
+          if (!open) {
+            setStatusUpdateNode(null);
+            setStatusUpdateWorkflowHash("");
+            setStatusUpdateRemarks("");
+          }
+        }}
+        onWorkflowChange={setStatusUpdateWorkflowHash}
+        onRemarksChange={setStatusUpdateRemarks}
+        onSubmit={() => void submitNodeStatusUpdate()}
       />
 
       <PendingNodePopup

@@ -43,8 +43,6 @@ export default function ApiMonitoringView() {
     searchInput,
     setSearchInput,
     searchText,
-    setSearchText,
-    applySearch,
     clearSearch,
     suggestions,
     statusFilters,
@@ -67,12 +65,15 @@ export default function ApiMonitoringView() {
     apiUrlOptions,
     dateOptions,
     page,
-    setPage,
     pageSize,
     setPageSize,
     safePage,
     totalPages,
+    totalCount,
     pageSizeOptions,
+    handlePrevPage,
+    handleNextPage,
+    handleJumpToPage,
     fetchDetailsForTrack,
   } = useApiMonitoring();
   const [selectedLog, setSelectedLog] = useState<ApiMonitoringLog | null>(null);
@@ -125,16 +126,9 @@ export default function ApiMonitoringView() {
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
                 onChange={(event) => {
                   setSearchInput(event.target.value);
-                  setSearchText(event.target.value);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    applySearch();
-                    setShowSuggestions(false);
-                  }
                 }}
                 className="pl-9 pr-9"
-                placeholder="Search by API URL, company, code, user, email, IP, date, time, track ID..."
+                placeholder="Search by company name/code, user name/email, IP, URL, track ID..."
               />
               {searchInput ? (
                 <button
@@ -157,7 +151,6 @@ export default function ApiMonitoringView() {
                       type="button"
                       onClick={() => {
                         setSearchInput(suggestion);
-                        setSearchText(suggestion);
                         setShowSuggestions(false);
                       }}
                       className="block w-full rounded px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
@@ -334,14 +327,15 @@ export default function ApiMonitoringView() {
           </table>
         </div>
         <PaginationFooter
-          currentCount={filteredLogs.length}
+          currentCount={Math.max(totalCount, filteredLogs.length)}
           pageSize={pageSize}
           pageSizeOptions={pageSizeOptions}
           onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}
           safePage={safePage}
           totalPages={totalPages}
-          onPrevPage={() => setPage((previous) => Math.max(1, previous - 1))}
-          onNextPage={() => setPage((previous) => Math.min(totalPages, previous + 1))}
+          onPrevPage={() => void handlePrevPage()}
+          onNextPage={() => void handleNextPage()}
+          onJumpToPage={(value) => void handleJumpToPage(value)}
         />
       </Card>
 

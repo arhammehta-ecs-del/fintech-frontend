@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, History, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DepartmentSidebarDepartment } from "@/features/org-structure/types";
@@ -47,6 +48,7 @@ function NodeSidebarContent({
   onNavigateToUsers,
   onClose,
   onOpenHistory,
+  onRequestStatusChange,
 }: {
   department: DepartmentSidebarDepartment | null;
   breadcrumbs: string[];
@@ -54,8 +56,34 @@ function NodeSidebarContent({
   countsLoading: boolean;
   onNavigateToUsers: (input: { nodeName: string; nodePath: string; category: string; subCategory: string; action: PermissionAction }) => void;
   onClose: () => void;
-  onOpenHistory: () => void;
+  onOpenHistory: (input?: { nodeName: string; nodePath: string }) => void;
+  onRequestStatusChange?: (isActive: boolean) => void;
 }) {
+  const [showPrevious, setShowPrevious] = useState(false);
+  const isUpdateRequest = (department?.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
+  useEffect(() => {
+    setShowPrevious(false);
+  }, [department?.id]);
+
+  const displayDepartment = useMemo(() => {
+    if (!department || !isUpdateRequest) return department;
+    const source = (showPrevious ? department.pendingOldData : department.pendingNewData) || {};
+    const next = { ...department };
+    const sourceRecord = typeof source === "object" && source !== null ? (source as Record<string, unknown>) : {};
+    const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+    const nextName = readString(sourceRecord.nodeName) || readString(sourceRecord.newNodeName);
+    const nextType = readString(sourceRecord.nodeType);
+    const nextPath = readString(sourceRecord.nodePath) || readString(sourceRecord.targetNodePath);
+    if (nextName) next.name = nextName;
+    if (nextType) next.nodeType = nextType;
+    if (nextPath) next.nodePath = nextPath;
+    const statusValue = typeof sourceRecord.status === "string" ? sourceRecord.status.trim().toUpperCase() : "";
+    if (statusValue === "ACTIVE") next.status = "Active";
+    if (statusValue === "INACTIVE") next.status = "Inactive";
+    return next;
+  }, [department, isUpdateRequest, showPrevious]);
+  const effectiveStatus = displayDepartment?.status === "Inactive" ? "Inactive" : "Active";
+
   const showBreadcrumbs = breadcrumbs.length > 1 || breadcrumbs[0] !== (department?.name ?? "Organisation");
   const compactBreadcrumbs = buildCompactBreadcrumbs(breadcrumbs);
 
@@ -65,7 +93,12 @@ function NodeSidebarContent({
         <div className="mb-3 flex items-start justify-end gap-2">
           <button
             type="button"
-            onClick={onOpenHistory}
+            onClick={() =>
+              onOpenHistory({
+                nodeName: (displayDepartment?.name || department?.name || "").trim(),
+                nodePath: (displayDepartment?.nodePath || department?.nodePath || "").trim(),
+              })
+            }
             className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
             aria-label="Open organisation history"
             title="View org history"
@@ -94,6 +127,46 @@ function NodeSidebarContent({
             </div>
           ) : null}
         </div>
+        <div className="mt-4 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => onRequestStatusChange?.(true)}
+            className={cn(
+              "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
+              effectiveStatus === "Active"
+                ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
+                : "text-slate-500 hover:text-slate-700",
+            )}
+          >
+            Active
+          </button>
+          <button
+            type="button"
+            onClick={() => onRequestStatusChange?.(false)}
+            className={cn(
+              "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
+              effectiveStatus === "Inactive"
+                ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
+                : "text-slate-500 hover:text-slate-700",
+            )}
+          >
+            Inactive
+          </button>
+        </div>
+        {isUpdateRequest ? (
+          <button
+            type="button"
+            onClick={() => setShowPrevious((current) => !current)}
+            className={cn(
+              "mt-3 rounded-full border px-3 py-1 text-xs font-semibold transition",
+              showPrevious
+                ? "border-amber-300 bg-amber-50 text-amber-700"
+                : "border-emerald-300 bg-emerald-50 text-emerald-700",
+            )}
+          >
+            {showPrevious ? "Show Updated" : "Show Previous"}
+          </button>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
@@ -122,8 +195,8 @@ function NodeSidebarContent({
                     onClick={() => {
                       if (!department?.name || !department?.nodePath || row.counts[action] === 0) return;
                       onNavigateToUsers({
-                        nodeName: department.name,
-                        nodePath: department.nodePath,
+                        nodeName: displayDepartment?.name || department.name,
+                        nodePath: displayDepartment?.nodePath || department.nodePath,
                         category: "SYSTEM_ACCESS",
                         subCategory: row.key,
                         action,
@@ -156,6 +229,7 @@ export function NodeSidebar({
   countsLoading,
   onNavigateToUsers,
   onOpenHistory,
+  onRequestStatusChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -163,7 +237,8 @@ export function NodeSidebar({
   permissionRows: PermissionMatrixRow[];
   countsLoading: boolean;
   onNavigateToUsers: (input: { nodeName: string; nodePath: string; category: string; subCategory: string; action: PermissionAction }) => void;
-  onOpenHistory: () => void;
+  onOpenHistory: (input?: { nodeName: string; nodePath: string }) => void;
+  onRequestStatusChange?: (department: DepartmentSidebarDepartment, isActive: boolean) => void;
 }) {
   const breadcrumbs = department?.breadcrumbs?.length ? department.breadcrumbs : [department?.name ?? "Organisation"];
 
@@ -184,6 +259,11 @@ export function NodeSidebar({
         onNavigateToUsers={onNavigateToUsers}
         onClose={() => onOpenChange(false)}
         onOpenHistory={onOpenHistory}
+        onRequestStatusChange={
+          department && onRequestStatusChange
+            ? (isActive) => onRequestStatusChange(department, isActive)
+            : undefined
+        }
       />
     </aside>
   );

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import type { Company, CompanyStatus, GroupCompany } from "@/contexts/AppContext";
-import { getAllCompanies, updateCompanyOnboardingAction } from "@/services/company.service";
+import { fetchCompaniesPaginated, updateCompanyOnboardingAction } from "@/services/company.service";
 import { getApiErrorMessage } from "@/services/client";
 import { useToast } from "@/hooks/use-toast";
+import { connectNotificationStream } from "@/services/notification.service";
 import type { DisplayRow, StatusTab, VisibleColumn } from "@/features/company-list/types";
 import {
   buildAllDisplayRows,
@@ -16,6 +17,7 @@ const EMPTY_STATUS_COUNTS = {
   inactive: 0,
 };
 const COMPANY_PAGE_SIZE_OPTIONS = [15, 25, 35, 50] as const;
+const COMPANY_SEARCH_DEBOUNCE_MS = 500;
 
 const fuzzyMatch = (text: string, query: string) => {
   const source = text.trim().toLowerCase().replace(/\s+/g, "");
@@ -36,6 +38,7 @@ export function useCompanyList() {
   const [groups, setGroups] = useState<GroupCompany[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearchInput, setDebouncedSearchInput] = useState("");
   const [groupNameFilters, setGroupNameFilters] = useState<string[]>([]);
   const [companyNameFilters, setCompanyNameFilters] = useState<string[]>([]);
   const [legalNameFilters, setLegalNameFilters] = useState<string[]>([]);
@@ -51,6 +54,12 @@ export function useCompanyList() {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<(typeof COMPANY_PAGE_SIZE_OPTIONS)[number]>(15);
+  const [resolvedTotalPages, setResolvedTotalPages] = useState(1);
+  const [topCursor, setTopCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasNext, setHasNext] = useState(false);
+  const [pageCursors, setPageCursors] = useState<Record<number, string | null>>({ 1: null });
+  const [statusCounts, setStatusCounts] = useState({ ...EMPTY_STATUS_COUNTS });
   const [visibleColumns, setVisibleColumns] = useState<Set<VisibleColumn>>(
     new Set(["groupName", "companyName", "code", "createdDate", "manage", "status"]),
   );
@@ -58,52 +67,117 @@ export function useCompanyList() {
   const [error, setError] = useState<string | null>(null);
   const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ companyId: string; isActive: boolean } | null>(null);
+  const [hasNewCompanyListEvent, setHasNewCompanyListEvent] = useState(false);
   const statusFilter: CompanyStatus =
     selectedStatusTab === "inactive" ? "Inactive" : selectedStatusTab === "pending" ? "Pending" : "Approved";
 
-  const refreshCompanies = useCallback(async (showLoader = false) => {
-    if (showLoader) setIsLoading(true);
-    try {
-      setError(null);
-      const nextGroups = await getAllCompanies();
-      setGroups(nextGroups);
-      setExpanded(new Set(nextGroups.map((group) => group.id)));
-      setSelectedCompany((previous) => {
-        if (!previous) return previous;
-        for (const group of nextGroups) {
-          const matching = group.subsidiaries.find((company) => company.id === previous.id);
-          if (matching) return matching;
-        }
-        return previous;
-      });
-    } catch (err) {
-      const statusMatch = err instanceof Error ? err.message.match(/Request failed:\s*(\d{3})/) : null;
-      const statusCode = statusMatch ? Number(statusMatch[1]) : null;
-      if (statusCode === 401 || statusCode === 403) {
-        setError(null);
-        setGroups([]);
-        return;
-      }
-      setError(err instanceof Error ? err.message : "Failed to load companies");
-      setGroups([]);
-    } finally {
-      if (showLoader) setIsLoading(false);
+  useEffect(() => {
+    const trimmedSearch = searchInput.trim();
+    if (!trimmedSearch) {
+      setDebouncedSearchInput("");
+      return;
     }
-  }, []);
 
-  const statusCounts = useMemo(() => {
-    return groups.reduce(
-      (counts, group) => {
-        group.subsidiaries.forEach((company) => {
-          if (company.status === "Approved") counts.active += 1;
-          else if (company.status === "Pending") counts.pending += 1;
-          else if (company.status === "Inactive") counts.inactive += 1;
-        });
-        return counts;
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchInput(trimmedSearch);
+    }, COMPANY_SEARCH_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchInput]);
+
+  const fetchPage = useCallback(
+    async (
+      params: {
+        cursor: string | null;
+        topCursor: string | null;
+        page: number | null;
+        direction: "NEXT" | "PREV";
+        targetPage: number;
       },
-      { ...EMPTY_STATUS_COUNTS },
-    );
-  }, [groups]);
+      showLoader = false,
+    ) => {
+      if (showLoader) setIsLoading(true);
+      try {
+        setError(null);
+        const response = await fetchCompaniesPaginated({
+          type: selectedStatusTab === "pending" ? "pending" : "active",
+          limit: pageSize,
+          cursor: params.cursor,
+          topCursor: params.topCursor,
+          page: params.page,
+          direction: params.direction,
+          query: debouncedSearchInput || null,
+        });
+
+        setGroups(response.groups);
+        setExpanded(new Set(response.groups.map((group) => group.id)));
+        setSelectedCompany((previous) => {
+          if (!previous) return previous;
+          for (const group of response.groups) {
+            const matching = group.subsidiaries.find((company) => company.id === previous.id);
+            if (matching) return matching;
+          }
+          return previous;
+        });
+        setStatusCounts(response.counts);
+        setPage(params.targetPage);
+        setTopCursor(response.pageInfo.topCursor || params.topCursor || null);
+        setNextCursor(response.pageInfo.nextCursor);
+        setHasNext(response.pageInfo.hasNext);
+        setPageCursors((current) => ({
+          ...current,
+          [params.targetPage]: params.cursor,
+          [params.targetPage + 1]: response.pageInfo.nextCursor,
+        }));
+
+        const scopedCount =
+          selectedStatusTab === "pending"
+            ? response.counts.pending
+            : selectedStatusTab === "inactive"
+              ? response.counts.inactive
+              : response.counts.active;
+        const fallbackTotalPages = Math.max(1, Math.ceil(scopedCount / pageSize));
+        setResolvedTotalPages(Math.max(response.pageInfo.totalPages || 0, fallbackTotalPages));
+      } catch (err) {
+        const statusMatch = err instanceof Error ? err.message.match(/Request failed:\s*(\d{3})/) : null;
+        const statusCode = statusMatch ? Number(statusMatch[1]) : null;
+        if (statusCode === 401 || statusCode === 403) {
+          setError(null);
+          setGroups([]);
+          setStatusCounts({ ...EMPTY_STATUS_COUNTS });
+          setPage(1);
+          setResolvedTotalPages(1);
+          return;
+        }
+        setError(err instanceof Error ? err.message : "Failed to load companies");
+        setGroups([]);
+        setStatusCounts({ ...EMPTY_STATUS_COUNTS });
+      } finally {
+        if (showLoader) setIsLoading(false);
+      }
+    },
+    [debouncedSearchInput, pageSize, selectedStatusTab],
+  );
+
+  const refreshCompanies = useCallback(
+    async (showLoader = false) => {
+      setPageCursors({ 1: null });
+      setTopCursor(null);
+      setNextCursor(null);
+      setHasNext(false);
+      await fetchPage(
+        {
+          cursor: null,
+          topCursor: null,
+          page: null,
+          direction: "NEXT",
+          targetPage: 1,
+        },
+        showLoader,
+      );
+    },
+    [fetchPage],
+  );
 
   useEffect(() => {
     if (selectedStatusTab === "pending" && statusCounts.pending === 0) {
@@ -115,19 +189,21 @@ export function useCompanyList() {
   }, [selectedStatusTab, statusCounts.inactive, statusCounts.pending]);
 
   useEffect(() => {
-    let ignore = false;
-
-    async function loadCompanies() {
-      if (ignore) return;
-      await refreshCompanies(true);
-    }
-
-    void loadCompanies();
-
-    return () => {
-      ignore = true;
-    };
+    void refreshCompanies(true);
   }, [refreshCompanies]);
+
+  useEffect(() => {
+    const disconnect = connectNotificationStream({
+      onNotification: (packet) => {
+        const refType = String(packet.refType ?? "").trim().toLowerCase();
+        if (refType === "company" ) {
+          setHasNewCompanyListEvent(true);
+        }
+      },
+    });
+
+    return disconnect;
+  }, []);
 
   const selectedGroupInfo = useMemo(() => getSelectedGroupInfo(groups, selectedCompany), [groups, selectedCompany]);
 
@@ -161,7 +237,6 @@ export function useCompanyList() {
     [statusScopedGroups],
   );
   const filteredGroups = useMemo(() => {
-    const term = searchInput.trim().toLowerCase();
     return statusScopedGroups
       .map((group) => {
         const groupNameMatch = groupNameFilters.length === 0 || groupNameFilters.includes(group.groupName);
@@ -169,30 +244,13 @@ export function useCompanyList() {
         const subsidiaries = group.subsidiaries.filter((company) => {
           const matchesCompanyName = companyNameFilters.length === 0 || companyNameFilters.includes(company.companyName);
           const matchesLegalName = legalNameFilters.length === 0 || legalNameFilters.includes(company.legalName);
-          if (!(groupNameMatch && matchesCompanyName && matchesLegalName)) return false;
-
-          if (!term) return true;
-          return [
-            group.groupName,
-            group.code,
-            company.companyName,
-            company.legalName,
-            company.brand ?? "",
-            company.gstin,
-            company.ieCode,
-            company.incorporationDate,
-            company.status,
-          ]
-            .join(" ")
-            .toLowerCase()
-            .includes(term);
+          return groupNameMatch && matchesCompanyName && matchesLegalName;
         });
 
         return { ...group, subsidiaries };
       })
       .filter((group) => group.subsidiaries.length > 0);
   }, [
-    searchInput,
     statusScopedGroups,
     groupNameFilters,
     companyNameFilters,
@@ -200,12 +258,9 @@ export function useCompanyList() {
   ]);
 
   const displayRows = useMemo<DisplayRow[]>(() => buildAllDisplayRows(filteredGroups), [filteredGroups]);
-  const totalPages = Math.max(1, Math.ceil(displayRows.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const paginatedDisplayRows = useMemo(() => {
-    const start = (safePage - 1) * pageSize;
-    return displayRows.slice(start, start + pageSize);
-  }, [displayRows, safePage, pageSize]);
+  const totalPages = Math.max(1, resolvedTotalPages);
+  const safePage = page;
+  const paginatedDisplayRows = displayRows;
 
   const searchSuggestions = useMemo(() => {
     const q = searchInput.trim().toLowerCase();
@@ -220,10 +275,8 @@ export function useCompanyList() {
           company.companyName,
           company.legalName,
           company.companyCode || "",
-          company.brand || "",
           company.gstin,
           company.ieCode,
-          company.incorporationDate,
         ].forEach((field) => {
           if (field && fuzzyMatch(field, q)) values.add(field);
         });
@@ -236,9 +289,61 @@ export function useCompanyList() {
     setSearchInput("");
   };
 
-  useEffect(() => {
-    setPage(1);
-  }, [searchInput, groupNameFilters, companyNameFilters, legalNameFilters, selectedStatusTab, pageSize]);
+  const handlePrevPage = useCallback(async () => {
+    if (page <= 1) return;
+    const previousPage = page - 1;
+    const prevCursor = pageCursors[previousPage] ?? null;
+    await fetchPage(
+      {
+        cursor: prevCursor,
+        topCursor,
+        page: null,
+        direction: "PREV",
+        targetPage: previousPage,
+      },
+      true,
+    );
+  }, [fetchPage, page, pageCursors, topCursor]);
+
+  const handleNextPage = useCallback(async () => {
+    if (!hasNext) return;
+    const upcomingPage = page + 1;
+    const cursor = pageCursors[upcomingPage] ?? nextCursor;
+    if (!cursor) return;
+
+    await fetchPage(
+      {
+        cursor,
+        topCursor,
+        page: null,
+        direction: "NEXT",
+        targetPage: upcomingPage,
+      },
+      true,
+    );
+  }, [fetchPage, hasNext, nextCursor, page, pageCursors, topCursor]);
+
+  const handleJumpToPage = useCallback(
+    async (requestedPage: number) => {
+      const targetPage = Math.max(1, Math.min(totalPages, requestedPage));
+      if (targetPage === page) return;
+
+      const direction: "NEXT" | "PREV" = targetPage > page ? "NEXT" : "PREV";
+      const jumpCursor = pageCursors[targetPage] ?? (direction === "NEXT" ? nextCursor : topCursor) ?? null;
+
+      await fetchPage(
+        {
+          cursor: jumpCursor,
+          topCursor,
+          page: targetPage,
+          direction,
+          targetPage,
+        },
+        true,
+      );
+    },
+    [fetchPage, nextCursor, page, pageCursors, topCursor, totalPages],
+  );
 
   const clearAdvancedFilters = () => {
     setGroupNameFilters([]);
@@ -283,7 +388,7 @@ export function useCompanyList() {
     const actionLabel = isActive ? "approved" : "rejected";
 
     await updateCompanyOnboardingAction(companyId, isActive ? "approve" : "reject", remark);
-    await refreshCompanies();
+    await refreshCompanies(true);
     setIsPreviewOpen(false);
     setSelectedCompany(null);
     toast({
@@ -387,9 +492,14 @@ export function useCompanyList() {
     handleToggleCompanyActive,
     toggleColumn,
     refreshCompanies,
+    handlePrevPage,
+    handleNextPage,
+    handleJumpToPage,
     remarkDialogOpen,
     setRemarkDialogOpen,
     pendingAction,
     processCompanyAction,
+    hasNewCompanyListEvent,
+    setHasNewCompanyListEvent,
   };
 }

@@ -10,10 +10,15 @@ export type DepartmentSidebarDepartment = {
   parentId?: string | null;
   nodeType?: string;
   nodePath?: string;
+  status?: "Active" | "Inactive" | "Pending";
+  pendingRequestType?: string;
+  pendingOldData?: Record<string, unknown>;
+  pendingNewData?: Record<string, unknown>;
   companyId?: string;
   childCount?: number;
   breadcrumbs?: string[];
   parentName?: string | null;
+  parentNodePath?: string | null;
   children?: Array<{ id: string; name: string; nodeType?: string; childCount?: number }>;
   siblings?: Array<{ id: string; name: string; nodeType?: string; childCount?: number }>;
 };

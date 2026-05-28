@@ -1,5 +1,5 @@
 import { Check, ChevronRight, Building2 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -12,14 +12,16 @@ import { UserOnboardingStepBasicDetails } from "./UserOnboardingStepBasicDetails
 import { UserOnboardingStepReviewSubmit } from "./UserOnboardingStepReviewSubmit";
 import { UserOnboardingStepSelectNode } from "./UserOnboardingStepSelectNode";
 import type { UserOnboardingFormData } from "@/features/user-management/types";
+import type { AppUser } from "@/contexts/AppContext";
 
 type UserOnboardingDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit?: (data: UserOnboardingFormData) => void | Promise<void>;
+  onSubmit?: (data: UserOnboardingFormData, context?: { seedMember?: AppUser | null }) => void | Promise<void>;
+  seedMember?: AppUser | null;
 };
 
-export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboardingDialogProps) {
+export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember = null }: UserOnboardingDialogProps) {
   const {
     orgStructure,
     roles,
@@ -37,6 +39,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
     infoNodeId,
     isReviewAccessExpanded,
     reviewAccessNodeRefs,
+    reviewSnapshot,
     clearError,
     updateBasic,
     setSelectedWorkflow,
@@ -52,15 +55,27 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
     setIsReviewAccessExpanded,
     prevStep,
     handlePrimaryAction,
-  } = useUserOnboardingForm({ open, onOpenChange, onSubmit });
+  } = useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember });
+  const [showPreviousReview, setShowPreviousReview] = useState(false);
   const isGlobalSignatoryFlow = formData.isGlobalUserEligible && formData.isGlobalSignatory;
   const stepContainerRef = useRef<HTMLDivElement | null>(null);
+  const effectiveReviewBasic = showPreviousReview && reviewSnapshot ? reviewSnapshot.basic : formData.basic;
+  const effectiveReviewNodes = showPreviousReview && reviewSnapshot ? reviewSnapshot.selectedNodes : selectedNodes;
+  const effectiveReviewPrimaryNodeId = showPreviousReview && reviewSnapshot ? reviewSnapshot.primaryNodeId : primaryNodeId;
+  const effectiveReviewPermissions = showPreviousReview && reviewSnapshot ? reviewSnapshot.nodePermissions : nodePermissions;
+  const effectiveReviewPermissionScopes = showPreviousReview && reviewSnapshot ? reviewSnapshot.nodePermissionScopes : nodePermissionScopes;
+  const effectiveReviewWorkflow = showPreviousReview && reviewSnapshot ? reviewSnapshot.selectedWorkflow : formData.selectedWorkflow;
 
   useEffect(() => {
     if (!open) return;
     if (Object.keys(errors).length === 0) return;
     stepContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [errors, open, step]);
+
+  useEffect(() => {
+    if (!open) return;
+    setShowPreviousReview(false);
+  }, [open, seedMember]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -77,16 +92,33 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
         >
           <div>
             <DialogHeader className="text-left">
-              <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  <Building2 className="h-5 w-5" />
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <Building2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-2xl font-semibold tracking-tight text-foreground">User Onboarding</DialogTitle>
+                    <DialogDescription className="sr-only">
+                      Complete user details, select nodes, configure access rights, and review before submitting.
+                    </DialogDescription>
+                  </div>
                 </div>
-                <div>
-                  <DialogTitle className="text-2xl font-semibold tracking-tight text-foreground">User Onboarding</DialogTitle>
-                  <DialogDescription className="sr-only">
-                    Complete user details, select nodes, configure access rights, and review before submitting.
-                  </DialogDescription>
-                </div>
+                {step === 4 && reviewSnapshot ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "h-11 rounded-xl px-5 text-sm font-semibold",
+                      showPreviousReview
+                        ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                        : "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+                    )}
+                    onClick={() => setShowPreviousReview((current) => !current)}
+                  >
+                    {showPreviousReview ? "Previous" : "Updated"}
+                  </Button>
+                ) : null}
               </div>
             </DialogHeader>
           </div>
@@ -190,13 +222,13 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit }: UserOnboa
               {step === 4 ? (
                 <UserOnboardingStepReviewSubmit
                   orgStructure={orgStructure}
-                  basic={formData.basic}
+                  basic={effectiveReviewBasic}
                   isGlobalSignatory={isGlobalSignatoryFlow}
-                  selectedNodes={selectedNodes}
-                  primaryNodeId={primaryNodeId}
-                  nodePermissions={nodePermissions}
-                  nodePermissionScopes={nodePermissionScopes}
-                  selectedWorkflow={formData.selectedWorkflow}
+                  selectedNodes={effectiveReviewNodes}
+                  primaryNodeId={effectiveReviewPrimaryNodeId}
+                  nodePermissions={effectiveReviewPermissions}
+                  nodePermissionScopes={effectiveReviewPermissionScopes}
+                  selectedWorkflow={effectiveReviewWorkflow}
                   expandedAccessNodeIds={expandedAccessNodeIds}
                   isReviewAccessExpanded={isReviewAccessExpanded}
                   reviewAccessNodeRefs={reviewAccessNodeRefs}

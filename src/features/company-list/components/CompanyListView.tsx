@@ -48,13 +48,14 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     selectedGroupCode,
     displayRows,
     paginatedDisplayRows,
-    page,
-    setPage,
     pageSize,
     setPageSize,
     safePage,
     totalPages,
     pageSizeOptions,
+    handlePrevPage,
+    handleNextPage,
+    handleJumpToPage,
     handleClearSearch,
     clearAdvancedFilters,
     toggleGroup,
@@ -66,6 +67,8 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     setRemarkDialogOpen,
     pendingAction,
     processCompanyAction,
+    hasNewCompanyListEvent,
+    setHasNewCompanyListEvent,
   } = useCompanyList();
 
   const { dragState, handleDragStart, handleDragEnd, handleDragOver, handleDrop } = useCompanyDrag(setGroups);
@@ -91,6 +94,11 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
         searchSuggestions={searchSuggestions}
         onClearAdvancedFilters={clearAdvancedFilters}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
+        hasNewCompanyListEvent={hasNewCompanyListEvent}
+        onRefresh={async () => {
+          await refreshCompanies(true);
+          setHasNewCompanyListEvent(false);
+        }}
       />
 
       {isLoading ? (
@@ -133,8 +141,9 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
             onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}
             safePage={safePage}
             totalPages={totalPages}
-            onPrevPage={() => setPage((previous) => Math.max(1, previous - 1))}
-            onNextPage={() => setPage((previous) => Math.min(totalPages, previous + 1))}
+            onPrevPage={() => void handlePrevPage()}
+            onNextPage={() => void handleNextPage()}
+            onJumpToPage={(value) => void handleJumpToPage(value)}
             className="shrink-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
           />
         </Card>
@@ -147,8 +156,9 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
           onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}
           safePage={safePage}
           totalPages={totalPages}
-          onPrevPage={() => setPage((previous) => Math.max(1, previous - 1))}
-          onNextPage={() => setPage((previous) => Math.min(totalPages, previous + 1))}
+          onPrevPage={() => void handlePrevPage()}
+          onNextPage={() => void handleNextPage()}
+          onJumpToPage={(value) => void handleJumpToPage(value)}
           className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between md:hidden"
         />
       ) : null}

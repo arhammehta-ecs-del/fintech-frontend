@@ -2,7 +2,7 @@ import type { AppUser } from "@/contexts/AppContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ArrowUpDown, SlidersHorizontal, Users, History } from "lucide-react";
+import { ArrowUpDown, SlidersHorizontal, Users, History, Trash2 } from "lucide-react";
 import { maskContactNumber, getInitials, getAvatarColor, formatCollapsedNodePath } from "@/features/user-management/utils";
 import UserHistorySidebar from "./UserHistorySidebar";
 import { useEffect, useRef, useState } from "react";
@@ -12,6 +12,7 @@ type UserTableProps = {
   currentMembers: AppUser[];
   paginatedMembers: AppUser[];
   onView: (member: AppUser) => void;
+  onDelete?: (member: AppUser) => void;
 };
 
 const getPrimaryNodeMeta = (member: AppUser) => {
@@ -105,6 +106,7 @@ export default function UserTable({
   currentMembers,
   paginatedMembers,
   onView,
+  onDelete,
 }: UserTableProps) {
   const [historyOpenForUser, setHistoryOpenForUser] = useState<AppUser | null>(null);
 
@@ -243,6 +245,23 @@ export default function UserTable({
                         </TooltipTrigger>
                         <TooltipContent side="top">Manage User</TooltipContent>
                       </Tooltip>
+
+                      {onDelete ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                              onClick={() => onDelete(member)}
+                              aria-label={`Delete ${member.name || member.email || "member"}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">Delete User</TooltipContent>
+                        </Tooltip>
+                      ) : null}
                     </>
                   )}
                 </div>

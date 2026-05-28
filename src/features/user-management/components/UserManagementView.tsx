@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { EyeOff, Users, UserPlus } from "lucide-react";
+import type { AppUser } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -13,8 +14,12 @@ import { useUserManagement } from "@/features/user-management/hooks/useUserManag
 import { UserManagePreview } from "./UserManagePreview";
 import UserHistorySidebar from "./UserHistorySidebar";
 import { RemarkDialog } from "@/components/RemarkDialog";
+import { useToast } from "@/hooks/use-toast";
+import { fetchCompanyNodesWithAccess } from "@/services/user.service";
+import { acquireEditLock } from "@/services/edit-lock.service";
 
 export function UserManagementView() {
+  const { toast } = useToast();
   const {
     search,
     setSearch,
@@ -72,6 +77,8 @@ export function UserManagementView() {
     handleActivateMember,
     handleDeactivateMember,
     handleSaveEdit,
+    removeMember,
+    executeUserStatusAction,
     statusTab,
     setStatusTab,
     statusHeading,
@@ -82,12 +89,88 @@ export function UserManagementView() {
     loadUsers,
   } = useUserManagement();
   const [historyOpenForMember, setHistoryOpenForMember] = useState(false);
+  const [onboardingSeedMember, setOnboardingSeedMember] = useState<AppUser | null>(null);
+  const [showDeleteActions, setShowDeleteActions] = useState(false);
+  const [deleteWorkflow, setDeleteWorkflow] = useState("__none__");
+  const [deleteWorkflowOptions, setDeleteWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [pendingManageActionType, setPendingManageActionType] = useState<"archive" | "active" | "inactive" | null>(null);
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const [viewportWidth, setViewportWidth] = useState(0);
+
+  const loadWorkflowOptionsForMemberAction = async (member: AppUser) => {
+    const primaryNodePath = (member.accessDetails || [])
+      .find((entry) => entry.accessType === "PRIMARY")
+      ?.nodePath?.trim()
+      .toUpperCase() || "";
+
+    const { nodes } = await fetchCompanyNodesWithAccess("USER_ACC");
+    const options = nodes
+      .flatMap((item) =>
+        item.workflows.filter((workflow) => {
+          const nodePath = item.nodePath.trim().toUpperCase();
+          if (primaryNodePath && nodePath === primaryNodePath) return true;
+          const alias = workflow.alias?.trim().toUpperCase();
+          return Boolean(alias && alias.endsWith("D"));
+        }),
+      )
+      .map((workflow) => {
+        const id = workflow.levelsHash.trim();
+        const name = workflow.name.trim();
+        const alias = workflow.alias?.trim();
+        if (!id || !name) return null;
+        return { id, label: alias ? `${name} (${alias})` : name };
+      })
+      .filter((option): option is { id: string; label: string } => Boolean(option));
+    setDeleteWorkflowOptions(Array.from(new Map(options.map((option) => [option.id, option])).values()));
+  };
+
+  const openDeleteActions = async (member: AppUser) => {
+    const targetMail = (member.email || "").trim();
+    if (!targetMail) {
+      toast({
+        title: "Delete unavailable",
+        description: "User email is missing for lock request.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      await acquireEditLock({ type: "user", target: targetMail });
+      await loadWorkflowOptionsForMemberAction(member);
+    } catch {
+      setDeleteWorkflowOptions([]);
+    }
+    setViewingMember(member);
+    setPendingManageActionType("archive");
+    setShowDeleteActions(true);
+    setDeleteWorkflow("__none__");
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!viewingMember) return;
+    const targetMail = (viewingMember.email || "").trim();
+    if (targetMail) {
+      await acquireEditLock({ type: "user", target: targetMail });
+    }
+    if (pendingManageActionType === "archive") {
+      if (!viewingMember.email?.trim()) return;
+      await removeMember(viewingMember.email, deleteWorkflow === "__none__" ? null : deleteWorkflow);
+    } else if (pendingManageActionType === "active") {
+      await executeUserStatusAction(viewingMember, "activate", "", deleteWorkflow === "__none__" ? null : deleteWorkflow);
+    } else if (pendingManageActionType === "inactive") {
+      await executeUserStatusAction(viewingMember, "deactivate", "", deleteWorkflow === "__none__" ? null : deleteWorkflow);
+    }
+    setPendingManageActionType(null);
+    setShowDeleteActions(false);
+    setViewingMember(null);
+  };
 
   useEffect(() => {
     if (!viewingMember) {
       setHistoryOpenForMember(false);
+      setShowDeleteActions(false);
+      setPendingManageActionType(null);
+      setDeleteWorkflowOptions([]);
     }
   }, [viewingMember]);
 
@@ -226,7 +309,13 @@ export function UserManagementView() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={() => void handleOpenAddUserDialog()}>
+            <Button
+              size="sm"
+              onClick={() => {
+                setOnboardingSeedMember(null);
+                void handleOpenAddUserDialog();
+              }}
+            >
               <UserPlus className="mr-1.5 h-4 w-4" />
               Add User
             </Button>
@@ -240,6 +329,9 @@ export function UserManagementView() {
               currentMembers={currentMembers}
               paginatedMembers={paginatedMembers}
               onView={setViewingMember}
+              onDelete={(member) => {
+                void openDeleteActions(member);
+              }}
             />
           </div>
 
@@ -257,7 +349,15 @@ export function UserManagementView() {
         </CardContent>
       </Card>
 
-      <UserOnboardingDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onSubmit={handleAddUser} />
+      <UserOnboardingDialog
+        open={addDialogOpen}
+        onOpenChange={(open) => {
+          setAddDialogOpen(open);
+          if (!open) setOnboardingSeedMember(null);
+        }}
+        onSubmit={handleAddUser}
+        seedMember={onboardingSeedMember}
+      />
 
       {viewingMember && typeof document !== "undefined"
         ? createPortal(
@@ -328,7 +428,62 @@ export function UserManagementView() {
                 }
                 handleDeactivateMember(member);
               }}
+              onRequestStatusToggle={(member, isActive) => {
+                void (async () => {
+                  try {
+                    const targetMail = (member.email || "").trim();
+                    if (targetMail) {
+                      await acquireEditLock({ type: "user", target: targetMail });
+                    }
+                    await loadWorkflowOptionsForMemberAction(member);
+                  } catch {
+                    setDeleteWorkflowOptions([]);
+                  }
+                  setViewingMember(member);
+                  setPendingManageActionType(isActive ? "active" : "inactive");
+                  setShowDeleteActions(true);
+                  setDeleteWorkflow("__none__");
+                })();
+              }}
+              onEdit={(member) => {
+                const targetMail = (member.email || "").trim();
+                if (!targetMail) {
+                  toast({
+                    title: "Edit unavailable",
+                    description: "User email is missing for lock request.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                void (async () => {
+                  await acquireEditLock({ type: "user", target: targetMail });
+                  setOnboardingSeedMember(member);
+                  setViewingMember(null);
+                  setAddDialogOpen(true);
+                })();
+              }}
               onClose={() => setViewingMember(null)}
+              onDelete={(member) => {
+                void openDeleteActions(member);
+              }}
+              showDeleteActions={showDeleteActions}
+              deleteActionLabel={
+                pendingManageActionType === "archive"
+                  ? "Delete User"
+                  : pendingManageActionType === "inactive"
+                    ? "Set Inactive"
+                    : pendingManageActionType === "active"
+                      ? "Set Active"
+                      : "Submit"
+              }
+              deleteWorkflow={deleteWorkflow}
+              deleteWorkflowOptions={deleteWorkflowOptions}
+              onDeleteWorkflowChange={setDeleteWorkflow}
+              onConfirmDelete={() => void handleConfirmDelete()}
+              onCancelDeleteActions={() => {
+                setShowDeleteActions(false);
+                setPendingManageActionType(null);
+              }}
               onToggleHistory={
                 viewingMember.status === "Pending" ? () => setHistoryOpenForMember((current) => !current) : undefined
               }

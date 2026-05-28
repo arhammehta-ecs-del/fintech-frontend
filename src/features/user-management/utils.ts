@@ -1,6 +1,6 @@
 import type { RoleRecord } from "@/services/role.service";
 import type { UserOnboardingPayload, UserOnboardingPermission } from "@/services/user.service";
-import type { OrgNode } from "@/contexts/AppContext";
+import type { AppUser, OrgNode } from "@/contexts/AppContext";
 import type {
   UserOnboardingFormData,
   SystemAccessScope,
@@ -113,6 +113,8 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
   );
 
   return {
+    type: "initiate",
+    targetUserEmail: null,
     basicDetails: {
       name: formData.basic.name.trim(),
       email: formData.basic.email.trim(),
@@ -126,10 +128,65 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
   };
 };
 
+const normalize = (value: string | null | undefined) => (value || "").trim();
+
+export const buildUserUpdatePayload = (formData: UserOnboardingFormData, seedMember: AppUser): UserOnboardingPayload => {
+  const fullPayload = buildUserOnboardingPayload(formData);
+  const seedBasic = seedMember.basicDetails;
+  const nextBasic = fullPayload.basicDetails;
+
+  const changedBasicDetails: UserOnboardingPayload["basicDetails"] = {};
+  if (normalize(nextBasic.name) !== normalize(seedBasic?.name)) changedBasicDetails.name = nextBasic.name;
+  if (normalize(nextBasic.phone) !== normalize(seedBasic?.phone)) changedBasicDetails.phone = nextBasic.phone;
+  if (normalize(nextBasic.designation) !== normalize(seedBasic?.designation)) changedBasicDetails.designation = nextBasic.designation;
+  if (normalize(nextBasic.employeeId || "") !== normalize(seedBasic?.employeeId)) changedBasicDetails.employeeId = nextBasic.employeeId || null;
+  if (
+    normalize(nextBasic.reportingManager || "") !==
+    normalize(seedBasic?.reportingManagerEmail || seedBasic?.reportingManager || "")
+  ) {
+    changedBasicDetails.reportingManager = nextBasic.reportingManager || null;
+  }
+
+  const existingPermissionKeys = new Set(
+    (seedMember.accessDetails || []).map((permission) =>
+      [
+        (permission.roleCategory || "").trim().toUpperCase(),
+        (permission.roleSubCategory || "").trim(),
+        (permission.roleName || "").trim(),
+        (permission.nodePath || "").trim(),
+        (permission.accessType || "").trim().toUpperCase(),
+        (permission.accessCategory || "").trim().toUpperCase(),
+      ].join("|"),
+    ),
+  );
+
+  const changedPermissions = fullPayload.permissions.filter((permission) => {
+    const key = [
+      (permission.roleCategory || "").trim().toUpperCase(),
+      (permission.roleSubCategory || "").trim(),
+      (permission.roleName || "").trim(),
+      (permission.nodePath || "").trim(),
+      (permission.accessType || "").trim().toUpperCase(),
+      (permission.accessCategory || "").trim().toUpperCase(),
+    ].join("|");
+    return !existingPermissionKeys.has(key);
+  });
+
+  return {
+    type: "update",
+    targetUserEmail: normalize(seedMember.email) || null,
+    basicDetails: changedBasicDetails,
+    levelsHash: formData.selectedWorkflowLevelsHash.trim() || null,
+    permissions: changedPermissions.length > 0 ? changedPermissions : [{}],
+  };
+};
+
 export const buildSignatoryOnboardingPayload = (
   formData: UserOnboardingFormData,
   companyNode: { nodeName: string; nodePath: string; nodeType?: string },
 ): UserOnboardingPayload => ({
+  type: "initiate",
+  targetUserEmail: null,
   basicDetails: {
     name: formData.basic.name.trim(),
     email: formData.basic.email.trim(),

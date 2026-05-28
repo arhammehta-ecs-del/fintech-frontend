@@ -115,6 +115,7 @@ export function useUserManagement() {
           topCursor: null,
           page: null,
           direction: "NEXT",
+          query: debouncedSearch || null,
         });
         setUsers(response.users);
         setPageCursors({ 1: null, 2: response.pageInfo.nextCursor });
@@ -145,7 +146,7 @@ export function useUserManagement() {
         setIsLoading(false);
       }
     },
-    [currentUser?.companyCode, maybeShowActivityToast, pageSize, setUsers, statusTab, toast],
+    [currentUser?.companyCode, debouncedSearch, maybeShowActivityToast, pageSize, setUsers, statusTab, toast],
   );
 
   useEffect(() => {
@@ -160,7 +161,7 @@ export function useUserManagement() {
       return;
     }
     void loadUsers();
-  }, [loadUsers, pageSize, setUsers, statusTab]);
+  }, [loadUsers, setUsers, statusTab]);
 
   useEffect(() => {
     const disconnect = connectNotificationStream({
@@ -191,27 +192,7 @@ export function useUserManagement() {
 
   useEffect(() => {
     setPage(1);
-  }, [
-    statusTab,
-    debouncedSearch,
-    designationFilters,
-    departmentFilters,
-    reportingManagerFilters,
-    primaryNodeFilters,
-    secondaryNodeFilters,
-    accessCategoryFilters,
-    accessSubcategoryFilters,
-    accessScopeFilters,
-    roleTypeFilters,
-    onboardingDateFrom,
-    onboardingDateTo,
-    sortOrder,
-    linkedNodeFilter,
-    linkedNodePathFilter,
-    linkedCategoryFilter,
-    linkedSubcategoryFilter,
-    linkedActionFilter,
-  ]);
+  }, [statusTab, debouncedSearch, pageSize]);
 
   useEffect(() => {
     hydrateUserFiltersFromDeepLink({
@@ -250,6 +231,7 @@ export function useUserManagement() {
         user.name,
         user.email,
         user.designation,
+        user.phone || "",
         user.department,
         user.employeeId || "",
         user.manager?.name || "",
@@ -287,7 +269,7 @@ export function useUserManagement() {
     (list: AppUser[]) => {
       return filterMembersList({
         list,
-        debouncedSearch,
+        debouncedSearch: "",
         designationFilters,
         departmentFilters,
         reportingManagerFilters,
@@ -311,7 +293,6 @@ export function useUserManagement() {
       accessCategoryFilters,
       accessSubcategoryFilters,
       accessScopeFilters,
-      debouncedSearch,
       departmentFilters,
       designationFilters,
       linkedActionFilter,
@@ -424,6 +405,7 @@ export function useUserManagement() {
         topCursor,
         page: null,
         direction: "PREV",
+        query: debouncedSearch || null,
       });
       setUsers(response.users);
       setPage(previousPage);
@@ -446,7 +428,7 @@ export function useUserManagement() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser?.companyCode, maybeShowActivityToast, page, pageCursors, pageSize, setUsers, statusTab, toast, topCursor]);
+  }, [currentUser?.companyCode, debouncedSearch, maybeShowActivityToast, page, pageCursors, pageSize, setUsers, statusTab, toast, topCursor]);
 
   const handleNextPage = useCallback(async () => {
     if (statusTab === "inactive") return;
@@ -467,6 +449,7 @@ export function useUserManagement() {
         topCursor,
         page: null,
         direction: "NEXT",
+        query: debouncedSearch || null,
       });
       setUsers(response.users);
       setPageCursors((current) => ({
@@ -493,7 +476,7 @@ export function useUserManagement() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser?.companyCode, hasNext, maybeShowActivityToast, nextCursor, page, pageCursors, pageSize, setUsers, statusTab, topCursor, toast]);
+  }, [currentUser?.companyCode, debouncedSearch, hasNext, maybeShowActivityToast, nextCursor, page, pageCursors, pageSize, setUsers, statusTab, topCursor, toast]);
 
   const handleJumpToPage = useCallback(
     async (requestedPage: number) => {
@@ -514,6 +497,7 @@ export function useUserManagement() {
           topCursor: topCursor ?? "",
           page: targetPage,
           direction: "NEXT",
+          query: debouncedSearch || null,
         });
         setUsers(response.users);
         setPage(targetPage);
@@ -540,7 +524,7 @@ export function useUserManagement() {
         setIsLoading(false);
       }
     },
-    [currentUser?.companyCode, nextCursor, page, pageCursors, pageSize, setUsers, statusTab, toast, topCursor, totalPages],
+    [currentUser?.companyCode, debouncedSearch, nextCursor, page, pageCursors, pageSize, setUsers, statusTab, toast, topCursor, totalPages],
   );
 
   const {
@@ -552,6 +536,7 @@ export function useUserManagement() {
     processUserStatusAction,
     handleActivateMember,
     handleDeactivateMember,
+    executeUserStatusAction,
   } = createUserManagementActions({
     toast: (input) => toast(input),
     setUsers,
@@ -649,5 +634,6 @@ export function useUserManagement() {
     setRemarkDialogOpen,
     pendingAction,
     processUserStatusAction,
+    executeUserStatusAction,
   };
 }

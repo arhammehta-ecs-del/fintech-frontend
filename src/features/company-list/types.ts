@@ -2,6 +2,7 @@ import type { DragEvent } from "react";
 import type { Company, CompanyStatus, GroupCompany } from "@/contexts/AppContext";
 
 export type VisibleColumn = "groupName" | "companyName" | "code" | "createdDate" | "status" | "manage";
+export type StatusTab = "active" | "pending" | "inactive";
 export type ViewMode = "all" | "grouped" | "independent";
 
 export type DragPayload =
@@ -64,6 +65,8 @@ export type CompanyListToolbarProps = {
   legalNameOptions: string[];
   onClearAdvancedFilters: () => void;
   onOpenOnboarding: () => void;
+  hasNewCompanyListEvent: boolean;
+  onRefresh: () => void | Promise<void>;
 };
 
 // export type CompanyListMobileListProps = {

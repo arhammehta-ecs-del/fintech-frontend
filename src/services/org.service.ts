@@ -2,11 +2,15 @@ import type { OrgNode } from "@/contexts/AppContext";
 import { apiFetch } from "@/services/client";
 
 type CreateOrgNodePayload = {
-  companyCode: string;
-  newNodeName: string;
-  nodeType: string;
+  type?: "initiate" | "active" | "update" | "archive" | string;
+  status?: "active" | "inactive" | "ACTIVE" | "INACTIVE" | null | string;
+  companyCode?: string;
+  newNodeName?: string;
+  nodeType?: string;
+  nodePath?: string;
+  remarks?: string;
   levelsHash?: string | null;
-  parentNode: {
+  parentNode?: {
     nodeName: string;
     nodePath: string;
   };
@@ -114,6 +118,11 @@ const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"):
   if (!nodePath || !nodeName || !nodeType) {
     throw new Error("Invalid org/fetch response: nodeName, nodeType and nodePath are required");
   }
+  const pendingRequest =
+    typeof record.pendingRequest === "object" && record.pendingRequest !== null
+      ? (record.pendingRequest as RawOrgRecord)
+      : null;
+
   return {
     id: nodeId,
     uuid: nodeUuid || undefined,
@@ -122,6 +131,15 @@ const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"):
     nodeType,
     nodePath,
     status,
+    pendingRequestType: pendingRequest ? getString(pendingRequest, ["type"], "") : undefined,
+    pendingOldData:
+      pendingRequest && typeof pendingRequest.oldData === "object" && pendingRequest.oldData !== null
+        ? (pendingRequest.oldData as Record<string, unknown>)
+        : undefined,
+    pendingNewData:
+      pendingRequest && typeof pendingRequest.newData === "object" && pendingRequest.newData !== null
+        ? (pendingRequest.newData as Record<string, unknown>)
+        : undefined,
     children: [],
   };
 };
@@ -156,6 +174,14 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
   const alias =
     getString(record, ["alias"], "") ||
     getString(requestData, ["alias"], "");
+  const requestedStatusRaw =
+    getString(requestData, ["status"], "") ||
+    getString(record, ["status"], "");
+  const requestedStatus = requestedStatusRaw.trim().toUpperCase() === "INACTIVE"
+    ? "INACTIVE"
+    : requestedStatusRaw.trim().toUpperCase() === "ACTIVE"
+      ? "ACTIVE"
+      : null;
 
   if (!newNodeName || !nodeType) return null;
 
@@ -179,6 +205,7 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
     workflowName: workflowName || undefined,
     alias: alias || undefined,
     status: "Pending",
+    requestedStatus,
     children: [],
   };
 };
@@ -271,17 +298,23 @@ const buildOrgTree = (nodes: OrgNode[]): OrgNode | null => {
 };
 
 export async function createNewOrgNode(payload: CreateOrgNodePayload) {
-  const normalizedPayload: CreateOrgNodePayload = {
-    ...payload,
-    companyCode: payload.companyCode.trim().toUpperCase(),
-    nodeType: normalizeNodeTypeForApi(payload.nodeType),
-    newNodeName: payload.newNodeName.trim(),
-    levelsHash: payload.levelsHash?.trim() || null,
-    parentNode: {
+  const normalizedPayload: CreateOrgNodePayload = { ...payload };
+
+  if (typeof payload.companyCode === "string") normalizedPayload.companyCode = payload.companyCode.trim().toUpperCase();
+  if (typeof payload.nodeType === "string") normalizedPayload.nodeType = normalizeNodeTypeForApi(payload.nodeType);
+  if (typeof payload.newNodeName === "string") normalizedPayload.newNodeName = payload.newNodeName.trim();
+  if (typeof payload.nodePath === "string") normalizedPayload.nodePath = payload.nodePath.trim();
+  if (typeof payload.remarks === "string") normalizedPayload.remarks = payload.remarks.trim();
+  normalizedPayload.levelsHash = payload.levelsHash?.trim() || null;
+  if (payload.parentNode) {
+    normalizedPayload.parentNode = {
       nodeName: payload.parentNode.nodeName.trim(),
       nodePath: payload.parentNode.nodePath.trim(),
-    },
-  };
+    };
+  }
+
+  if (typeof payload.type !== "undefined") normalizedPayload.type = payload.type;
+  if (typeof payload.status !== "undefined") normalizedPayload.status = payload.status;
 
   return apiFetch<CreateOrgNodeResponse>(NEW_NODE_PATH, {
     method: "POST",
@@ -304,9 +337,7 @@ export async function updateOrgNodeAction(id: string, action: OrgNodeAction, rem
 export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNode | null> {
   const payload = await apiFetch<OrgApiResponse>(COMPANY_ORG_PATH, {
     method: "POST",
-    body: JSON.stringify({
-      companyCode: companyCode.trim().toUpperCase(),
-    }),
+    body: JSON.stringify({}),
   });
 
   if (!payload.data) {
@@ -330,7 +361,7 @@ export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNo
 }
 
 export async function fetchOrgHistory(
-  companyCode: string,
+  
   nodeName: string,
   nodePath?: string,
   options?: {
@@ -342,7 +373,7 @@ export async function fetchOrgHistory(
   return apiFetch<OrgHistoryResponse>(ORG_HISTORY_PATH, {
     method: "POST",
     body: JSON.stringify({
-      companyCode: companyCode.trim().toUpperCase(),
+      
       nodeName: nodeName.trim(),
       ...(nodePath?.trim() ? { nodePath: nodePath.trim() } : {}),
       ...(options?.isPending ? { pending: true } : {}),

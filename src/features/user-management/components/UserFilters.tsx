@@ -176,7 +176,7 @@ export default function UserFilters({
                 onSearchChange(search.trim());
               }
             }}
-            placeholder="Search by name, email, or designation..."
+            placeholder="Search by name, email, designation, or phone..."
             className="h-12 rounded-xl border-slate-200 bg-white pl-10 pr-9 text-[15px] shadow-sm"
           />
           {search ? (

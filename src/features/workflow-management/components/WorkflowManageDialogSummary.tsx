@@ -39,9 +39,9 @@ const toSummaryLevels = (levels: unknown): WorkflowLevel[] => {
           : typeof levelRecord.type === "string"
             ? levelRecord.type.toUpperCase()
             : "AND";
-        const type = typeRaw === "OR" ? "OR" : "AND";
+        const type: WorkflowLevel["type"] = typeRaw === "OR" ? "OR" : "AND";
 
-        const approvals = [{ option: fromApiApprover(approver1Raw) }];
+        const approvals: WorkflowLevel["approvals"] = [{ option: fromApiApprover(approver1Raw) }];
         if (approver2Raw.trim()) approvals.push({ option: fromApiApprover(approver2Raw) });
 
         return {
@@ -63,9 +63,9 @@ const toSummaryLevels = (levels: unknown): WorkflowLevel[] => {
     const approver1Raw = typeof levelRecord.approver1 === "string" ? levelRecord.approver1 : "";
     const approver2Raw = typeof levelRecord.approver2 === "string" ? levelRecord.approver2 : "";
     const typeRaw = typeof levelRecord.type === "string" ? levelRecord.type.toUpperCase() : "AND";
-    const type = typeRaw === "OR" ? "OR" : "AND";
+    const type: WorkflowLevel["type"] = typeRaw === "OR" ? "OR" : "AND";
 
-    const approvals = [{ option: fromApiApprover(approver1Raw) }];
+    const approvals: WorkflowLevel["approvals"] = [{ option: fromApiApprover(approver1Raw) }];
     if (approver2Raw.trim()) approvals.push({ option: fromApiApprover(approver2Raw) });
 
     return {

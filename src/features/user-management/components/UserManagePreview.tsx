@@ -7,12 +7,16 @@ import {
   Maximize2,
   Minimize2,
   History,
+  Pencil,
   ShieldCheck,
+  Trash2,
   UserCheck,
   X,
 } from "lucide-react";
 import type { AppUser } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -46,6 +50,16 @@ export function UserManagePreview({
   onToggleActiveStatus,
   onClose,
   onToggleHistory,
+  onEdit,
+  onDelete,
+  showDeleteActions = false,
+  deleteActionLabel = "Delete User",
+  deleteWorkflow = "__none__",
+  deleteWorkflowOptions = [],
+  onDeleteWorkflowChange,
+  onConfirmDelete,
+  onCancelDeleteActions,
+  onRequestStatusToggle,
   isHistoryOpen = false,
 }: {
   member: AppUser;
@@ -54,9 +68,20 @@ export function UserManagePreview({
   onToggleActiveStatus?: (member: AppUser, isActive: boolean) => void;
   onClose?: () => void;
   onToggleHistory?: () => void;
+  onEdit?: (member: AppUser) => void;
+  onDelete?: (member: AppUser) => void;
+  showDeleteActions?: boolean;
+  deleteActionLabel?: string;
+  deleteWorkflow?: string;
+  deleteWorkflowOptions?: Array<{ id: string; label: string }>;
+  onDeleteWorkflowChange?: (value: string) => void;
+  onConfirmDelete?: (member: AppUser) => void;
+  onCancelDeleteActions?: () => void;
+  onRequestStatusToggle?: (member: AppUser, isActive: boolean) => void;
   isHistoryOpen?: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isEditTooltipOpen, setIsEditTooltipOpen] = useState(false);
   const [collapsedFocusedKey, setCollapsedFocusedKey] = useState<string | null>(null);
   const [pendingDecision, setPendingDecision] = useState<"approve" | "reject" | null>(null);
   const [pendingRemark, setPendingRemark] = useState("");
@@ -94,25 +119,21 @@ export function UserManagePreview({
   const secondaryByNode = groupByNode(secondaryItems);
   const primaryEntries = useMemo(() => Object.entries(primaryByNode), [primaryByNode]);
   const secondaryEntries = useMemo(() => Object.entries(secondaryByNode), [secondaryByNode]);
-  const hasGlobalAccessByEmptyAccess = primaryEntries.length === 0 && secondaryEntries.length === 0;
+  const globalAccessNode = primaryItems.find((item) => {
+    const roleCategory = (item.roleCategory || "").trim().toUpperCase();
+    const roleSubCategory = (item.roleSubCategory || "").trim().toUpperCase();
+    const accessCategory = (item.accessCategory || "").trim().toUpperCase();
+    return Boolean(roleCategory) && roleCategory === roleSubCategory && accessCategory === "ALL_CHILD";
+  }) ?? null;
+  const hasGlobalAccess = Boolean(globalAccessNode && (globalAccessNode.roleName || "").trim());
   const shouldShowGlobalManagerBadge =
     !rawReportingManagerName.trim() && !rawReportingManagerEmail.trim();
-  const hasGlobalAccessByPacketShape =
-    shouldShowGlobalManagerBadge &&
-    primaryItems.length > 0 &&
-    primaryItems.every((item) => {
-      const isRoot = (item.nodeType || "").trim().toUpperCase() === "ROOT";
-      const allChild = (item.accessCategory || "").trim().toUpperCase() === "ALL_CHILD";
-      return isRoot && allChild;
-    }) &&
-    secondaryItemsRaw.length === 0;
-  const hasGlobalAccess = hasGlobalAccessByEmptyAccess || hasGlobalAccessByPacketShape;
-  const globalAccessNode = hasGlobalAccessByPacketShape ? primaryItems[0] : null;
   const globalAccessScopeLabel = ((globalAccessNode?.accessCategory || "").trim().toUpperCase() === "ALL_CHILD"
     ? "All Child"
     : (globalAccessNode?.accessCategory || "").trim().toUpperCase() === "IMMEDIATE_CHILD"
       ? "Immediate Child"
       : "Node");
+  const globalAccessTitle = (globalAccessNode?.roleName || "").trim();
 
   const isRemarkValid = Boolean(pendingRemark.trim());
   const showRemarkError = remarkTouched && !isRemarkValid;
@@ -188,59 +209,80 @@ export function UserManagePreview({
               </div>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-3">
-            {member.status === "Pending" ? (
-              <div className="flex items-center gap-2">
-                {onToggleHistory ? (
-                  <TooltipProvider delayDuration={120}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={onToggleHistory}
-                          className={cn(
-                            "inline-flex h-10 w-10 items-center justify-center rounded-xl border transition",
-                            isHistoryOpen
-                              ? "border-[rgb(53,83,233)] bg-[rgb(53,83,233)] text-white shadow-[0_4px_12px_rgba(53,83,233,0.24)]"
-                              : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700",
-                          )}
-                          aria-label={isHistoryOpen ? "Close history sidebar" : "Open history sidebar"}
-                          aria-pressed={isHistoryOpen}
-                        >
-                          <History className="h-4 w-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">User History</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : null}
-                {onClose ? (
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
-                    aria-label="Close user preview"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                ) : null}
-              </div>
-            ) : onClose ? (
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
-                aria-label="Close user preview"
-              >
-                <X className="h-4 w-4" />
-              </button>
+          <div className="flex flex-col items-end gap-2.5">
+            <div className="flex items-center gap-2">
+              {onEdit && member.status !== "Pending" ? (
+                <TooltipProvider delayDuration={120}>
+                  <Tooltip open={isEditTooltipOpen}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => onEdit(member)}
+                        onMouseEnter={() => setIsEditTooltipOpen(true)}
+                        onMouseLeave={() => setIsEditTooltipOpen(false)}
+                        onFocus={() => setIsEditTooltipOpen(false)}
+                        onBlur={() => setIsEditTooltipOpen(false)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+                        aria-label="Edit user"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Edit</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
+              {onClose ? (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                  aria-label="Close user preview"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+              {onDelete ? (
+                <button
+                  type="button"
+                  onClick={() => onDelete(member)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 transition hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700"
+                  aria-label="Delete user"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+
+            {onToggleHistory ? (
+              <TooltipProvider delayDuration={120}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={onToggleHistory}
+                      className={cn(
+                        "inline-flex h-10 w-10 items-center justify-center rounded-xl border transition",
+                        isHistoryOpen
+                          ? "border-[rgb(53,83,233)] bg-[rgb(53,83,233)] text-white shadow-[0_4px_12px_rgba(53,83,233,0.24)]"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700",
+                      )}
+                      aria-label={isHistoryOpen ? "Close history sidebar" : "Open history sidebar"}
+                      aria-pressed={isHistoryOpen}
+                    >
+                      <History className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">User History</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             ) : null}
 
             {showActiveToggle ? (
               <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm">
                 <button
                   type="button"
-                  onClick={() => onToggleActiveStatus?.(member, true)}
+                  onClick={() => (onRequestStatusToggle ? onRequestStatusToggle(member, true) : onToggleActiveStatus?.(member, true))}
                   className={cn(
                     "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
                     isActive
@@ -253,7 +295,7 @@ export function UserManagePreview({
                 </button>
                 <button
                   type="button"
-                  onClick={() => onToggleActiveStatus?.(member, false)}
+                  onClick={() => (onRequestStatusToggle ? onRequestStatusToggle(member, false) : onToggleActiveStatus?.(member, false))}
                   className={cn(
                     "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
                     !isActive
@@ -380,7 +422,7 @@ export function UserManagePreview({
                             <ShieldCheck className="h-9 w-9" />
                           </span>
                           <span className="text-sm font-extrabold uppercase tracking-[0.12em] text-emerald-700">
-                            Global Access
+                            {globalAccessTitle}
                           </span>
                           {globalAccessNode ? (
                             <div className="rounded-lg border border-emerald-200 bg-white/70 p-3 text-sm">
@@ -479,7 +521,7 @@ export function UserManagePreview({
                       <span className="text-[11px] font-black uppercase tracking-widest text-slate-600">Basic Details</span>
                       {hasGlobalAccess ? (
                         <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700">
-                          Global Access
+                          {globalAccessTitle}
                         </span>
                       ) : null}
                     </div>
@@ -522,7 +564,9 @@ export function UserManagePreview({
                         <div className="mt-1.5 grid grid-cols-[92px_10px_1fr] items-center gap-x-2">
                           <span className="text-slate-500">Access Category</span>
                           <span className="text-slate-400">:</span>
-                          <span className="font-semibold text-emerald-700">{globalAccessScopeLabel}</span>
+                          <span className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-semibold text-emerald-700">{globalAccessScopeLabel}</span>
+                          </span>
                         </div>
                       </div>
                     ) : null}
@@ -721,6 +765,38 @@ export function UserManagePreview({
                 Approve
               </button>
             ) : null}
+          </div>
+        </div>
+      ) : null}
+      {member.status !== "Pending" && showDeleteActions ? (
+        <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4">
+          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={onCancelDeleteActions}>
+              Cancel
+            </Button>
+
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <Select value={deleteWorkflow} onValueChange={onDeleteWorkflowChange}>
+                <SelectTrigger className="h-11 w-full min-w-[240px] border-[rgb(53,83,233)]/30 text-[rgb(53,83,233)] sm:w-[280px]">
+                  <SelectValue placeholder="Select Workflow" />
+                </SelectTrigger>
+                <SelectContent side="top" align="end">
+                  <SelectItem value="__none__">No Workflow</SelectItem>
+                  {deleteWorkflowOptions.map((workflowOption) => (
+                    <SelectItem key={workflowOption.id} value={workflowOption.id}>
+                      {workflowOption.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                className="w-full bg-rose-600 text-white hover:bg-rose-700 sm:w-auto"
+                onClick={() => onConfirmDelete?.(member)}
+              >
+                {deleteActionLabel}
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}
