@@ -199,13 +199,14 @@ const mapCompany = (
   inheritedSignatories?: Array<RawSignatory | null> | null,
 ): Company => {
   const legalName = getPacketString(company.name);
-  const companyName = getPacketString(company.brand);
+  // Some pending records can have an empty `brand`; render a placeholder in Company Name.
+  const companyName = getPacketString(company.brand) || "-";
   const companyCode = toUpperValue(getPacketString(company.companyCode));
   const companyId = getPacketString(company.companyId) || getPacketString(company.id) || companyCode;
   const incorporationDate = getPacketString(company.registration) || getPacketString(company.registeredAt);
   const ieCode = getPacketString(company.ieCode) || getPacketString(company.iecode);
 
-  if (!companyId || !companyCode || !legalName || !companyName || !incorporationDate) {
+  if (!companyId || !companyCode || !legalName || !incorporationDate) {
     throw new Error("Invalid admin/groups response: company record missing required fields");
   }
 

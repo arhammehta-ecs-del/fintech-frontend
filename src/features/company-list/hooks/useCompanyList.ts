@@ -180,15 +180,6 @@ export function useCompanyList() {
   );
 
   useEffect(() => {
-    if (selectedStatusTab === "pending" && statusCounts.pending === 0) {
-      setSelectedStatusTab("active");
-    }
-    if (selectedStatusTab === "inactive" && statusCounts.inactive === 0) {
-      setSelectedStatusTab("active");
-    }
-  }, [selectedStatusTab, statusCounts.inactive, statusCounts.pending]);
-
-  useEffect(() => {
     void refreshCompanies(true);
   }, [refreshCompanies]);
 
