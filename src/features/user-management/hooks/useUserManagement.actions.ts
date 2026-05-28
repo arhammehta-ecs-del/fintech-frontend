@@ -2,7 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { AppUser, OrgNode } from "@/contexts/AppContext";
 import { getApiErrorMessage } from "@/services/client";
 import { createUserOnboarding, fetchCompanyNodesWithAccess } from "@/services/user.service";
-import { acquireEditLock } from "@/services/edit-lock.service";
+// import { acquireEditLock } from "@/services/edit-lock.service";
 import type { UserOnboardingFormData } from "@/features/user-management/types";
 import { buildSignatoryOnboardingPayload, buildUserOnboardingPayload, buildUserUpdatePayload } from "@/features/user-management/utils";
 
@@ -52,7 +52,8 @@ export const createUserManagementActions = ({
       }
       const isUpdateRequest = Boolean(context?.seedMember);
       if (isUpdateRequest && context?.seedMember?.email?.trim()) {
-        await acquireEditLock({ type: "user", target: context.seedMember.email.trim() });
+        // Temporarily disabled user edit-lock.
+        // await acquireEditLock({ type: "user", target: context.seedMember.email.trim() });
       }
       const response = isGlobalSignatoryFlow
         ? await createUserOnboarding(
@@ -116,7 +117,8 @@ export const createUserManagementActions = ({
   };
 
   const removeMember = async (targetMail: string, levelsHash?: string | null) => {
-    await acquireEditLock({ type: "user", target: targetMail.trim() });
+    // Temporarily disabled user edit-lock.
+    // await acquireEditLock({ type: "user", target: targetMail.trim() });
     await createUserOnboarding({
       type: "archive",
       targetUserEmail: targetMail.trim() || null,
@@ -147,7 +149,8 @@ export const createUserManagementActions = ({
       if (!member.email?.trim()) {
         throw new Error("User email is missing");
       }
-      await acquireEditLock({ type: "user", target: member.email.trim() });
+      // Temporarily disabled user edit-lock.
+      // await acquireEditLock({ type: "user", target: member.email.trim() });
 
       await createUserOnboarding({
         type: action === "activate" ? "active" : "inactive",

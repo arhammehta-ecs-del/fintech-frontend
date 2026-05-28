@@ -232,6 +232,39 @@ export function UserManagePreview({
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
+              {onDelete && member.status !== "Pending" ? (
+                <button
+                  type="button"
+                  onClick={() => onDelete(member)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 transition hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700"
+                  aria-label="Delete user"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              ) : null}
+              {onToggleHistory ? (
+                <TooltipProvider delayDuration={120}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={onToggleHistory}
+                        className={cn(
+                          "inline-flex h-10 w-10 items-center justify-center rounded-xl border transition",
+                          isHistoryOpen
+                            ? "border-[rgb(53,83,233)] bg-[rgb(53,83,233)] text-white shadow-[0_4px_12px_rgba(53,83,233,0.24)]"
+                            : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700",
+                        )}
+                        aria-label={isHistoryOpen ? "Close history sidebar" : "Open history sidebar"}
+                        aria-pressed={isHistoryOpen}
+                      >
+                        <History className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">User History</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
               {onClose ? (
                 <button
                   type="button"
@@ -242,41 +275,7 @@ export function UserManagePreview({
                   <X className="h-4 w-4" />
                 </button>
               ) : null}
-              {onDelete ? (
-                <button
-                  type="button"
-                  onClick={() => onDelete(member)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 transition hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700"
-                  aria-label="Delete user"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              ) : null}
             </div>
-
-            {onToggleHistory ? (
-              <TooltipProvider delayDuration={120}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={onToggleHistory}
-                      className={cn(
-                        "inline-flex h-10 w-10 items-center justify-center rounded-xl border transition",
-                        isHistoryOpen
-                          ? "border-[rgb(53,83,233)] bg-[rgb(53,83,233)] text-white shadow-[0_4px_12px_rgba(53,83,233,0.24)]"
-                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700",
-                      )}
-                      aria-label={isHistoryOpen ? "Close history sidebar" : "Open history sidebar"}
-                      aria-pressed={isHistoryOpen}
-                    >
-                      <History className="h-4 w-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">User History</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : null}
 
             {showActiveToggle ? (
               <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm">

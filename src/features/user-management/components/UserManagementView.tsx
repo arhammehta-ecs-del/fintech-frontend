@@ -16,7 +16,7 @@ import UserHistorySidebar from "./UserHistorySidebar";
 import { RemarkDialog } from "@/components/RemarkDialog";
 import { useToast } from "@/hooks/use-toast";
 import { fetchCompanyNodesWithAccess } from "@/services/user.service";
-import { acquireEditLock } from "@/services/edit-lock.service";
+// import { acquireEditLock } from "@/services/edit-lock.service";
 
 export function UserManagementView() {
   const { toast } = useToast();
@@ -135,7 +135,8 @@ export function UserManagementView() {
       return;
     }
     try {
-      await acquireEditLock({ type: "user", target: targetMail });
+      // Temporarily disabled user edit-lock.
+      // await acquireEditLock({ type: "user", target: targetMail });
       await loadWorkflowOptionsForMemberAction(member);
     } catch {
       setDeleteWorkflowOptions([]);
@@ -150,7 +151,8 @@ export function UserManagementView() {
     if (!viewingMember) return;
     const targetMail = (viewingMember.email || "").trim();
     if (targetMail) {
-      await acquireEditLock({ type: "user", target: targetMail });
+      // Temporarily disabled user edit-lock.
+      // await acquireEditLock({ type: "user", target: targetMail });
     }
     if (pendingManageActionType === "archive") {
       if (!viewingMember.email?.trim()) return;
@@ -433,7 +435,8 @@ export function UserManagementView() {
                   try {
                     const targetMail = (member.email || "").trim();
                     if (targetMail) {
-                      await acquireEditLock({ type: "user", target: targetMail });
+                      // Temporarily disabled user edit-lock.
+                      // await acquireEditLock({ type: "user", target: targetMail });
                     }
                     await loadWorkflowOptionsForMemberAction(member);
                   } catch {
@@ -456,7 +459,8 @@ export function UserManagementView() {
                   return;
                 }
                 void (async () => {
-                  await acquireEditLock({ type: "user", target: targetMail });
+                  // Temporarily disabled user edit-lock.
+                  // await acquireEditLock({ type: "user", target: targetMail });
                   setOnboardingSeedMember(member);
                   setViewingMember(null);
                   setAddDialogOpen(true);

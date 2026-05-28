@@ -246,7 +246,7 @@ export default function UserTable({
                         <TooltipContent side="top">Manage User</TooltipContent>
                       </Tooltip>
 
-                      {onDelete ? (
+                      {onDelete && member.status !== "Pending" ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
