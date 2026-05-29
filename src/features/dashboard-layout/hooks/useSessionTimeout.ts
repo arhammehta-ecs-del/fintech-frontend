@@ -63,7 +63,12 @@ export function useSessionTimeout({
 
   useEffect(() => {
     const events: Array<keyof WindowEventMap> = ["mousemove", "mousedown", "keydown", "scroll"];
-    const onActivity = () => resetTimer();
+    const onActivity = () => {
+      // While warning modal is visible, only explicit modal actions
+      // should control whether session continues or logs out.
+      if (showWarning) return;
+      resetTimer();
+    };
 
     events.forEach((eventName) => window.addEventListener(eventName, onActivity, { passive: true }));
     resetTimer();
@@ -72,7 +77,7 @@ export function useSessionTimeout({
       events.forEach((eventName) => window.removeEventListener(eventName, onActivity));
       clearTimers();
     };
-  }, [clearTimers, resetTimer]);
+  }, [clearTimers, resetTimer, showWarning]);
 
   return {
     showWarning,

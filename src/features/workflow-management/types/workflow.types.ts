@@ -20,6 +20,7 @@ export type WorkflowRecord = {
   workflowName?: string;
   workflowAlias?: string;
   pendingRequestType?: string;
+  pendingRequestImpact?: string;
   pendingOldData?: Record<string, unknown>;
   pendingNewData?: Record<string, unknown>;
   status: WorkflowStatus;

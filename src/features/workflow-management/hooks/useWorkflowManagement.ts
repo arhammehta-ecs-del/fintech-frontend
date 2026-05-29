@@ -42,7 +42,7 @@ export function useWorkflowManagement() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
   const [pageCursors, setPageCursors] = useState<Record<number, string | null>>({ 1: null });
-  const [statusCounts, setStatusCounts] = useState({ active: 0, pending: 0 });
+  const [statusCounts, setStatusCounts] = useState({ active: 0, pending: 0, inactive: 0 });
   const [historyWorkflow, setHistoryWorkflow] = useState<WorkflowRecord | null>(null);
   const [manageWorkflow, setManageWorkflow] = useState<WorkflowRecord | null>(null);
   const [workflows, setWorkflows] = useState<WorkflowRecord[]>([]);
@@ -74,7 +74,7 @@ export function useWorkflowManagement() {
       showLoader = false,
     ) => {
       if (showLoader) setPage(params.targetPage);
-      const type = activeStatus === "Pending" ? "pending" : "active";
+      const type = activeStatus === "Pending" ? "pending" : activeStatus === "Inactive" ? "inactive" : "active";
       const response = await fetchWorkflowsPaginated(type, {
         limit: pageSize,
         cursor: params.cursor,
@@ -95,7 +95,12 @@ export function useWorkflowManagement() {
         [params.targetPage]: params.cursor,
         [params.targetPage + 1]: response.pageInfo.nextCursor,
       }));
-      const targetCount = activeStatus === "Pending" ? response.counts.pending : response.counts.active;
+      const targetCount =
+        activeStatus === "Pending"
+          ? response.counts.pending
+          : activeStatus === "Inactive"
+            ? response.counts.inactive
+            : response.counts.active;
       const fallbackTotalPages = Math.max(1, Math.ceil((targetCount || mapped.length) / pageSize));
       setResolvedTotalPages(Math.max(response.pageInfo.totalPages || 0, fallbackTotalPages));
     },
@@ -289,20 +294,26 @@ export function useWorkflowManagement() {
   }, [aliasFilters, moduleFilters, nodeNameFilters, typeFilters, workflowFilters, workflows]);
 
   useEffect(() => {
-    if (activeStatus === "Pending" && statusCounts.pending === 0) {
-      setActiveStatus("Active");
-    }
-  }, [activeStatus, statusCounts.pending]);
+    const currentCount =
+      activeStatus === "Pending"
+        ? statusCounts.pending
+        : activeStatus === "Inactive"
+          ? statusCounts.inactive
+          : statusCounts.active;
+    if (currentCount > 0) return;
 
-  useEffect(() => {
-    if (activeStatus === "Active" && statusCounts.active === 0 && statusCounts.pending > 0) {
-      setActiveStatus("Pending");
-      return;
+    const fallbackStatus: WorkflowStatus =
+      statusCounts.active > 0
+        ? "Active"
+        : statusCounts.pending > 0
+          ? "Pending"
+          : statusCounts.inactive > 0
+            ? "Inactive"
+            : "Active";
+    if (fallbackStatus !== activeStatus) {
+      setActiveStatus(fallbackStatus);
     }
-    if (activeStatus === "Pending" && statusCounts.pending === 0 && statusCounts.active > 0) {
-      setActiveStatus("Active");
-    }
-  }, [activeStatus, statusCounts.active, statusCounts.pending]);
+  }, [activeStatus, statusCounts.active, statusCounts.pending, statusCounts.inactive]);
 
   useEffect(() => {
     void loadWorkflows();

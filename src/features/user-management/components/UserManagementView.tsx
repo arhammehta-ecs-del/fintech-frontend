@@ -15,6 +15,7 @@ import { UserManagePreview } from "./UserManagePreview";
 import UserHistorySidebar from "./UserHistorySidebar";
 import { RemarkDialog } from "@/components/RemarkDialog";
 import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/services/client";
 import { fetchCompanyNodesWithAccess } from "@/services/user.service";
 import { useEditLockSession } from "@/hooks/useEditLockSession";
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
@@ -177,25 +178,36 @@ export function UserManagementView() {
   const handleConfirmDelete = async () => {
     if (!viewingMember) return;
     const normalizedRemark = manageActionRemark.trim();
-    const requiresRemark = pendingManageActionType === "archive" || pendingManageActionType === "inactive";
+    const requiresRemark =
+      pendingManageActionType === "archive" ||
+      pendingManageActionType === "inactive" ||
+      pendingManageActionType === "active";
     if (requiresRemark && !normalizedRemark) {
       setManageActionRemarkError("Remark is required.");
       return;
     }
-    if (pendingManageActionType === "archive") {
-      if (!viewingMember.email?.trim()) return;
-      await removeMember(viewingMember.email, normalizedRemark, deleteWorkflow === "__none__" ? null : deleteWorkflow);
-    } else if (pendingManageActionType === "active") {
-      await executeUserStatusAction(viewingMember, "activate", normalizedRemark, deleteWorkflow === "__none__" ? null : deleteWorkflow);
-    } else if (pendingManageActionType === "inactive") {
-      await executeUserStatusAction(viewingMember, "deactivate", normalizedRemark, deleteWorkflow === "__none__" ? null : deleteWorkflow);
+    try {
+      if (pendingManageActionType === "archive") {
+        if (!viewingMember.email?.trim()) return;
+        await removeMember(viewingMember.email, normalizedRemark, deleteWorkflow === "__none__" ? null : deleteWorkflow);
+      } else if (pendingManageActionType === "active") {
+        await executeUserStatusAction(viewingMember, "activate", normalizedRemark, deleteWorkflow === "__none__" ? null : deleteWorkflow);
+      } else if (pendingManageActionType === "inactive") {
+        await executeUserStatusAction(viewingMember, "deactivate", normalizedRemark, deleteWorkflow === "__none__" ? null : deleteWorkflow);
+      }
+      setPendingManageActionType(null);
+      setShowDeleteActions(false);
+      setManageActionRemark("");
+      setManageActionRemarkError("");
+      setViewingMember(null);
+      await userLockSession.stopSession(true);
+    } catch (error) {
+      toast({
+        title: "Action failed",
+        description: getApiErrorMessage(error, "Unable to submit the user request."),
+        variant: "destructive",
+      });
     }
-    setPendingManageActionType(null);
-    setShowDeleteActions(false);
-    setManageActionRemark("");
-    setManageActionRemarkError("");
-    setViewingMember(null);
-    await userLockSession.stopSession(true);
   };
 
   useEffect(() => {
@@ -535,12 +547,18 @@ export function UserManagementView() {
               onDeleteWorkflowChange={setDeleteWorkflow}
               deleteRemark={manageActionRemark}
               deleteRemarkError={manageActionRemarkError}
-              requireDeleteRemark={pendingManageActionType === "archive" || pendingManageActionType === "inactive"}
+              requireDeleteRemark={
+                pendingManageActionType === "archive" ||
+                pendingManageActionType === "inactive" ||
+                pendingManageActionType === "active"
+              }
               deleteRemarkPlaceholder={
                 pendingManageActionType === "archive"
                   ? "Enter remark for delete user request"
                   : pendingManageActionType === "inactive"
                     ? "Enter remark for set inactive request"
+                    : pendingManageActionType === "active"
+                      ? "Enter remark for set active request"
                     : "Enter remark"
               }
               onDeleteRemarkChange={(value) => {

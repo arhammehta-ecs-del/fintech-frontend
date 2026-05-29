@@ -82,6 +82,7 @@ export default function WorkflowManageDialog({
   const [statusSubmitting, setStatusSubmitting] = useState(false);
   const [pendingDecision, setPendingDecision] = useState<"approve" | "reject" | null>(null);
   const [isEditTooltipOpen, setIsEditTooltipOpen] = useState(false);
+  const [isHistoryTooltipOpen, setIsHistoryTooltipOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<"active" | "inactive" | null>(null);
   const [statusRemark, setStatusRemark] = useState("");
   const [statusWorkflowHash, setStatusWorkflowHash] = useState("");
@@ -95,6 +96,7 @@ export default function WorkflowManageDialog({
       setIsSubmitting(false);
       setPendingDecision(null);
       setIsEditTooltipOpen(false);
+      setIsHistoryTooltipOpen(false);
       setPendingStatus(null);
       setStatusRemark("");
       setStatusWorkflowHash("");
@@ -114,16 +116,37 @@ export default function WorkflowManageDialog({
 
   const displayWorkflow = useMemo(() => {
     if (!workflow) return null;
-    const isUpdateRequest = (workflow.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
+    const pendingRequestType = (workflow.pendingRequestType || "").trim().toUpperCase();
+    const pendingOldData = toRecord(workflow.pendingOldData);
+    const pendingNewData = toRecord(workflow.pendingNewData);
+    const hasPendingDataDiff = Object.keys(pendingOldData).length > 0 || Object.keys(pendingNewData).length > 0;
+    const isUpdateRequest = pendingRequestType === "UPDATE" || hasPendingDataDiff;
     if (!isUpdateRequest) return workflow;
-    const source = showPrevious ? toRecord(workflow.pendingOldData) : toRecord(workflow.pendingNewData);
+    const source = showPrevious ? pendingOldData : pendingNewData;
     if (!Object.keys(source).length) return workflow;
     return applyPendingDataView(workflow, source);
   }, [showPrevious, workflow]);
   if (!workflow || !displayWorkflow) return null;
-  const isUpdateRequest = (workflow.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
+  const pendingRequestType = (workflow.pendingRequestType || "").trim().toUpperCase();
+  const pendingOldData = toRecord(workflow.pendingOldData);
+  const pendingNewData = toRecord(workflow.pendingNewData);
+  const hasPendingDataDiff = Object.keys(pendingOldData).length > 0 || Object.keys(pendingNewData).length > 0;
+  const isUpdateRequest = pendingRequestType === "UPDATE" || hasPendingDataDiff;
+  const canTogglePreviousUpdated = pendingRequestType === "UPDATE";
+  const normalizedRequestImpact = (workflow.pendingRequestImpact || "").trim().toUpperCase();
+  const impactBadgeMap: Record<string, string> = {
+    ARCHIVE: "border-rose-200 bg-rose-100 text-rose-700",
+    INACTIVE: "border-amber-200 bg-amber-100 text-amber-700",
+    ACTIVE: "border-emerald-200 bg-emerald-100 text-emerald-700",
+    DOWNGRADE: "border-rose-200 bg-rose-100 text-rose-700",
+    UPGRADE: "border-emerald-200 bg-emerald-100 text-emerald-700",
+    RMUPDATED: "border-sky-200 bg-sky-100 text-sky-700",
+    PROFILE_UPDATE: "border-sky-200 bg-sky-100 text-sky-700",
+  };
+  const impactBadgeCls = impactBadgeMap[normalizedRequestImpact] || "";
 
   const isPending = workflow.status === "Pending" || isUpdateRequest;
+  const currentWorkflowStatus = workflow.status === "Inactive" ? "inactive" : "active";
   const isRemarkValid = Boolean(remark.trim());
   const showRemarkError = remarkTouched && !isRemarkValid;
   const initiatorName = workflow.initiatorName?.trim() || "";
@@ -157,7 +180,12 @@ export default function WorkflowManageDialog({
 
   const handleStatusToggle = async (nextStatus: "active" | "inactive") => {
     if (!onSubmitStatusUpdate || !onRequestStatusWorkflowOptions) return;
-    setPendingStatus(nextStatus);
+    const currentStatus = (pendingStatus ?? (workflow.status === "Inactive" ? "inactive" : "active"));
+    const resolvedNextStatus =
+      workflow.status === "Inactive" && nextStatus === "inactive" && currentStatus === "inactive"
+        ? "active"
+        : nextStatus;
+    setPendingStatus(resolvedNextStatus);
     setStatusRemark("");
     setStatusWorkflowHash("");
     try {
@@ -255,13 +283,27 @@ export default function WorkflowManageDialog({
               ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {impactBadgeCls ? (
+                <span
+                  className={cn(
+                    "inline-flex h-8 items-center rounded-full border px-3 text-xs font-bold uppercase tracking-wide",
+                    impactBadgeCls,
+                  )}
+                >
+                  {normalizedRequestImpact}
+                </span>
+              ) : null}
               {isPending && onToggleHistory ? (
                 <TooltipProvider delayDuration={120}>
-                  <Tooltip>
+                  <Tooltip open={isHistoryTooltipOpen}>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
                         onClick={onToggleHistory}
+                        onMouseEnter={() => setIsHistoryTooltipOpen(true)}
+                        onMouseLeave={() => setIsHistoryTooltipOpen(false)}
+                        onFocus={() => setIsHistoryTooltipOpen(false)}
+                        onBlur={() => setIsHistoryTooltipOpen(false)}
                         className={cn(
                           "inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white transition",
                           isHistoryOpen
@@ -278,7 +320,7 @@ export default function WorkflowManageDialog({
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
-              {onEdit && !isPending ? (
+              {onEdit && !isPending && workflow.status !== "Inactive" ? (
                 <TooltipProvider delayDuration={120}>
                   <Tooltip open={isEditTooltipOpen}>
                     <TooltipTrigger asChild>
@@ -305,7 +347,7 @@ export default function WorkflowManageDialog({
                     type="button"
                     className={cn(
                       "rounded-full px-3 py-1 text-xs font-semibold transition",
-                      (pendingStatus ?? (workflow.status === "Inactive" ? "inactive" : "active")) === "active"
+                      currentWorkflowStatus === "active"
                         ? "bg-[#3553e9] text-white shadow-sm"
                         : "text-slate-600 hover:bg-slate-100",
                     )}
@@ -317,7 +359,7 @@ export default function WorkflowManageDialog({
                     type="button"
                     className={cn(
                       "rounded-full px-3 py-1 text-xs font-semibold transition",
-                      (pendingStatus ?? (workflow.status === "Inactive" ? "inactive" : "active")) === "inactive"
+                      currentWorkflowStatus === "inactive"
                         ? "bg-[#3553e9] text-white shadow-sm"
                         : "text-slate-600 hover:bg-slate-100",
                     )}
@@ -327,7 +369,7 @@ export default function WorkflowManageDialog({
                   </button>
                 </div>
               ) : null}
-              {isUpdateRequest ? (
+              {canTogglePreviousUpdated ? (
                 <button
                   type="button"
                   onClick={() => setShowPrevious((current) => !current)}
@@ -369,19 +411,6 @@ export default function WorkflowManageDialog({
                   maxLength={250}
                   className="h-11 min-h-0 resize-none"
                 />
-                <Select value={statusWorkflowHash || "__none__"} onValueChange={(value) => setStatusWorkflowHash(value === "__none__" ? "" : value)}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder="Select workflow" />
-                  </SelectTrigger>
-                  <SelectContent side="top">
-                    <SelectItem value="__none__">No Workflow</SelectItem>
-                    {statusWorkflowOptions.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             </div>
           ) : null}
@@ -456,13 +485,31 @@ export default function WorkflowManageDialog({
                 Close
               </Button>
               {pendingStatus && onSubmitStatusUpdate ? (
-                <Button
-                  className="rounded-full px-6 bg-[#3553E9] text-white hover:bg-[#2f49cf]"
-                  onClick={() => void handleSubmitStatusUpdate()}
-                  disabled={!statusRemark.trim() || statusSubmitting}
-                >
-                  {pendingStatus === "inactive" ? "Set Inactive" : "Set Active"}
-                </Button>
+                <>
+                  <Select
+                    value={statusWorkflowHash || "__none__"}
+                    onValueChange={(value) => setStatusWorkflowHash(value === "__none__" ? "" : value)}
+                  >
+                    <SelectTrigger className="h-10 min-w-[16rem]">
+                      <SelectValue placeholder="Select workflow" />
+                    </SelectTrigger>
+                    <SelectContent side="top">
+                      <SelectItem value="__none__">No Workflow</SelectItem>
+                      {statusWorkflowOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    className="rounded-full px-6 bg-[#3553E9] text-white hover:bg-[#2f49cf]"
+                    onClick={() => void handleSubmitStatusUpdate()}
+                    disabled={!statusRemark.trim() || statusSubmitting}
+                  >
+                    {pendingStatus === "inactive" ? "Set Inactive" : "Set Active"}
+                  </Button>
+                </>
               ) : null}
             </>
           )}

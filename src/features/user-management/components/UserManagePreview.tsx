@@ -93,6 +93,7 @@ export function UserManagePreview({
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isEditTooltipOpen, setIsEditTooltipOpen] = useState(false);
+  const [isHistoryTooltipOpen, setIsHistoryTooltipOpen] = useState(false);
   const [showPreviousData, setShowPreviousData] = useState(false);
   const [collapsedFocusedKey, setCollapsedFocusedKey] = useState<string | null>(null);
   const [pendingDecision, setPendingDecision] = useState<"approve" | "reject" | null>(null);
@@ -217,6 +218,14 @@ export function UserManagePreview({
   const showRemarkError = remarkTouched && !isRemarkValid;
   const isActive = member.status !== "Inactive";
   const showActiveToggle = member.status === "Active" || member.status === "Inactive";
+  const handleInactiveToggleClick = () => {
+    const targetActiveState = member.status === "Inactive";
+    if (onRequestStatusToggle) {
+      onRequestStatusToggle(member, targetActiveState);
+      return;
+    }
+    onToggleActiveStatus?.(member, targetActiveState);
+  };
 
   useEffect(() => {
     if (!pendingDecision) return;
@@ -264,9 +273,33 @@ export function UserManagePreview({
   };
 
   const statusCls = getUserStatusClass(member.status);
+  const normalizedRequestType = requestType;
+  const normalizedRequestImpact = readString(member.basicDetails?.requestImpact).toUpperCase();
+  const normalizedRequestStatus = readString(requestNewBasicDetails.status).toUpperCase();
+  const isPendingArchiveRequest =
+    member.status === "Pending" && (normalizedRequestType === "ARCHIVE" || normalizedRequestStatus === "ARCHIVE");
   const isPendingInactiveRequest =
-    member.status === "Pending" && readString(requestNewBasicDetails.status).toUpperCase() === "INACTIVE";
-  const statusBadgeLabel = isPendingInactiveRequest ? "Request for Inactive" : (member.status || "Active");
+    member.status === "Pending" && (normalizedRequestType === "INACTIVE" || normalizedRequestStatus === "INACTIVE");
+  const statusBadgeLabel = isPendingArchiveRequest
+    ? "Request for Delete"
+    : isPendingInactiveRequest
+      ? "Request for Inactive"
+      : (member.status || "Active");
+  const normalizedStatusBadgeLabel = statusBadgeLabel.trim().toUpperCase();
+  const shouldShowStatusBadge =
+    normalizedStatusBadgeLabel !== "PENDING" &&
+    normalizedStatusBadgeLabel !== "REQUEST FOR INACTIVE" &&
+    normalizedStatusBadgeLabel !== "REQUEST FOR DELETE";
+  const impactBadgeMap: Record<string, string> = {
+    ARCHIVE: "border-rose-200 bg-rose-100 text-rose-700",
+    INACTIVE: "border-amber-200 bg-amber-100 text-amber-700",
+    ACTIVE: "border-emerald-200 bg-emerald-100 text-emerald-700",
+    DOWNGRADE: "border-rose-200 bg-rose-100 text-rose-700",
+    UPGRADE: "border-emerald-200 bg-emerald-100 text-emerald-700",
+    RMUPDATED: "border-sky-200 bg-sky-100 text-sky-700",
+    PROFILE_UPDATE: "border-sky-200 bg-sky-100 text-sky-700",
+  };
+  const impactBadgeCls = impactBadgeMap[normalizedRequestImpact] || "";
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
@@ -282,9 +315,11 @@ export function UserManagePreview({
             <div>
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-xl font-bold tracking-tight text-slate-900">{userData.name}</h2>
-                <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider", statusCls)}>
-                  {statusBadgeLabel}
-                </span>
+                {shouldShowStatusBadge ? (
+                  <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider", statusCls)}>
+                    {statusBadgeLabel}
+                  </span>
+                ) : null}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium text-slate-500">{formattedDesignation}</span>
@@ -297,7 +332,7 @@ export function UserManagePreview({
           </div>
           <div className="flex flex-col items-end gap-2.5">
             <div className="flex items-center gap-2">
-              {onEdit && member.status !== "Pending" ? (
+              {onEdit && member.status !== "Pending" && member.status !== "Inactive" ? (
                 <TooltipProvider delayDuration={120}>
                   <Tooltip open={isEditTooltipOpen}>
                     <TooltipTrigger asChild>
@@ -328,13 +363,27 @@ export function UserManagePreview({
                   <Trash2 className="h-4 w-4" />
                 </button>
               ) : null}
+              {impactBadgeCls ? (
+                <span
+                  className={cn(
+                    "inline-flex h-10 items-center rounded-xl border px-3 text-xs font-bold uppercase tracking-wide",
+                    impactBadgeCls,
+                  )}
+                >
+                  {normalizedRequestImpact}
+                </span>
+              ) : null}
               {onToggleHistory ? (
                 <TooltipProvider delayDuration={120}>
-                  <Tooltip>
+                  <Tooltip open={isHistoryTooltipOpen}>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
                         onClick={onToggleHistory}
+                        onMouseEnter={() => setIsHistoryTooltipOpen(true)}
+                        onMouseLeave={() => setIsHistoryTooltipOpen(false)}
+                        onFocus={() => setIsHistoryTooltipOpen(false)}
+                        onBlur={() => setIsHistoryTooltipOpen(false)}
                         className={cn(
                           "inline-flex h-10 w-10 items-center justify-center rounded-xl border transition",
                           isHistoryOpen
@@ -403,7 +452,7 @@ export function UserManagePreview({
                 </button>
                 <button
                   type="button"
-                  onClick={() => (onRequestStatusToggle ? onRequestStatusToggle(member, false) : onToggleActiveStatus?.(member, false))}
+                  onClick={handleInactiveToggleClick}
                   className={cn(
                     "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
                     !isActive

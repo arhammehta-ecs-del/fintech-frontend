@@ -43,13 +43,14 @@ type WorkflowPageInfo = {
 };
 
 type WorkflowPaginatedApiResponse = WorkflowApiResponse & {
-  data?: unknown[] | { active?: unknown[]; pending?: unknown[] };
+  data?: unknown[] | { active?: unknown[]; pending?: unknown[]; inactive?: unknown[] };
   activeCount?: number;
   pendingCount?: number;
+  inactiveCount?: number;
   pageInfo?: Partial<WorkflowPageInfo>;
 };
 
-export type WorkflowFetchType = "active" | "pending";
+export type WorkflowFetchType = "active" | "pending" | "inactive";
 
 export type WorkflowPaginatedRequest = {
   limit: number;
@@ -65,6 +66,7 @@ export type WorkflowPaginatedResult = {
   counts: {
     active: number;
     pending: number;
+    inactive: number;
   };
   pageInfo: WorkflowPageInfo;
 };
@@ -125,11 +127,13 @@ export async function fetchWorkflowsPaginated(
   const packetGroups = !Array.isArray(dataPacket) && dataPacket ? dataPacket : undefined;
   const fallbackActiveCount = Array.isArray(packetGroups?.active) ? packetGroups.active.length : 0;
   const fallbackPendingCount = Array.isArray(packetGroups?.pending) ? packetGroups.pending.length : 0;
+  const fallbackInactiveCount = Array.isArray(packetGroups?.inactive) ? packetGroups.inactive.length : 0;
   return {
     rows,
     counts: {
       active: Number(response.activeCount ?? fallbackActiveCount) || 0,
       pending: Number(response.pendingCount ?? fallbackPendingCount) || 0,
+      inactive: Number(response.inactiveCount ?? fallbackInactiveCount) || 0,
     },
     pageInfo: mapWorkflowPageInfo(response.pageInfo),
   };

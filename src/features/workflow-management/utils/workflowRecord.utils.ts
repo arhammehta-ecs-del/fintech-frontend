@@ -78,6 +78,14 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
   const record = toRecord(item);
   const payload = toRecord(record.data);
   const pendingRequest = toRecord(record.pendingRequest);
+  const pendingOldDataFromPending = toRecord(pendingRequest.oldData);
+  const pendingNewDataFromPending = toRecord(pendingRequest.newData);
+  const pendingOldDataFromRecord = toRecord(record.oldData);
+  const pendingNewDataFromRecord = toRecord(record.newData);
+  const pendingOldData =
+    Object.keys(pendingOldDataFromPending).length > 0 ? pendingOldDataFromPending : pendingOldDataFromRecord;
+  const pendingNewData =
+    Object.keys(pendingNewDataFromPending).length > 0 ? pendingNewDataFromPending : pendingNewDataFromRecord;
   const orgStructure = toRecord(record.orgStructure);
   const initiator = toRecord(record.initiator);
   const rawModule = readString(record.module) || readString(payload.module);
@@ -153,9 +161,10 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
       readString(payload.initiatorTimestamp),
     workflowName: readString(record.workflowName) || readString(payload.workflowName),
     workflowAlias: readString(record.alias) || readString(payload.alias),
-    pendingRequestType: readString(pendingRequest.type),
-    pendingOldData: toRecord(pendingRequest.oldData),
-    pendingNewData: toRecord(pendingRequest.newData),
+    pendingRequestType: readString(pendingRequest.type) || readString(record.type) || readString(payload.type),
+    pendingRequestImpact: readString(pendingRequest.impact) || readString(record.impact) || readString(payload.impact),
+    pendingOldData,
+    pendingNewData,
     status,
   };
 };

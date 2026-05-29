@@ -243,10 +243,20 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     const nextWorkflowOptions = Array.from(new Map(options.map((option) => [option.levelsHash, option])).values());
 
     setWorkflowOptions(nextWorkflowOptions);
-    setSelectedWorkflowLevelsHash((current) =>
-      current && !nextWorkflowOptions.some((option) => option.levelsHash === current) ? "" : current,
-    );
-  }, [companyNodesWithWorkflows, wfNode]);
+    setSelectedWorkflowLevelsHash((current) => {
+      const normalizedCurrent = current.trim();
+      if (normalizedCurrent) {
+        return nextWorkflowOptions.some((option) => option.levelsHash === normalizedCurrent) ? normalizedCurrent : "";
+      }
+
+      const seededLevelsHash = mode === "edit" ? (seedWorkflow?.levelsHash || "").trim() : "";
+      if (seededLevelsHash && nextWorkflowOptions.some((option) => option.levelsHash === seededLevelsHash)) {
+        return seededLevelsHash;
+      }
+
+      return "";
+    });
+  }, [companyNodesWithWorkflows, mode, seedWorkflow?.levelsHash, wfNode]);
 
   useEffect(() => {
     if (!isOpen) return;

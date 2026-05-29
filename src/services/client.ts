@@ -11,6 +11,8 @@ type ApiErrorDetail = {
 };
 
 type ApiErrorPayload = {
+  status?: string;
+  statusCode?: number | string;
   message?: string;
   details?: ApiErrorDetail[];
   forceLogToken?: string;
@@ -87,5 +89,25 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     );
   }
 
-  return response.json() as Promise<T>;
+  const payload = (await response.json()) as T;
+  const maybeErrorPayload = payload as ApiErrorPayload;
+  const normalizedStatus = typeof maybeErrorPayload?.status === "string" ? maybeErrorPayload.status.trim().toLowerCase() : "";
+  const statusCode =
+    typeof maybeErrorPayload?.statusCode === "number"
+      ? maybeErrorPayload.statusCode
+      : (typeof maybeErrorPayload?.statusCode === "string" ? Number(maybeErrorPayload.statusCode) : NaN);
+  const shouldTreatAsApiError =
+    normalizedStatus === "error" || (Number.isFinite(statusCode) && statusCode >= 400);
+
+  if (shouldTreatAsApiError) {
+    throw new ApiRequestError(
+      Number.isFinite(statusCode) ? Number(statusCode) : response.status,
+      `Request failed: ${Number.isFinite(statusCode) ? Number(statusCode) : response.status}`,
+      typeof maybeErrorPayload?.message === "string" ? maybeErrorPayload.message : undefined,
+      Array.isArray(maybeErrorPayload?.details) ? maybeErrorPayload.details : undefined,
+      maybeErrorPayload,
+    );
+  }
+
+  return payload;
 }

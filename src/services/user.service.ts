@@ -82,7 +82,7 @@ type UserPaginatedResponse = {
   pageInfo?: Partial<UserPageInfo>;
 };
 
-export type UserListStatusTab = "active" | "pending";
+export type UserListStatusTab = "active" | "pending" | "inactive";
 
 export type UserPaginatedRequest = {
   companyCode: string;
@@ -498,7 +498,9 @@ export async function fetchCompanyUsersPaginated(
   });
 
   const records = Array.isArray(response.data) ? response.data : [];
-  const mappedUsers = records.map((record) => mapCompanyUser(record, statusTab === "pending" ? "Pending" : "Active"));
+  const mappedUsers = records.map((record) =>
+    mapCompanyUser(record, statusTab === "pending" ? "Pending" : statusTab === "inactive" ? "Inactive" : "Active"),
+  );
 
   return {
     users: mappedUsers,

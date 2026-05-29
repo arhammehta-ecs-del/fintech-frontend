@@ -127,7 +127,7 @@ export const createUserManagementActions = ({
     });
     setUsers((previous) => previous.filter((user) => user.email !== targetMail));
     toast({
-      title: "Archive initiated",
+      title: "Delete initiated",
       description: "Delete user request has been submitted.",
       variant: "destructive",
     });

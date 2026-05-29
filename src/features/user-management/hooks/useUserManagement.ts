@@ -82,6 +82,13 @@ export function useUserManagement() {
   const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ member: AppUser; action: "activate" | "deactivate" } | null>(null);
   const [hasNewUserEvent, setHasNewUserEvent] = useState(false);
+  const getCountForTab = useCallback(
+    (
+      counts: { active: number; pending: number; inactive: number },
+      tab: MemberStatusTab,
+    ) => (tab === "pending" ? counts.pending : tab === "inactive" ? counts.inactive : counts.active),
+    [],
+  );
 
   const maybeShowActivityToast = useCallback(
     (response: Awaited<ReturnType<typeof fetchCompanyUsersPaginated>>, tab: MemberStatusTab) => {
@@ -107,7 +114,7 @@ export function useUserManagement() {
 
       setIsLoading(true);
       try {
-        const targetTab = statusTab === "pending" ? "pending" : "active";
+        const targetTab = statusTab;
         const response = await fetchCompanyUsersPaginated(targetTab, {
           companyCode,
           limit: pageSize,
@@ -125,7 +132,7 @@ export function useUserManagement() {
         setHasNext(response.pageInfo.hasNext);
         setResolvedTotalPages(
           response.pageInfo.totalPages ||
-            Math.max(1, Math.ceil((statusTab === "pending" ? response.counts.pending : response.counts.active) / pageSize)),
+            Math.max(1, Math.ceil(getCountForTab(response.counts, statusTab) / pageSize)),
         );
         setStatusCounts(response.counts);
         maybeShowActivityToast(response, statusTab);
@@ -146,22 +153,12 @@ export function useUserManagement() {
         setIsLoading(false);
       }
     },
-    [currentUser?.companyCode, debouncedSearch, maybeShowActivityToast, pageSize, setUsers, statusTab, toast],
+    [currentUser?.companyCode, debouncedSearch, getCountForTab, maybeShowActivityToast, pageSize, setUsers, statusTab, toast],
   );
 
   useEffect(() => {
-    if (statusTab === "inactive") {
-      setUsers([]);
-      setPageCursors({ 1: null });
-      setPage(1);
-      setTopCursor(null);
-      setNextCursor(null);
-      setHasNext(false);
-      setResolvedTotalPages(1);
-      return;
-    }
     void loadUsers();
-  }, [loadUsers, setUsers, statusTab]);
+  }, [loadUsers]);
 
   useEffect(() => {
     const disconnect = connectNotificationStream({
@@ -388,7 +385,6 @@ export function useUserManagement() {
   const paginatedMembers = currentMembers;
 
   const handlePrevPage = useCallback(async () => {
-    if (statusTab === "inactive") return;
     if (page <= 1) return;
     const companyCode = currentUser?.companyCode?.trim().toUpperCase();
     if (!companyCode) return;
@@ -397,7 +393,7 @@ export function useUserManagement() {
 
     setIsLoading(true);
     try {
-      const targetTab = statusTab === "pending" ? "pending" : "active";
+      const targetTab = statusTab;
       const response = await fetchCompanyUsersPaginated(targetTab, {
         companyCode,
         limit: pageSize,
@@ -415,7 +411,7 @@ export function useUserManagement() {
       setHasNext(response.pageInfo.hasNext);
       setResolvedTotalPages(
         response.pageInfo.totalPages ||
-          Math.max(1, Math.ceil((statusTab === "pending" ? response.counts.pending : response.counts.active) / pageSize)),
+          Math.max(1, Math.ceil(getCountForTab(response.counts, statusTab) / pageSize)),
       );
       setStatusCounts(response.counts);
       maybeShowActivityToast(response, statusTab);
@@ -428,10 +424,9 @@ export function useUserManagement() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser?.companyCode, debouncedSearch, maybeShowActivityToast, page, pageCursors, pageSize, setUsers, statusTab, toast, topCursor]);
+  }, [currentUser?.companyCode, debouncedSearch, getCountForTab, maybeShowActivityToast, page, pageCursors, pageSize, setUsers, statusTab, toast, topCursor]);
 
   const handleNextPage = useCallback(async () => {
-    if (statusTab === "inactive") return;
     if (!hasNext) return;
     const companyCode = currentUser?.companyCode?.trim().toUpperCase();
     if (!companyCode) return;
@@ -441,7 +436,7 @@ export function useUserManagement() {
 
     setIsLoading(true);
     try {
-      const targetTab = statusTab === "pending" ? "pending" : "active";
+      const targetTab = statusTab;
       const response = await fetchCompanyUsersPaginated(targetTab, {
         companyCode,
         limit: pageSize,
@@ -463,7 +458,7 @@ export function useUserManagement() {
       setHasNext(response.pageInfo.hasNext);
       setResolvedTotalPages(
         response.pageInfo.totalPages ||
-          Math.max(1, Math.ceil((statusTab === "pending" ? response.counts.pending : response.counts.active) / pageSize)),
+          Math.max(1, Math.ceil(getCountForTab(response.counts, statusTab) / pageSize)),
       );
       setStatusCounts(response.counts);
       maybeShowActivityToast(response, statusTab);
@@ -476,11 +471,10 @@ export function useUserManagement() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser?.companyCode, debouncedSearch, hasNext, maybeShowActivityToast, nextCursor, page, pageCursors, pageSize, setUsers, statusTab, topCursor, toast]);
+  }, [currentUser?.companyCode, debouncedSearch, getCountForTab, hasNext, maybeShowActivityToast, nextCursor, page, pageCursors, pageSize, setUsers, statusTab, topCursor, toast]);
 
   const handleJumpToPage = useCallback(
     async (requestedPage: number) => {
-      if (statusTab === "inactive") return;
       const companyCode = currentUser?.companyCode?.trim().toUpperCase();
       if (!companyCode) return;
       const targetPage = Math.max(1, Math.min(totalPages, requestedPage));
@@ -488,7 +482,7 @@ export function useUserManagement() {
 
       setIsLoading(true);
       try {
-        const targetTab = statusTab === "pending" ? "pending" : "active";
+        const targetTab = statusTab;
         const jumpCursor = pageCursors[targetPage] ?? nextCursor ?? topCursor ?? "";
         const response = await fetchCompanyUsersPaginated(targetTab, {
           companyCode,
@@ -511,7 +505,7 @@ export function useUserManagement() {
         setHasNext(response.pageInfo.hasNext);
         setResolvedTotalPages(
           response.pageInfo.totalPages ||
-            Math.max(1, Math.ceil((statusTab === "pending" ? response.counts.pending : response.counts.active) / pageSize)),
+            Math.max(1, Math.ceil(getCountForTab(response.counts, statusTab) / pageSize)),
         );
         setStatusCounts(response.counts);
       } catch (error) {
@@ -524,7 +518,7 @@ export function useUserManagement() {
         setIsLoading(false);
       }
     },
-    [currentUser?.companyCode, debouncedSearch, nextCursor, page, pageCursors, pageSize, setUsers, statusTab, toast, topCursor, totalPages],
+    [currentUser?.companyCode, debouncedSearch, getCountForTab, nextCursor, page, pageCursors, pageSize, setUsers, statusTab, toast, topCursor, totalPages],
   );
 
   const {

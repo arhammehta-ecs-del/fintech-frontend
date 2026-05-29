@@ -24,14 +24,18 @@ export function useEditLockSession() {
 
   const touchActivity = useCallback(() => {
     if (!sessionActiveRef.current) return;
+    // When warning modal is visible, only explicit modal actions
+    // ("Continue Editing" / "Close Form") should decide the flow.
+    if (warningOpen) return;
     lastActivityMsRef.current = Date.now();
-    if (warningOpen) setWarningOpen(false);
   }, [warningOpen]);
 
   const stopSession = useCallback(
     async (shouldRelease = true) => {
       stopTicker();
       const target = targetRef.current;
+      targetRef.current = null;
+      onTimeoutRef.current = null;
       sessionActiveRef.current = false;
       setWarningOpen(false);
       if (!shouldRelease || !target) return;

@@ -195,6 +195,7 @@ export default function WorkflowManagementView() {
   const visibleTabs = [
     { id: "Active" as const, label: "Active", count: statusCounts.active },
     ...(statusCounts.pending > 0 ? [{ id: "Pending" as const, label: "Pending", count: statusCounts.pending }] : []),
+    ...(statusCounts.inactive > 0 ? [{ id: "Inactive" as const, label: "Inactive", count: statusCounts.inactive }] : []),
   ];
   const activeFilterCount =
     workflowFilters.length + aliasFilters.length + moduleFilters.length + nodeNameFilters.length + typeFilters.length;
@@ -213,6 +214,7 @@ export default function WorkflowManagementView() {
   const [workflowSeedForEdit, setWorkflowSeedForEdit] = useState<(typeof manageWorkflow) | null>(null);
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [showOnboardingPrevious, setShowOnboardingPrevious] = useState(false);
+  const [manageLockArmed, setManageLockArmed] = useState(false);
   const shouldUseAdaptivePendingLayout = useMemo(
     () =>
       filteredWorkflows.some(
@@ -264,13 +266,19 @@ export default function WorkflowManagementView() {
   });
 
   const closeManageWorkflowDialog = async () => {
-    await workflowLockSession.stopSession(true);
+    const normalizedRequestType = (manageWorkflow?.pendingRequestType || "").trim().toUpperCase();
+    const isPendingLike = manageWorkflow?.status === "Pending" || normalizedRequestType === "UPDATE";
+    const isInactive = manageWorkflow?.status === "Inactive";
+    const shouldReleaseLock = !isPendingLike && !isInactive && manageLockArmed;
+    await workflowLockSession.stopSession(shouldReleaseLock);
+    setManageLockArmed(false);
     setManageHistoryOpen(false);
     setManageWorkflow(null);
   };
 
   useEffect(() => {
     if (!manageWorkflow) {
+      setManageLockArmed(false);
       setManageHistoryOpen(false);
     }
   }, [manageWorkflow]);
@@ -841,6 +849,7 @@ export default function WorkflowManagementView() {
             getWorkflowLockTarget(workflow),
             () => {
               setManageHistoryOpen(false);
+              setManageLockArmed(false);
               setManageWorkflow(null);
               toast({
                 title: "Edit lock expired",
@@ -849,6 +858,7 @@ export default function WorkflowManagementView() {
               });
             },
           );
+          setManageLockArmed(true);
           return requestStatusWorkflowOptions(workflow);
         }}
         onSubmitStatusUpdate={submitWorkflowStatusUpdate}
