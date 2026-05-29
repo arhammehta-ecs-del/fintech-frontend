@@ -184,6 +184,12 @@ export function useCompanyList() {
   }, [refreshCompanies]);
 
   useEffect(() => {
+    if (selectedStatusTab === "pending" && statusCounts.pending === 0) {
+      setSelectedStatusTab("active");
+    }
+  }, [selectedStatusTab, statusCounts.pending]);
+
+  useEffect(() => {
     const disconnect = connectNotificationStream({
       onNotification: (packet) => {
         const refType = String(packet.refType ?? "").trim().toLowerCase();

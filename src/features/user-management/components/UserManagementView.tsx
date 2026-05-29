@@ -16,10 +16,13 @@ import UserHistorySidebar from "./UserHistorySidebar";
 import { RemarkDialog } from "@/components/RemarkDialog";
 import { useToast } from "@/hooks/use-toast";
 import { fetchCompanyNodesWithAccess } from "@/services/user.service";
+import { useEditLockSession } from "@/hooks/useEditLockSession";
+import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 // import { acquireEditLock } from "@/services/edit-lock.service";
 
 export function UserManagementView() {
   const { toast } = useToast();
+  const userLockSession = useEditLockSession();
   const {
     search,
     setSearch,
@@ -94,8 +97,31 @@ export function UserManagementView() {
   const [deleteWorkflow, setDeleteWorkflow] = useState("__none__");
   const [deleteWorkflowOptions, setDeleteWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [pendingManageActionType, setPendingManageActionType] = useState<"archive" | "active" | "inactive" | null>(null);
+  const [manageActionRemark, setManageActionRemark] = useState("");
+  const [manageActionRemarkError, setManageActionRemarkError] = useState("");
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const [viewportWidth, setViewportWidth] = useState(0);
+  const startUserLockSession = async (member: AppUser) => {
+    const targetMail = (member.email || "").trim();
+    if (!targetMail) {
+      throw new Error("User email is missing for lock request.");
+    }
+    await userLockSession.startSession(
+      { type: "user", target: { email: targetMail } },
+      () => {
+        setViewingMember(null);
+        setEditingMember(null);
+        setAddDialogOpen(false);
+        setShowDeleteActions(false);
+        setPendingManageActionType(null);
+        toast({
+          title: "Edit lock expired",
+          description: "No activity detected. User edit form was closed.",
+          variant: "destructive",
+        });
+      },
+    );
+  };
 
   const loadWorkflowOptionsForMemberAction = async (member: AppUser) => {
     const primaryNodePath = (member.accessDetails || [])
@@ -135,8 +161,7 @@ export function UserManagementView() {
       return;
     }
     try {
-      // Temporarily disabled user edit-lock.
-      // await acquireEditLock({ type: "user", target: targetMail });
+      await startUserLockSession(member);
       await loadWorkflowOptionsForMemberAction(member);
     } catch {
       setDeleteWorkflowOptions([]);
@@ -145,26 +170,32 @@ export function UserManagementView() {
     setPendingManageActionType("archive");
     setShowDeleteActions(true);
     setDeleteWorkflow("__none__");
+    setManageActionRemark("");
+    setManageActionRemarkError("");
   };
 
   const handleConfirmDelete = async () => {
     if (!viewingMember) return;
-    const targetMail = (viewingMember.email || "").trim();
-    if (targetMail) {
-      // Temporarily disabled user edit-lock.
-      // await acquireEditLock({ type: "user", target: targetMail });
+    const normalizedRemark = manageActionRemark.trim();
+    const requiresRemark = pendingManageActionType === "archive" || pendingManageActionType === "inactive";
+    if (requiresRemark && !normalizedRemark) {
+      setManageActionRemarkError("Remark is required.");
+      return;
     }
     if (pendingManageActionType === "archive") {
       if (!viewingMember.email?.trim()) return;
-      await removeMember(viewingMember.email, deleteWorkflow === "__none__" ? null : deleteWorkflow);
+      await removeMember(viewingMember.email, normalizedRemark, deleteWorkflow === "__none__" ? null : deleteWorkflow);
     } else if (pendingManageActionType === "active") {
-      await executeUserStatusAction(viewingMember, "activate", "", deleteWorkflow === "__none__" ? null : deleteWorkflow);
+      await executeUserStatusAction(viewingMember, "activate", normalizedRemark, deleteWorkflow === "__none__" ? null : deleteWorkflow);
     } else if (pendingManageActionType === "inactive") {
-      await executeUserStatusAction(viewingMember, "deactivate", "", deleteWorkflow === "__none__" ? null : deleteWorkflow);
+      await executeUserStatusAction(viewingMember, "deactivate", normalizedRemark, deleteWorkflow === "__none__" ? null : deleteWorkflow);
     }
     setPendingManageActionType(null);
     setShowDeleteActions(false);
+    setManageActionRemark("");
+    setManageActionRemarkError("");
     setViewingMember(null);
+    await userLockSession.stopSession(true);
   };
 
   useEffect(() => {
@@ -354,8 +385,15 @@ export function UserManagementView() {
       <UserOnboardingDialog
         open={addDialogOpen}
         onOpenChange={(open) => {
-          setAddDialogOpen(open);
-          if (!open) setOnboardingSeedMember(null);
+          if (!open) {
+            void (async () => {
+              await userLockSession.stopSession(true);
+              setAddDialogOpen(false);
+              setOnboardingSeedMember(null);
+            })();
+            return;
+          }
+          setAddDialogOpen(true);
         }}
         onSubmit={handleAddUser}
         seedMember={onboardingSeedMember}
@@ -387,7 +425,18 @@ export function UserManagementView() {
           )
         : null}
 
-      <Dialog modal={false} open={Boolean(viewingMember)} onOpenChange={(open) => !open && setViewingMember(null)}>
+      <Dialog
+        modal={false}
+        open={Boolean(viewingMember)}
+        onOpenChange={(open) => {
+          if (!open) {
+            void (async () => {
+              await userLockSession.stopSession(true);
+              setViewingMember(null);
+            })();
+          }
+        }}
+      >
         <DialogContent
           showCloseButton={false}
           overlayClassName="hidden"
@@ -433,11 +482,7 @@ export function UserManagementView() {
               onRequestStatusToggle={(member, isActive) => {
                 void (async () => {
                   try {
-                    const targetMail = (member.email || "").trim();
-                    if (targetMail) {
-                      // Temporarily disabled user edit-lock.
-                      // await acquireEditLock({ type: "user", target: targetMail });
-                    }
+                    await startUserLockSession(member);
                     await loadWorkflowOptionsForMemberAction(member);
                   } catch {
                     setDeleteWorkflowOptions([]);
@@ -446,27 +491,32 @@ export function UserManagementView() {
                   setPendingManageActionType(isActive ? "active" : "inactive");
                   setShowDeleteActions(true);
                   setDeleteWorkflow("__none__");
+                  setManageActionRemark("");
+                  setManageActionRemarkError("");
                 })();
               }}
               onEdit={(member) => {
-                const targetMail = (member.email || "").trim();
-                if (!targetMail) {
-                  toast({
-                    title: "Edit unavailable",
-                    description: "User email is missing for lock request.",
-                    variant: "destructive",
-                  });
-                  return;
-                }
                 void (async () => {
-                  // Temporarily disabled user edit-lock.
-                  // await acquireEditLock({ type: "user", target: targetMail });
-                  setOnboardingSeedMember(member);
-                  setViewingMember(null);
-                  setAddDialogOpen(true);
+                  try {
+                    await startUserLockSession(member);
+                    setOnboardingSeedMember(member);
+                    setViewingMember(null);
+                    setAddDialogOpen(true);
+                  } catch (error) {
+                    toast({
+                      title: "Edit unavailable",
+                      description: error instanceof Error ? error.message : "Unable to lock user for edit.",
+                      variant: "destructive",
+                    });
+                  }
                 })();
               }}
-              onClose={() => setViewingMember(null)}
+              onClose={() =>
+                void (async () => {
+                  await userLockSession.stopSession(true);
+                  setViewingMember(null);
+                })()
+              }
               onDelete={(member) => {
                 void openDeleteActions(member);
               }}
@@ -483,10 +533,29 @@ export function UserManagementView() {
               deleteWorkflow={deleteWorkflow}
               deleteWorkflowOptions={deleteWorkflowOptions}
               onDeleteWorkflowChange={setDeleteWorkflow}
+              deleteRemark={manageActionRemark}
+              deleteRemarkError={manageActionRemarkError}
+              requireDeleteRemark={pendingManageActionType === "archive" || pendingManageActionType === "inactive"}
+              deleteRemarkPlaceholder={
+                pendingManageActionType === "archive"
+                  ? "Enter remark for delete user request"
+                  : pendingManageActionType === "inactive"
+                    ? "Enter remark for set inactive request"
+                    : "Enter remark"
+              }
+              onDeleteRemarkChange={(value) => {
+                setManageActionRemark(value);
+                if (manageActionRemarkError) setManageActionRemarkError("");
+              }}
               onConfirmDelete={() => void handleConfirmDelete()}
               onCancelDeleteActions={() => {
-                setShowDeleteActions(false);
-                setPendingManageActionType(null);
+                void (async () => {
+                  await userLockSession.stopSession(true);
+                  setShowDeleteActions(false);
+                  setPendingManageActionType(null);
+                  setManageActionRemark("");
+                  setManageActionRemarkError("");
+                })();
               }}
               onToggleHistory={
                 viewingMember.status === "Pending" ? () => setHistoryOpenForMember((current) => !current) : undefined
@@ -508,12 +577,25 @@ export function UserManagementView() {
         />
       ) : null}
 
-      <Dialog open={Boolean(editingMember)} onOpenChange={(open) => !open && setEditingMember(null)}>
+      <Dialog
+        open={Boolean(editingMember)}
+        onOpenChange={(open) => {
+          if (!open) {
+            void (async () => {
+              await userLockSession.stopSession(true);
+              setEditingMember(null);
+            })();
+          }
+        }}
+      >
         {editingMember ? (
           <EditMemberDialog
             editingMember={editingMember}
             onEditMemberChange={setEditingMember}
-            onSave={handleSaveEdit}
+            onSave={() => {
+              handleSaveEdit();
+              void userLockSession.stopSession(true);
+            }}
           />
         ) : null}
       </Dialog>
@@ -526,6 +608,12 @@ export function UserManagementView() {
         description={`Are you sure you want to ${pendingAction?.action} ${pendingAction?.member.name}? Please provide a remark.`}
         confirmLabel={pendingAction?.action === "activate" ? "Activate" : "Deactivate"}
         confirmVariant={pendingAction?.action === "activate" ? "success" : "destructive"}
+      />
+      <EditLockWarningDialog
+        open={userLockSession.warningOpen}
+        secondsRemaining={userLockSession.secondsRemaining}
+        onContinue={() => void userLockSession.continueEditing()}
+        onCloseAndRelease={() => void userLockSession.endEditingNow()}
       />
     </div>
   );

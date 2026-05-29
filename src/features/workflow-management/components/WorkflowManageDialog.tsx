@@ -338,7 +338,7 @@ export default function WorkflowManageDialog({
                       : "border-emerald-300 bg-emerald-50 text-emerald-700",
                   )}
                 >
-                  {showPrevious ? "Show Updated" : "Show Previous"}
+                  {showPrevious ? "Updated" : "Previous"}
                 </button>
               ) : null}
               <button
@@ -367,7 +367,7 @@ export default function WorkflowManageDialog({
                   onChange={(event) => setStatusRemark(event.target.value)}
                   placeholder="Add remark"
                   maxLength={250}
-                  className="min-h-[90px]"
+                  className="h-11 min-h-0 resize-none"
                 />
                 <Select value={statusWorkflowHash || "__none__"} onValueChange={(value) => setStatusWorkflowHash(value === "__none__" ? "" : value)}>
                   <SelectTrigger className="h-10">
@@ -399,7 +399,7 @@ export default function WorkflowManageDialog({
                 onBlur={() => setRemarkTouched(true)}
                 maxLength={100}
                 placeholder={`Enter remark for ${pendingDecision === "approve" ? "approval" : "rejection"}`}
-                className="min-h-[90px]"
+                className="h-11 min-h-0 resize-none"
               />
               {showRemarkError ? <p className="mt-2 text-xs text-rose-600">Please enter a remark.</p> : null}
               <div className="mt-1 text-right text-[11px] text-slate-500">{remark.length}/100</div>

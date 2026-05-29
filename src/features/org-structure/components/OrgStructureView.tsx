@@ -16,20 +16,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import type { NewNodeType } from "@/features/org-structure/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-const countInactivePendingNodes = (root: OrgNode | null): number => {
-  if (!root) return 0;
-  let count = 0;
-  const queue: OrgNode[] = [root];
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    if (current.status === "Pending" && current.requestedStatus === "INACTIVE") {
-      count += 1;
-    }
-    queue.push(...current.children);
-  }
-  return count;
-};
+import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 
 export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [, setSearchParams] = useSearchParams();
@@ -78,11 +65,15 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     statusUpdateWorkflowHash,
     statusUpdateWorkflowOptions,
     statusUpdateRemarks,
-    setStatusUpdateNode,
     setStatusUpdateWorkflowHash,
     setStatusUpdateRemarks,
     handleRequestNodeStatusChange,
     submitNodeStatusUpdate,
+    orgLockWarningOpen,
+    orgLockSecondsRemaining,
+    continueOrgEditing,
+    closeOrgEditingByTimeout,
+    closeOrgStatusUpdatePopup,
   } = useOrgStructure();
 
   const [showPending, setShowPending] = useState(true);
@@ -135,7 +126,6 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const hasPending = useMemo(() => hasPendingNodes(orgStructure), [orgStructure]);
   const approvedBaseCount = useMemo(() => countNodes(filterPendingNodes(orgStructure)), [orgStructure]);
   const pendingCount = useMemo(() => countPendingNodes(orgStructure), [orgStructure]);
-  const inactivePendingCount = useMemo(() => countInactivePendingNodes(orgStructure), [orgStructure]);
   const newNodeParentTrail = useMemo(() => {
     if (!orgStructure || !newNodeParent?.id) return [];
     return collectNodeTrail(orgStructure, newNodeParent.id);
@@ -208,11 +198,6 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                 </div>
 
                 <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
-                  {inactivePendingCount > 0 ? (
-                    <div className="group relative flex items-center gap-2.5 rounded-full border border-rose-200 bg-rose-50/60 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-rose-700 shadow-[0_2px_10px_rgba(225,29,72,0.08)]">
-                      Inactive Nodes
-                    </div>
-                  ) : null}
                   {hasPending ? (
                     <button
                       type="button"
@@ -416,14 +401,18 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         submitLabel={statusUpdateTargetStatus === "inactive" ? "Submit Inactive Request" : "Submit Active Request"}
         onOpenChange={(open) => {
           if (!open) {
-            setStatusUpdateNode(null);
-            setStatusUpdateWorkflowHash("");
-            setStatusUpdateRemarks("");
+            void closeOrgStatusUpdatePopup();
           }
         }}
         onWorkflowChange={setStatusUpdateWorkflowHash}
         onRemarksChange={setStatusUpdateRemarks}
         onSubmit={() => void submitNodeStatusUpdate()}
+      />
+      <EditLockWarningDialog
+        open={orgLockWarningOpen}
+        secondsRemaining={orgLockSecondsRemaining}
+        onContinue={() => void continueOrgEditing()}
+        onCloseAndRelease={() => void closeOrgEditingByTimeout()}
       />
 
       <PendingNodePopup

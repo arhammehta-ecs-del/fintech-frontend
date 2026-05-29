@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, CircleCheck, Filter, Search, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -79,6 +79,7 @@ export default function ApiMonitoringView() {
   const [selectedLog, setSelectedLog] = useState<ApiMonitoringLog | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const [draftStatusFilters, setDraftStatusFilters] = useState<string[]>(statusFilters);
   const [draftCompanyCodeFilters, setDraftCompanyCodeFilters] = useState<string[]>(companyCodeFilters);
   const [draftUserEmailFilters, setDraftUserEmailFilters] = useState<string[]>(userEmailFilters);
@@ -107,6 +108,11 @@ export default function ApiMonitoringView() {
     if (searchText.trim()) return "No logs found for this search.";
     return "No API monitoring logs available.";
   }, [loading, error, searchText]);
+
+  useEffect(() => {
+    if (!tableScrollRef.current) return;
+    tableScrollRef.current.scrollTo({ top: 0, behavior: "auto" });
+  }, [safePage]);
 
   return (
     <div className="space-y-4">
@@ -238,7 +244,7 @@ export default function ApiMonitoringView() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div ref={tableScrollRef} className="flex-1 overflow-auto">
           <table className="w-full border-separate border-spacing-0 text-left">
             <thead className="text-sm uppercase tracking-wide text-muted-foreground">
               <tr>

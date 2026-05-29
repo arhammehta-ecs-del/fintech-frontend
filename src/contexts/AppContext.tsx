@@ -92,6 +92,10 @@ export interface AppUser {
     initiatedDate?: string;
     workflowName?: string;
     alias?: string;
+    requestType?: string;
+    requestImpact?: string;
+    requestOldData?: Record<string, unknown>;
+    requestNewData?: Record<string, unknown>;
   };
   accessDetails?: Array<{
     roleCategory: string;

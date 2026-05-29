@@ -17,19 +17,36 @@ export type EditLockWorkflowTarget = {
 };
 
 export type EditLockPayload =
-  | { type: "user"; target: string }
-  | { type: "org"; target: { nodePath: string } }
-  | { type: "workflow"; target: EditLockWorkflowTarget };
+  | { type: "user"; target: { email: string }; subtype?: "lock" | "release"; addMin?: number | null }
+  | { type: "org"; target: { nodePath: string }; subtype?: "lock" | "release"; addMin?: number | null }
+  | { type: "workflow"; target: EditLockWorkflowTarget; subtype?: "lock" | "release"; addMin?: number | null };
 
 export async function acquireEditLock(payload: EditLockPayload) {
   const normalizedType = payload.type.trim().toUpperCase();
+  const normalizedSubtype = (payload.subtype || "lock").trim().toLowerCase();
+  const normalizedAddMin =
+    typeof payload.addMin === "number"
+      ? payload.addMin
+      : normalizedSubtype === "lock"
+        ? 10
+        : null;
   const requestBody = {
     ...payload,
     type: normalizedType,
+    subtype: normalizedSubtype,
+    addMin: normalizedAddMin,
   };
 
   return apiFetch<EditLockResponse>(EDIT_LOCK_PATH, {
     method: "POST",
     body: JSON.stringify(requestBody),
   });
+}
+
+export async function releaseEditLock(payload: Omit<EditLockPayload, "subtype" | "addMin">) {
+  return acquireEditLock({
+    ...payload,
+    subtype: "release",
+    addMin: 0,
+  } as EditLockPayload);
 }

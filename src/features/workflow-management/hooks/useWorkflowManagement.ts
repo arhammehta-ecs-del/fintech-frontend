@@ -5,7 +5,6 @@ import { connectNotificationStream } from "@/services/notification.service";
 import { createWorkflow, fetchWorkflowsPaginated, updateWorkflowAction } from "@/services/workflow.service";
 import { fetchCompanyNodes } from "@/services/user.service";
 import { fetchCompanyNodesWithAccess } from "@/services/user.service";
-import { acquireEditLock } from "@/services/edit-lock.service";
 import type { WorkflowPageSize, WorkflowRecord, WorkflowStatus } from "@/features/workflow-management/types/workflow.types";
 import { WORKFLOW_PAGE_SIZE_OPTIONS } from "@/features/workflow-management/types/workflow.types";
 import { mapWorkflowRecord } from "@/features/workflow-management/utils/workflowRecord.utils";
@@ -169,16 +168,6 @@ export function useWorkflowManagement() {
   };
 
   const requestStatusWorkflowOptions = async (workflow: WorkflowRecord) => {
-    await acquireEditLock({
-      type: "workflow",
-      target: {
-        nodePath: (workflow.nodePath || "").trim(),
-        levelsHash: (workflow.levelsHash || workflow.workflowId || workflow.id || "").trim(),
-        subModule: (workflow.subModule || "").trim(),
-        module: (workflow.rawModule || workflow.module || "").trim(),
-      },
-    });
-
     const selectedNodePath = (workflow.nodePath || "").trim().toUpperCase();
     const nodes = await fetchCompanyNodes("WORK_FLOW");
     const options = nodes
@@ -214,15 +203,6 @@ export function useWorkflowManagement() {
       levelsHash: (input.workflow.levelsHash || "").trim(),
     };
     try {
-      await acquireEditLock({
-        type: "workflow",
-        target: {
-          nodePath: (input.workflow.nodePath || "").trim(),
-          levelsHash: target.levelsHash,
-          subModule: target.subModule,
-          module: target.module,
-        },
-      });
       await createWorkflow({
         type: input.nextStatus,
         target,

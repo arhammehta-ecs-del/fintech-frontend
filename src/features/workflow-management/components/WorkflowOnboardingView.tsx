@@ -1,5 +1,5 @@
 import { ChevronRight, Rocket } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import WorkflowStepper from "@/features/workflow-management/components/onboarding/WorkflowStepper";
@@ -13,10 +13,18 @@ type WorkflowOnboardingViewProps = {
   onPublished?: () => void | Promise<void>;
   mode?: "create" | "edit";
   seedWorkflow?: import("@/features/workflow-management/types/workflow.types").WorkflowRecord | null;
+  showPrevious?: boolean;
+  onStepChange?: (step: number) => void;
 };
 
-export default function WorkflowOnboardingView({ isOpen = false, onPublished, mode = "create", seedWorkflow = null }: WorkflowOnboardingViewProps) {
-  const [showPrevious, setShowPrevious] = useState(false);
+export default function WorkflowOnboardingView({
+  isOpen = false,
+  onPublished,
+  mode = "create",
+  seedWorkflow = null,
+  showPrevious = false,
+  onStepChange,
+}: WorkflowOnboardingViewProps) {
   const {
     mode: resolvedMode,
     step,
@@ -54,9 +62,8 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished, mo
   } = useWorkflowOnboarding({ isOpen, onPublished, mode, seedWorkflow });
 
   useEffect(() => {
-    if (!isOpen) return;
-    setShowPrevious(false);
-  }, [isOpen, mode, seedWorkflow?.id]);
+    onStepChange?.(step);
+  }, [onStepChange, step]);
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -108,7 +115,26 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished, mo
         </div>
       </div>
 
-      <div className="flex items-center justify-between border-t border-slate-200 bg-white px-6 py-4">
+      {step === 3 ? (
+        <div className="border-t border-slate-200 bg-white px-6 pt-4">
+          <div className="flex items-end gap-2">
+            <div className="flex w-full flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-700">
+                Remark <span className="text-rose-500">*</span>
+              </label>
+              <Textarea
+                value={remarks}
+                onChange={(event) => setRemarks(event.target.value)}
+                placeholder="Enter remark for this edit request"
+                className="h-11 min-h-0 w-full resize-none text-sm"
+                maxLength={250}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-between bg-white px-6 py-4">
         <button
           type="button"
           onClick={handleBack}
@@ -120,44 +146,20 @@ export default function WorkflowOnboardingView({ isOpen = false, onPublished, mo
         </button>
 
         <div className="flex items-center gap-2">
-          {step === 3 && resolvedMode === "edit" && seedSnapshot ? (
-            <button
-              type="button"
-              onClick={() => setShowPrevious((current) => !current)}
-              className={`h-11 rounded-xl border px-4 text-sm font-semibold transition ${
-                showPrevious
-                  ? "border-emerald-300 bg-emerald-100 text-emerald-700"
-                  : "border-amber-300 bg-amber-100 text-amber-700"
-              }`}
-            >
-              {showPrevious ? "Show Updated" : "Show Previous"}
-            </button>
-          ) : null}
           {step === 3 ? (
-            <div className="flex items-end gap-2">
-              <div>
-                <Textarea
-                  value={remarks}
-                  onChange={(event) => setRemarks(event.target.value)}
-                  placeholder="Add remarks..."
-                  className="min-h-[44px] w-[220px] resize-none text-sm"
-                  maxLength={250}
-                />
-              </div>
-              <Select value={selectedWorkflowLevelsHash || "__none__"} onValueChange={(value) => setSelectedWorkflowLevelsHash(value === "__none__" ? "" : value)}>
-                <SelectTrigger className="h-11 w-[220px] border-blue-200 text-blue-700">
-                  <SelectValue placeholder="Select Workflow" />
-                </SelectTrigger>
-                <SelectContent side="top" align="end">
-                  <SelectItem value="__none__">No Workflow</SelectItem>
-                  {workflowOptions.map((option) => (
-                    <SelectItem key={option.levelsHash} value={option.levelsHash}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select value={selectedWorkflowLevelsHash || "__none__"} onValueChange={(value) => setSelectedWorkflowLevelsHash(value === "__none__" ? "" : value)}>
+              <SelectTrigger className="h-11 w-[220px] border-blue-200 text-blue-700">
+                <SelectValue placeholder="Select Workflow" />
+              </SelectTrigger>
+              <SelectContent side="top" align="end">
+                <SelectItem value="__none__">No Workflow</SelectItem>
+                {workflowOptions.map((option) => (
+                  <SelectItem key={option.levelsHash} value={option.levelsHash}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ) : null}
           <button
             type="button"

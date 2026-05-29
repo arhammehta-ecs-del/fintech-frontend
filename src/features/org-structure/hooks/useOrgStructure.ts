@@ -6,7 +6,7 @@ import { getApiErrorMessage } from "@/services/client";
 import { connectNotificationStream } from "@/services/notification.service";
 import { createNewOrgNode, fetchUsersByNodePathCount, getCompanyOrgStructure, updateOrgNodeAction } from "@/services/org.service";
 import { fetchCompanyNodes } from "@/services/user.service";
-import { acquireEditLock } from "@/services/edit-lock.service";
+import { useEditLockSession } from "@/hooks/useEditLockSession";
 import { collectNodeTrail, findOrgNodeById, findParentNodeById, flattenOrg } from "@/features/org-structure/orgNode.utils";
 import type { DepartmentSidebarDepartment, NewNodeType } from "@/features/org-structure/types";
 import {
@@ -50,6 +50,7 @@ export function useOrgStructure() {
   const graphContentRef = useRef<HTMLDivElement | null>(null);
   const syncSourceRef = useRef<"tree" | "bottom" | null>(null);
   const didApplyInitialAutoZoomRef = useRef(false);
+  const orgLockSession = useEditLockSession();
   const companyCode = currentUser?.companyCode?.trim().toUpperCase() ?? "";
 
   const loadOrgForCompanyCode = async (nextCompanyCode: string) => {
@@ -408,11 +409,24 @@ export function useOrgStructure() {
     if (currentStatus === targetStatus) return;
 
     try {
-      await acquireEditLock({
-        type: "org",
-        target: { nodePath },
-      });
       const options = await fetchNodeWorkflowOptions(nodePath);
+      await orgLockSession.startSession(
+        {
+          type: "org",
+          target: { nodePath },
+        },
+        () => {
+          setStatusUpdateNode(null);
+          setStatusUpdateWorkflowHash("");
+          setStatusUpdateRemarks("");
+          setStatusUpdateWorkflowOptions([]);
+          toast({
+            title: "Edit lock expired",
+            description: "No activity detected. Status update form was closed.",
+            variant: "destructive",
+          });
+        },
+      );
       setStatusUpdateWorkflowOptions(options);
       setStatusUpdateWorkflowHash("");
       setStatusUpdateRemarks("");
@@ -432,10 +446,6 @@ export function useOrgStructure() {
     const nodePath = (statusUpdateNode.nodePath || "").trim();
     if (!nodePath) return;
     try {
-      await acquireEditLock({
-        type: "org",
-        target: { nodePath },
-      });
       await createNewOrgNode({
         type: "update",
         status: statusUpdateTargetStatus === "inactive" ? "INACTIVE" : "ACTIVE",
@@ -448,6 +458,7 @@ export function useOrgStructure() {
       setStatusUpdateWorkflowHash("");
       setStatusUpdateRemarks("");
       setStatusUpdateWorkflowOptions([]);
+      await orgLockSession.stopSession(true);
       toast({
         title: "Status request submitted",
         description: `Node ${statusUpdateNode.name} ${statusUpdateTargetStatus} request initiated.`,
@@ -507,5 +518,16 @@ export function useOrgStructure() {
     handleApproveNode, handleRejectNode, zoomOut, zoomIn, hasNewOrgEvent, setHasNewOrgEvent, refreshOrgStructure,
     statusUpdateNode, statusUpdateTargetStatus, statusUpdateWorkflowHash, statusUpdateWorkflowOptions,
     statusUpdateRemarks, setStatusUpdateNode, setStatusUpdateWorkflowHash, setStatusUpdateRemarks, handleRequestNodeStatusChange, submitNodeStatusUpdate,
+    orgLockWarningOpen: orgLockSession.warningOpen,
+    orgLockSecondsRemaining: orgLockSession.secondsRemaining,
+    continueOrgEditing: orgLockSession.continueEditing,
+    closeOrgEditingByTimeout: orgLockSession.endEditingNow,
+    closeOrgStatusUpdatePopup: async () => {
+      await orgLockSession.stopSession(true);
+      setStatusUpdateNode(null);
+      setStatusUpdateWorkflowHash("");
+      setStatusUpdateRemarks("");
+      setStatusUpdateWorkflowOptions([]);
+    },
   };
 }

@@ -58,6 +58,7 @@ export type UserOnboardingFormData = {
   primaryNodeId: string | null;
   selectedWorkflow: string;
   selectedWorkflowLevelsHash: string;
+  remark: string;
 };
 
 export type ValidationErrors = Record<string, string>;

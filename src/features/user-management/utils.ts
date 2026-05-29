@@ -114,7 +114,6 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
 
   return {
     type: "initiate",
-    targetUserEmail: null,
     basicDetails: {
       name: formData.basic.name.trim(),
       email: formData.basic.email.trim(),
@@ -142,6 +141,7 @@ export const buildUserUpdatePayload = (formData: UserOnboardingFormData, seedMem
 
   const changedBasicDetails: UserOnboardingPayload["basicDetails"] = {};
   if (normalize(nextBasic.name) !== normalize(seedBasic?.name)) changedBasicDetails.name = nextBasic.name;
+  if (normalize(nextBasic.email) !== normalize(seedBasic?.email)) changedBasicDetails.email = nextBasic.email;
   if (normalize(nextBasic.phone) !== normalize(seedBasic?.phone)) changedBasicDetails.phone = nextBasic.phone;
   if (normalize(nextBasic.designation) !== normalize(seedBasic?.designation)) changedBasicDetails.designation = nextBasic.designation;
   if (normalize(nextBasic.employeeId || "") !== normalize(seedBasic?.employeeId)) changedBasicDetails.employeeId = nextBasic.employeeId || null;
@@ -152,21 +152,15 @@ export const buildUserUpdatePayload = (formData: UserOnboardingFormData, seedMem
     changedBasicDetails.reportingManager = nextBasic.reportingManager || null;
   }
 
-  const existingPermissionKeys = new Set(
-    (seedMember.accessDetails || []).map((permission) =>
-      [
-        (permission.roleCategory || "").trim().toUpperCase(),
-        (permission.roleSubCategory || "").trim(),
-        (permission.roleName || "").trim(),
-        (permission.nodePath || "").trim(),
-        (permission.accessType || "").trim().toUpperCase(),
-        (permission.accessCategory || "").trim().toUpperCase(),
-      ].join("|"),
-    ),
-  );
-
-  const changedPermissions = fullPayload.permissions.filter((permission) => {
-    const key = [
+  const toPermissionKey = (permission: {
+    roleCategory?: string;
+    roleSubCategory?: string;
+    roleName?: string;
+    nodePath?: string;
+    accessType?: string;
+    accessCategory?: string | null;
+  }) =>
+    [
       (permission.roleCategory || "").trim().toUpperCase(),
       (permission.roleSubCategory || "").trim(),
       (permission.roleName || "").trim(),
@@ -174,16 +168,41 @@ export const buildUserUpdatePayload = (formData: UserOnboardingFormData, seedMem
       (permission.accessType || "").trim().toUpperCase(),
       (permission.accessCategory || "").trim().toUpperCase(),
     ].join("|");
-    return !existingPermissionKeys.has(key);
-  });
 
-  return {
+  const existingPermissionKeys = new Set((seedMember.accessDetails || []).map((permission) => toPermissionKey(permission)));
+  const nextPermissionKeys = new Set(fullPayload.permissions.map((permission) => toPermissionKey(permission)));
+
+  const hasPermissionDelta =
+    nextPermissionKeys.size !== existingPermissionKeys.size ||
+    Array.from(nextPermissionKeys).some((key) => !existingPermissionKeys.has(key));
+
+  const hasBasicDelta = Object.keys(changedBasicDetails).length > 0;
+
+  const payload: UserOnboardingPayload = {
     type: "update",
     targetUserEmail,
-    basicDetails: changedBasicDetails,
+    remarks: formData.remark.trim(),
     levelsHash: formData.selectedWorkflowLevelsHash.trim() || null,
-    permissions: changedPermissions,
   };
+
+  if (hasBasicDelta) {
+    payload.basicDetails = changedBasicDetails;
+    return payload;
+  }
+
+  if (hasPermissionDelta) {
+    payload.permissions = fullPayload.permissions.map((permission) => ({
+      roleCategory: permission.roleCategory,
+      roleSubCategory: permission.roleSubCategory,
+      roleName: permission.roleName,
+      nodeName: permission.nodeName,
+      nodePath: permission.nodePath,
+      accessCategory: permission.accessCategory ?? null,
+      accessType: permission.accessType,
+    }));
+  }
+
+  return payload;
 };
 
 export const buildSignatoryOnboardingPayload = (
@@ -191,7 +210,6 @@ export const buildSignatoryOnboardingPayload = (
   companyNode: { nodeName: string; nodePath: string; nodeType?: string },
 ): UserOnboardingPayload => ({
   type: "initiate",
-  targetUserEmail: null,
   basicDetails: {
     name: formData.basic.name.trim(),
     email: formData.basic.email.trim(),
@@ -293,6 +311,7 @@ export const createInitialUserOnboardingFormData = (): UserOnboardingFormData =>
   primaryNodeId: null,
   selectedWorkflow: "",
   selectedWorkflowLevelsHash: "",
+  remark: "",
 });
 
 const toNodePathSegmentLabel = (segment: string) => segment.trim().replace(/_/g, " ");

@@ -497,7 +497,7 @@ export function UserOnboardingStepReviewSubmit({
                     No secondary access assigned.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     {secondaryNodesWithRights.map((node) => (
                       <NodePermissionCard
                         key={node.id}

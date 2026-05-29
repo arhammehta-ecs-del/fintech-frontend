@@ -72,6 +72,11 @@ export function PendingNodePopup({
   const requestedOn = formatRequestedAtToIst(node.requestedAt);
   const workflowName = node.workflowName?.trim() || "";
   const workflowAlias = node.alias?.trim() || "";
+  const hasLongWorkflowLabel = workflowName.length > 24;
+  const pendingRequestType = (node.pendingRequestType || "").trim().toUpperCase();
+  const nextStatusFromRequest =
+    typeof node.pendingNewData?.status === "string" ? node.pendingNewData.status.trim().toUpperCase() : "";
+  const isInactiveUpdateRequest = pendingRequestType === "UPDATE" && nextStatusFromRequest === "INACTIVE";
   const nodePathSegments = node.nodePath.split(".").filter(Boolean);
 
   const validateAndRun = (action: "approve" | "reject") => {
@@ -115,7 +120,11 @@ export function PendingNodePopup({
       <div
         className={cn(
           "relative w-full overflow-hidden rounded-[28px] bg-white shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-in zoom-in-95 fade-in duration-300",
-          isHistoryOpen ? "mx-auto my-auto max-h-full max-w-[480px]" : "max-w-[480px]",
+          isHistoryOpen
+            ? cn("mx-auto my-auto max-h-full", hasLongWorkflowLabel ? "max-w-[620px]" : "max-w-[480px]")
+            : hasLongWorkflowLabel
+              ? "max-w-[620px]"
+              : "max-w-[480px]",
         )}
       >
         {/* Header Section */}
@@ -148,7 +157,7 @@ export function PendingNodePopup({
 
           <div className="flex flex-col items-center gap-2.5 text-center">
             <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.13em] text-amber-700">
-              New Node Approval
+              {isInactiveUpdateRequest ? "Inactive Request" : "New Node Approval"}
             </span>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-[0_6px_16px_rgba(245,158,11,0.14)]">
               <Icon className="h-6 w-6 text-amber-500" />
@@ -160,9 +169,16 @@ export function PendingNodePopup({
         {/* Details Section */}
         <div className="space-y-4 px-6 py-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center gap-2">
-              <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-700">Node Details</p>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-700">Node Details</p>
+              </div>
+              {isInactiveUpdateRequest ? (
+                <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
+                  {requestedOn}
+                </span>
+              ) : null}
             </div>
             <div className="space-y-2.5">
               <div className="grid grid-cols-[18px_96px_1fr] items-start gap-2 text-sm">
@@ -188,71 +204,65 @@ export function PendingNodePopup({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="grid gap-2 md:grid-cols-[1fr_0.85fr]">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Initiator Info</p>
-                <div className="mt-2.5 space-y-1.5 text-[13px] leading-relaxed">
-                  <div className="flex items-center gap-2">
-                    <User size={13} className="shrink-0 text-slate-400" />
-                    <p className="truncate text-slate-600">{requesterName}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Mail size={13} className="shrink-0 text-slate-400" />
-                    <p className="truncate text-slate-500">{requesterEmail}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Clock3 size={13} className="shrink-0 text-slate-400" />
-                    <p className="text-slate-500">{requestedOn}</p>
-                  </div>
-                </div>
-              </div>
-
-              {workflowName || workflowAlias ? (
+          {!isInactiveUpdateRequest ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className={cn("grid gap-3", hasLongWorkflowLabel ? "md:grid-cols-[0.9fr_1.3fr]" : "md:grid-cols-[1fr_0.85fr]")}>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workflow</p>
-                  <div className="mt-2.5 space-y-1 text-[13px]">
-                    <div className="grid grid-cols-[40px_10px_1fr] items-start">
-                      <span className="text-slate-500">Name</span>
-                      <span className="text-slate-400">:</span>
-                      <span
-                        className="font-medium leading-5 text-slate-700 [overflow-wrap:anywhere]"
-                        style={{
-                          display: "-webkit-box",
-                          WebkitBoxOrient: "vertical",
-                          WebkitLineClamp: 2,
-                          overflow: "hidden",
-                        }}
-                        title={workflowName || "—"}
-                      >
-                        {workflowName || "—"}
-                      </span>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Initiator Info</p>
+                  <div className="mt-2.5 space-y-1.5 text-[13px] leading-relaxed">
+                    <div className="flex items-center gap-2">
+                      <User size={13} className="shrink-0 text-slate-400" />
+                      <p className="truncate text-slate-600">{requesterName}</p>
                     </div>
-                    <div className="grid grid-cols-[40px_10px_1fr] items-start">
-                      <span className="text-slate-500">Alias</span>
-                      <span className="text-slate-400">:</span>
-                      <span
-                        className="font-medium leading-5 text-slate-700 [overflow-wrap:anywhere]"
-                        style={{
-                          display: "-webkit-box",
-                          WebkitBoxOrient: "vertical",
-                          WebkitLineClamp: 2,
-                          overflow: "hidden",
-                        }}
-                        title={workflowAlias || "—"}
-                      >
-                        {workflowAlias || "—"}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <Mail size={13} className="shrink-0 text-slate-400" />
+                      <p className="truncate text-slate-500">{requesterEmail}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock3 size={13} className="shrink-0 text-slate-400" />
+                      <p className="text-slate-500">{requestedOn}</p>
                     </div>
                   </div>
                 </div>
-              ) : null}
+
+                {workflowName || workflowAlias ? (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workflow</p>
+                    <div className="mt-2.5 space-y-1 text-[13px]">
+                      <div className="grid grid-cols-[52px_10px_1fr] items-start">
+                        <span className="text-slate-500">Name</span>
+                        <span className="text-slate-400">:</span>
+                        <span
+                          className="font-medium leading-5 text-slate-700 break-words [overflow-wrap:anywhere]"
+                          title={workflowName || "—"}
+                        >
+                          {workflowName || "—"}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-[52px_10px_1fr] items-start">
+                        <span className="text-slate-500">Alias</span>
+                        <span className="text-slate-400">:</span>
+                        <span
+                          className="font-medium leading-5 text-slate-700 break-words [overflow-wrap:anywhere]"
+                          title={workflowAlias || "—"}
+                        >
+                          {workflowAlias || "—"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="flex items-center gap-2.5 rounded-xl bg-slate-50 px-3.5 py-2 text-[11px] text-slate-500">
             <CheckCircle2 size={13} className="text-emerald-500" />
-            <p>Approving this node will add it to the Organization Structure.</p>
+            <p>
+              {isInactiveUpdateRequest
+                ? "Approving this node will delete it from the Organization Structure."
+                : "Approving this node will add it to the Organization Structure."}
+            </p>
           </div>
 
           <div className="space-y-2">

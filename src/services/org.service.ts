@@ -112,7 +112,6 @@ const normalizeNodeTypeForApi = (nodeType: string): AllowedNodeType => {
 const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"): OrgNode => {
   const nodePath = getString(record, ["nodePath"], "");
   const nodeId = getString(record, ["id"], nodePath);
-  const nodeUuid = getString(record, ["uuid"], nodeId);
   const nodeName = getString(record, ["nodeName"], "");
   const nodeType = getString(record, ["nodeType"], "");
   if (!nodePath || !nodeName || !nodeType) {
@@ -122,6 +121,27 @@ const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"):
     typeof record.pendingRequest === "object" && record.pendingRequest !== null
       ? (record.pendingRequest as RawOrgRecord)
       : null;
+  const pendingRequestId = pendingRequest ? getString(pendingRequest, ["id"], "") : "";
+  const pendingRequestType = pendingRequest ? getString(pendingRequest, ["type"], "") : "";
+  const pendingRequestStatus = pendingRequest ? getString(pendingRequest, ["status"], "").trim().toUpperCase() : "";
+  const pendingRequestOldData =
+    pendingRequest && typeof pendingRequest.oldData === "object" && pendingRequest.oldData !== null
+      ? (pendingRequest.oldData as Record<string, unknown>)
+      : undefined;
+  const pendingRequestNewData =
+    pendingRequest && typeof pendingRequest.newData === "object" && pendingRequest.newData !== null
+      ? (pendingRequest.newData as Record<string, unknown>)
+      : undefined;
+  const shouldTreatAsPending = Boolean(pendingRequest) && (!pendingRequestStatus || pendingRequestStatus === "PENDING");
+  const nodeUuid = pendingRequestId || getString(record, ["uuid"], nodeId);
+  const requestedStatusRaw =
+    (typeof pendingRequestNewData?.status === "string" ? pendingRequestNewData.status.trim() : "") ||
+    (typeof pendingRequestOldData?.status === "string" ? pendingRequestOldData.status.trim() : "");
+  const requestedStatus = requestedStatusRaw.toUpperCase() === "INACTIVE"
+    ? "INACTIVE"
+    : requestedStatusRaw.toUpperCase() === "ACTIVE"
+      ? "ACTIVE"
+      : null;
 
   return {
     id: nodeId,
@@ -130,16 +150,37 @@ const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"):
     name: nodeName,
     nodeType,
     nodePath,
-    status,
-    pendingRequestType: pendingRequest ? getString(pendingRequest, ["type"], "") : undefined,
-    pendingOldData:
-      pendingRequest && typeof pendingRequest.oldData === "object" && pendingRequest.oldData !== null
-        ? (pendingRequest.oldData as Record<string, unknown>)
-        : undefined,
-    pendingNewData:
-      pendingRequest && typeof pendingRequest.newData === "object" && pendingRequest.newData !== null
-        ? (pendingRequest.newData as Record<string, unknown>)
-        : undefined,
+    status: shouldTreatAsPending ? "Pending" : status,
+    requestedStatus,
+    requestedByName:
+      getString(record, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"], "") ||
+      (pendingRequest
+        ? getString(pendingRequest, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"], "")
+        : "") ||
+      undefined,
+    requestedByEmail:
+      getString(record, ["requestedByEmail", "initiatorEmail", "requesterEmail", "createdByEmail"], "") ||
+      (pendingRequest
+        ? getString(pendingRequest, ["requestedByEmail", "initiatorEmail", "requesterEmail", "createdByEmail"], "")
+        : "") ||
+      undefined,
+    requestedAt:
+      getString(record, ["requestedAt", "initiatedAt", "initiatedDate", "createdAt", "requestedOn", "requestDate"], "") ||
+      (pendingRequest
+        ? getString(pendingRequest, ["requestedAt", "initiatedAt", "initiatedDate", "createdAt", "requestedOn", "requestDate"], "")
+        : "") ||
+      undefined,
+    workflowName:
+      getString(record, ["workflowName"], "") ||
+      (pendingRequest ? getString(pendingRequest, ["workflowName"], "") : "") ||
+      undefined,
+    alias:
+      getString(record, ["alias"], "") ||
+      (pendingRequest ? getString(pendingRequest, ["alias"], "") : "") ||
+      undefined,
+    pendingRequestType: pendingRequestType || undefined,
+    pendingOldData: pendingRequestOldData,
+    pendingNewData: pendingRequestNewData,
     children: [],
   };
 };

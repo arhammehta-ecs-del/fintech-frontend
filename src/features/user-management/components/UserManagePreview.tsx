@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Calendar,
+  ArrowLeftRight,
   ChevronRight,
   IdCard,
   Mail,
@@ -56,7 +57,12 @@ export function UserManagePreview({
   deleteActionLabel = "Delete User",
   deleteWorkflow = "__none__",
   deleteWorkflowOptions = [],
+  deleteRemark = "",
+  deleteRemarkPlaceholder = "Enter remark",
+  requireDeleteRemark = false,
+  deleteRemarkError = "",
   onDeleteWorkflowChange,
+  onDeleteRemarkChange,
   onConfirmDelete,
   onCancelDeleteActions,
   onRequestStatusToggle,
@@ -74,7 +80,12 @@ export function UserManagePreview({
   deleteActionLabel?: string;
   deleteWorkflow?: string;
   deleteWorkflowOptions?: Array<{ id: string; label: string }>;
+  deleteRemark?: string;
+  deleteRemarkPlaceholder?: string;
+  requireDeleteRemark?: boolean;
+  deleteRemarkError?: string;
   onDeleteWorkflowChange?: (value: string) => void;
+  onDeleteRemarkChange?: (value: string) => void;
   onConfirmDelete?: (member: AppUser) => void;
   onCancelDeleteActions?: () => void;
   onRequestStatusToggle?: (member: AppUser, isActive: boolean) => void;
@@ -82,6 +93,7 @@ export function UserManagePreview({
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isEditTooltipOpen, setIsEditTooltipOpen] = useState(false);
+  const [showPreviousData, setShowPreviousData] = useState(false);
   const [collapsedFocusedKey, setCollapsedFocusedKey] = useState<string | null>(null);
   const [pendingDecision, setPendingDecision] = useState<"approve" | "reject" | null>(null);
   const [pendingRemark, setPendingRemark] = useState("");
@@ -89,7 +101,73 @@ export function UserManagePreview({
   const remarkCardRef = useRef<HTMLDivElement | null>(null);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const { data: userData, rawReportingManagerEmail, rawReportingManagerName } = buildPreviewUserData(member);
+  const toRecord = (value: unknown) =>
+    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+  const mapRequestAccessEntries = (
+    source: unknown,
+    accessType: "PRIMARY" | "SECONDARY",
+  ): NonNullable<AppUser["accessDetails"]> => {
+    if (!Array.isArray(source)) return [];
+    return source
+      .map((row) => toRecord(row))
+      .map((row) => ({
+        roleCategory: readString(row.roleCategory).toUpperCase(),
+        roleSubCategory: readString(row.roleSubCategory),
+        roleName: readString(row.roleName),
+        nodeName: readString(row.nodeName),
+        nodePath: readString(row.nodePath),
+        nodeType: readString(row.nodeType),
+        accessCategory: ((): "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null => {
+          const normalized = readString(row.accessCategory).toUpperCase();
+          if (normalized === "ALL_CHILD" || normalized === "IMMEDIATE_CHILD" || normalized === "NODE") return normalized;
+          return null;
+        })(),
+        accessType,
+      }))
+      .filter((row) => row.nodeName || row.nodePath);
+  };
+  const requestType = (member.basicDetails?.requestType || "").trim().toUpperCase();
+  const requestOldData = toRecord(member.basicDetails?.requestOldData);
+  const requestNewData = toRecord(member.basicDetails?.requestNewData);
+  const requestOldBasicDetails = toRecord(requestOldData.basicDetails);
+  const requestNewBasicDetails = toRecord(requestNewData.basicDetails);
+  const canTogglePreviousUpdated =
+    member.status === "Pending" &&
+    requestType === "UPDATE" &&
+    (Object.keys(requestOldData).length > 0 || Object.keys(requestNewData).length > 0);
+  const selectedRequestData = showPreviousData ? requestOldData : requestNewData;
+  const selectedRequestBasicDetails = showPreviousData ? requestOldBasicDetails : requestNewBasicDetails;
+  const fallbackCurrentBasic = toRecord(member.basicDetails);
+  const effectiveBasicDetailsRecord: Record<string, unknown> = {
+    ...fallbackCurrentBasic,
+    ...selectedRequestBasicDetails,
+  };
+  const requestPrimaryAccess = mapRequestAccessEntries(selectedRequestData.primary, "PRIMARY");
+  const requestSecondaryAccess = mapRequestAccessEntries(selectedRequestData.secondary, "SECONDARY");
+  const effectiveAccessDetails =
+    requestPrimaryAccess.length > 0 || requestSecondaryAccess.length > 0
+      ? [...requestPrimaryAccess, ...requestSecondaryAccess]
+      : member.accessDetails ?? [];
+  const effectiveMember: AppUser = {
+    ...member,
+    basicDetails: {
+      ...member.basicDetails,
+      name: readString(effectiveBasicDetailsRecord.name) || member.basicDetails?.name || "",
+      email: readString(effectiveBasicDetailsRecord.email) || member.basicDetails?.email || "",
+      phone: readString(effectiveBasicDetailsRecord.phone) || member.basicDetails?.phone || "",
+      designation: readString(effectiveBasicDetailsRecord.designation) || member.basicDetails?.designation || "",
+      employeeId: readString(effectiveBasicDetailsRecord.employeeId) || member.basicDetails?.employeeId || "",
+      reportingManagerName:
+        readString(effectiveBasicDetailsRecord.reportingManagerName) || member.basicDetails?.reportingManagerName || "",
+      reportingManagerEmail:
+        readString(effectiveBasicDetailsRecord.reportingManagerEmail) || member.basicDetails?.reportingManagerEmail || "",
+      reportingManager:
+        readString(effectiveBasicDetailsRecord.reportingManager) || member.basicDetails?.reportingManager || "",
+    },
+    accessDetails: effectiveAccessDetails,
+  };
+  const { data: userData, rawReportingManagerEmail, rawReportingManagerName } = buildPreviewUserData(effectiveMember);
 
   const formattedDesignation = formatDesignation(userData.designation);
   const formattedDepartment = cleanDisplayValue(userData.department);
@@ -105,7 +183,7 @@ export function UserManagePreview({
 
   const avatar = getAvatarColor(userData.name);
 
-  const accessDetails = member.accessDetails ?? [];
+  const accessDetails = effectiveMember.accessDetails ?? [];
   const primaryItems = accessDetails.filter((a) => a.accessType === "PRIMARY");
   const secondaryItemsRaw = accessDetails.filter((a) => a.accessType !== "PRIMARY");
   const secondaryItems =
@@ -157,6 +235,11 @@ export function UserManagePreview({
       setCollapsedFocusedKey(null);
     }
   }, [collapsedFocusedKey, primaryEntries, secondaryEntries]);
+  useEffect(() => {
+    if (!canTogglePreviousUpdated) {
+      setShowPreviousData(false);
+    }
+  }, [canTogglePreviousUpdated]);
 
   const handleStartPendingAction = (action: "approve" | "reject") => {
     setPendingDecision(action);
@@ -181,6 +264,9 @@ export function UserManagePreview({
   };
 
   const statusCls = getUserStatusClass(member.status);
+  const isPendingInactiveRequest =
+    member.status === "Pending" && readString(requestNewBasicDetails.status).toUpperCase() === "INACTIVE";
+  const statusBadgeLabel = isPendingInactiveRequest ? "Request for Inactive" : (member.status || "Active");
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
@@ -197,7 +283,7 @@ export function UserManagePreview({
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-xl font-bold tracking-tight text-slate-900">{userData.name}</h2>
                 <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider", statusCls)}>
-                  {member.status || "Active"}
+                  {statusBadgeLabel}
                 </span>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -262,6 +348,29 @@ export function UserManagePreview({
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="top">User History</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
+              {canTogglePreviousUpdated ? (
+                <TooltipProvider delayDuration={120}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => setShowPreviousData((current) => !current)}
+                        className={cn(
+                          "inline-flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition",
+                          showPreviousData
+                            ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                            : "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+                        )}
+                        aria-label={showPreviousData ? "Show updated data" : "Show previous data"}
+                      >
+                        <ArrowLeftRight className="h-3.5 w-3.5" />
+                        {showPreviousData ? "Previous" : "Updated"}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">{showPreviousData ? "Showing previous data" : "Showing updated data"}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
@@ -769,7 +878,22 @@ export function UserManagePreview({
       ) : null}
       {member.status !== "Pending" && showDeleteActions ? (
         <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4">
-          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-3">
+            {requireDeleteRemark ? (
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-slate-700">
+                  Remark <span className="text-rose-600">*</span>
+                </label>
+                <Textarea
+                  value={deleteRemark}
+                  onChange={(event) => onDeleteRemarkChange?.(event.target.value)}
+                  placeholder={deleteRemarkPlaceholder}
+                  className={cn("h-11 min-h-0 resize-none", deleteRemarkError ? "border-rose-500 focus-visible:ring-rose-500/30" : "")}
+                />
+                {deleteRemarkError ? <p className="text-xs text-rose-600">{deleteRemarkError}</p> : null}
+              </div>
+            ) : null}
+            <div className="flex w-full flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={onCancelDeleteActions}>
               Cancel
             </Button>
@@ -795,6 +919,7 @@ export function UserManagePreview({
               >
                 {deleteActionLabel}
               </Button>
+            </div>
             </div>
           </div>
         </div>

@@ -17,6 +17,7 @@ type ReportingManagerOption = {
 
 type StepBasicDetailsProps = {
   basic: UserOnboardingFormData["basic"];
+  isEditMode?: boolean;
   isGlobalUserEligible: boolean;
   isGlobalSignatory: boolean;
   reportingManagerOptions: ReportingManagerOption[];
@@ -39,6 +40,7 @@ function InputGroup({
   max,
   maxLength,
   inputMode,
+  disabled = false,
   error,
 }: {
   label: string;
@@ -50,6 +52,7 @@ function InputGroup({
   max?: string;
   maxLength?: number;
   inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"];
+  disabled?: boolean;
   error?: string;
 }) {
   return (
@@ -63,10 +66,11 @@ function InputGroup({
           type={type}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          disabled={disabled}
           max={max}
           maxLength={maxLength}
           inputMode={inputMode}
-          className="h-11 w-full border-slate-200 bg-white pl-12 pr-4 placeholder:text-slate-300 focus:border-primary focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          className="h-11 w-full border-slate-200 bg-white pl-12 pr-4 placeholder:text-slate-300 focus:border-primary focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
           placeholder={placeholder}
         />
       </div>
@@ -169,6 +173,7 @@ function ReportingManagerField({
 
 export function UserOnboardingStepBasicDetails({
   basic,
+  isEditMode = false,
   isGlobalUserEligible,
   isGlobalSignatory,
   reportingManagerOptions,
@@ -201,6 +206,7 @@ export function UserOnboardingStepBasicDetails({
           }}
           type="email"
           placeholder="john.d@company.com"
+          disabled={isEditMode}
           error={errors.email}
         />
         <InputGroup

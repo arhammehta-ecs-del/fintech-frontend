@@ -289,6 +289,8 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
     const selectedWorkflow = (seedMember.basicDetails?.workflowName || "").trim();
     const selectedWorkflowAlias = (seedMember.basicDetails?.alias || "").trim();
 
+    const seedEmployeeId = seedMember.employeeId || seedMember.basicDetails?.employeeId || "";
+
     setFormData((current) => ({
       ...current,
       basic: {
@@ -296,7 +298,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
         email: seedMember.email || "",
         phone: seedMember.phone || "",
         designation: seedMember.designation || "",
-        employeeId: seedMember.employeeId || "",
+        employeeId: seedEmployeeId,
         reportingManager: seedMember.basicDetails?.reportingManagerEmail || seedMember.basicDetails?.reportingManager || "",
         reportingManagerName: seedMember.basicDetails?.reportingManagerName || seedMember.manager?.name || "",
         reportingManagerEmail: seedMember.basicDetails?.reportingManagerEmail || seedMember.manager?.email || "",
@@ -326,6 +328,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
       primaryNodeId: selectedPrimaryNodeId,
       selectedWorkflow: selectedWorkflowAlias ? `${selectedWorkflow} (${selectedWorkflowAlias})` : selectedWorkflow,
       selectedWorkflowLevelsHash: "",
+      remark: "",
     }));
     setSelectedNodeId(selectedPrimaryNodeId || orgStructure?.id || null);
     setSelectedNodeIds(nodeOrder);
@@ -342,7 +345,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
         email: seedMember.email || "",
         phone: seedMember.phone || "",
         designation: seedMember.designation || "",
-        employeeId: seedMember.employeeId || "",
+        employeeId: seedEmployeeId,
         reportingManager: seedMember.basicDetails?.reportingManagerEmail || seedMember.basicDetails?.reportingManager || "",
         reportingManagerName: seedMember.basicDetails?.reportingManagerName || seedMember.manager?.name || "",
         reportingManagerEmail: seedMember.basicDetails?.reportingManagerEmail || seedMember.manager?.email || "",
@@ -543,6 +546,14 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
     }));
   };
 
+  const updateRemark = (value: string) => {
+    clearError("remark");
+    setFormData((current) => ({
+      ...current,
+      remark: value,
+    }));
+  };
+
   const togglePermission = (
     nodeId: string,
     bucket: keyof NodePermissionBuckets,
@@ -720,9 +731,18 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
           primaryNodeId: null,
           selectedWorkflow: "",
           selectedWorkflowLevelsHash: "",
+          remark: "",
         }, { seedMember });
       }
       onOpenChange(false);
+      return;
+    }
+
+    if (seedMember && !formData.remark.trim()) {
+      setErrors((current) => ({
+        ...current,
+        remark: "Remark is required for edit requests.",
+      }));
       return;
     }
 
@@ -794,6 +814,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
         primaryNodeId,
         selectedWorkflow: formData.selectedWorkflow,
         selectedWorkflowLevelsHash: formData.selectedWorkflowLevelsHash,
+        remark: formData.remark,
       };
 
       await onSubmit(payloadFormData, { seedMember });
@@ -826,6 +847,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
     updateBasic,
     setSelectedWorkflow,
     setGlobalSignatory,
+    updateRemark,
     removeSelectedNode,
     handleNodeSelect,
     togglePermission,

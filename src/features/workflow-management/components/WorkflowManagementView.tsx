@@ -22,8 +22,9 @@ import type { WorkflowPageSize } from "@/features/workflow-management/types/work
 import { useWorkflowManagement } from "@/features/workflow-management/hooks/useWorkflowManagement";
 import { cn } from "@/lib/utils";
 import { getWorkflowPathPreview, isRootWorkflowNode } from "@/features/workflow-management/utils/workflowRecord.utils";
-import { acquireEditLock } from "@/services/edit-lock.service";
 import { useToast } from "@/hooks/use-toast";
+import { useEditLockSession } from "@/hooks/useEditLockSession";
+import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 
 const tabClassName =
   "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:shadow-sm";
@@ -143,6 +144,7 @@ function NodePathMarquee({ text }: { text: string }) {
 
 export default function WorkflowManagementView() {
   const { toast } = useToast();
+  const workflowLockSession = useEditLockSession();
   const {
     WORKFLOW_PAGE_SIZE_OPTIONS,
     activeStatus,
@@ -209,6 +211,8 @@ export default function WorkflowManagementView() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [onboardingMode, setOnboardingMode] = useState<"create" | "edit">("create");
   const [workflowSeedForEdit, setWorkflowSeedForEdit] = useState<(typeof manageWorkflow) | null>(null);
+  const [onboardingStep, setOnboardingStep] = useState(1);
+  const [showOnboardingPrevious, setShowOnboardingPrevious] = useState(false);
   const shouldUseAdaptivePendingLayout = useMemo(
     () =>
       filteredWorkflows.some(
@@ -239,6 +243,30 @@ export default function WorkflowManagementView() {
     setDraftModuleFilters([]);
     setDraftNodeNameFilters([]);
     setDraftTypeFilters([]);
+  };
+
+  const closeOnboardingDialog = async () => {
+    await workflowLockSession.stopSession(true);
+    setAddDialogOpen(false);
+    setOnboardingMode("create");
+    setWorkflowSeedForEdit(null);
+    setOnboardingStep(1);
+    setShowOnboardingPrevious(false);
+  };
+  const getWorkflowLockTarget = (workflow: NonNullable<typeof manageWorkflow>) => ({
+    type: "workflow" as const,
+    target: {
+      nodePath: (workflow.nodePath || "").trim(),
+      levelsHash: (workflow.levelsHash || workflow.workflowId || workflow.id || "").trim(),
+      subModule: (workflow.subModule || "").trim(),
+      module: (workflow.rawModule || workflow.module || "").trim(),
+    },
+  });
+
+  const closeManageWorkflowDialog = async () => {
+    await workflowLockSession.stopSession(true);
+    setManageHistoryOpen(false);
+    setManageWorkflow(null);
   };
 
   useEffect(() => {
@@ -701,14 +729,16 @@ export default function WorkflowManagementView() {
       <Dialog
         open={addDialogOpen}
         onOpenChange={(nextOpen) => {
-          setAddDialogOpen(nextOpen);
           if (!nextOpen) {
-            setOnboardingMode("create");
-            setWorkflowSeedForEdit(null);
+            void (async () => {
+              await closeOnboardingDialog();
+            })();
+            return;
           }
+          setAddDialogOpen(true);
         }}
       >
-        <DialogContent className="flex h-[90vh] w-[min(94vw,72rem)] max-w-[72rem] flex-col gap-0 overflow-hidden rounded-lg p-0">
+        <DialogContent showCloseButton={false} className="flex h-[90vh] w-[min(94vw,72rem)] max-w-[72rem] flex-col gap-0 overflow-hidden rounded-lg p-0">
           <DialogTitle className="sr-only">{onboardingMode === "edit" ? "Edit Workflow" : "Add Workflow"}</DialogTitle>
           <DialogDescription className="sr-only">
             Create a new workflow by configuring name, alias, module, node, and approval levels.
@@ -720,17 +750,41 @@ export default function WorkflowManagementView() {
               </div>
               <h2 className="text-sm font-semibold text-slate-900">{onboardingMode === "edit" ? "Edit Workflow" : "Add Workflow"}</h2>
             </div>
+            <div className="flex items-center gap-2">
+              {onboardingMode === "edit" && workflowSeedForEdit && onboardingStep === 3 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowOnboardingPrevious((current) => !current)}
+                  className={cn(
+                    "h-11 rounded-[18px] border px-6 text-lg font-semibold transition",
+                    showOnboardingPrevious
+                      ? "border-emerald-300 bg-emerald-100 text-emerald-700"
+                      : "border-[#f2c84b] bg-[#fef7dc] text-[#b85a0e]",
+                  )}
+                >
+                  {showOnboardingPrevious ? "Updated" : "Previous"}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void closeOnboardingDialog()}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
+                aria-label="Close workflow onboarding dialog"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
             <WorkflowOnboardingView
               isOpen={addDialogOpen}
               mode={onboardingMode}
               seedWorkflow={workflowSeedForEdit}
+              showPrevious={showOnboardingPrevious}
+              onStepChange={setOnboardingStep}
               onPublished={async () => {
                 await loadWorkflows();
-                setAddDialogOpen(false);
-                setOnboardingMode("create");
-                setWorkflowSeedForEdit(null);
+                await closeOnboardingDialog();
               }}
             />
           </div>
@@ -779,24 +833,41 @@ export default function WorkflowManagementView() {
         open={!!manageWorkflow}
         workflow={manageWorkflow}
         onClose={() => {
-          setManageHistoryOpen(false);
-          setManageWorkflow(null);
+          void closeManageWorkflowDialog();
         }}
         onSubmitAction={handleWorkflowAction}
-        onRequestStatusWorkflowOptions={requestStatusWorkflowOptions}
+        onRequestStatusWorkflowOptions={async (workflow) => {
+          await workflowLockSession.startSession(
+            getWorkflowLockTarget(workflow),
+            () => {
+              setManageHistoryOpen(false);
+              setManageWorkflow(null);
+              toast({
+                title: "Edit lock expired",
+                description: "No activity detected. Workflow edit form was closed.",
+                variant: "destructive",
+              });
+            },
+          );
+          return requestStatusWorkflowOptions(workflow);
+        }}
         onSubmitStatusUpdate={submitWorkflowStatusUpdate}
         onEdit={(workflow) => {
           void (async () => {
             try {
-              await acquireEditLock({
-                type: "workflow",
-                target: {
-                  nodePath: (workflow.nodePath || "").trim(),
-                  levelsHash: (workflow.levelsHash || workflow.workflowId || workflow.id || "").trim(),
-                  subModule: (workflow.subModule || "").trim(),
-                  module: (workflow.rawModule || workflow.module || "").trim(),
+              await workflowLockSession.startSession(
+                getWorkflowLockTarget(workflow),
+                () => {
+                  setAddDialogOpen(false);
+                  setWorkflowSeedForEdit(null);
+                  setOnboardingMode("create");
+                  toast({
+                    title: "Edit lock expired",
+                    description: "No activity detected. Workflow edit form was closed.",
+                    variant: "destructive",
+                  });
                 },
-              });
+              );
               setOnboardingMode("edit");
               setWorkflowSeedForEdit(workflow);
               setManageHistoryOpen(false);
@@ -832,6 +903,12 @@ export default function WorkflowManagementView() {
             : undefined
         }
         preventOutsideClose={canUseSplitManageHistory}
+      />
+      <EditLockWarningDialog
+        open={workflowLockSession.warningOpen}
+        secondsRemaining={workflowLockSession.secondsRemaining}
+        onContinue={() => void workflowLockSession.continueEditing()}
+        onCloseAndRelease={() => void workflowLockSession.endEditingNow()}
       />
       <style
         dangerouslySetInnerHTML={{

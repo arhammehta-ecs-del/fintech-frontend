@@ -42,9 +42,11 @@ export default function CompanyListToolbar({
   hasNewCompanyListEvent,
   onRefresh,
 }: CompanyListToolbarProps) {
-  const visibleStatusTabs = STATUS_TABS.filter((option) =>
-    option.id === "active" || option.id === "pending" || statusCounts[option.id] > 0,
-  );
+  const visibleStatusTabs = STATUS_TABS.filter((option) => {
+    if (option.id === "active") return true;
+    if (option.id === "pending") return statusCounts.pending > 0;
+    return statusCounts[option.id] > 0;
+  });
   const activeFilterCount = groupNameFilters.length + companyNameFilters.length + legalNameFilters.length;
   const hasAnyFilter = activeFilterCount > 0;
   const [filtersOpen, setFiltersOpen] = useState(false);

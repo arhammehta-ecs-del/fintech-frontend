@@ -116,14 +116,13 @@ export const createUserManagementActions = ({
     });
   };
 
-  const removeMember = async (targetMail: string, levelsHash?: string | null) => {
+  const removeMember = async (targetMail: string, remark: string, levelsHash?: string | null) => {
     // Temporarily disabled user edit-lock.
     // await acquireEditLock({ type: "user", target: targetMail.trim() });
     await createUserOnboarding({
       type: "archive",
       targetUserEmail: targetMail.trim() || null,
-      basicDetails: {},
-      permissions: [{}],
+      remarks: remark.trim(),
       levelsHash: levelsHash?.trim() || null,
     });
     setUsers((previous) => previous.filter((user) => user.email !== targetMail));
@@ -138,13 +137,8 @@ export const createUserManagementActions = ({
     member: AppUser,
     action: StatusAction,
     remark?: string,
-    _levelsHash?: string | null,
+    levelsHash?: string | null,
   ) => {
-    if (!member.id) {
-      toast({ title: "Action failed", description: "User ID is missing", variant: "destructive" });
-      return;
-    }
-
     try {
       if (!member.email?.trim()) {
         throw new Error("User email is missing");
@@ -153,6 +147,10 @@ export const createUserManagementActions = ({
       // await acquireEditLock({ type: "user", target: member.email.trim() });
 
       if (member.status === "Pending") {
+        if (!member.id) {
+          toast({ title: "Action failed", description: "User ID is missing", variant: "destructive" });
+          return;
+        }
         await updateUserStatus(
           member.id,
           action === "activate" ? "approve" : "reject",
@@ -163,8 +161,8 @@ export const createUserManagementActions = ({
         await createUserOnboarding({
           type: action === "activate" ? "active" : "inactive",
           targetUserEmail: member.email.trim(),
-          ...(normalizedRemark.length >= 2 ? { remarks: normalizedRemark } : {}),
-          levelsHash: null,
+          remarks: normalizedRemark,
+          levelsHash: levelsHash?.trim() || null,
         });
       }
       await loadUsers();

@@ -122,8 +122,9 @@ export async function fetchWorkflowsPaginated(
     : Array.isArray(dataPacket?.[type])
       ? (dataPacket[type] as unknown[])
       : [];
-  const fallbackActiveCount = Array.isArray(dataPacket?.active) ? dataPacket.active.length : 0;
-  const fallbackPendingCount = Array.isArray(dataPacket?.pending) ? dataPacket.pending.length : 0;
+  const packetGroups = !Array.isArray(dataPacket) && dataPacket ? dataPacket : undefined;
+  const fallbackActiveCount = Array.isArray(packetGroups?.active) ? packetGroups.active.length : 0;
+  const fallbackPendingCount = Array.isArray(packetGroups?.pending) ? packetGroups.pending.length : 0;
   return {
     rows,
     counts: {

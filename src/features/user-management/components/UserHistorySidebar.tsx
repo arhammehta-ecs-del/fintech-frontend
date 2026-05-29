@@ -6,7 +6,6 @@ import { getInitials } from "@/lib/userIdentity.utils";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
 import { fetchUserHistory } from "@/services/user.service";
-import { useAppContext } from "@/contexts/AppContext";
 
 type UserHistorySidebarProps = {
   isOpen: boolean;
@@ -202,14 +201,17 @@ export default function UserHistorySidebar({
   panelWidth,
 }: UserHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
-  const { currentUser } = useAppContext();
   const { toast } = useToast();
+  const requestNewData = toRecord(user?.basicDetails?.requestNewData);
+  const requestOldData = toRecord(user?.basicDetails?.requestOldData);
+  const effectiveUserEmail =
+    readString(user?.email) ||
+    readString(user?.basicDetails?.email) ||
+    readString(requestNewData.targetUserEmail) ||
+    readString(requestOldData.targetUserEmail);
 
   useEffect(() => {
-    // History API expects companyCode; use authenticated user's companyCode.
-    const targetCompanyCode = currentUser?.companyCode;
-
-    if (!isOpen || !user?.email || !targetCompanyCode) {
+    if (!isOpen || !effectiveUserEmail) {
       setHistoryData([]);
       return;
     }
@@ -217,7 +219,7 @@ export default function UserHistorySidebar({
     let isMounted = true;
     const loadHistory = async () => {
       try {
-        const response = await fetchUserHistory(user.email, targetCompanyCode);
+        const response = await fetchUserHistory(effectiveUserEmail);
         if (isMounted && response?.data) {
           const mappedHistory = Array.isArray(response.data)
             ? (() => {
@@ -240,7 +242,7 @@ export default function UserHistorySidebar({
                 })
                 .map((item) => item.record);
 
-              return sortedRecords.map((record, index, records) => mapUserHistoryEntry(record, user.email, index, records));
+              return sortedRecords.map((record, index, records) => mapUserHistoryEntry(record, effectiveUserEmail, index, records));
             })()
             : [];
           setHistoryData(mappedHistory);
@@ -255,7 +257,7 @@ export default function UserHistorySidebar({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, user, currentUser, toast]);
+  }, [isOpen, effectiveUserEmail, toast]);
 
   return (
     <HistorySidebar

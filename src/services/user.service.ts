@@ -224,6 +224,8 @@ const getDepartmentFromAccessDetails = (record: RawUserRecord) => {
 
 const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUser => {
   const basicDetails = toRecord(record.basicDetails);
+  const oldData = toRecord(record.oldData);
+  const newData = toRecord(record.newData);
   const name = readString(basicDetails.name).trim();
   const email = readString(basicDetails.email).trim();
   const designation = readString(basicDetails.designation).trim();
@@ -237,6 +239,8 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   const initiatedAt = readString(basicDetails.initiatedDate).trim();
   const workflowName = readString(basicDetails.workflowName).trim();
   const alias = readString(basicDetails.alias).trim();
+  const requestType = readString(record.type).trim();
+  const requestImpact = readString(record.impact).trim();
   const backendId =
     readString(record.id).trim() ||
     readString(record.userId).trim() ||
@@ -277,6 +281,10 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
       initiatedDate: initiatedAt || "",
       workflowName: workflowName || "",
       alias: alias || "",
+      requestType: requestType || "",
+      requestImpact: requestImpact || "",
+      requestOldData: oldData,
+      requestNewData: newData,
     },
     accessDetails: mapAccessDetails(record),
   };
@@ -319,12 +327,11 @@ export async function updateUserStatus(id: string, action: string, remark: strin
   });
 }
 
-export async function fetchUserHistory(email: string, companyCode: string) {
+export async function fetchUserHistory(email: string) {
   return apiFetch<UserHistoryResponse>(USER_HISTORY_PATH, {
     method: "POST",
     body: JSON.stringify({
       email,
-      companyCode,
     }),
   });
 }

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { NEW_MEMBER_STEPS } from "@/features/user-management/constants";
 import { useUserOnboardingForm } from "./useUserOnboardingForm";
@@ -42,6 +43,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
     reviewSnapshot,
     clearError,
     updateBasic,
+    updateRemark,
     setSelectedWorkflow,
     setGlobalSignatory,
     removeSelectedNode,
@@ -57,8 +59,10 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
     handlePrimaryAction,
   } = useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember });
   const [showPreviousReview, setShowPreviousReview] = useState(false);
+  const [showEditRemark, setShowEditRemark] = useState(false);
   const isGlobalSignatoryFlow = formData.isGlobalUserEligible && formData.isGlobalSignatory;
   const stepContainerRef = useRef<HTMLDivElement | null>(null);
+  const remarkSectionRef = useRef<HTMLDivElement | null>(null);
   const effectiveReviewBasic = showPreviousReview && reviewSnapshot ? reviewSnapshot.basic : formData.basic;
   const effectiveReviewNodes = showPreviousReview && reviewSnapshot ? reviewSnapshot.selectedNodes : selectedNodes;
   const effectiveReviewPrimaryNodeId = showPreviousReview && reviewSnapshot ? reviewSnapshot.primaryNodeId : primaryNodeId;
@@ -75,6 +79,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
   useEffect(() => {
     if (!open) return;
     setShowPreviousReview(false);
+    setShowEditRemark(false);
   }, [open, seedMember]);
 
   return (
@@ -83,6 +88,13 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (step === 4 && seedMember && !showEditRemark) {
+              setShowEditRemark(true);
+              requestAnimationFrame(() => {
+                remarkSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              });
+              return;
+            }
             handlePrimaryAction();
           }}
           className={cn(
@@ -178,6 +190,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
               {step === 1 ? (
                 <UserOnboardingStepBasicDetails
                   basic={formData.basic}
+                  isEditMode={Boolean(seedMember)}
                   isGlobalUserEligible={formData.isGlobalUserEligible}
                   isGlobalSignatory={formData.isGlobalSignatory}
                   reportingManagerOptions={reportingManagerOptions}
@@ -239,6 +252,22 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
             </CardContent>
           </Card>
 
+          {step === 4 && seedMember && showEditRemark ? (
+            <div ref={remarkSectionRef} className="space-y-2">
+              <label htmlFor="edit-user-remark" className="text-sm font-semibold text-slate-700">
+                Remark <span className="text-rose-600">*</span>
+              </label>
+              <Textarea
+                id="edit-user-remark"
+                value={formData.remark}
+                onChange={(event) => updateRemark(event.target.value)}
+                placeholder="Enter remark for this edit request"
+                className={cn("h-11 min-h-0 resize-none", errors.remark ? "border-rose-500 focus-visible:ring-rose-500/30" : "")}
+              />
+              {errors.remark ? <p className="text-xs text-rose-600">{errors.remark}</p> : null}
+            </div>
+          ) : null}
+
           <DialogFooter className={cn("border-t border-border bg-background px-0", step === 1 || step === 3 ? "py-3" : "py-4")}>
             <div className="flex w-full flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={step === 1 ? () => onOpenChange(false) : prevStep}>
@@ -266,7 +295,11 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
                 ) : null}
 
                 <Button type="submit" className="w-full bg-[rgb(53,83,233)] text-white hover:bg-[rgb(53,83,233)]/90 sm:w-auto">
-                  {step === 4 ? (onSubmit ? "Confirm & Create User" : "Close Preview") : "Continue"}
+                  {step === 4
+                    ? seedMember
+                      ? "Submit Changes"
+                      : (onSubmit ? "Confirm & Create User" : "Close Preview")
+                    : "Continue"}
                   {step < 4 ? <ChevronRight className="ml-2 h-4 w-4" /> : null}
                 </Button>
               </div>
