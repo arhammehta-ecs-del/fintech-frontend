@@ -35,6 +35,7 @@ export default function WorkflowOnboardingView({
     wfAlias,
     wfModule,
     wfNode,
+    workflowType,
     moduleGroups,
     departmentOptions,
     workflowOptions,
@@ -49,6 +50,7 @@ export default function WorkflowOnboardingView({
     setWfName,
     setWfModule,
     setWfNode,
+    setWorkflowType,
     setSelectedWorkflowLevelsHash,
     setRemarks,
     updateLevelApprover,
@@ -76,12 +78,14 @@ export default function WorkflowOnboardingView({
               wfName={wfName}
               wfModule={wfModule}
               wfNode={wfNode}
+              workflowType={workflowType}
               moduleGroups={moduleGroups}
               departmentOptions={departmentOptions}
               showMetaErrors={showMetaErrors}
               onSetWfName={setWfName}
               onSetWfModule={setWfModule}
               onSetWfNode={setWfNode}
+              onSetWorkflowType={setWorkflowType}
             />
           ) : null}
 
@@ -107,6 +111,7 @@ export default function WorkflowOnboardingView({
               wfName={showPrevious && seedSnapshot ? seedSnapshot.wfName : wfName}
               wfAlias={showPrevious && seedSnapshot ? seedSnapshot.wfAlias : wfAlias}
               moduleLabel={showPrevious && seedSnapshot ? seedSnapshot.selectedModuleLabel : selectedModuleLabel}
+              workflowType={workflowType || "-"}
               nodeNameLabel={showPrevious && seedSnapshot ? seedSnapshot.selectedNodeNameLabel : selectedNodeNameLabel}
               levels={showPrevious && seedSnapshot ? seedSnapshot.levels : levels}
               visibleLevels={showPrevious && seedSnapshot ? seedSnapshot.visibleLevels : visibleLevels}

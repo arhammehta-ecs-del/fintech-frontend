@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { EyeOff, Users, UserPlus } from "lucide-react";
 import type { AppUser } from "@/contexts/AppContext";
@@ -50,6 +50,7 @@ export function UserManagementView() {
     setSortOrder,
     hasNewUserEvent,
     setHasNewUserEvent,
+    hasLoadedUsersOnce,
     roles,
     accessCategories,
     accessSubcategories,
@@ -92,6 +93,7 @@ export function UserManagementView() {
     processUserStatusAction,
     loadUsers,
   } = useUserManagement();
+  const [refreshInitializedAt, setRefreshInitializedAt] = useState<number | null>(null);
   const [historyOpenForMember, setHistoryOpenForMember] = useState(false);
   const [onboardingSeedMember, setOnboardingSeedMember] = useState<AppUser | null>(null);
   const [showDeleteActions, setShowDeleteActions] = useState(false);
@@ -102,6 +104,8 @@ export function UserManagementView() {
   const [manageActionRemarkError, setManageActionRemarkError] = useState("");
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const [viewportWidth, setViewportWidth] = useState(0);
+  const pageMemberCount = useMemo(() => paginatedMembers.length, [paginatedMembers]);
+  const totalMembersForTab = statusCounts[statusTab];
   const startUserLockSession = async (member: AppUser) => {
     const targetMail = (member.email || "").trim();
     if (!targetMail) {
@@ -211,12 +215,26 @@ export function UserManagementView() {
   };
 
   useEffect(() => {
+    if (!hasLoadedUsersOnce) return;
+    if (refreshInitializedAt) return;
+    setRefreshInitializedAt(Date.now());
+  }, [hasLoadedUsersOnce, refreshInitializedAt]);
+
+  useEffect(() => {
     if (!viewingMember) {
       setHistoryOpenForMember(false);
       setShowDeleteActions(false);
       setPendingManageActionType(null);
       setDeleteWorkflowOptions([]);
+      setManageActionRemark("");
+      setManageActionRemarkError("");
     }
+  }, [viewingMember]);
+
+  useEffect(() => {
+    if (!viewingMember) return;
+    if (viewingMember.status !== "Pending") return;
+    setHistoryOpenForMember(true);
   }, [viewingMember]);
 
   useEffect(() => {
@@ -326,6 +344,7 @@ export function UserManagementView() {
         sortOrder={sortOrder}
         onSortOrderChange={setSortOrder}
         hasNewUserEvent={hasNewUserEvent}
+        refreshInitializedAt={refreshInitializedAt}
         onRefresh={async () => {
           await loadUsers(true);
           setHasNewUserEvent(false);
@@ -382,6 +401,9 @@ export function UserManagementView() {
 
           <UserPagination
             currentCount={currentMembers.length}
+            recordCurrentCount={pageMemberCount}
+            recordTotalCount={totalMembersForTab}
+            recordLabel="Records"
             pageSize={pageSize}
             onPageSizeChange={setPageSize}
             safePage={safePage}
@@ -544,7 +566,6 @@ export function UserManagementView() {
               }
               deleteWorkflow={deleteWorkflow}
               deleteWorkflowOptions={deleteWorkflowOptions}
-              onDeleteWorkflowChange={setDeleteWorkflow}
               deleteRemark={manageActionRemark}
               deleteRemarkError={manageActionRemarkError}
               requireDeleteRemark={
@@ -559,8 +580,9 @@ export function UserManagementView() {
                     ? "Enter remark for set inactive request"
                     : pendingManageActionType === "active"
                       ? "Enter remark for set active request"
-                    : "Enter remark"
+                      : "Enter remark"
               }
+              onDeleteWorkflowChange={setDeleteWorkflow}
               onDeleteRemarkChange={(value) => {
                 setManageActionRemark(value);
                 if (manageActionRemarkError) setManageActionRemarkError("");
@@ -575,16 +597,14 @@ export function UserManagementView() {
                   setManageActionRemarkError("");
                 })();
               }}
-              onToggleHistory={
-                viewingMember.status === "Pending" ? () => setHistoryOpenForMember((current) => !current) : undefined
-              }
+              onToggleHistory={() => setHistoryOpenForMember((current) => !current)}
               isHistoryOpen={historyOpenForMember}
             />
           ) : null}
         </DialogContent>
       </Dialog>
 
-      {viewingMember?.status === "Pending" ? (
+      {viewingMember ? (
         <UserHistorySidebar
           isOpen={historyOpenForMember}
           onClose={() => setHistoryOpenForMember(false)}

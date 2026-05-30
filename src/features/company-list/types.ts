@@ -67,6 +67,7 @@ export type CompanyListToolbarProps = {
   onOpenOnboarding: () => void;
   hasNewCompanyListEvent: boolean;
   onRefresh: () => void | Promise<void>;
+  refreshInitializedAt?: number | null;
 };
 
 // export type CompanyListMobileListProps = {

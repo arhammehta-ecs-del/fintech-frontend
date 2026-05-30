@@ -11,12 +11,14 @@ import { useCompanyList } from "@/features/company-list/hooks/useCompanyList";
 import { RemarkDialog } from "@/components/RemarkDialog";
 import PaginationFooter from "@/components/PaginationFooter";
 import type { CompanyOnboardingWizardRendererProps } from "@/features/company-list/types";
+import { useEffect, useMemo, useState } from "react";
 
 type CompanyListViewProps = {
   CompanyOnboardingWizardRenderer: ComponentType<CompanyOnboardingWizardRendererProps>;
 };
 
 export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyListViewProps) {
+  const [refreshInitializedAt, setRefreshInitializedAt] = useState<number | null>(null);
   const {
     setGroups,
     expanded,
@@ -71,7 +73,18 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     setHasNewCompanyListEvent,
   } = useCompanyList();
 
+  useEffect(() => {
+    if (isLoading || error) return;
+    if (refreshInitializedAt) return;
+    setRefreshInitializedAt(Date.now());
+  }, [isLoading, error, refreshInitializedAt]);
+
   const { dragState, handleDragStart, handleDragEnd, handleDragOver, handleDrop } = useCompanyDrag(setGroups);
+  const pageCompanyCount = useMemo(
+    () => paginatedDisplayRows.filter((row) => row.type === "company").length,
+    [paginatedDisplayRows],
+  );
+  const totalCompaniesForTab = statusCounts[selectedStatusTab];
 
   return (
     <div className="space-y-6">
@@ -95,6 +108,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
         onClearAdvancedFilters={clearAdvancedFilters}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
         hasNewCompanyListEvent={hasNewCompanyListEvent}
+        refreshInitializedAt={refreshInitializedAt}
         onRefresh={async () => {
           await refreshCompanies(true);
           setHasNewCompanyListEvent(false);
@@ -136,6 +150,9 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
           </div>
           <PaginationFooter
             currentCount={displayRows.length}
+            recordCurrentCount={pageCompanyCount}
+            recordTotalCount={totalCompaniesForTab}
+            recordLabel="Records"
             pageSize={pageSize}
             pageSizeOptions={pageSizeOptions}
             onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}
@@ -151,6 +168,9 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
       {!isLoading && !error && displayRows.length > 0 ? (
         <PaginationFooter
           currentCount={displayRows.length}
+          recordCurrentCount={pageCompanyCount}
+          recordTotalCount={totalCompaniesForTab}
+          recordLabel="Records"
           pageSize={pageSize}
           pageSizeOptions={pageSizeOptions}
           onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}

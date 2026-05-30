@@ -6,6 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 type PaginationFooterProps = {
   currentCount: number;
+  recordCurrentCount?: number;
+  recordTotalCount?: number;
+  recordLabel?: string;
   pageSize: number;
   pageSizeOptions: readonly number[];
   onPageSizeChange: (value: number) => void;
@@ -19,6 +22,9 @@ type PaginationFooterProps = {
 
 export default function PaginationFooter({
   currentCount,
+  recordCurrentCount,
+  recordTotalCount,
+  recordLabel = "Records",
   pageSize,
   pageSizeOptions,
   onPageSizeChange,
@@ -36,6 +42,15 @@ export default function PaginationFooter({
   }, [safePage]);
 
   if (currentCount <= 0) return null;
+  const summaryCurrent = recordCurrentCount ?? currentCount;
+  const showBoundedSummary =
+    typeof recordTotalCount === "number" &&
+    Number.isFinite(recordTotalCount) &&
+    recordTotalCount >= 0 &&
+    summaryCurrent <= recordTotalCount;
+  const summaryText = showBoundedSummary
+    ? `${recordLabel}: ${summaryCurrent} of ${recordTotalCount}`
+    : `${recordLabel}: ${summaryCurrent}`;
 
   const commitPageInput = () => {
     const parsed = Number(pageInput);
@@ -65,6 +80,9 @@ export default function PaginationFooter({
       </div>
 
       <div className="flex items-center gap-3">
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+          {summaryText}
+        </span>
         <Button variant="ghost" size="sm" onClick={onPrevPage} disabled={safePage === 1}>
           <ChevronLeft className="mr-1 h-4 w-4" />
           Prev

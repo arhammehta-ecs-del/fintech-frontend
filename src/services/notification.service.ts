@@ -48,6 +48,17 @@ type NotificationFetchResponse = {
   hasNextPage?: boolean;
 };
 
+export type NotificationFetchResult = {
+  data: NotificationSsePacket[];
+  count: number;
+  limit: number;
+  offset: number;
+  status: string;
+  cursorId: string | null;
+  nextCursorId: string | null;
+  hasNextPage: boolean;
+};
+
 type NotificationSseCallbacks = {
   onNotification: (packet: NotificationSsePacket) => void;
   onError?: (error: Event) => void;
@@ -93,6 +104,27 @@ export async function fetchNotificationPage(payload: NotificationFetchRequest) {
     body: JSON.stringify(payload),
   });
 
-  if (Array.isArray(response)) return response;
-  return Array.isArray(response.data) ? response.data : [];
+  if (Array.isArray(response)) {
+    return {
+      data: response,
+      count: response.length,
+      limit: payload.limit,
+      offset: payload.offset,
+      status: payload.status,
+      cursorId: null,
+      nextCursorId: null,
+      hasNextPage: false,
+    } as NotificationFetchResult;
+  }
+
+  return {
+    data: Array.isArray(response.data) ? response.data : [],
+    count: Number(response.count ?? 0),
+    limit: Number(response.limit ?? payload.limit),
+    offset: Number(response.offset ?? payload.offset),
+    status: String(response.status ?? payload.status),
+    cursorId: response.cursorId ?? null,
+    nextCursorId: response.nextCursorId ?? null,
+    hasNextPage: Boolean(response.hasNextPage),
+  } as NotificationFetchResult;
 }

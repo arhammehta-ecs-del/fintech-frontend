@@ -6,7 +6,7 @@ import { getCompanyRoles } from "@/services/role.service";
 import { fetchCompanyNodes } from "@/services/user.service";
 import { createWorkflow } from "@/services/workflow.service";
 import { acquireEditLock } from "@/services/edit-lock.service";
-import type { ModuleGroup, WorkflowStep } from "@/features/workflow-management/components/onboarding/types";
+import type { ModuleGroup, WorkflowStep, WorkflowTypeScope } from "@/features/workflow-management/components/onboarding/types";
 import { createResetLevels, getCategoryLabel, INITIAL_LEVELS, formatTokenLabel, toApiApprover } from "@/features/workflow-management/utils/workflowOnboarding.utils";
 import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 
@@ -93,6 +93,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
   const [wfAlias, setWfAlias] = useState("");
   const [wfModule, setWfModule] = useState("");
   const [wfNode, setWfNode] = useState("");
+  const [workflowType, setWorkflowType] = useState<WorkflowTypeScope | "">("");
 
   const [moduleGroups, setModuleGroups] = useState<ModuleGroup[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string; nodeType?: string }>>([]);
@@ -111,8 +112,6 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     levels: typeof INITIAL_LEVELS;
     visibleLevels: number;
   } | null>(null);
-
-  const isWorkflowMetaComplete = [wfName, wfModule, wfNode].every((value) => Boolean(String(value).trim()));
 
   const isRMUsedGlobally = useMemo(
     () => levels.slice(0, visibleLevels).some((level) => level.approvals.some((approval) => approval.option === "reporting_manager")),
@@ -140,6 +139,20 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     }
     return "";
   }, [moduleGroups, wfModule]);
+
+  const isWorkflowMetaComplete = useMemo(() => {
+    if (!wfName.trim() || !wfModule.trim() || !wfNode.trim()) return false;
+    if (!workflowType.trim()) return false;
+    return true;
+  }, [wfModule, wfName, wfNode, workflowType]);
+
+  useEffect(() => {
+    if (!wfModule.trim()) {
+      if (workflowType) setWorkflowType("");
+      return;
+    }
+    if (!workflowType) setWorkflowType("ALL CHILD");
+  }, [wfModule, workflowType]);
 
   useEffect(() => {
     if (!errorMsg) return;
@@ -273,6 +286,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
       setWfAlias(seedWorkflow.alias === "-" ? "" : seedWorkflow.alias || "");
       setWfModule(seedWorkflow.subModule || "");
       setWfNode(seedWorkflow.nodePath || "");
+      setWorkflowType("ALL CHILD");
       setSelectedWorkflowLevelsHash(seedWorkflow.levelsHash || "");
       setLevels(nextLevels);
       return;
@@ -283,6 +297,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     setWfAlias("");
     setWfModule("");
     setWfNode("");
+    setWorkflowType("");
     setSelectedWorkflowLevelsHash("");
     setRemarks("");
     setLevels(createResetLevels());
@@ -442,6 +457,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
         ...(wfAlias.trim() ? { alias: wfAlias.trim() } : {}),
         module: normalizedModule,
         subModule: normalizedSubModule,
+        workflowType,
         ...(normalizedNodePath ? { nodePath: normalizedNodePath } : {}),
         levels: payloadLevels,
         levelsHash: selectedWorkflowLevelsHash.trim() || null,
@@ -470,6 +486,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     wfAlias,
     wfModule,
     wfNode,
+    workflowType,
     moduleGroups,
     departmentOptions,
     workflowOptions,
@@ -485,6 +502,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     setWfAlias,
     setWfModule,
     setWfNode,
+    setWorkflowType,
     setSelectedWorkflowLevelsHash,
     setRemarks,
     updateLevelApprover,

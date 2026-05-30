@@ -51,10 +51,6 @@ export const createUserManagementActions = ({
         throw new Error("Company node name/path is missing for signatory onboarding.");
       }
       const isUpdateRequest = Boolean(context?.seedMember);
-      if (isUpdateRequest && context?.seedMember?.email?.trim()) {
-        // Temporarily disabled user edit-lock.
-        // await acquireEditLock({ type: "user", target: context.seedMember.email.trim() });
-      }
       const response = isGlobalSignatoryFlow
         ? await createUserOnboarding(
           buildSignatoryOnboardingPayload(userData, {
@@ -117,8 +113,7 @@ export const createUserManagementActions = ({
   };
 
   const removeMember = async (targetMail: string, remark: string, levelsHash?: string | null) => {
-    // Temporarily disabled user edit-lock.
-    // await acquireEditLock({ type: "user", target: targetMail.trim() });
+
     await createUserOnboarding({
       type: "archive",
       targetUserEmail: targetMail.trim() || null,

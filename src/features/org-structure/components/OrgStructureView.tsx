@@ -17,6 +17,7 @@ import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import type { NewNodeType } from "@/features/org-structure/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
+import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 
 export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [, setSearchParams] = useSearchParams();
@@ -83,6 +84,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [historyParentNodePath, setHistoryParentNodePath] = useState("");
   const [historyViewContext, setHistoryViewContext] = useState<"active" | "pending">("active");
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
+  const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
   const historyLayoutOffset =
     isOrgHistoryOpen && historyViewContext === "pending" ? { top: 0, left: 0 } : shellOffset;
 
@@ -114,6 +116,13 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (orgLoading) return;
+    if (!orgStructure) return;
+    if (lastRefreshedAt) return;
+    markRefreshed();
+  }, [orgLoading, orgStructure, lastRefreshedAt, markRefreshed]);
+
   const displayedStructure = useMemo(() => {
     if (showPending || !orgStructure) return orgStructure;
     return filterPendingNodes(orgStructure);
@@ -130,6 +139,19 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     if (!orgStructure || !newNodeParent?.id) return [];
     return collectNodeTrail(orgStructure, newNodeParent.id);
   }, [orgStructure, newNodeParent]);
+
+  useEffect(() => {
+    if (!pendingNodeForReview) return;
+    const currentNodePath = (pendingNodeForReview.nodePath || "").trim();
+    const parentPath = currentNodePath.includes(".")
+      ? currentNodePath.split(".").slice(0, -1).join(".").trim()
+      : "";
+    setHistoryNodeName(pendingNodeForReview.name.trim());
+    setHistoryNodePath(currentNodePath);
+    setHistoryParentNodePath(parentPath);
+    setHistoryViewContext("pending");
+    setIsOrgHistoryOpen(true);
+  }, [pendingNodeForReview]);
 
   const handleNavigateToUsers = ({
     nodeName,
@@ -222,28 +244,36 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                       )}
                     </button>
                   ) : null}
-                  <TooltipProvider delayDuration={120}>
-                    <Tooltip open={hasNewOrgEvent ? true : undefined}>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          aria-label="Refresh organisation structure"
-                          onClick={async () => {
-                            await refreshOrgStructure();
-                            setHasNewOrgEvent(false);
-                          }}
-                          className={cn(
-                            "flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900",
-                            hasNewOrgEvent &&
-                              "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
-                          )}
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </button>
-                      </TooltipTrigger>
-                      {hasNewOrgEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
-                    </Tooltip>
-                  </TooltipProvider>
+                  <div className="relative flex h-10 w-10 items-center justify-center">
+                    <TooltipProvider delayDuration={120}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label="Refresh organisation structure"
+                            onClick={async () => {
+                              await refreshOrgStructure();
+                              setHasNewOrgEvent(false);
+                              markRefreshed();
+                            }}
+                            className={cn(
+                              "flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900",
+                              hasNewOrgEvent &&
+                                "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
+                            )}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </button>
+                        </TooltipTrigger>
+                        {hasNewOrgEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
+                      </Tooltip>
+                    </TooltipProvider>
+                    {refreshLabel ? (
+                      <p className="pointer-events-none absolute top-full right-0 mt-1 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                        {refreshLabel}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
@@ -394,6 +424,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
       <OrgStatusUpdatePopup
         open={Boolean(statusUpdateNode)}
         nodeName={statusUpdateNode?.name || ""}
+        nodeTrail={statusUpdateNode?.breadcrumbs || []}
         nodeType={statusUpdateNode?.nodeType || ""}
         selectedLevelsHash={statusUpdateWorkflowHash}
         remarks={statusUpdateRemarks}

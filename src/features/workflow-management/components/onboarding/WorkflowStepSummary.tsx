@@ -7,6 +7,7 @@ type WorkflowStepSummaryProps = {
   wfName: string;
   wfAlias: string;
   moduleLabel: string;
+  workflowType: string;
   nodeNameLabel: string;
   levels: WorkflowLevel[];
   visibleLevels: number;
@@ -38,6 +39,7 @@ export default function WorkflowStepSummary({
   wfName,
   wfAlias,
   moduleLabel,
+  workflowType,
   nodeNameLabel,
   levels,
   visibleLevels,
@@ -45,10 +47,11 @@ export default function WorkflowStepSummary({
   return (
     <div className="flex h-full flex-col overflow-hidden bg-white p-6">
       <div className="mb-5 flex-none rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="grid grid-cols-1 gap-4 divide-y divide-slate-200 md:grid-cols-4 md:gap-6 md:divide-y-0 md:divide-x">
+        <div className="grid grid-cols-1 gap-4 divide-y divide-slate-200 md:grid-cols-5 md:gap-6 md:divide-y-0 md:divide-x">
           <HorizontalInfo label="Workflow Name" value={wfName} icon={<Zap className="h-3 w-3.5 text-blue-500" />} />
           <HorizontalInfo label="Process Alias" value={wfAlias} icon={<Layers className="h-3 w-3.5 text-purple-500" />} className="pt-3 md:pl-6 md:pt-0" />
           <HorizontalInfo label="Module" value={moduleLabel} icon={<Briefcase className="h-3 w-3.5 text-indigo-500" />} className="pt-3 md:pl-6 md:pt-0" />
+          <HorizontalInfo label="Workflow Type" value={workflowType} icon={<Settings2 className="h-3 w-3.5 text-cyan-500" />} className="pt-3 md:pl-6 md:pt-0" />
           <HorizontalInfo label="Node Name" value={nodeNameLabel} icon={<Building2 className="h-3 w-3.5 text-emerald-500" />} className="pt-3 md:pl-6 md:pt-0" />
         </div>
       </div>

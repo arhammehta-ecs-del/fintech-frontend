@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronLeft, ChevronRight, Eye, Filter, Plus, RefreshCw, Search, Settings, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, Eye, Filter, Plus, RefreshCw, Search, Settings, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -12,19 +12,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import WorkflowOnboardingView from "@/features/workflow-management/components/WorkflowOnboardingView";
 import WorkflowHistorySidebar from "./WorkflowHistorySidebar";
 import { History } from "lucide-react";
 import WorkflowManageDialog from "./WorkflowManageDialog";
-import type { WorkflowPageSize } from "@/features/workflow-management/types/workflow.types";
 import { useWorkflowManagement } from "@/features/workflow-management/hooks/useWorkflowManagement";
 import { cn } from "@/lib/utils";
-import { getWorkflowPathPreview, isRootWorkflowNode } from "@/features/workflow-management/utils/workflowRecord.utils";
+import { getWorkflowPathPreview, isRootWorkflowNode, isWorkflowUpdateRequest } from "@/features/workflow-management/utils/workflowRecord.utils";
 import { useToast } from "@/hooks/use-toast";
 import { useEditLockSession } from "@/hooks/useEditLockSession";
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
+import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
+import PaginationFooter from "@/components/PaginationFooter";
 
 const tabClassName =
   "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:shadow-sm";
@@ -190,6 +190,7 @@ export default function WorkflowManagementView() {
     submitWorkflowStatusUpdate,
     hasNewWorkflowEvent,
     setHasNewWorkflowEvent,
+    hasLoadedWorkflowsOnce,
   } = useWorkflowManagement();
 
   const visibleTabs = [
@@ -215,6 +216,7 @@ export default function WorkflowManagementView() {
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [showOnboardingPrevious, setShowOnboardingPrevious] = useState(false);
   const [manageLockArmed, setManageLockArmed] = useState(false);
+  const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
   const shouldUseAdaptivePendingLayout = useMemo(
     () =>
       filteredWorkflows.some(
@@ -227,6 +229,12 @@ export default function WorkflowManagementView() {
   const workflowGridTemplateClass = shouldUseAdaptivePendingLayout
     ? ADAPTIVE_PENDING_WORKFLOW_TABLE_GRID
     : DEFAULT_WORKFLOW_TABLE_GRID;
+  const totalWorkflowsForTab =
+    activeStatus === "Pending"
+      ? statusCounts.pending
+      : activeStatus === "Inactive"
+        ? statusCounts.inactive
+        : statusCounts.active;
 
   const toggleValue = (current: string[], value: string) =>
     current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
@@ -266,8 +274,7 @@ export default function WorkflowManagementView() {
   });
 
   const closeManageWorkflowDialog = async () => {
-    const normalizedRequestType = (manageWorkflow?.pendingRequestType || "").trim().toUpperCase();
-    const isPendingLike = manageWorkflow?.status === "Pending" || normalizedRequestType === "UPDATE";
+    const isPendingLike = !!manageWorkflow && (manageWorkflow.status === "Pending" || isWorkflowUpdateRequest(manageWorkflow));
     const isInactive = manageWorkflow?.status === "Inactive";
     const shouldReleaseLock = !isPendingLike && !isInactive && manageLockArmed;
     await workflowLockSession.stopSession(shouldReleaseLock);
@@ -326,6 +333,12 @@ export default function WorkflowManagementView() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!hasLoadedWorkflowsOnce && filteredWorkflows.length === 0) return;
+    if (lastRefreshedAt) return;
+    markRefreshed();
+  }, [filteredWorkflows.length, hasLoadedWorkflowsOnce, lastRefreshedAt, markRefreshed]);
+
   const availableContentWidth = Math.max(0, viewportWidth - shellOffset.left);
   const MIN_DIALOG_SPLIT_WIDTH = 860;
   const MIN_HISTORY_WIDTH = 420;
@@ -336,8 +349,7 @@ export default function WorkflowManagementView() {
   );
   const manageWorkflowIsPendingLike =
     !!manageWorkflow &&
-    (manageWorkflow.status === "Pending" ||
-      (manageWorkflow.pendingRequestType || "").trim().toUpperCase() === "UPDATE");
+    (manageWorkflow.status === "Pending" || isWorkflowUpdateRequest(manageWorkflow));
   const canSplitManageHistoryLayout =
     manageWorkflowIsPendingLike &&
     availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
@@ -349,6 +361,12 @@ export default function WorkflowManagementView() {
   const splitWorkflowDockOffset = canSplitManageHistoryLayout
     ? { top: Math.max(0, shellOffset.top - splitHistoryTopOverlap), left: shellOffset.left }
     : shellOffset;
+
+  useEffect(() => {
+    if (!manageWorkflow) return;
+    if (!(manageWorkflow.status === "Pending" || isWorkflowUpdateRequest(manageWorkflow))) return;
+    setManageHistoryOpen(true);
+  }, [manageWorkflow]);
 
   return (
     <div className="space-y-4">
@@ -553,30 +571,38 @@ export default function WorkflowManagementView() {
               </PopoverContent>
             </Popover>
 
-            <TooltipProvider delayDuration={120}>
-              <Tooltip open={hasNewWorkflowEvent ? true : undefined}>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Refresh workflows"
-                    onClick={async () => {
-                      await loadWorkflows();
-                      setHasNewWorkflowEvent(false);
-                    }}
-                    className={cn(
-                      "h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm",
-                      hasNewWorkflowEvent &&
-                        "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
-                    )}
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                {hasNewWorkflowEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
-              </Tooltip>
-            </TooltipProvider>
+            <div className="relative flex h-12 w-12 items-center justify-center">
+              <TooltipProvider delayDuration={120}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Refresh workflows"
+                      onClick={async () => {
+                        await loadWorkflows();
+                        setHasNewWorkflowEvent(false);
+                        markRefreshed();
+                      }}
+                      className={cn(
+                        "h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm",
+                        hasNewWorkflowEvent &&
+                          "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
+                      )}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  {hasNewWorkflowEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            {refreshLabel ? (
+              <p className="pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-xs font-medium leading-none text-muted-foreground">
+                {refreshLabel}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
@@ -648,21 +674,15 @@ export default function WorkflowManagementView() {
                   <div className="truncate whitespace-nowrap text-sm text-slate-700">{workflow.nodeType}</div>
                   <div>
                     <div className="flex items-center gap-2">
-                      {(workflow.pendingRequestType || "").trim().toUpperCase() !== "UPDATE" ? (
-                        <span
-                          className={cn(
-                            "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
-                            statusBadgeClassName[workflow.status] ?? "border-slate-200 bg-slate-50 text-slate-700",
-                          )}
-                        >
-                          {workflow.status}
-                        </span>
-                      ) : null}
-                      {(workflow.pendingRequestType || "").trim().toUpperCase() === "UPDATE" ? (
-                        <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                          Update
-                        </span>
-                      ) : null}
+                      <span
+                        className={cn(
+                          "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
+                          statusBadgeClassName[isWorkflowUpdateRequest(workflow) ? "Pending" : workflow.status]
+                            ?? "border-slate-200 bg-slate-50 text-slate-700",
+                        )}
+                      >
+                        {isWorkflowUpdateRequest(workflow) ? "Pending" : workflow.status}
+                      </span>
                     </div>
                   </div>
                   <div className="flex md:justify-center">
@@ -695,42 +715,21 @@ export default function WorkflowManagementView() {
           </div>
         )}
         {filteredWorkflows.length > 0 ? (
-          <div className="shrink-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Rows/page</span>
-              <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value) as WorkflowPageSize)}>
-                <SelectTrigger className="h-9 w-[84px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {WORKFLOW_PAGE_SIZE_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={String(option)}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" onClick={() => void handlePrevPage()} disabled={safePage === 1}>
-                <ChevronLeft className="mr-1 h-4 w-4" />
-                Prev
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {safePage} of {totalPages}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void handleNextPage()}
-                disabled={safePage === totalPages}
-              >
-                Next
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          <PaginationFooter
+            currentCount={filteredWorkflows.length}
+            recordCurrentCount={paginatedWorkflows.length}
+            recordTotalCount={totalWorkflowsForTab}
+            recordLabel="Records"
+            pageSize={pageSize}
+            pageSizeOptions={WORKFLOW_PAGE_SIZE_OPTIONS}
+            onPageSizeChange={(value) => setPageSize(value as typeof pageSize)}
+            safePage={safePage}
+            totalPages={totalPages}
+            onPrevPage={() => void handlePrevPage()}
+            onNextPage={() => void handleNextPage()}
+            onJumpToPage={(value) => void handleJumpToPage(value)}
+            className="shrink-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          />
         ) : null}
       </div>
 

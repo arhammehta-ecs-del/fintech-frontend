@@ -47,6 +47,7 @@ export function useWorkflowManagement() {
   const [manageWorkflow, setManageWorkflow] = useState<WorkflowRecord | null>(null);
   const [workflows, setWorkflows] = useState<WorkflowRecord[]>([]);
   const [hasNewWorkflowEvent, setHasNewWorkflowEvent] = useState(false);
+  const [hasLoadedWorkflowsOnce, setHasLoadedWorkflowsOnce] = useState(false);
 
   useEffect(() => {
     const trimmedSearch = search.trim();
@@ -85,6 +86,7 @@ export function useWorkflowManagement() {
       });
       const mapped = response.rows.map((row) => mapWorkflowRecord(row, activeStatus));
       setWorkflows(mapped);
+      setHasLoadedWorkflowsOnce(true);
       setStatusCounts(response.counts);
       setPage(params.targetPage);
       setTopCursor(response.pageInfo.topCursor || params.topCursor || null);
@@ -437,5 +439,6 @@ export function useWorkflowManagement() {
     submitWorkflowStatusUpdate,
     hasNewWorkflowEvent,
     setHasNewWorkflowEvent,
+    hasLoadedWorkflowsOnce,
   };
 }

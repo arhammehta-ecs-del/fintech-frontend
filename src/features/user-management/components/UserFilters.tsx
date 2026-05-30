@@ -17,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { formatRoleTokenLabel } from "@/features/user-management/roleLabels";
 import type { MemberStatusTab, SortOrder } from "@/features/user-management/types";
+import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 
 const STATUS_TABS: Array<{ id: MemberStatusTab; label: string }> = [
   { id: "active", label: "Active" },
@@ -68,6 +69,7 @@ type UserFiltersProps = {
   onSortOrderChange: (value: SortOrder) => void;
   hasNewUserEvent: boolean;
   onRefresh: () => void | Promise<void>;
+  refreshInitializedAt?: number | null;
   roles: string[];
   accessCategories: string[];
   accessSubcategories: string[];
@@ -106,6 +108,7 @@ export default function UserFilters({
   onApplyAdvancedFilters,
   hasNewUserEvent,
   onRefresh,
+  refreshInitializedAt,
   onSortOrderChange,
   roles,
   accessCategories,
@@ -137,6 +140,7 @@ export default function UserFilters({
   const [draftPrimaryNodeFilters, setDraftPrimaryNodeFilters] = useState<string[]>(primaryNodeFilters);
   const [draftSecondaryNodeFilters, setDraftSecondaryNodeFilters] = useState<string[]>(secondaryNodeFilters);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const { refreshLabel, markRefreshed } = useRefreshTimestamp({ initializedAt: refreshInitializedAt });
 
   const toggleValue = (current: string[], value: string) =>
     current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
@@ -387,29 +391,37 @@ export default function UserFilters({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <TooltipProvider delayDuration={120}>
-            <Tooltip open={hasNewUserEvent ? true : undefined}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Refresh users"
-                  onClick={() => {
-                    void onRefresh();
-                  }}
-                  className={cn(
-                    "h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm",
-                    hasNewUserEvent &&
-                      "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
-                  )}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              {hasNewUserEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
-            </Tooltip>
-          </TooltipProvider>
+          <div className="relative flex h-12 w-12 items-center justify-center">
+            <TooltipProvider delayDuration={120}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Refresh users"
+                    onClick={async () => {
+                      await onRefresh();
+                      markRefreshed();
+                    }}
+                    className={cn(
+                      "h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm",
+                      hasNewUserEvent &&
+                        "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
+                    )}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                {hasNewUserEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          {refreshLabel ? (
+            <p className="pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-xs font-medium leading-none text-muted-foreground">
+              {refreshLabel}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

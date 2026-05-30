@@ -104,19 +104,27 @@ export function AppTopBar({
   };
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [pastNotifications, setPastNotifications] = useState<NotificationItem[]>([]);
-  const [pastLoading, setPastLoading] = useState(false);
-  const INITIAL_VISIBLE_NOTIFICATIONS = 7;
-  const [showAllNotifications, setShowAllNotifications] = useState(false);
+  const [dialogNotifications, setDialogNotifications] = useState<NotificationItem[]>([]);
+  const [dialogLoading, setDialogLoading] = useState(false);
+  const [dialogLoadingMore, setDialogLoadingMore] = useState(false);
+  const [dialogOffset, setDialogOffset] = useState(0);
+  const [dialogHasNextPage, setDialogHasNextPage] = useState(false);
+  const [unreadTotalCount, setUnreadTotalCount] = useState(0);
+  const [allNotificationCount, setAllNotificationCount] = useState(0);
+  const INITIAL_VISIBLE_NOTIFICATIONS = 10;
   const [allNotificationsOpen, setAllNotificationsOpen] = useState(false);
   const [notificationsPopoverOpen, setNotificationsPopoverOpen] = useState(false);
   const COMPACT_NOTIFICATIONS_LIMIT = 10;
+  const DIALOG_PAGE_SIZE = 50;
   const TODAY_ONLY_THRESHOLD = 3;
 
   useEffect(() => {
     const disconnect = connectNotificationStream({
       onNotification: (packet) => {
         const incoming = mapPacketToNotification(packet);
+        if (incoming.unread) {
+          setUnreadTotalCount((current) => current + 1);
+        }
         setNotifications((current) => {
           const withoutDuplicate = current.filter((item) => item.id !== incoming.id);
           return [incoming, ...withoutDuplicate].sort(
@@ -135,16 +143,17 @@ export function AppTopBar({
     let isActive = true;
     const loadUnreadNotifications = async () => {
       try {
-        const packets = await fetchNotificationPage({
-          status: "ALL",
+        const response = await fetchNotificationPage({
+          status: "UNREAD",
           limit: COMPACT_NOTIFICATIONS_LIMIT,
           offset: 0,
         });
         if (!isActive) return;
-        const nextNotifications = packets
+        const nextNotifications = response.data
           .map(mapPacketToNotification)
           .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
         setNotifications(nextNotifications);
+        setUnreadTotalCount(response.count || nextNotifications.length);
       } catch {
         if (!isActive) return;
       }
@@ -177,20 +186,19 @@ export function AppTopBar({
     startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
 
     return {
-      todayDialogNotifications: pastNotifications.filter((item) => {
+      todayDialogNotifications: dialogNotifications.filter((item) => {
         const d = new Date(item.occurredAt);
         return d >= startOfToday && d < startOfTomorrow;
       }),
-      yesterdayNotifications: pastNotifications.filter((item) => {
+      yesterdayNotifications: dialogNotifications.filter((item) => {
         const d = new Date(item.occurredAt);
         return d >= startOfYesterday && d < startOfToday;
       }),
-      olderNotifications: pastNotifications.filter((item) => new Date(item.occurredAt) < startOfYesterday),
-      upcomingNotifications: pastNotifications.filter((item) => new Date(item.occurredAt) >= startOfTomorrow),
+      olderNotifications: dialogNotifications.filter((item) => new Date(item.occurredAt) < startOfYesterday),
+      upcomingNotifications: dialogNotifications.filter((item) => new Date(item.occurredAt) >= startOfTomorrow),
     };
-  }, [pastNotifications]);
+  }, [dialogNotifications]);
 
-  const unreadCount = useMemo(() => notifications.reduce((total, item) => total + (item.unread ? 1 : 0), 0), [notifications]);
   const compactNotifications = useMemo(() => {
     const nonTodayNotifications = notifications.filter((item) => !todaysNotifications.some((today) => today.id === item.id));
     if (todaysNotifications.length <= TODAY_ONLY_THRESHOLD) {
@@ -199,20 +207,15 @@ export function AppTopBar({
     return todaysNotifications.slice(0, COMPACT_NOTIFICATIONS_LIMIT);
   }, [notifications, todaysNotifications]);
   const visibleNotifications = useMemo(
-    () => (showAllNotifications ? compactNotifications : compactNotifications.slice(0, INITIAL_VISIBLE_NOTIFICATIONS)),
-    [compactNotifications, showAllNotifications],
+    () => compactNotifications.slice(0, INITIAL_VISIBLE_NOTIFICATIONS),
+    [compactNotifications],
   );
-  const hasMoreNotifications = compactNotifications.length > INITIAL_VISIBLE_NOTIFICATIONS;
-  const hasPastNotifications = useMemo(() => {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return notifications.some((item) => new Date(item.occurredAt) < startOfToday);
-  }, [notifications]);
-  const shouldShowSeeAll = notifications.length > 0;
+  const remainingNotificationCount = Math.max(0, unreadTotalCount - compactNotifications.length);
+  const shouldShowSeeAll = unreadTotalCount > compactNotifications.length;
 
-  const unreadCountBadgeLabel = unreadCount > 99 ? "99+" : String(unreadCount);
-  const notificationCountLabel = notifications.length > 99 ? "99+" : String(notifications.length);
-  const unreadCountLabel = unreadCount === 1 ? "1 unread" : `${unreadCount} unread`;
+  const unreadCountBadgeLabel = unreadTotalCount > 99 ? "99+" : String(unreadTotalCount);
+  const notificationCountLabel = unreadTotalCount > 99 ? "99+" : String(unreadTotalCount || notifications.length);
+  const unreadCountLabel = unreadTotalCount === 1 ? "1 unread" : `${unreadTotalCount} unread`;
 
   const statusStyles: Record<
     NotificationStatus,
@@ -236,11 +239,17 @@ export function AppTopBar({
   };
 
   const markAllAsRead = async () => {
-    const unreadIds = notifications.filter((item) => item.unread).map((item) => item.id);
+    const unreadIds = Array.from(
+      new Set([...notifications, ...dialogNotifications].filter((item) => item.unread).map((item) => item.id))
+    );
     if (unreadIds.length === 0) return;
 
-    const previous = notifications;
+    const previousNotifications = notifications;
+    const previousDialogNotifications = dialogNotifications;
+    const previousUnreadTotalCount = unreadTotalCount;
     setNotifications((current) => current.map((item) => ({ ...item, unread: false })));
+    setDialogNotifications((current) => current.map((item) => ({ ...item, unread: false })));
+    setUnreadTotalCount(0);
 
     try {
       await Promise.all(
@@ -252,17 +261,23 @@ export function AppTopBar({
         )
       );
     } catch {
-      setNotifications(previous);
+      setNotifications(previousNotifications);
+      setDialogNotifications(previousDialogNotifications);
+      setUnreadTotalCount(previousUnreadTotalCount);
     }
   };
 
   const markAsRead = async (id: string) => {
-    const selected = notifications.find((item) => item.id === id);
+    const selected = notifications.find((item) => item.id === id) || dialogNotifications.find((item) => item.id === id);
     if (!selected || !selected.unread) return;
 
     setNotifications((current) =>
       current.map((item) => (item.id === id ? { ...item, unread: false } : item))
     );
+    setDialogNotifications((current) =>
+      current.map((item) => (item.id === id ? { ...item, unread: false } : item))
+    );
+    setUnreadTotalCount((current) => Math.max(0, current - 1));
 
     try {
       await updateNotificationReadStatus({ id, status: "READ" });
@@ -270,6 +285,10 @@ export function AppTopBar({
       setNotifications((current) =>
         current.map((item) => (item.id === id ? { ...item, unread: true } : item))
       );
+      setDialogNotifications((current) =>
+        current.map((item) => (item.id === id ? { ...item, unread: true } : item))
+      );
+      setUnreadTotalCount((current) => current + 1);
     }
   };
 
@@ -294,26 +313,62 @@ export function AppTopBar({
   };
 
   const handleSeeAllNotifications = async () => {
-    setShowAllNotifications(true);
     setNotificationsPopoverOpen(false);
     setAllNotificationsOpen(true);
-    setPastLoading(true);
+    setDialogLoading(true);
+    setDialogLoadingMore(false);
     try {
-      const packets = await fetchNotificationPage({
+      const response = await fetchNotificationPage({
         status: "ALL",
-        limit: 50,
+        limit: DIALOG_PAGE_SIZE,
         offset: compactNotifications.length,
       });
       const compactIds = new Set(compactNotifications.map((item) => item.id));
-      const allNotifications = packets
+      const pagedNotifications = response.data
         .map(mapPacketToNotification)
         .filter((item) => !compactIds.has(item.id))
         .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
-      setPastNotifications(allNotifications);
+      setDialogNotifications(
+        [...compactNotifications, ...pagedNotifications]
+          .filter((item, index, array) => array.findIndex((match) => match.id === item.id) === index)
+          .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+      );
+      setAllNotificationCount(response.count || compactNotifications.length + response.data.length);
+      setDialogOffset(compactNotifications.length + response.data.length);
+      setDialogHasNextPage(
+        response.hasNextPage || compactNotifications.length + response.data.length < (response.count || allNotificationCount)
+      );
     } catch {
-      setPastNotifications([]);
+      setDialogNotifications([...compactNotifications]);
+      setDialogHasNextPage(false);
     } finally {
-      setPastLoading(false);
+      setDialogLoading(false);
+    }
+  };
+
+  const handleSeeMoreNotifications = async () => {
+    if (dialogLoadingMore || !dialogHasNextPage) return;
+    setDialogLoadingMore(true);
+    try {
+      const response = await fetchNotificationPage({
+        status: "ALL",
+        limit: DIALOG_PAGE_SIZE,
+        offset: dialogOffset,
+      });
+      const nextBatch = response.data
+        .map(mapPacketToNotification)
+        .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+      setDialogNotifications((current) =>
+        [...current, ...nextBatch]
+          .filter((item, index, array) => array.findIndex((match) => match.id === item.id) === index)
+          .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+      );
+      const nextOffset = dialogOffset + response.data.length;
+      setDialogOffset(nextOffset);
+      setDialogHasNextPage(response.hasNextPage || nextOffset < (response.count || allNotificationCount));
+      setAllNotificationCount((current) => Math.max(current, response.count || current));
+    } finally {
+      setDialogLoadingMore(false);
     }
   };
 
@@ -351,7 +406,7 @@ export function AppTopBar({
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5 text-muted-foreground" />
-              {unreadCount > 0 ? (
+              {unreadTotalCount > 0 ? (
                 <span className="absolute -right-1 -top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
                   {unreadCountBadgeLabel}
                 </span>
@@ -379,8 +434,8 @@ export function AppTopBar({
                 Mark all as read
               </button>
             </div>
-            <div className="relative max-h-[520px] bg-slate-50/60">
-              <div className="max-h-[520px] overflow-y-auto p-3">
+            <div className="flex h-[520px] flex-col bg-slate-50/60">
+              <div className="flex-1 overflow-y-auto p-3">
                 {compactNotifications.length === 0 ? (
                   <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/80 px-4 text-center">
                     <div>
@@ -408,13 +463,10 @@ export function AppTopBar({
                         <div className="min-w-0 flex-1">
                           <div className="mb-1 flex items-center gap-2">
                             {notification.unread ? (
-                              <span className="h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-red-100" />
+                              <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-2 ring-blue-100" />
                             ) : null}
                             <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
                           </div>
-                          <p className="mb-1 text-[11px] font-medium lowercase tracking-wide text-slate-400">
-                            {notification.entity.toLowerCase()}
-                          </p>
                           <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
                             <span>{notification.userName}</span>{" "}
                             <span className="font-normal text-slate-500">{notification.userEmail}</span>
@@ -436,21 +488,18 @@ export function AppTopBar({
                     </button>
                   );
                 })}
-                {shouldShowSeeAll ? (
-                  <div className="pb-0 pt-0">
-                    <div className="pointer-events-none h-6 bg-gradient-to-t from-slate-50 via-slate-50/95 to-transparent" />
-                    <div className="mt-0 flex justify-center bg-slate-50 pb-1">
-                      <button
-                        type="button"
-                        onClick={() => void handleSeeAllNotifications()}
-                        className="rounded-full border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
-                      >
-                        See all notifications
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
               </div>
+              {shouldShowSeeAll ? (
+                <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-3 py-2 backdrop-blur">
+                  <button
+                    type="button"
+                    onClick={() => void handleSeeAllNotifications()}
+                    className="w-full rounded-full border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+                  >
+                    See all notifications {remainingNotificationCount > 0 ? `+${remainingNotificationCount}` : ""}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </PopoverContent>
         </Popover>
@@ -462,9 +511,16 @@ export function AppTopBar({
             <DialogHeader className="border-b border-slate-200 px-6 py-4">
               <DialogTitle className="flex items-center justify-between text-slate-900">
                 <span>
-                  All Notifications ({todayDialogNotifications.length + yesterdayNotifications.length + olderNotifications.length + upcomingNotifications.length})
+                  All Notifications ({allNotificationCount || (todayDialogNotifications.length + yesterdayNotifications.length + olderNotifications.length + upcomingNotifications.length)})
                 </span>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void markAllAsRead()}
+                    className="rounded-md px-2 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                  >
+                    Mark all as read
+                  </button>
                   <button
                     type="button"
                     onClick={() => setAllNotificationsOpen(false)}
@@ -477,12 +533,12 @@ export function AppTopBar({
               </DialogTitle>
             </DialogHeader>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-4">
-              {pastLoading ? (
+              {dialogLoading ? (
                 <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/80 px-4 text-center">
                   <p className="text-sm font-semibold text-slate-700">Loading past notifications...</p>
                 </div>
               ) : null}
-              {!pastLoading &&
+              {!dialogLoading &&
               todayDialogNotifications.length + yesterdayNotifications.length + olderNotifications.length + upcomingNotifications.length === 0 ? (
                 <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/80 px-4 text-center">
                   <div>
@@ -514,13 +570,10 @@ export function AppTopBar({
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center gap-2">
                           {notification.unread ? (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-red-100" />
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-2 ring-blue-100" />
                           ) : null}
                           <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
                         </div>
-                        <p className="mb-1 text-[11px] font-medium lowercase tracking-wide text-slate-400">
-                          {notification.entity.toLowerCase()}
-                        </p>
                         <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
                           <span>{notification.userName}</span>{" "}
                           <span className="font-normal text-slate-500">{notification.userEmail}</span>
@@ -567,13 +620,10 @@ export function AppTopBar({
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center gap-2">
                           {notification.unread ? (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-red-100" />
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-2 ring-blue-100" />
                           ) : null}
                           <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
                         </div>
-                        <p className="mb-1 text-[11px] font-medium lowercase tracking-wide text-slate-400">
-                          {notification.entity.toLowerCase()}
-                        </p>
                         <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
                           <span>{notification.userName}</span>{" "}
                           <span className="font-normal text-slate-500">{notification.userEmail}</span>
@@ -620,13 +670,10 @@ export function AppTopBar({
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center gap-2">
                           {notification.unread ? (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-red-100" />
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-2 ring-blue-100" />
                           ) : null}
                           <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
                         </div>
-                        <p className="mb-1 text-[11px] font-medium lowercase tracking-wide text-slate-400">
-                          {notification.entity.toLowerCase()}
-                        </p>
                         <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
                           <span>{notification.userName}</span>{" "}
                           <span className="font-normal text-slate-500">{notification.userEmail}</span>
@@ -673,13 +720,10 @@ export function AppTopBar({
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center gap-2">
                           {notification.unread ? (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-red-100" />
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-2 ring-blue-100" />
                           ) : null}
                           <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
                         </div>
-                        <p className="mb-1 text-[11px] font-medium lowercase tracking-wide text-slate-400">
-                          {notification.entity.toLowerCase()}
-                        </p>
                         <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
                           <span>{notification.userName}</span>{" "}
                           <span className="font-normal text-slate-500">{notification.userEmail}</span>
@@ -703,6 +747,18 @@ export function AppTopBar({
                   </button>
                 );
               })}
+              {dialogHasNextPage ? (
+                <div className="flex justify-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => void handleSeeMoreNotifications()}
+                    disabled={dialogLoadingMore}
+                    className="rounded-full border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {dialogLoadingMore ? "Loading..." : "See more"}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </DialogContent>
         </Dialog>

@@ -6,6 +6,12 @@ const readString = (value: unknown) => (typeof value === "string" ? value.trim()
 const toRecord = (value: unknown): RawWorkflowRecord =>
   typeof value === "object" && value !== null ? (value as RawWorkflowRecord) : {};
 
+export const isWorkflowUpdateRequest = (input: { pendingRequestType?: string; pendingRequestImpact?: string }) => {
+  const requestType = readString(input.pendingRequestType).toUpperCase();
+  const requestImpact = readString(input.pendingRequestImpact).toUpperCase();
+  return requestType === "UPDATE" || requestImpact === "WORKFLOW_UPDATE";
+};
+
 export const isRootWorkflowNode = (nodePath: string, nodeType?: string) => {
   if ((nodeType || "").trim().toUpperCase() === "ROOT") return true;
   const trimmed = nodePath.trim();

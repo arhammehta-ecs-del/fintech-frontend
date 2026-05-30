@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronDown, CircleCheck, Filter, Search, X, XCircle } from "lucide-react";
+import { AlertTriangle, ChevronDown, CircleCheck, Filter, RefreshCw, Search, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useApiMonitoring } from "@/features/api-monitoring/hooks/useApiMonitoring";
 import type { ApiMonitoringLog } from "@/features/api-monitoring/types";
 import ApiMonitoringDetailsDialog from "@/features/api-monitoring/components/ApiMonitoringDetailsDialog";
+import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 
 const getStatusIcon = (status: number | null) => {
   if (status === null) return <AlertTriangle className="h-5 w-5 text-slate-400" />;
@@ -75,6 +76,7 @@ export default function ApiMonitoringView() {
     handleNextPage,
     handleJumpToPage,
     fetchDetailsForTrack,
+    refreshLogs,
   } = useApiMonitoring();
   const [selectedLog, setSelectedLog] = useState<ApiMonitoringLog | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -86,6 +88,7 @@ export default function ApiMonitoringView() {
   const [draftIpFilters, setDraftIpFilters] = useState<string[]>(ipFilters);
   const [draftApiUrlFilters, setDraftApiUrlFilters] = useState<string[]>(apiUrlFilters);
   const [draftDateFilters, setDraftDateFilters] = useState<string[]>(dateFilters);
+  const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
 
   const activeFilterCount = statusFilters.length + companyCodeFilters.length + userEmailFilters.length + ipFilters.length + apiUrlFilters.length + dateFilters.length;
 
@@ -108,11 +111,21 @@ export default function ApiMonitoringView() {
     if (searchText.trim()) return "No logs found for this search.";
     return "No API monitoring logs available.";
   }, [loading, error, searchText]);
+  const cumulativeRecordCount = useMemo(
+    () => Math.min(totalCount, Math.max(0, (safePage - 1) * pageSize) + paginatedLogs.length),
+    [pageSize, paginatedLogs.length, safePage, totalCount],
+  );
 
   useEffect(() => {
     if (!tableScrollRef.current) return;
     tableScrollRef.current.scrollTo({ top: 0, behavior: "auto" });
   }, [safePage]);
+
+  useEffect(() => {
+    if (loading || error) return;
+    if (lastRefreshedAt) return;
+    markRefreshed();
+  }, [error, lastRefreshedAt, loading, markRefreshed]);
 
   return (
     <div className="space-y-4">
@@ -123,8 +136,8 @@ export default function ApiMonitoringView() {
 
       <Card className="flex h-[760px] flex-col overflow-hidden border border-border shadow-sm">
         <div className="border-b border-border bg-muted/40 p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <div className="relative w-full max-w-2xl">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="relative w-full lg:flex-1 lg:pr-4">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchInput}
@@ -167,7 +180,7 @@ export default function ApiMonitoringView() {
                 </div>
               ) : null}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-2">
               <Popover
                 open={filtersOpen}
                 onOpenChange={(nextOpen) => {
@@ -240,6 +253,25 @@ export default function ApiMonitoringView() {
                   </div>
                 </PopoverContent>
               </Popover>
+              <div className="relative flex h-11 w-10 items-center justify-center">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    void refreshLogs().then(() => {
+                      markRefreshed();
+                    });
+                  }}
+                  aria-label="Refresh API monitor"
+                >
+                  <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+                </Button>
+                {refreshLabel ? (
+                  <p className="pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                    {refreshLabel}
+                  </p>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -334,6 +366,9 @@ export default function ApiMonitoringView() {
         </div>
         <PaginationFooter
           currentCount={Math.max(totalCount, filteredLogs.length)}
+          recordCurrentCount={cumulativeRecordCount}
+          recordTotalCount={totalCount}
+          recordLabel="Records"
           pageSize={pageSize}
           pageSizeOptions={pageSizeOptions}
           onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}

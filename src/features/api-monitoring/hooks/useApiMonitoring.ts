@@ -302,6 +302,10 @@ export function useApiMonitoring() {
     return fetchApiMonitoringDetails(trackId);
   };
 
+  const refreshLogs = useCallback(async () => {
+    await loadFirstPage(true);
+  }, [loadFirstPage]);
+
   return {
     logs,
     filteredLogs,
@@ -346,5 +350,6 @@ export function useApiMonitoring() {
     handleNextPage,
     handleJumpToPage,
     fetchDetailsForTrack,
+    refreshLogs,
   };
 }

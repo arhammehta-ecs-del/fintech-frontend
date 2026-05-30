@@ -36,8 +36,13 @@ export function OrgCard({
   const accentBackgroundClass = getNodeAccentBackground(branchIndex, branchDepth, isRoot);
   const accentBorderClass = getNodeAccentBorderLeft(branchIndex, branchDepth, isRoot);
   const plusButtonAccentClass = getPlusButtonAccentClass(accentBackgroundClass);
-  const isPendingNode = node.status?.trim().toUpperCase() === "PENDING";
+  const normalizedStatus = node.status?.trim().toUpperCase() ?? "";
+  const isPendingNode = normalizedStatus === "PENDING";
   const hasUpdateRequest = (node.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
+  const isPendingVisualState = isPendingNode || hasUpdateRequest;
+  const pendingBadgeClass = hasUpdateRequest
+    ? "bg-orange-100 text-orange-700"
+    : "bg-amber-100 text-amber-700";
 
   return (
     <div className="group relative">
@@ -52,24 +57,19 @@ export function OrgCard({
           appearance.hoverBorderClass,
           active ? appearance.activeBorderClass : appearance.defaultSurfaceClass,
           isRoot ? "border-l-[4px] border-l-indigo-500" : `border-l-[4px] ${accentBorderClass}`,
-          node.status === "Pending" && "border-dashed border-amber-300 bg-amber-50/30"
+          hasUpdateRequest && "border-dashed border-orange-300 bg-orange-50/40",
+          isPendingNode && "border-dashed border-amber-300 bg-amber-50/30",
+          hasUpdateRequest && "border-orange-300 bg-orange-50/40"
         )}
       >
         <div className={cn("flex items-center justify-center rounded-full", isRoot ? "h-8 w-8 bg-white text-indigo-600 shadow-sm" : "h-7 w-7 bg-white/75")}>
           <Icon className={cn(isRoot ? "h-4 w-4 text-indigo-600" : "h-3.5 w-3.5", !isRoot && theme.iconColor)} />
         </div>
-        {hasUpdateRequest ? (
-          <span
-            className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white"
-            aria-label="Update request available"
-            title="Update request available"
-          />
-        ) : null}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className={cn("truncate font-semibold", isRoot ? "text-[16px] font-bold tracking-[-0.01em] text-white" : "text-[16px]")}>{node.name}</p>
-            {node.status === "Pending" && (
-              <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-700">
+            {isPendingVisualState && (
+              <span className={cn("inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider", pendingBadgeClass)}>
                 Pending
               </span>
             )}

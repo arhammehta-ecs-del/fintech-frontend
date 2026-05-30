@@ -7,7 +7,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { ModuleGroup } from "./types";
+import type { ModuleGroup, WorkflowTypeScope } from "./types";
+import { WORKFLOW_TYPE_SCOPE_OPTIONS } from "./workflowTypeScope.constants";
 import { getWorkflowPathPreview } from "@/features/workflow-management/utils/workflowRecord.utils";
 import { isRootWorkflowNode } from "@/features/workflow-management/utils/workflowRecord.utils";
 
@@ -15,12 +16,14 @@ type WorkflowStepInputsProps = {
   wfName: string;
   wfModule: string;
   wfNode: string;
+  workflowType: WorkflowTypeScope | "";
   moduleGroups: ModuleGroup[];
   departmentOptions: Array<{ value: string; label: string }>;
   showMetaErrors: boolean;
   onSetWfName: (value: string) => void;
   onSetWfModule: (value: string) => void;
   onSetWfNode: (value: string) => void;
+  onSetWorkflowType: (value: WorkflowTypeScope) => void;
 };
 
 function InputField({
@@ -62,6 +65,11 @@ function SearchableFieldDropdown({
   selectedLabel,
   options,
   onChange,
+  keepOpenOnSelect = false,
+  workflowType,
+  workflowTypeOptions,
+  onWorkflowTypeChange,
+  showWorkflowTypeOptions = false,
 }: {
   label: string;
   icon: ReactNode;
@@ -70,6 +78,11 @@ function SearchableFieldDropdown({
   selectedLabel: string;
   options: Array<{ value: string; label: string; pathLabel?: string; groupLabel?: string }>;
   onChange: (value: string) => void;
+  keepOpenOnSelect?: boolean;
+  workflowType?: WorkflowTypeScope | "";
+  workflowTypeOptions?: Array<{ value: WorkflowTypeScope; label: string }>;
+  onWorkflowTypeChange?: (value: WorkflowTypeScope) => void;
+  showWorkflowTypeOptions?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -169,7 +182,7 @@ function SearchableFieldDropdown({
                   onSelect={(event) => {
                     event.preventDefault();
                     onChange(option.value);
-                    setOpen(false);
+                    if (!keepOpenOnSelect) setOpen(false);
                   }}
                 >
                   {value === option.value ? (
@@ -192,6 +205,38 @@ function SearchableFieldDropdown({
               <p className="px-2 py-4 text-center text-[12px] text-slate-500">No options found</p>
             )}
           </div>
+
+          {showWorkflowTypeOptions && workflowTypeOptions?.length ? (
+            <div className="mt-2 border-t border-slate-200 px-1 pt-2">
+              <p className="pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Workflow Type</p>
+              <div className="space-y-1.5">
+                {workflowTypeOptions.map((option) => {
+                  const isSelected = workflowType === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => onWorkflowTypeChange?.(option.value)}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-md border px-2.5 py-2 text-left text-sm font-semibold transition",
+                        isSelected
+                          ? "border-blue-300 bg-blue-50 text-blue-700"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300",
+                      )}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="text-slate-400">+</span>
+                        {option.label}
+                      </span>
+                      <span className={cn("h-5 w-5 rounded-full border-2", isSelected ? "border-blue-600" : "border-slate-300")}>
+                        <span className={cn("m-[3px] block h-2.5 w-2.5 rounded-full", isSelected ? "bg-blue-600" : "bg-transparent")} />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -202,12 +247,14 @@ export default function WorkflowStepInputs({
   wfName,
   wfModule,
   wfNode,
+  workflowType,
   moduleGroups,
   departmentOptions,
   showMetaErrors,
   onSetWfName,
   onSetWfModule,
   onSetWfNode,
+  onSetWorkflowType,
 }: WorkflowStepInputsProps) {
   const moduleGroupOrder = ["TRANSACTIONAL", "OPERATIONAL", "SYSTEM_ACCESS"];
   const orderedModuleGroups = [
@@ -225,6 +272,7 @@ export default function WorkflowStepInputs({
   );
   const selectedModuleLabel =
     moduleOptions.find((option) => option.value === wfModule)?.label || "Select module";
+  const shouldShowWorkflowTypeOptions = Boolean(wfModule.trim());
   const selectedNodeLabel =
     departmentOptions.find((option) => option.value === wfNode)?.label || "Select node name";
   const nodeOptions = departmentOptions.map((option) => ({
@@ -274,8 +322,16 @@ export default function WorkflowStepInputs({
               selectedLabel={selectedModuleLabel}
               options={moduleOptions}
               onChange={onSetWfModule}
+              keepOpenOnSelect
+              workflowType={workflowType}
+              workflowTypeOptions={WORKFLOW_TYPE_SCOPE_OPTIONS}
+              onWorkflowTypeChange={onSetWorkflowType}
+              showWorkflowTypeOptions={shouldShowWorkflowTypeOptions}
             />
             {showMetaErrors && !wfModule.trim() ? <p className="mt-1 text-xs font-semibold text-red-500">Required</p> : null}
+            {showMetaErrors && shouldShowWorkflowTypeOptions && !workflowType ? (
+              <p className="mt-1 text-xs font-semibold text-red-500">Select workflow type</p>
+            ) : null}
           </div>
 
           <div className="relative">

@@ -1,8 +1,12 @@
 import type { OrgNode } from "@/contexts/AppContext";
 
+const isPendingNode = (node: OrgNode) => (node.status || "").trim().toUpperCase() === "PENDING";
+const hasUpdateRequest = (node: OrgNode) => (node.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
+
 export function filterPendingNodes(node: OrgNode | null): OrgNode | null {
   if (!node) return null;
-  if (node.status === "Pending") return null;
+  // Keep update-request nodes visible even when pending view is turned off.
+  if (isPendingNode(node) && !hasUpdateRequest(node)) return null;
   return {
     ...node,
     children: node.children
@@ -18,12 +22,12 @@ export function countNodes(node: OrgNode | null): number {
 
 export function countPendingNodes(node: OrgNode | null): number {
   if (!node) return 0;
-  const own = node.status === "Pending" ? 1 : 0;
+  const own = isPendingNode(node) ? 1 : 0;
   return own + node.children.reduce((acc, child) => acc + countPendingNodes(child), 0);
 }
 
 export function hasPendingNodes(node: OrgNode | null): boolean {
   if (!node) return false;
-  if (node.status === "Pending") return true;
+  if (isPendingNode(node)) return true;
   return node.children.some(hasPendingNodes);
 }

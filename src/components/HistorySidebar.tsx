@@ -62,12 +62,22 @@ const toTitleCase = (value: string) =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 
-type EventTone = "approved" | "pending" | "initiation" | "rejected" | "inactive";
+type EventTone = "approved" | "pending" | "initiation" | "rejected" | "inactive" | "modified";
 
 const getEventTone = (action: string, fallbackStatus: HistoryStatus): EventTone => {
   const normalized = action.trim().toLowerCase();
   if (normalized.includes("reject")) return "rejected";
   if (normalized.includes("inactive") || normalized.includes("deactivate")) return "inactive";
+  if (
+    normalized.includes("modify") ||
+    normalized.includes("update") ||
+    normalized.includes("updated") ||
+    normalized.includes("rmupdated") ||
+    normalized.includes("profile update") ||
+    normalized.includes("workflow update")
+  ) {
+    return "modified";
+  }
   if (normalized.includes("initiate")) return "initiation";
   if (normalized.includes("pending")) return "pending";
   if (normalized.includes("approve") || normalized.includes("active")) return "approved";
@@ -81,6 +91,8 @@ function StatusHeader({ item }: { item: HistoryEntry }) {
       ? "border-amber-200/50 bg-amber-50 text-amber-700"
       : tone === "initiation"
         ? "border-sky-200/60 bg-sky-50 text-sky-700"
+      : tone === "modified"
+        ? "border-orange-200/60 bg-orange-50 text-orange-700"
       : tone === "rejected"
         ? "border-rose-200/50 bg-rose-50 text-rose-700"
         : tone === "inactive"
@@ -93,6 +105,8 @@ function StatusHeader({ item }: { item: HistoryEntry }) {
         {tone === "pending" ? (
           <Clock className="h-3 w-3" />
         ) : tone === "initiation" ? (
+          <History className="h-3 w-3" />
+        ) : tone === "modified" ? (
           <History className="h-3 w-3" />
         ) : tone === "rejected" ? (
           <CircleX className="h-3 w-3" />
@@ -163,6 +177,8 @@ function MilestoneTimeline({ data }: { data: HistoryEntry[] }) {
                   ? "border-amber-300 text-amber-700 shadow-[0_0_10px_rgba(251,191,36,0.15)]"
                   : tone === "initiation"
                     ? "border-sky-300 text-sky-700 shadow-[0_0_10px_rgba(56,189,248,0.16)]"
+                    : tone === "modified"
+                      ? "border-orange-300 text-orange-700 shadow-[0_0_10px_rgba(249,115,22,0.18)]"
                     : tone === "approved"
                       ? "border-emerald-300 text-emerald-700 shadow-[0_0_10px_rgba(16,185,129,0.16)]"
                       : "border-slate-200";
@@ -197,6 +213,8 @@ function MilestoneTimeline({ data }: { data: HistoryEntry[] }) {
                     ? "border-amber-200/70 shadow-[0_2px_12px_rgba(251,191,36,0.08)]"
                     : tone === "initiation"
                       ? "border-sky-200/80 shadow-[0_2px_12px_rgba(56,189,248,0.08)]"
+                      : tone === "modified"
+                        ? "border-orange-200/80 shadow-[0_2px_12px_rgba(249,115,22,0.1)]"
                       : tone === "approved"
                         ? "border-emerald-200/80 shadow-[0_2px_12px_rgba(16,185,129,0.08)]"
                         : "border-slate-200 hover:shadow-md";
@@ -222,6 +240,8 @@ function MilestoneTimeline({ data }: { data: HistoryEntry[] }) {
                           ? "border-amber-200 bg-amber-50/40"
                           : tone === "initiation"
                             ? "border-sky-200 bg-sky-50/35"
+                            : tone === "modified"
+                              ? "border-orange-200 bg-orange-50/40"
                             : tone === "approved"
                               ? "border-emerald-200 bg-emerald-50/35"
                               : "border-slate-200 bg-slate-50/70";

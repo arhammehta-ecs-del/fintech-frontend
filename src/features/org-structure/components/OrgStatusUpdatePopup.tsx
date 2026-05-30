@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 type OrgStatusUpdatePopupProps = {
   open: boolean;
   nodeName: string;
+  nodeTrail?: string[];
   nodeType: string;
   selectedLevelsHash: string;
   remarks: string;
@@ -22,6 +23,7 @@ type OrgStatusUpdatePopupProps = {
 export function OrgStatusUpdatePopup({
   open,
   nodeName,
+  nodeTrail = [],
   nodeType,
   selectedLevelsHash,
   remarks,
@@ -33,6 +35,7 @@ export function OrgStatusUpdatePopup({
   onSubmit,
 }: OrgStatusUpdatePopupProps) {
   const displayNodeName = nodeName.trim() || "New Node";
+  const displayTrail = nodeTrail.length > 0 ? nodeTrail : [displayNodeName];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -46,10 +49,29 @@ export function OrgStatusUpdatePopup({
           </DialogDescription>
           <div className="mt-3 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.92),rgba(248,250,252,0.98))] px-4 py-3.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">Updating Node</p>
-            <div className="mt-3">
-              <span className="inline-flex rounded-full bg-[#3553E9] px-2.5 py-1 text-sm font-semibold text-white ring-1 ring-blue-500/40 shadow-[0_0_0_3px_rgba(53,83,233,0.14)]">
-                {displayNodeName}
-              </span>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {displayTrail.map((trailName, index) => {
+                const isLast = index === displayTrail.length - 1;
+                return (
+                  <div key={`${trailName}-${index}`} className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "inline-flex max-w-full truncate rounded-full px-2.5 py-1 text-sm ring-1",
+                        isLast
+                          ? "bg-[#3553E9] font-semibold text-white ring-blue-500/40 shadow-[0_0_0_3px_rgba(53,83,233,0.14)]"
+                          : "bg-white font-medium text-slate-600 ring-slate-200",
+                      )}
+                    >
+                      {trailName}
+                    </span>
+                    {!isLast ? (
+                      <span className="shrink-0 text-slate-300" aria-hidden="true">
+                        →
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </DialogHeader>

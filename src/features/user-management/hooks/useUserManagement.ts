@@ -82,6 +82,7 @@ export function useUserManagement() {
   const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ member: AppUser; action: "activate" | "deactivate" } | null>(null);
   const [hasNewUserEvent, setHasNewUserEvent] = useState(false);
+  const [hasLoadedUsersOnce, setHasLoadedUsersOnce] = useState(false);
   const getCountForTab = useCallback(
     (
       counts: { active: number; pending: number; inactive: number },
@@ -135,6 +136,7 @@ export function useUserManagement() {
             Math.max(1, Math.ceil(getCountForTab(response.counts, statusTab) / pageSize)),
         );
         setStatusCounts(response.counts);
+        setHasLoadedUsersOnce(true);
         maybeShowActivityToast(response, statusTab);
         if (showRefreshToast) {
           toast({
@@ -582,6 +584,7 @@ export function useUserManagement() {
     setSortOrder,
     hasNewUserEvent,
     setHasNewUserEvent,
+    hasLoadedUsersOnce,
     isLoading,
     page,
     setPage,

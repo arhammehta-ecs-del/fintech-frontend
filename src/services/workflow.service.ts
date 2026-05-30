@@ -13,6 +13,7 @@ export type CreateWorkflowPayload = {
   alias?: string;
   module?: string;
   subModule?: string;
+  workflowType?: "ALL CHILD" | "IMMEDIATE CHILD" | "NODE" | string;
   nodePath?: string | null;
   levels?: Record<string, unknown>;
   levelsHash?: string | null;

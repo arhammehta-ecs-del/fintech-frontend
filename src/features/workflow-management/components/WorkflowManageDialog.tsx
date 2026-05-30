@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 import { APPROVAL_OPTIONS } from "@/features/workflow-management/constants";
-import { formatSnakeCaseLabel } from "@/features/workflow-management/utils/workflowRecord.utils";
+import { formatSnakeCaseLabel, isWorkflowUpdateRequest } from "@/features/workflow-management/utils/workflowRecord.utils";
 import { cn } from "@/lib/utils";
 import { formatToIst, SummaryPreview } from "@/features/workflow-management/components/WorkflowManageDialogSummary";
 
@@ -116,34 +116,36 @@ export default function WorkflowManageDialog({
 
   const displayWorkflow = useMemo(() => {
     if (!workflow) return null;
-    const pendingRequestType = (workflow.pendingRequestType || "").trim().toUpperCase();
     const pendingOldData = toRecord(workflow.pendingOldData);
     const pendingNewData = toRecord(workflow.pendingNewData);
     const hasPendingDataDiff = Object.keys(pendingOldData).length > 0 || Object.keys(pendingNewData).length > 0;
-    const isUpdateRequest = pendingRequestType === "UPDATE" || hasPendingDataDiff;
+    const isUpdateRequest = isWorkflowUpdateRequest(workflow) || hasPendingDataDiff;
     if (!isUpdateRequest) return workflow;
     const source = showPrevious ? pendingOldData : pendingNewData;
     if (!Object.keys(source).length) return workflow;
     return applyPendingDataView(workflow, source);
   }, [showPrevious, workflow]);
   if (!workflow || !displayWorkflow) return null;
-  const pendingRequestType = (workflow.pendingRequestType || "").trim().toUpperCase();
   const pendingOldData = toRecord(workflow.pendingOldData);
   const pendingNewData = toRecord(workflow.pendingNewData);
   const hasPendingDataDiff = Object.keys(pendingOldData).length > 0 || Object.keys(pendingNewData).length > 0;
-  const isUpdateRequest = pendingRequestType === "UPDATE" || hasPendingDataDiff;
-  const canTogglePreviousUpdated = pendingRequestType === "UPDATE";
+  const isUpdateRequest = isWorkflowUpdateRequest(workflow) || hasPendingDataDiff;
   const normalizedRequestImpact = (workflow.pendingRequestImpact || "").trim().toUpperCase();
+  const isInactiveImpact = normalizedRequestImpact === "INACTIVE";
+  const canTogglePreviousUpdated = isUpdateRequest && !isInactiveImpact;
   const impactBadgeMap: Record<string, string> = {
     ARCHIVE: "border-rose-200 bg-rose-100 text-rose-700",
     INACTIVE: "border-amber-200 bg-amber-100 text-amber-700",
     ACTIVE: "border-emerald-200 bg-emerald-100 text-emerald-700",
     DOWNGRADE: "border-rose-200 bg-rose-100 text-rose-700",
     UPGRADE: "border-emerald-200 bg-emerald-100 text-emerald-700",
+    WORKFLOW_UPDATE: "border-sky-200 bg-sky-100 text-sky-700",
     RMUPDATED: "border-sky-200 bg-sky-100 text-sky-700",
     PROFILE_UPDATE: "border-sky-200 bg-sky-100 text-sky-700",
   };
-  const impactBadgeCls = impactBadgeMap[normalizedRequestImpact] || "";
+  const hasImpactBadge = Boolean(normalizedRequestImpact);
+  const impactBadgeCls = impactBadgeMap[normalizedRequestImpact] || "border-slate-200 bg-slate-100 text-slate-700";
+  const impactBadgeLabel = formatSnakeCaseLabel(normalizedRequestImpact || "");
 
   const isPending = workflow.status === "Pending" || isUpdateRequest;
   const currentWorkflowStatus = workflow.status === "Inactive" ? "inactive" : "active";
@@ -283,14 +285,14 @@ export default function WorkflowManageDialog({
               ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {impactBadgeCls ? (
+              {hasImpactBadge ? (
                 <span
                   className={cn(
                     "inline-flex h-8 items-center rounded-full border px-3 text-xs font-bold uppercase tracking-wide",
                     impactBadgeCls,
                   )}
                 >
-                  {normalizedRequestImpact}
+                  {impactBadgeLabel}
                 </span>
               ) : null}
               {isPending && onToggleHistory ? (

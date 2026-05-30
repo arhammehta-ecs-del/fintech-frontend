@@ -20,3 +20,5 @@ export type ModuleGroup = {
   categoryLabel: string;
   options: ModuleOption[];
 };
+
+export type WorkflowTypeScope = "ALL CHILD" | "IMMEDIATE CHILD" | "NODE";

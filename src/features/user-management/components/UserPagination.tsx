@@ -3,6 +3,9 @@ import { USER_PAGE_SIZE_OPTIONS } from "@/features/user-management/constants";
 
 type UserPaginationProps = {
   currentCount: number;
+  recordCurrentCount?: number;
+  recordTotalCount?: number;
+  recordLabel?: string;
   pageSize: (typeof USER_PAGE_SIZE_OPTIONS)[number];
   onPageSizeChange: (value: (typeof USER_PAGE_SIZE_OPTIONS)[number]) => void;
   safePage: number;
@@ -15,6 +18,9 @@ type UserPaginationProps = {
 
 export default function UserPagination({
   currentCount,
+  recordCurrentCount,
+  recordTotalCount,
+  recordLabel,
   pageSize,
   onPageSizeChange,
   safePage,
@@ -27,6 +33,9 @@ export default function UserPagination({
   return (
     <PaginationFooter
       currentCount={currentCount}
+      recordCurrentCount={recordCurrentCount}
+      recordTotalCount={recordTotalCount}
+      recordLabel={recordLabel}
       pageSize={pageSize}
       pageSizeOptions={USER_PAGE_SIZE_OPTIONS}
       onPageSizeChange={(value) => onPageSizeChange(value as (typeof USER_PAGE_SIZE_OPTIONS)[number])}
