@@ -168,8 +168,14 @@ export function UserManagementView() {
     try {
       await startUserLockSession(member);
       await loadWorkflowOptionsForMemberAction(member);
-    } catch {
+    } catch (error) {
       setDeleteWorkflowOptions([]);
+      toast({
+        title: "Action unavailable",
+        description: error instanceof Error ? error.message : "Unable to lock user for this action.",
+        variant: "destructive",
+      });
+      return;
     }
     setViewingMember(member);
     setPendingManageActionType("archive");
@@ -518,8 +524,14 @@ export function UserManagementView() {
                   try {
                     await startUserLockSession(member);
                     await loadWorkflowOptionsForMemberAction(member);
-                  } catch {
+                  } catch (error) {
                     setDeleteWorkflowOptions([]);
+                    toast({
+                      title: "Action unavailable",
+                      description: error instanceof Error ? error.message : "Unable to lock user for this action.",
+                      variant: "destructive",
+                    });
+                    return;
                   }
                   setViewingMember(member);
                   setPendingManageActionType(isActive ? "active" : "inactive");

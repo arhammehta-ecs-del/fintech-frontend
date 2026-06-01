@@ -84,6 +84,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [historyParentNodePath, setHistoryParentNodePath] = useState("");
   const [historyViewContext, setHistoryViewContext] = useState<"active" | "pending">("active");
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
+  const [isRefreshTooltipOpen, setIsRefreshTooltipOpen] = useState(false);
   const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
   const historyLayoutOffset =
     isOrgHistoryOpen && historyViewContext === "pending" ? { top: 0, left: 0 } : shellOffset;
@@ -246,11 +247,15 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                   ) : null}
                   <div className="relative flex h-10 w-10 items-center justify-center">
                     <TooltipProvider delayDuration={120}>
-                      <Tooltip>
+                      <Tooltip open={isRefreshTooltipOpen}>
                         <TooltipTrigger asChild>
                           <button
                             type="button"
                             aria-label="Refresh organisation structure"
+                            onMouseEnter={() => setIsRefreshTooltipOpen(true)}
+                            onMouseLeave={() => setIsRefreshTooltipOpen(false)}
+                            onFocus={() => setIsRefreshTooltipOpen(true)}
+                            onBlur={() => setIsRefreshTooltipOpen(false)}
                             onClick={async () => {
                               await refreshOrgStructure();
                               setHasNewOrgEvent(false);
@@ -265,7 +270,9 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                             <RefreshCw className="h-4 w-4" />
                           </button>
                         </TooltipTrigger>
-                        {hasNewOrgEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
+                        <TooltipContent side="top">
+                          {hasNewOrgEvent ? "New event occurred" : "Refresh organisation structure"}
+                        </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                     {refreshLabel ? (

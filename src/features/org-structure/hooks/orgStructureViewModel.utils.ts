@@ -83,13 +83,25 @@ export const performPendingNodeAction = async (input: {
     input.onClose();
     await input.onSuccess();
   } catch (error) {
-    input.setOrgError(
-      getApiErrorMessage(
-        error,
-        input.action === "approve"
-          ? "Failed to approve node. Please try again."
-          : "Failed to reject node. Please try again.",
-      ),
+    const message = getApiErrorMessage(
+      error,
+      input.action === "approve"
+        ? "Failed to approve node. Please try again."
+        : "Failed to reject node. Please try again.",
     );
+    const normalizedMessage = message.trim().toLowerCase();
+    const isNodePathAlreadyExists = normalizedMessage.includes("node path already exists");
+
+    if (isNodePathAlreadyExists) {
+      input.onClose();
+      input.toast({
+        title: input.action === "approve" ? "Unable to approve node" : "Unable to reject node",
+        description: message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    input.setOrgError(message);
   }
 };

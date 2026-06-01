@@ -140,6 +140,7 @@ export default function UserFilters({
   const [draftPrimaryNodeFilters, setDraftPrimaryNodeFilters] = useState<string[]>(primaryNodeFilters);
   const [draftSecondaryNodeFilters, setDraftSecondaryNodeFilters] = useState<string[]>(secondaryNodeFilters);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isRefreshTooltipOpen, setIsRefreshTooltipOpen] = useState(false);
   const { refreshLabel, markRefreshed } = useRefreshTimestamp({ initializedAt: refreshInitializedAt });
 
   const toggleValue = (current: string[], value: string) =>
@@ -393,13 +394,17 @@ export default function UserFilters({
 
           <div className="relative flex h-12 w-12 items-center justify-center">
             <TooltipProvider delayDuration={120}>
-              <Tooltip>
+              <Tooltip open={isRefreshTooltipOpen}>
                 <TooltipTrigger asChild>
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
                     aria-label="Refresh users"
+                    onMouseEnter={() => setIsRefreshTooltipOpen(true)}
+                    onMouseLeave={() => setIsRefreshTooltipOpen(false)}
+                    onFocus={() => setIsRefreshTooltipOpen(true)}
+                    onBlur={() => setIsRefreshTooltipOpen(false)}
                     onClick={async () => {
                       await onRefresh();
                       markRefreshed();
@@ -413,7 +418,9 @@ export default function UserFilters({
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                {hasNewUserEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
+                <TooltipContent side="top">
+                  {hasNewUserEvent ? "New event occurred" : "Refresh users"}
+                </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>

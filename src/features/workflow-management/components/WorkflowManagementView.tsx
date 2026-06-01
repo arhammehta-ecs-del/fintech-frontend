@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Eye, Filter, Plus, RefreshCw, Search, Settings, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, Filter, Info, Plus, RefreshCw, Search, Settings, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -105,7 +105,7 @@ function NodePathMarquee({ text }: { text: string }) {
           )}
           aria-label={isActivated ? "Stop node path marquee" : "Start node path marquee"}
         >
-          <Eye className="h-3 w-3" />
+          <Info className="h-3 w-3" />
         </button>
       ) : null}
       <span
@@ -216,6 +216,7 @@ export default function WorkflowManagementView() {
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [showOnboardingPrevious, setShowOnboardingPrevious] = useState(false);
   const [manageLockArmed, setManageLockArmed] = useState(false);
+  const [isRefreshTooltipOpen, setIsRefreshTooltipOpen] = useState(false);
   const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
   const shouldUseAdaptivePendingLayout = useMemo(
     () =>
@@ -573,13 +574,17 @@ export default function WorkflowManagementView() {
 
             <div className="relative flex h-12 w-12 items-center justify-center">
               <TooltipProvider delayDuration={120}>
-                <Tooltip>
+                <Tooltip open={isRefreshTooltipOpen}>
                   <TooltipTrigger asChild>
                     <Button
                       type="button"
                       variant="outline"
                       size="icon"
                       aria-label="Refresh workflows"
+                      onMouseEnter={() => setIsRefreshTooltipOpen(true)}
+                      onMouseLeave={() => setIsRefreshTooltipOpen(false)}
+                      onFocus={() => setIsRefreshTooltipOpen(true)}
+                      onBlur={() => setIsRefreshTooltipOpen(false)}
                       onClick={async () => {
                         await loadWorkflows();
                         setHasNewWorkflowEvent(false);
@@ -594,7 +599,9 @@ export default function WorkflowManagementView() {
                       <RefreshCw className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  {hasNewWorkflowEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
+                  <TooltipContent side="top">
+                    {hasNewWorkflowEvent ? "New event occurred" : "Refresh workflows"}
+                  </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>

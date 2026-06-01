@@ -76,7 +76,14 @@ export function PendingNodePopup({
   const pendingRequestType = (node.pendingRequestType || "").trim().toUpperCase();
   const nextStatusFromRequest =
     typeof node.pendingNewData?.status === "string" ? node.pendingNewData.status.trim().toUpperCase() : "";
-  const isInactiveUpdateRequest = pendingRequestType === "UPDATE" && nextStatusFromRequest === "INACTIVE";
+  const isStatusUpdateRequest = pendingRequestType === "UPDATE";
+  const isInactiveUpdateRequest = isStatusUpdateRequest && nextStatusFromRequest === "INACTIVE";
+  const isActiveUpdateRequest = isStatusUpdateRequest && nextStatusFromRequest === "ACTIVE";
+  const approvalHeading = isInactiveUpdateRequest
+    ? "Deactivation Approval"
+    : isActiveUpdateRequest
+      ? "Activation Approval"
+      : "New Node Approval";
   const nodePathSegments = node.nodePath.split(".").filter(Boolean);
 
   const validateAndRun = (action: "approve" | "reject") => {
@@ -157,7 +164,7 @@ export function PendingNodePopup({
 
           <div className="flex flex-col items-center gap-2.5 text-center">
             <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.13em] text-amber-700">
-              {isInactiveUpdateRequest ? "Inactive Request" : "New Node Approval"}
+              {approvalHeading}
             </span>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-[0_6px_16px_rgba(245,158,11,0.14)]">
               <Icon className="h-6 w-6 text-amber-500" />
@@ -261,6 +268,8 @@ export function PendingNodePopup({
             <p>
               {isInactiveUpdateRequest
                 ? "Approving this node will delete it from the Organization Structure."
+                : isActiveUpdateRequest
+                  ? "Approving this node will activate it in the Organization Structure."
                 : "Approving this node will add it to the Organization Structure."}
             </p>
           </div>

@@ -10,6 +10,7 @@ import { APPROVAL_OPTIONS } from "@/features/workflow-management/constants";
 import { formatSnakeCaseLabel, isWorkflowUpdateRequest } from "@/features/workflow-management/utils/workflowRecord.utils";
 import { cn } from "@/lib/utils";
 import { formatToIst, SummaryPreview } from "@/features/workflow-management/components/WorkflowManageDialogSummary";
+import { useToast } from "@/hooks/use-toast";
 
 type WorkflowManageDialogProps = {
   open: boolean;
@@ -48,6 +49,7 @@ export default function WorkflowManageDialog({
   contentStyle,
   preventOutsideClose = false,
 }: WorkflowManageDialogProps) {
+  const { toast } = useToast();
   const toRecord = (value: unknown): Record<string, unknown> =>
     typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
   const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
@@ -143,7 +145,8 @@ export default function WorkflowManageDialog({
     RMUPDATED: "border-sky-200 bg-sky-100 text-sky-700",
     PROFILE_UPDATE: "border-sky-200 bg-sky-100 text-sky-700",
   };
-  const hasImpactBadge = Boolean(normalizedRequestImpact);
+  const hiddenImpactTokens = new Set(["", "NO_ISSUES", "NO ISSUES", "NONE", "NA", "N/A"]);
+  const hasImpactBadge = !hiddenImpactTokens.has(normalizedRequestImpact);
   const impactBadgeCls = impactBadgeMap[normalizedRequestImpact] || "border-slate-200 bg-slate-100 text-slate-700";
   const impactBadgeLabel = formatSnakeCaseLabel(normalizedRequestImpact || "");
 
@@ -187,14 +190,19 @@ export default function WorkflowManageDialog({
       workflow.status === "Inactive" && nextStatus === "inactive" && currentStatus === "inactive"
         ? "active"
         : nextStatus;
-    setPendingStatus(resolvedNextStatus);
-    setStatusRemark("");
-    setStatusWorkflowHash("");
     try {
       const options = await onRequestStatusWorkflowOptions(workflow);
+      setPendingStatus(resolvedNextStatus);
+      setStatusRemark("");
+      setStatusWorkflowHash("");
       setStatusWorkflowOptions(options);
-    } catch {
+    } catch (error) {
       setStatusWorkflowOptions([]);
+      toast({
+        title: "Edit unavailable",
+        description: error instanceof Error ? error.message : "Unable to lock workflow for edit.",
+        variant: "destructive",
+      });
     }
   };
 

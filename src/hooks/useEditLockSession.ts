@@ -6,6 +6,22 @@ type LockTarget = Omit<EditLockPayload, "subtype" | "addMin">;
 const LOCK_WINDOW_MS = 10 * 60 * 1000;
 const WARNING_WINDOW_MS = 30 * 1000;
 
+const toRecord = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+
+const readBoolean = (value: unknown): boolean | null => (typeof value === "boolean" ? value : null);
+const readString = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+
+const ensureLockAcquired = (response: unknown) => {
+  const root = toRecord(response);
+  const data = toRecord(root.data);
+  const lockAcquired = readBoolean(root.lockAcquired) ?? readBoolean(data.lockAcquired);
+  if (lockAcquired === false) {
+    const message = readString(root.message) || readString(data.message) || "Unable to acquire edit lock.";
+    throw new Error(message);
+  }
+};
+
 export function useEditLockSession() {
   const [warningOpen, setWarningOpen] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(30);
@@ -71,11 +87,12 @@ export function useEditLockSession() {
 
   const startSession = useCallback(
     async (target: LockTarget, onTimeout: () => void) => {
-      await acquireEditLock({
+      const response = await acquireEditLock({
         ...target,
         subtype: "lock",
         addMin: 10,
       } as EditLockPayload);
+      ensureLockAcquired(response);
       targetRef.current = target;
       onTimeoutRef.current = onTimeout;
       sessionActiveRef.current = true;
@@ -90,11 +107,12 @@ export function useEditLockSession() {
   const continueEditing = useCallback(async () => {
     const target = targetRef.current;
     if (!target || !sessionActiveRef.current) return;
-    await acquireEditLock({
+    const response = await acquireEditLock({
       ...target,
       subtype: "lock",
       addMin: 10,
     } as EditLockPayload);
+    ensureLockAcquired(response);
     lastActivityMsRef.current = Date.now();
     setWarningOpen(false);
     setSecondsRemaining(30);
