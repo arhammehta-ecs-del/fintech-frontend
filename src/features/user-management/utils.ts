@@ -187,7 +187,6 @@ export const buildUserUpdatePayload = (formData: UserOnboardingFormData, seedMem
 
   if (hasBasicDelta) {
     payload.basicDetails = changedBasicDetails;
-    return payload;
   }
 
   if (hasPermissionDelta) {

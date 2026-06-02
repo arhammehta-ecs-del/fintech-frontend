@@ -141,7 +141,9 @@ export const createUserManagementActions = ({
       // Temporarily disabled user edit-lock.
       // await acquireEditLock({ type: "user", target: member.email.trim() });
 
-      if (member.status === "Pending") {
+      const isPendingMember = member.status === "Pending" || Boolean(member.isPending);
+
+      if (isPendingMember) {
         if (!member.id) {
           toast({ title: "Action failed", description: "User ID is missing", variant: "destructive" });
           return;
@@ -167,7 +169,7 @@ export const createUserManagementActions = ({
       }
       toast({
         title:
-          member.status === "Pending"
+          isPendingMember
             ? action === "activate"
               ? "User approved"
               : "User rejected"
@@ -175,7 +177,7 @@ export const createUserManagementActions = ({
               ? "User activated"
               : "User deactivated",
         description:
-          member.status === "Pending"
+          isPendingMember
             ? `${member.name} ${action === "activate" ? "approval" : "rejection"} submitted.`
             : `${member.name} ${action === "activate" ? "activation" : "inactivation"} request submitted.`,
       });

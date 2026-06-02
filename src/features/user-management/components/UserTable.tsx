@@ -146,7 +146,10 @@ export default function UserTable({
         </tr>
       </thead>
       <tbody>
-        {paginatedMembers.map((member) => (
+        {paginatedMembers.map((member) => {
+          const isPending = Boolean(member.isPending);
+
+          return (
           <tr key={member.email} className="border-b border-slate-200 transition hover:bg-slate-50/80">
             <td className="pl-7 pr-4 py-4">
               <button
@@ -167,6 +170,9 @@ export default function UserTable({
                 <div>
                   <div className="text-[15px] font-medium text-slate-900">{member.name}</div>
                   <div className="text-[13when px] text-slate-500">{member.email || "No email"}</div>
+                  {isPending ? (
+                    <div className="mt-0.5 text-[12px] font-medium leading-5 text-amber-700">Modification in progress</div>
+                  ) : null}
                 </div>
               </button>
             </td>
@@ -268,7 +274,8 @@ export default function UserTable({
               </TooltipProvider>
             </td>
           </tr>
-        ))}
+          );
+        })}
       </tbody>
     </table>
     <UserHistorySidebar

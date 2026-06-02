@@ -33,6 +33,32 @@ type WorkflowManageDialogProps = {
   preventOutsideClose?: boolean;
 };
 
+const toRecord = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+const applyPendingDataView = (
+  base: WorkflowRecord,
+  source: Record<string, unknown>,
+): WorkflowRecord => {
+  const next = { ...base };
+  const target = toRecord(source.target);
+
+  if ("name" in source) next.name = readString(source.name) || next.name;
+  if ("alias" in source) next.alias = readString(source.alias) || next.alias;
+  if ("module" in source) next.rawModule = readString(source.module) || next.rawModule;
+  if ("subModule" in source) next.subModule = readString(source.subModule) || next.subModule;
+  if ("nodePath" in source) next.nodePath = readString(source.nodePath) || next.nodePath;
+  if ("levels" in source) next.levels = source.levels ?? next.levels;
+
+  if ("module" in target) next.rawModule = readString(target.module) || next.rawModule;
+  if ("subModule" in target) next.subModule = readString(target.subModule) || next.subModule;
+  if ("nodePath" in target) next.nodePath = readString(target.nodePath) || next.nodePath;
+  if ("levelsHash" in target) next.levelsHash = readString(target.levelsHash) || next.levelsHash;
+
+  return next;
+};
+
 
 export default function WorkflowManageDialog({
   open,
@@ -50,31 +76,6 @@ export default function WorkflowManageDialog({
   preventOutsideClose = false,
 }: WorkflowManageDialogProps) {
   const { toast } = useToast();
-  const toRecord = (value: unknown): Record<string, unknown> =>
-    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
-  const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
-
-  const applyPendingDataView = (
-    base: WorkflowRecord,
-    source: Record<string, unknown>,
-  ): WorkflowRecord => {
-    const next = { ...base };
-    const target = toRecord(source.target);
-
-    if ("name" in source) next.name = readString(source.name) || next.name;
-    if ("alias" in source) next.alias = readString(source.alias) || next.alias;
-    if ("module" in source) next.rawModule = readString(source.module) || next.rawModule;
-    if ("subModule" in source) next.subModule = readString(source.subModule) || next.subModule;
-    if ("nodePath" in source) next.nodePath = readString(source.nodePath) || next.nodePath;
-    if ("levels" in source) next.levels = source.levels ?? next.levels;
-
-    if ("module" in target) next.rawModule = readString(target.module) || next.rawModule;
-    if ("subModule" in target) next.subModule = readString(target.subModule) || next.subModule;
-    if ("nodePath" in target) next.nodePath = readString(target.nodePath) || next.nodePath;
-    if ("levelsHash" in target) next.levelsHash = readString(target.levelsHash) || next.levelsHash;
-
-    return next;
-  };
 
   const remarkCardRef = useRef<HTMLDivElement | null>(null);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -89,7 +90,6 @@ export default function WorkflowManageDialog({
   const [statusRemark, setStatusRemark] = useState("");
   const [statusWorkflowHash, setStatusWorkflowHash] = useState("");
   const [statusWorkflowOptions, setStatusWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
-  const [showPrevious, setShowPrevious] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -104,7 +104,6 @@ export default function WorkflowManageDialog({
       setStatusWorkflowHash("");
       setStatusWorkflowOptions([]);
       setStatusSubmitting(false);
-      setShowPrevious(false);
     }
   }, [open, workflow?.id]);
 
@@ -123,18 +122,31 @@ export default function WorkflowManageDialog({
     const hasPendingDataDiff = Object.keys(pendingOldData).length > 0 || Object.keys(pendingNewData).length > 0;
     const isUpdateRequest = isWorkflowUpdateRequest(workflow) || hasPendingDataDiff;
     if (!isUpdateRequest) return workflow;
-    const source = showPrevious ? pendingOldData : pendingNewData;
+    const source = pendingNewData;
     if (!Object.keys(source).length) return workflow;
     return applyPendingDataView(workflow, source);
-  }, [showPrevious, workflow]);
+  }, [workflow]);
+  const previousWorkflow = useMemo(() => {
+    if (!workflow) return null;
+    const pendingOldData = toRecord(workflow.pendingOldData);
+    if (!Object.keys(pendingOldData).length) return null;
+    return applyPendingDataView(workflow, pendingOldData);
+  }, [workflow]);
   if (!workflow || !displayWorkflow) return null;
   const pendingOldData = toRecord(workflow.pendingOldData);
   const pendingNewData = toRecord(workflow.pendingNewData);
   const hasPendingDataDiff = Object.keys(pendingOldData).length > 0 || Object.keys(pendingNewData).length > 0;
   const isUpdateRequest = isWorkflowUpdateRequest(workflow) || hasPendingDataDiff;
+  const isPending = workflow.status === "Pending" || isUpdateRequest || Boolean(workflow.isPending);
   const normalizedRequestImpact = (workflow.pendingRequestImpact || "").trim().toUpperCase();
+  const normalizedRequestType = (workflow.pendingRequestType || "").trim().toUpperCase();
+  const pendingNewBasicDetails = toRecord(pendingNewData.basicDetails);
+  const normalizedRequestStatus = (
+    readString(pendingNewBasicDetails.status) ||
+    readString(pendingNewData.status) ||
+    readString(pendingNewData.type)
+  ).toUpperCase();
   const isInactiveImpact = normalizedRequestImpact === "INACTIVE";
-  const canTogglePreviousUpdated = isUpdateRequest && !isInactiveImpact;
   const impactBadgeMap: Record<string, string> = {
     ARCHIVE: "border-rose-200 bg-rose-100 text-rose-700",
     INACTIVE: "border-amber-200 bg-amber-100 text-amber-700",
@@ -146,11 +158,39 @@ export default function WorkflowManageDialog({
     PROFILE_UPDATE: "border-sky-200 bg-sky-100 text-sky-700",
   };
   const hiddenImpactTokens = new Set(["", "NO_ISSUES", "NO ISSUES", "NONE", "NA", "N/A"]);
-  const hasImpactBadge = !hiddenImpactTokens.has(normalizedRequestImpact);
-  const impactBadgeCls = impactBadgeMap[normalizedRequestImpact] || "border-slate-200 bg-slate-100 text-slate-700";
-  const impactBadgeLabel = formatSnakeCaseLabel(normalizedRequestImpact || "");
+  const isPendingInactiveRequest =
+    isPending && (
+      normalizedRequestType === "INACTIVE" ||
+      normalizedRequestStatus === "INACTIVE" ||
+      normalizedRequestImpact === "INACTIVE"
+    );
+  const isPendingActiveRequest =
+    isPending && (
+      normalizedRequestType === "ACTIVE" ||
+      normalizedRequestStatus === "ACTIVE" ||
+      normalizedRequestImpact === "ACTIVE"
+    );
+  const isPendingUpdateRequest = isPending && normalizedRequestType === "UPDATE";
+  const pendingApprovalLabel = isPendingActiveRequest
+    ? "Re-activation Approval"
+    : isPendingInactiveRequest
+      ? "Deactivation Approval"
+      : isPendingUpdateRequest
+        ? "Edit Request Approval"
+        : "";
+  const formattedImpactLabel = hiddenImpactTokens.has(normalizedRequestImpact)
+    ? ""
+    : formatSnakeCaseLabel(normalizedRequestImpact || "");
+  const hasImpactBadge = Boolean(pendingApprovalLabel) || !hiddenImpactTokens.has(normalizedRequestImpact);
+  const impactBadgeCls = pendingApprovalLabel
+    ? "border-amber-200 bg-amber-100 text-amber-700"
+    : impactBadgeMap[normalizedRequestImpact] || "border-slate-200 bg-slate-100 text-slate-700";
+  const impactBadgeLabel = pendingApprovalLabel
+    ? formattedImpactLabel
+      ? `${pendingApprovalLabel} - ${formattedImpactLabel}`
+      : pendingApprovalLabel
+    : formattedImpactLabel;
 
-  const isPending = workflow.status === "Pending" || isUpdateRequest;
   const currentWorkflowStatus = workflow.status === "Inactive" ? "inactive" : "active";
   const isRemarkValid = Boolean(remark.trim());
   const showRemarkError = remarkTouched && !isRemarkValid;
@@ -244,53 +284,6 @@ export default function WorkflowManageDialog({
               <div className="flex flex-wrap items-center gap-2.5">
                 <DialogTitle className="text-xl text-slate-900">{displayWorkflow.name}</DialogTitle>
               </div>
-              {isPending ? (
-                <div className="mt-3 min-w-0 overflow-x-hidden rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
-                  <div className="space-y-2 text-[12px]">
-                    <div>
-                      <div className="min-w-0 flex flex-nowrap items-center gap-2 overflow-hidden">
-                        {initiatorName ? (
-                          <span className="inline-flex min-w-0 shrink items-center gap-1.5 rounded-full bg-white/90 px-2 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                            <UserCheck size={12} className="text-slate-400" />
-                            <span className="shrink-0 text-slate-500">By</span>
-                            <span className="truncate font-medium text-slate-700">{initiatorName}</span>
-                          </span>
-                        ) : null}
-                        {initiatorEmail ? (
-                          <span className="inline-flex min-w-0 shrink items-center gap-1.5 rounded-full bg-white/90 px-2 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                            <Mail size={12} className="text-slate-400" />
-                            <span className="shrink-0 text-slate-500">Email</span>
-                            <span className="truncate font-medium text-slate-700">{initiatorEmail}</span>
-                          </span>
-                        ) : null}
-                        {initiatedOn ? (
-                          <span className="inline-flex min-w-0 shrink items-center gap-1.5 rounded-full bg-white/90 px-2 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                            <Calendar size={12} className="text-slate-400" />
-                            <span className="shrink-0 text-slate-500">Initiated</span>
-                            <span className="truncate font-medium text-slate-700">{initiatedOn}</span>
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="min-w-0 flex flex-nowrap items-center gap-2 overflow-hidden">
-                        {pendingWorkflowName ? (
-                          <span className="inline-flex min-w-0 shrink items-center gap-1.5 rounded-full bg-white/90 px-2 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                            <span className="shrink-0 text-slate-500">Workflow</span>
-                            <span className="truncate font-medium text-slate-700">{pendingWorkflowName}</span>
-                          </span>
-                        ) : null}
-                        {pendingWorkflowAlias ? (
-                          <span className="inline-flex min-w-0 shrink items-center gap-1.5 rounded-full bg-white/90 px-2 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                            <span className="shrink-0 text-slate-500">Alias</span>
-                            <span className="truncate font-medium text-slate-700">{pendingWorkflowAlias}</span>
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {hasImpactBadge ? (
@@ -303,7 +296,7 @@ export default function WorkflowManageDialog({
                   {impactBadgeLabel}
                 </span>
               ) : null}
-              {isPending && onToggleHistory ? (
+              {onToggleHistory ? (
                 <TooltipProvider delayDuration={120}>
                   <Tooltip open={isHistoryTooltipOpen}>
                     <TooltipTrigger asChild>
@@ -379,20 +372,6 @@ export default function WorkflowManageDialog({
                   </button>
                 </div>
               ) : null}
-              {canTogglePreviousUpdated ? (
-                <button
-                  type="button"
-                  onClick={() => setShowPrevious((current) => !current)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-xs font-semibold transition",
-                    showPrevious
-                      ? "border-amber-300 bg-amber-50 text-amber-700"
-                      : "border-emerald-300 bg-emerald-50 text-emerald-700",
-                  )}
-                >
-                  {showPrevious ? "Updated" : "Previous"}
-                </button>
-              ) : null}
               <button
                 type="button"
                 onClick={onClose}
@@ -403,10 +382,53 @@ export default function WorkflowManageDialog({
               </button>
             </div>
           </div>
+          {isPending ? (
+            <div className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
+              <div className="space-y-2 text-[12px]">
+                <div className="flex w-full flex-wrap items-center gap-2">
+                  {initiatorName ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                      <UserCheck size={12} className="text-slate-400" />
+                      <span className="shrink-0 text-slate-500">By</span>
+                      <span className="font-medium text-slate-700">{initiatorName}</span>
+                    </span>
+                  ) : null}
+                  {initiatorEmail ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                      <Mail size={12} className="text-slate-400" />
+                      <span className="shrink-0 text-slate-500">Email</span>
+                      <span className="font-medium text-slate-700">{initiatorEmail}</span>
+                    </span>
+                  ) : null}
+                  {initiatedOn ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                      <Calendar size={12} className="text-slate-400" />
+                      <span className="shrink-0 text-slate-500">Initiated</span>
+                      <span className="font-medium text-slate-700">{initiatedOn}</span>
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex w-full flex-wrap items-center gap-2">
+                  {pendingWorkflowName ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                      <span className="shrink-0 text-slate-500">Workflow</span>
+                      <span className="font-medium text-slate-700">{pendingWorkflowName}</span>
+                    </span>
+                  ) : null}
+                  {pendingWorkflowAlias ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
+                      <span className="shrink-0 text-slate-500">Alias</span>
+                      <span className="font-medium text-slate-700">{pendingWorkflowAlias}</span>
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </DialogHeader>
 
         <div className="space-y-4 overflow-y-auto px-5 py-4">
-          <SummaryPreview workflow={displayWorkflow} />
+          <SummaryPreview workflow={{ ...displayWorkflow, previousWorkflow }} />
 
           {!isPending && pendingStatus && onSubmitStatusUpdate ? (
             <div className="rounded-xl border border-slate-200 bg-white p-4">

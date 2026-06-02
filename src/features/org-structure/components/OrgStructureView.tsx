@@ -18,6 +18,7 @@ import type { NewNodeType } from "@/features/org-structure/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
+import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
 
 export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [, setSearchParams] = useSearchParams();
@@ -85,7 +86,9 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [historyViewContext, setHistoryViewContext] = useState<"active" | "pending">("active");
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const [isRefreshTooltipOpen, setIsRefreshTooltipOpen] = useState(false);
+  const isNotificationsPanelOpen = useNotificationsPanelOpen();
   const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
+  const isAnyOrgDialogOpen = isNewNodePopupOpen || Boolean(pendingNodeForReview) || Boolean(statusUpdateNode);
   const historyLayoutOffset =
     isOrgHistoryOpen && historyViewContext === "pending" ? { top: 0, left: 0 } : shellOffset;
 
@@ -247,7 +250,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                   ) : null}
                   <div className="relative flex h-10 w-10 items-center justify-center">
                     <TooltipProvider delayDuration={120}>
-                      <Tooltip open={isRefreshTooltipOpen}>
+                      <Tooltip open={(!isAnyOrgDialogOpen && !isNotificationsPanelOpen && hasNewOrgEvent) || isRefreshTooltipOpen}>
                         <TooltipTrigger asChild>
                           <button
                             type="button"
@@ -276,7 +279,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                       </Tooltip>
                     </TooltipProvider>
                     {refreshLabel ? (
-                      <p className="pointer-events-none absolute top-full right-0 mt-1 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                      <p className="pointer-events-none absolute top-full right-0 mt-1 whitespace-nowrap text-right text-[11px] font-medium leading-none text-muted-foreground">
                         {refreshLabel}
                       </p>
                     ) : null}
@@ -489,6 +492,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         parentNodePath={historyParentNodePath}
         dockOffset={historyLayoutOffset}
         splitView
+        closeOnOutsideClick={historyViewContext !== "pending"}
       />
     </div>
   );

@@ -224,8 +224,11 @@ const getDepartmentFromAccessDetails = (record: RawUserRecord) => {
 
 const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUser => {
   const basicDetails = toRecord(record.basicDetails);
-  const oldData = toRecord(record.oldData);
-  const newData = toRecord(record.newData);
+  const pendingRequest = toRecord(record.pendingRequest);
+  const pendingOldData = toRecord(pendingRequest.oldData);
+  const pendingNewData = toRecord(pendingRequest.newData);
+  const oldData = Object.keys(pendingOldData).length > 0 ? pendingOldData : toRecord(record.oldData);
+  const newData = Object.keys(pendingNewData).length > 0 ? pendingNewData : toRecord(record.newData);
   const name = readString(basicDetails.name).trim();
   const email = readString(basicDetails.email).trim();
   const designation = readString(basicDetails.designation).trim();
@@ -236,11 +239,15 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   const employeeId = readString(basicDetails.employeeId).trim();
   const initiatorName = readString(basicDetails.initiatorName).trim();
   const initiatorEmail = readString(basicDetails.initiatorEmail).trim();
-  const initiatedAt = readString(basicDetails.initiatedDate).trim();
+  const initiatedAt =
+    readString(basicDetails.initiatedDate).trim() ||
+    readString(pendingRequest.createdAt).trim() ||
+    readString(record.createdAt).trim();
   const workflowName = readString(basicDetails.workflowName).trim();
   const alias = readString(basicDetails.alias).trim();
-  const requestType = readString(record.type).trim();
-  const requestImpact = readString(record.impact).trim();
+  const requestType = readString(pendingRequest.type).trim() || readString(record.type).trim();
+  const requestImpact = readString(pendingRequest.impact).trim() || readString(record.impact).trim();
+  const pendingRequestStatus = readString(pendingRequest.status).trim().toUpperCase();
   const backendId =
     readString(record.id).trim() ||
     readString(record.userId).trim() ||
@@ -248,10 +255,12 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
     readString(basicDetails.userId).trim();
   const uuid = readString(record.uuid).trim() || readString(basicDetails.uuid).trim();
   const companyId = readString(record.companyId).trim();
+  const isPending = Boolean(record.isPending) || pendingRequestStatus === "PENDING";
 
   return {
     id: backendId || undefined,
     uuid: uuid || undefined,
+    isPending,
     name,
     email,
     role: designation,

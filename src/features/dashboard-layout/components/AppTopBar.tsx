@@ -12,6 +12,7 @@ import {
   type NotificationSsePacket,
   updateNotificationReadStatus,
 } from "@/services/notification.service";
+import { setNotificationsPanelOpenFlag } from "@/hooks/useNotificationsPanelOpen";
 
 type AppTopBarProps = {
   mobileNavOpen: boolean;
@@ -36,11 +37,12 @@ export function AppTopBar({
   navigate,
   onLogout,
 }: AppTopBarProps) {
-  type NotificationStatus = "Initiated" | "Rejected" | "Approved";
+  type NotificationTone = "blue" | "green" | "orange" | "red" | "slate";
   type NotificationEntity = "User" | "Workflow" | "Org" | "Company List";
   type NotificationItem = {
     id: string;
-    status: NotificationStatus;
+    badgeLabel: string;
+    badgeTone: NotificationTone;
     title: string;
     entity: NotificationEntity;
     userName: string;
@@ -51,11 +53,34 @@ export function AppTopBar({
     unread: boolean;
   };
 
-  const mapTypeToStatus = (value?: string): NotificationStatus => {
+  const mapTypeToBadge = (value?: string): { label: string; tone: NotificationTone } => {
     const normalized = String(value ?? "").trim().toUpperCase();
-    if (normalized === "APPROVE" || normalized === "APPROVED") return "Approved";
-    if (normalized === "REJECT" || normalized === "REJECTED") return "Rejected";
-    return "Initiated";
+    if (normalized.includes("INACTIV")) {
+      return { label: "Inactive", tone: "red" };
+    }
+    if (normalized.includes("ACTIV")) {
+      return { label: "Active", tone: "green" };
+    }
+    if (normalized.includes("APPROV") || normalized.includes("ONBOARD")) {
+      return { label: "Approved", tone: "green" };
+    }
+    if (normalized.includes("INITIAT")) {
+      return { label: "Initiated", tone: "blue" };
+    }
+    if (normalized.includes("MODIF")) {
+      return { label: "Modify", tone: "orange" };
+    }
+    if (normalized.includes("REJECT")) {
+      return { label: "Rejected", tone: "red" };
+    }
+    if (normalized) {
+      const fallbackLabel = normalized
+        .replace(/[_-]+/g, " ")
+        .toLowerCase()
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+      return { label: fallbackLabel, tone: "slate" };
+    }
+    return { label: "Initiated", tone: "blue" };
   };
 
   const mapRefTypeToEntity = (value?: string): NotificationEntity => {
@@ -82,7 +107,7 @@ export function AppTopBar({
   };
 
   const mapPacketToNotification = (packet: NotificationSsePacket): NotificationItem => {
-    const status = mapTypeToStatus(packet.type);
+    const badge = mapTypeToBadge(packet.type);
     const entity = mapRefTypeToEntity(packet.refType);
     const title = String(packet.name ?? "").trim();
     const message = String(packet.message ?? "").trim();
@@ -91,8 +116,9 @@ export function AppTopBar({
 
     return {
       id: String(packet.id ?? `${createdAt}-${Math.random().toString(36).slice(2, 10)}`),
-      status,
-      title: title || `${entity} ${status}`,
+      badgeLabel: badge.label,
+      badgeTone: badge.tone,
+      title: title || `${entity} ${badge.label}`,
       entity,
       userName: message,
       userEmail: "",
@@ -117,6 +143,11 @@ export function AppTopBar({
   const COMPACT_NOTIFICATIONS_LIMIT = 10;
   const DIALOG_PAGE_SIZE = 50;
   const TODAY_ONLY_THRESHOLD = 3;
+
+  useEffect(() => {
+    setNotificationsPanelOpenFlag(allNotificationsOpen || notificationsPopoverOpen);
+    return () => setNotificationsPanelOpenFlag(false);
+  }, [allNotificationsOpen, notificationsPopoverOpen]);
 
   useEffect(() => {
     const disconnect = connectNotificationStream({
@@ -218,23 +249,33 @@ export function AppTopBar({
   const unreadCountLabel = unreadTotalCount === 1 ? "1 unread" : `${unreadTotalCount} unread`;
 
   const statusStyles: Record<
-    NotificationStatus,
+    NotificationTone,
     { unreadBorder: string; readBorder: string; badge: string }
   > = {
-    Initiated: {
+    blue: {
       unreadBorder: "border-l-blue-500",
       readBorder: "border-l-blue-500/40",
       badge: "bg-blue-100/70 text-blue-700 border-transparent",
     },
-    Rejected: {
+    red: {
       unreadBorder: "border-l-red-500",
       readBorder: "border-l-red-500/40",
       badge: "bg-red-100/70 text-red-700 border-transparent",
     },
-    Approved: {
+    green: {
       unreadBorder: "border-l-emerald-500",
       readBorder: "border-l-emerald-500/40",
       badge: "bg-emerald-100/70 text-emerald-700 border-transparent",
+    },
+    orange: {
+      unreadBorder: "border-l-amber-500",
+      readBorder: "border-l-amber-500/40",
+      badge: "bg-amber-100/80 text-amber-700 border-transparent",
+    },
+    slate: {
+      unreadBorder: "border-l-slate-500",
+      readBorder: "border-l-slate-400/50",
+      badge: "bg-slate-100 text-slate-700 border-transparent",
     },
   };
 
@@ -444,7 +485,7 @@ export function AppTopBar({
                     </div>
                   </div>
                 ) : visibleNotifications.map((notification, index) => {
-                  const styles = statusStyles[notification.status];
+                  const styles = statusStyles[notification.badgeTone];
                   const isLastVisibleNotification = index === visibleNotifications.length - 1;
                   return (
                     <button
@@ -455,7 +496,7 @@ export function AppTopBar({
                         notification.unread ? styles.unreadBorder : styles.readBorder
                       } bg-transparent px-4 py-4 text-left shadow-sm transition-colors ${
                         notification.unread
-                          ? "border-slate-300 bg-slate-100/70 hover:bg-slate-100"
+                          ? "border-slate-300 bg-slate-200/80 hover:bg-slate-200/80"
                           : "border-slate-200 bg-white hover:bg-slate-50"
                       } ${isLastVisibleNotification ? "" : "mb-3"}`}
                     >
@@ -478,7 +519,7 @@ export function AppTopBar({
                           <span
                             className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}
                           >
-                            {notification.status}
+                            {notification.badgeLabel}
                           </span>
                         </div>
                       </div>
@@ -552,7 +593,7 @@ export function AppTopBar({
                 <p className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Today</p>
               ) : null}
               {todayDialogNotifications.map((notification) => {
-                const styles = statusStyles[notification.status];
+                const styles = statusStyles[notification.badgeTone];
                 return (
                   <button
                     type="button"
@@ -562,7 +603,7 @@ export function AppTopBar({
                       notification.unread ? styles.unreadBorder : styles.readBorder
                     } bg-transparent px-4 py-4 text-left shadow-sm transition-colors ${
                       notification.unread
-                        ? "border-slate-300 bg-slate-100/70 hover:bg-slate-100"
+                        ? "border-slate-300 bg-slate-200/80 hover:bg-slate-200/80"
                         : "border-slate-200 bg-white hover:bg-slate-50"
                     }`}
                   >
@@ -589,7 +630,7 @@ export function AppTopBar({
                         <span
                           className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}
                         >
-                          {notification.status}
+                          {notification.badgeLabel}
                         </span>
                       </div>
                     </div>
@@ -602,7 +643,7 @@ export function AppTopBar({
                 <p className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Yesterday</p>
               ) : null}
               {yesterdayNotifications.map((notification) => {
-                const styles = statusStyles[notification.status];
+                const styles = statusStyles[notification.badgeTone];
                 return (
                   <button
                     type="button"
@@ -612,7 +653,7 @@ export function AppTopBar({
                       notification.unread ? styles.unreadBorder : styles.readBorder
                     } bg-transparent px-4 py-4 text-left shadow-sm transition-colors ${
                       notification.unread
-                        ? "border-slate-300 bg-slate-100/70 hover:bg-slate-100"
+                        ? "border-slate-300 bg-slate-200/80 hover:bg-slate-200/80"
                         : "border-slate-200 bg-white hover:bg-slate-50"
                     }`}
                   >
@@ -639,7 +680,7 @@ export function AppTopBar({
                         <span
                           className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}
                         >
-                          {notification.status}
+                          {notification.badgeLabel}
                         </span>
                       </div>
                     </div>
@@ -652,7 +693,7 @@ export function AppTopBar({
                 <p className="pt-2 px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Earlier</p>
               ) : null}
               {olderNotifications.map((notification) => {
-                const styles = statusStyles[notification.status];
+                const styles = statusStyles[notification.badgeTone];
                 return (
                   <button
                     type="button"
@@ -662,7 +703,7 @@ export function AppTopBar({
                       notification.unread ? styles.unreadBorder : styles.readBorder
                     } bg-transparent px-4 py-4 text-left shadow-sm transition-colors ${
                       notification.unread
-                        ? "border-slate-300 bg-slate-100/70 hover:bg-slate-100"
+                        ? "border-slate-300 bg-slate-200/80 hover:bg-slate-200/80"
                         : "border-slate-200 bg-white hover:bg-slate-50"
                     }`}
                   >
@@ -689,7 +730,7 @@ export function AppTopBar({
                         <span
                           className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}
                         >
-                          {notification.status}
+                          {notification.badgeLabel}
                         </span>
                       </div>
                     </div>
@@ -702,7 +743,7 @@ export function AppTopBar({
                 <p className="pt-2 px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Upcoming</p>
               ) : null}
               {upcomingNotifications.map((notification) => {
-                const styles = statusStyles[notification.status];
+                const styles = statusStyles[notification.badgeTone];
                 return (
                   <button
                     type="button"
@@ -712,7 +753,7 @@ export function AppTopBar({
                       notification.unread ? styles.unreadBorder : styles.readBorder
                     } bg-transparent px-4 py-4 text-left shadow-sm transition-colors ${
                       notification.unread
-                        ? "border-slate-300 bg-slate-100/70 hover:bg-slate-100"
+                        ? "border-slate-300 bg-slate-200/80 hover:bg-slate-200/80"
                         : "border-slate-200 bg-white hover:bg-slate-50"
                     }`}
                   >
@@ -739,7 +780,7 @@ export function AppTopBar({
                         <span
                           className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}
                         >
-                          {notification.status}
+                          {notification.badgeLabel}
                         </span>
                       </div>
                     </div>

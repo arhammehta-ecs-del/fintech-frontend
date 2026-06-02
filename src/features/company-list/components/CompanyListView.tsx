@@ -12,6 +12,7 @@ import { RemarkDialog } from "@/components/RemarkDialog";
 import PaginationFooter from "@/components/PaginationFooter";
 import type { CompanyOnboardingWizardRendererProps } from "@/features/company-list/types";
 import { useEffect, useMemo, useState } from "react";
+import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
 
 type CompanyListViewProps = {
   CompanyOnboardingWizardRenderer: ComponentType<CompanyOnboardingWizardRendererProps>;
@@ -19,6 +20,7 @@ type CompanyListViewProps = {
 
 export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyListViewProps) {
   const [refreshInitializedAt, setRefreshInitializedAt] = useState<number | null>(null);
+  const isNotificationsPanelOpen = useNotificationsPanelOpen();
   const {
     setGroups,
     expanded,
@@ -108,6 +110,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
         onClearAdvancedFilters={clearAdvancedFilters}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
         hasNewCompanyListEvent={hasNewCompanyListEvent}
+        suppressAutoEventTooltip={isOnboardingOpen || isPreviewOpen || remarkDialogOpen || isNotificationsPanelOpen}
         refreshInitializedAt={refreshInitializedAt}
         onRefresh={async () => {
           await refreshCompanies(true);

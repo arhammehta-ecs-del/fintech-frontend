@@ -267,7 +267,7 @@ export default function ApiMonitoringView() {
                   <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
                 </Button>
                 {refreshLabel ? (
-                  <p className="pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                  <p className="pointer-events-none absolute top-full right-0 mt-1 whitespace-nowrap text-right text-xs font-medium text-muted-foreground">
                     {refreshLabel}
                   </p>
                 ) : null}

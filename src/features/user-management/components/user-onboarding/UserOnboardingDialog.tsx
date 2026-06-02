@@ -58,17 +58,10 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
     prevStep,
     handlePrimaryAction,
   } = useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember });
-  const [showPreviousReview, setShowPreviousReview] = useState(false);
   const [showEditRemark, setShowEditRemark] = useState(false);
   const isGlobalSignatoryFlow = formData.isGlobalUserEligible && formData.isGlobalSignatory;
   const stepContainerRef = useRef<HTMLDivElement | null>(null);
   const remarkSectionRef = useRef<HTMLDivElement | null>(null);
-  const effectiveReviewBasic = showPreviousReview && reviewSnapshot ? reviewSnapshot.basic : formData.basic;
-  const effectiveReviewNodes = showPreviousReview && reviewSnapshot ? reviewSnapshot.selectedNodes : selectedNodes;
-  const effectiveReviewPrimaryNodeId = showPreviousReview && reviewSnapshot ? reviewSnapshot.primaryNodeId : primaryNodeId;
-  const effectiveReviewPermissions = showPreviousReview && reviewSnapshot ? reviewSnapshot.nodePermissions : nodePermissions;
-  const effectiveReviewPermissionScopes = showPreviousReview && reviewSnapshot ? reviewSnapshot.nodePermissionScopes : nodePermissionScopes;
-  const effectiveReviewWorkflow = showPreviousReview && reviewSnapshot ? reviewSnapshot.selectedWorkflow : formData.selectedWorkflow;
 
   useEffect(() => {
     if (!open) return;
@@ -78,7 +71,6 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
 
   useEffect(() => {
     if (!open) return;
-    setShowPreviousReview(false);
     setShowEditRemark(false);
   }, [open, seedMember]);
 
@@ -116,21 +108,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
                     </DialogDescription>
                   </div>
                 </div>
-                {step === 4 && reviewSnapshot ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={cn(
-                      "h-11 rounded-xl px-5 text-sm font-semibold",
-                      showPreviousReview
-                        ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                        : "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
-                    )}
-                    onClick={() => setShowPreviousReview((current) => !current)}
-                  >
-                    {showPreviousReview ? "Previous" : "Updated"}
-                  </Button>
-                ) : null}
+                <div />
               </div>
             </DialogHeader>
           </div>
@@ -235,13 +213,15 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
               {step === 4 ? (
                 <UserOnboardingStepReviewSubmit
                   orgStructure={orgStructure}
-                  basic={effectiveReviewBasic}
+                  basic={formData.basic}
                   isGlobalSignatory={isGlobalSignatoryFlow}
-                  selectedNodes={effectiveReviewNodes}
-                  primaryNodeId={effectiveReviewPrimaryNodeId}
-                  nodePermissions={effectiveReviewPermissions}
-                  nodePermissionScopes={effectiveReviewPermissionScopes}
-                  selectedWorkflow={effectiveReviewWorkflow}
+                  selectedNodes={selectedNodes}
+                  primaryNodeId={primaryNodeId}
+                  nodePermissions={nodePermissions}
+                  nodePermissionScopes={nodePermissionScopes}
+                  selectedWorkflow={formData.selectedWorkflow}
+                  isEditMode={Boolean(seedMember)}
+                  previousReviewSnapshot={reviewSnapshot}
                   expandedAccessNodeIds={expandedAccessNodeIds}
                   isReviewAccessExpanded={isReviewAccessExpanded}
                   reviewAccessNodeRefs={reviewAccessNodeRefs}

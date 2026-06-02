@@ -20,6 +20,7 @@ type OrgHistorySidebarProps = {
     left: number;
   };
   splitView?: boolean;
+  closeOnOutsideClick?: boolean;
 };
 
 type RawHistoryRecord = Record<string, unknown>;
@@ -172,6 +173,7 @@ export default function OrgHistorySidebar({
   parentNodePath = "",
   dockOffset,
   splitView = false,
+  closeOnOutsideClick = true,
 }: OrgHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
   const { toast } = useToast();
@@ -222,7 +224,7 @@ export default function OrgHistorySidebar({
       data={historyData}
       dockOffset={dockOffset}
       splitView={splitView}
-      closeOnOutsideClick
+      closeOnOutsideClick={closeOnOutsideClick}
     />
   );
 }

@@ -19,6 +19,7 @@ import { getApiErrorMessage } from "@/services/client";
 import { fetchCompanyNodesWithAccess } from "@/services/user.service";
 import { useEditLockSession } from "@/hooks/useEditLockSession";
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
+import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
 // import { acquireEditLock } from "@/services/edit-lock.service";
 
 export function UserManagementView() {
@@ -104,6 +105,8 @@ export function UserManagementView() {
   const [manageActionRemarkError, setManageActionRemarkError] = useState("");
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const [viewportWidth, setViewportWidth] = useState(0);
+  const isNotificationsPanelOpen = useNotificationsPanelOpen();
+  const isAnyUserDialogOpen = addDialogOpen || Boolean(viewingMember) || Boolean(editingMember) || remarkDialogOpen;
   const pageMemberCount = useMemo(() => paginatedMembers.length, [paginatedMembers]);
   const totalMembersForTab = statusCounts[statusTab];
   const startUserLockSession = async (member: AppUser) => {
@@ -300,10 +303,10 @@ export function UserManagementView() {
     Math.min(MAX_HISTORY_WIDTH, availableContentWidth - MIN_DIALOG_SPLIT_WIDTH),
   );
   const canSplitHistoryLayout =
-    viewingMember?.status === "Pending" &&
+    (viewingMember?.status === "Pending" || Boolean(viewingMember?.isPending)) &&
     availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
   const canUseSplitHistory =
-    viewingMember?.status === "Pending" &&
+    (viewingMember?.status === "Pending" || Boolean(viewingMember?.isPending)) &&
     historyOpenForMember &&
     availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
   const splitHistoryTopOverlap = 2;
@@ -350,6 +353,7 @@ export function UserManagementView() {
         sortOrder={sortOrder}
         onSortOrderChange={setSortOrder}
         hasNewUserEvent={hasNewUserEvent}
+        suppressAutoEventTooltip={isAnyUserDialogOpen || isNotificationsPanelOpen}
         refreshInitializedAt={refreshInitializedAt}
         onRefresh={async () => {
           await loadUsers(true);

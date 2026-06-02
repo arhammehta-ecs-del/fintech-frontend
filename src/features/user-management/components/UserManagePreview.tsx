@@ -27,8 +27,6 @@ import {
 import { getPermissionActionLabelFromRoleName } from "@/features/user-management/roleLabels";
 import {
   CATEGORY_ORDER,
-  DEMO_SECONDARY_ACCESS,
-  INITIATOR_FALLBACK,
   cleanDisplayValue,
   buildPreviewUserData,
   displayOrFallback,
@@ -40,6 +38,7 @@ import {
   getNodeHoverClass,
   groupByNode,
 } from "@/features/user-management/components/UserManagePreview.utils";
+import type { GroupedByNode } from "@/features/user-management/components/UserManagePreview.utils";
 import { NodeAccessCard } from "@/features/user-management/components/UserManagePreview.NodeAccessCard";
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -128,76 +127,134 @@ export function UserManagePreview({
       }))
       .filter((row) => row.nodeName || row.nodePath);
   };
+  const mapRequestPermissionsEntries = (source: unknown): NonNullable<AppUser["accessDetails"]> => {
+    if (!Array.isArray(source)) return [];
+    return source
+      .map((row) => toRecord(row))
+      .map((row) => {
+        const accessTypeRaw = readString(row.accessType).toUpperCase();
+        const accessType: "PRIMARY" | "SECONDARY" = accessTypeRaw === "PRIMARY" ? "PRIMARY" : "SECONDARY";
+        return {
+          roleCategory: readString(row.roleCategory).toUpperCase(),
+          roleSubCategory: readString(row.roleSubCategory),
+          roleName: readString(row.roleName),
+          nodeName: readString(row.nodeName),
+          nodePath: readString(row.nodePath),
+          nodeType: readString(row.nodeType),
+          accessCategory: ((): "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null => {
+            const normalized = readString(row.accessCategory).toUpperCase();
+            if (normalized === "ALL_CHILD" || normalized === "IMMEDIATE_CHILD" || normalized === "NODE") return normalized;
+            return null;
+          })(),
+          accessType,
+        };
+      })
+      .filter((row) => row.nodeName || row.nodePath);
+  };
   const requestType = (member.basicDetails?.requestType || "").trim().toUpperCase();
   const requestOldData = toRecord(member.basicDetails?.requestOldData);
   const requestNewData = toRecord(member.basicDetails?.requestNewData);
   const requestOldBasicDetails = toRecord(requestOldData.basicDetails);
   const requestNewBasicDetails = toRecord(requestNewData.basicDetails);
+  const isPendingMember = member.status === "Pending" || Boolean(member.isPending);
+  const hasOwn = (record: Record<string, unknown>, key: string) => Object.prototype.hasOwnProperty.call(record, key);
+  const hasOldBasicField = (field: string) => hasOwn(requestOldBasicDetails, field);
+  const hasAnyBasicField = (field: string) => hasOldBasicField(field) || hasOwn(requestNewBasicDetails, field);
   const canTogglePreviousUpdated =
-    member.status === "Pending" &&
+    isPendingMember &&
     requestType === "UPDATE" &&
     (Object.keys(requestOldData).length > 0 || Object.keys(requestNewData).length > 0);
   const selectedRequestData = showPreviousData ? requestOldData : requestNewData;
   const selectedRequestBasicDetails = showPreviousData ? requestOldBasicDetails : requestNewBasicDetails;
-  const fallbackCurrentBasic = toRecord(member.basicDetails);
-  const effectiveBasicDetailsRecord: Record<string, unknown> = {
-    ...fallbackCurrentBasic,
-    ...selectedRequestBasicDetails,
+  const readRequestedBasicValue = (field: string, fallback: unknown) => {
+    if (hasOwn(selectedRequestBasicDetails, field)) {
+      return readString(selectedRequestBasicDetails[field]).trim();
+    }
+    return readString(fallback).trim();
   };
   const requestPrimaryAccess = mapRequestAccessEntries(selectedRequestData.primary, "PRIMARY");
   const requestSecondaryAccess = mapRequestAccessEntries(selectedRequestData.secondary, "SECONDARY");
+  const requestPermissionsAccess = mapRequestPermissionsEntries(selectedRequestData.permissions);
+  const oldRequestPrimaryAccess = mapRequestAccessEntries(requestOldData.primary, "PRIMARY");
+  const oldRequestSecondaryAccess = mapRequestAccessEntries(requestOldData.secondary, "SECONDARY");
+  const oldRequestPermissionsAccess = mapRequestPermissionsEntries(requestOldData.permissions);
   const effectiveAccessDetails =
-    requestPrimaryAccess.length > 0 || requestSecondaryAccess.length > 0
-      ? [...requestPrimaryAccess, ...requestSecondaryAccess]
-      : member.accessDetails ?? [];
+    requestPermissionsAccess.length > 0
+      ? requestPermissionsAccess
+      : requestPrimaryAccess.length > 0 || requestSecondaryAccess.length > 0
+        ? [...requestPrimaryAccess, ...requestSecondaryAccess]
+        : member.accessDetails ?? [];
+  const previousAccessDetails =
+    oldRequestPermissionsAccess.length > 0
+      ? oldRequestPermissionsAccess
+      : oldRequestPrimaryAccess.length > 0 || oldRequestSecondaryAccess.length > 0
+        ? [...oldRequestPrimaryAccess, ...oldRequestSecondaryAccess]
+        : [];
   const effectiveMember: AppUser = {
     ...member,
     basicDetails: {
       ...member.basicDetails,
-      name: readString(effectiveBasicDetailsRecord.name) || member.basicDetails?.name || "",
-      email: readString(effectiveBasicDetailsRecord.email) || member.basicDetails?.email || "",
-      phone: readString(effectiveBasicDetailsRecord.phone) || member.basicDetails?.phone || "",
-      designation: readString(effectiveBasicDetailsRecord.designation) || member.basicDetails?.designation || "",
-      employeeId: readString(effectiveBasicDetailsRecord.employeeId) || member.basicDetails?.employeeId || "",
-      reportingManagerName:
-        readString(effectiveBasicDetailsRecord.reportingManagerName) || member.basicDetails?.reportingManagerName || "",
-      reportingManagerEmail:
-        readString(effectiveBasicDetailsRecord.reportingManagerEmail) || member.basicDetails?.reportingManagerEmail || "",
-      reportingManager:
-        readString(effectiveBasicDetailsRecord.reportingManager) || member.basicDetails?.reportingManager || "",
+      name: readRequestedBasicValue("name", member.basicDetails?.name),
+      email: readRequestedBasicValue("email", member.basicDetails?.email),
+      phone: readRequestedBasicValue("phone", member.basicDetails?.phone),
+      designation: readRequestedBasicValue("designation", member.basicDetails?.designation),
+      employeeId: readRequestedBasicValue("employeeId", member.basicDetails?.employeeId),
+      reportingManagerName: readRequestedBasicValue("reportingManagerName", member.basicDetails?.reportingManagerName),
+      reportingManagerEmail: readRequestedBasicValue("reportingManagerEmail", member.basicDetails?.reportingManagerEmail),
+      reportingManager: readRequestedBasicValue("reportingManager", member.basicDetails?.reportingManager),
     },
     accessDetails: effectiveAccessDetails,
   };
   const { data: userData, rawReportingManagerEmail, rawReportingManagerName } = buildPreviewUserData(effectiveMember);
+  const shouldShowEmployeeId = Boolean(userData.employeeId) || hasAnyBasicField("employeeId");
 
   const formattedDesignation = formatDesignation(userData.designation);
   const formattedDepartment = cleanDisplayValue(userData.department);
+  const previousDesignationRaw = readString(requestOldBasicDetails.designation).trim();
+  const previousDesignationLabel = previousDesignationRaw ? formatDesignation(previousDesignationRaw) : "";
 
   const initiatorName = member.basicDetails?.initiatorName || "";
   const initiatorEmail = member.basicDetails?.initiatorEmail || "";
   const initiatedOnRaw = member.basicDetails?.initiatedDate || "";
   const pendingWorkflowName = member.basicDetails?.workflowName || "";
   const pendingWorkflowAlias = member.basicDetails?.alias || "";
-  const resolvedInitiatorName = initiatorName || INITIATOR_FALLBACK.name;
-  const resolvedInitiatorEmail = initiatorEmail || INITIATOR_FALLBACK.email;
-  const initiatedOn = formatToIst(initiatedOnRaw || INITIATOR_FALLBACK.initiatedAt);
+  const resolvedInitiatorName = initiatorName || "—";
+  const resolvedInitiatorEmail = initiatorEmail || "—";
+  const initiatedOn = formatToIst(initiatedOnRaw);
 
   const avatar = getAvatarColor(userData.name);
 
   const accessDetails = effectiveMember.accessDetails ?? [];
+  const previousPrimaryByNode = groupByNode(previousAccessDetails.filter((a) => a.accessType === "PRIMARY"));
+  const previousSecondaryByNode = groupByNode(previousAccessDetails.filter((a) => a.accessType !== "PRIMARY"));
   const primaryItems = accessDetails.filter((a) => a.accessType === "PRIMARY");
   const secondaryItemsRaw = accessDetails.filter((a) => a.accessType !== "PRIMARY");
   const secondaryItems =
     secondaryItemsRaw.length > 0
       ? secondaryItemsRaw
-      : member.status === "Pending"
-        ? DEMO_SECONDARY_ACCESS
-        : [];
+      : [];
 
   const primaryByNode = groupByNode(primaryItems);
   const secondaryByNode = groupByNode(secondaryItems);
-  const primaryEntries = useMemo(() => Object.entries(primaryByNode), [primaryByNode]);
-  const secondaryEntries = useMemo(() => Object.entries(secondaryByNode), [secondaryByNode]);
+  const buildAccessEntries = (
+    current: GroupedByNode,
+    previous: GroupedByNode,
+  ): Array<[string, GroupedByNode[string]]> => {
+    const previousKeys = canTogglePreviousUpdated ? Object.keys(previous) : [];
+    return Array.from(new Set([...Object.keys(current), ...previousKeys])).map((key) => {
+      const currentGroup = current[key];
+      const previousGroup = previous[key];
+      return [
+        key,
+        currentGroup ?? {
+          ...previousGroup,
+          categories: {},
+        },
+      ];
+    });
+  };
+  const primaryEntries = buildAccessEntries(primaryByNode, previousPrimaryByNode);
+  const secondaryEntries = buildAccessEntries(secondaryByNode, previousSecondaryByNode);
   const globalAccessNode = primaryItems.find((item) => {
     const roleCategory = (item.roleCategory || "").trim().toUpperCase();
     const roleSubCategory = (item.roleSubCategory || "").trim().toUpperCase();
@@ -276,20 +333,35 @@ export function UserManagePreview({
   const normalizedRequestType = requestType;
   const normalizedRequestImpact = readString(member.basicDetails?.requestImpact).toUpperCase();
   const normalizedRequestStatus = readString(requestNewBasicDetails.status).toUpperCase();
-  const isPendingArchiveRequest =
-    member.status === "Pending" && (normalizedRequestType === "ARCHIVE" || normalizedRequestStatus === "ARCHIVE");
+  const isPendingUpdateRequest = isPendingMember && normalizedRequestType === "UPDATE";
   const isPendingInactiveRequest =
-    member.status === "Pending" && (normalizedRequestType === "INACTIVE" || normalizedRequestStatus === "INACTIVE");
-  const statusBadgeLabel = isPendingArchiveRequest
-    ? "Request for Delete"
+    isPendingMember && (normalizedRequestType === "INACTIVE" || normalizedRequestStatus === "INACTIVE");
+  const isPendingActiveRequest =
+    isPendingMember && (normalizedRequestType === "ACTIVE" || normalizedRequestStatus === "ACTIVE");
+  const pendingApprovalLabel = isPendingUpdateRequest
+    ? "Edit Request Approval"
     : isPendingInactiveRequest
-      ? "Request for Inactive"
-      : (member.status || "Active");
-  const normalizedStatusBadgeLabel = statusBadgeLabel.trim().toUpperCase();
-  const shouldShowStatusBadge =
-    normalizedStatusBadgeLabel !== "PENDING" &&
-    normalizedStatusBadgeLabel !== "REQUEST FOR INACTIVE" &&
-    normalizedStatusBadgeLabel !== "REQUEST FOR DELETE";
+      ? "Deactivation Approval"
+      : isPendingActiveRequest
+        ? "Activation Approval"
+        : "";
+  const hiddenImpactTokens = new Set(["", "NO_ISSUES", "NO ISSUES", "NONE", "NA", "N/A"]);
+  const formattedImpactLabel = hiddenImpactTokens.has(normalizedRequestImpact)
+    ? ""
+    : normalizedRequestImpact
+      .split("_")
+      .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+      .join(" ");
+  const approvalImpactLabel = pendingApprovalLabel
+    ? formattedImpactLabel
+      ? `${pendingApprovalLabel} - ${formattedImpactLabel}`
+      : pendingApprovalLabel
+    : "";
+  const statusBadgeLabel = approvalImpactLabel || pendingApprovalLabel || (member.status || "Active");
+  const shouldShowStatusBadge = Boolean(approvalImpactLabel || pendingApprovalLabel) || statusBadgeLabel.trim().toUpperCase() !== "PENDING";
+  const statusBadgeClassName = pendingApprovalLabel
+    ? "border-amber-200 bg-amber-100 text-amber-700"
+    : statusCls;
   const impactBadgeMap: Record<string, string> = {
     ARCHIVE: "border-rose-200 bg-rose-100 text-rose-700",
     INACTIVE: "border-amber-200 bg-amber-100 text-amber-700",
@@ -300,6 +372,25 @@ export function UserManagePreview({
     PROFILE_UPDATE: "border-sky-200 bg-sky-100 text-sky-700",
   };
   const impactBadgeCls = impactBadgeMap[normalizedRequestImpact] || "";
+  const renderDiffValue = (nextValue: string, prevValue: string, highlightAdded = false) => {
+    const next = (nextValue || "-").trim() || "-";
+    const prev = (prevValue || "").trim();
+    if (!prev && highlightAdded && next !== "-") {
+      return (
+        <span className="font-semibold text-slate-900">
+          <span className="rounded border border-emerald-100 bg-emerald-50 px-1 py-0.5 text-emerald-700">{next}</span>
+        </span>
+      );
+    }
+    if (!prev || prev === next) return <span className="font-semibold text-slate-900">{next}</span>;
+    return (
+      <span className="font-semibold text-slate-900">
+        <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-rose-600 line-through">{prev}</span>
+        <span className="px-1 text-slate-400">→</span>
+        <span className="rounded border border-emerald-100 bg-emerald-50 px-1 py-0.5 text-emerald-700">{next}</span>
+      </span>
+    );
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
@@ -316,7 +407,7 @@ export function UserManagePreview({
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-xl font-bold tracking-tight text-slate-900">{userData.name}</h2>
                 {shouldShowStatusBadge ? (
-                  <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider", statusCls)}>
+                  <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider", statusBadgeClassName)}>
                     {statusBadgeLabel}
                   </span>
                 ) : null}
@@ -363,14 +454,14 @@ export function UserManagePreview({
                   <Trash2 className="h-4 w-4" />
                 </button>
               ) : null}
-              {impactBadgeCls ? (
+              {impactBadgeCls && !pendingApprovalLabel ? (
                 <span
                   className={cn(
                     "inline-flex h-10 items-center rounded-xl border px-3 text-xs font-bold uppercase tracking-wide",
                     impactBadgeCls,
                   )}
                 >
-                  {normalizedRequestImpact}
+                  {formattedImpactLabel || normalizedRequestImpact}
                 </span>
               ) : null}
               {onToggleHistory ? (
@@ -397,29 +488,6 @@ export function UserManagePreview({
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="top">User History</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : null}
-              {canTogglePreviousUpdated ? (
-                <TooltipProvider delayDuration={120}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={() => setShowPreviousData((current) => !current)}
-                        className={cn(
-                          "inline-flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition",
-                          showPreviousData
-                            ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                            : "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
-                        )}
-                        aria-label={showPreviousData ? "Show updated data" : "Show previous data"}
-                      >
-                        <ArrowLeftRight className="h-3.5 w-3.5" />
-                        {showPreviousData ? "Previous" : "Updated"}
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">{showPreviousData ? "Showing previous data" : "Showing updated data"}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
@@ -468,7 +536,7 @@ export function UserManagePreview({
           </div>
         </div>
 
-        {member.status === "Pending" ? (
+        {isPendingMember ? (
           <div className="mb-4 mt-3 rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
             <div className="flex flex-wrap items-center gap-2 text-[12px]">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
@@ -484,7 +552,7 @@ export function UserManagePreview({
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
                 <Calendar size={12} className="text-slate-400" />
                 <span className="text-slate-500">Initiated</span>
-                <span className="font-medium text-slate-700">{initiatedOn || formatToIst(INITIATOR_FALLBACK.initiatedAt)}</span>
+                <span className="font-medium text-slate-700">{initiatedOn || "—"}</span>
               </span>
               {pendingWorkflowName.trim() ? (
                 <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
@@ -540,7 +608,7 @@ export function UserManagePreview({
                         <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
                           <span className="text-slate-500">Name</span>
                           <span className="text-slate-400">:</span>
-                          <span className="font-semibold text-slate-900">{userData.name || "-"}</span>
+                          {renderDiffValue(userData.name || "-", readString(requestOldBasicDetails.name), hasOldBasicField("name"))}
                         </div>
                         <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
                           <span className="text-slate-500">Email</span>
@@ -560,13 +628,15 @@ export function UserManagePreview({
                         <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
                           <span className="text-slate-500">Designation</span>
                           <span className="text-slate-400">:</span>
-                          <span className="font-semibold text-slate-900">{formattedDesignation || "-"}</span>
+                          {renderDiffValue(formattedDesignation || "-", previousDesignationLabel, hasOldBasicField("designation"))}
                         </div>
-                        {userData.employeeId ? (
+                        {shouldShowEmployeeId ? (
                           <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
                             <span className="text-slate-500">Employee ID</span>
                             <span className="text-slate-400">:</span>
-                            <span className="font-semibold text-slate-900">{userData.employeeId}</span>
+                            {canTogglePreviousUpdated
+                              ? renderDiffValue(userData.employeeId || "-", readString(requestOldBasicDetails.employeeId), hasOldBasicField("employeeId"))
+                              : <span className="font-semibold text-slate-900">{userData.employeeId || "-"}</span>}
                           </div>
                         ) : null}
                       </div>
@@ -604,18 +674,20 @@ export function UserManagePreview({
                           <span className="h-2.5 w-2.5 rounded-full bg-[#4F46E5]" />
                           <span className="text-[12px] font-extrabold uppercase tracking-widest text-[#4F46E5]">Primary Access</span>
                         </div>
-                        {Object.keys(primaryByNode).length === 0 ? (
+                        {primaryEntries.length === 0 ? (
                           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-4 text-sm text-slate-400">
                             No primary access configured.
                           </div>
                         ) : (
-                          Object.entries(primaryByNode).map(([key, group], idx) => (
+                          primaryEntries.map(([key, group], idx) => (
                             <NodeAccessCard
                               key={key}
                               nodeName={group.nodeName}
                               parentSubtitle={group.parentSubtitle}
                               nodeIndex={idx}
                               categories={group.categories}
+                              previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
+                              isRemovedNode={!primaryByNode[key] && Boolean(previousPrimaryByNode[key])}
                               isPrimary
                             />
                           ))
@@ -648,19 +720,21 @@ export function UserManagePreview({
                       <span className="h-2 w-2 rounded-full bg-slate-400" />
                       <span className="text-[12px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
                     </div>
-                    {Object.keys(secondaryByNode).length === 0 ? (
+                    {secondaryEntries.length === 0 ? (
                       <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-sm text-slate-400">
                         No secondary access assigned.
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        {Object.entries(secondaryByNode).map(([key, group], idx) => (
+                        {secondaryEntries.map(([key, group], idx) => (
                           <NodeAccessCard
                             key={key}
                             nodeName={group.nodeName}
                             parentSubtitle={group.parentSubtitle}
                             nodeIndex={idx}
                             categories={group.categories}
+                            previousCategories={previousSecondaryByNode[key]?.categories ?? {}}
+                            isRemovedNode={!secondaryByNode[key] && Boolean(previousSecondaryByNode[key])}
                             isPrimary={false}
                           />
                         ))}
@@ -703,11 +777,11 @@ export function UserManagePreview({
                         <span className="text-slate-400">:</span>
                         <span className="font-semibold text-slate-900">{formattedDesignation || "-"}</span>
                       </div>
-                      {userData.employeeId ? (
+                      {shouldShowEmployeeId ? (
                         <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
                           <span className="text-slate-500">Employee ID</span>
                           <span className="text-slate-400">:</span>
-                          <span className="font-semibold text-slate-900">{userData.employeeId}</span>
+                          <span className="font-semibold text-slate-900">{userData.employeeId || "-"}</span>
                         </div>
                       ) : null}
                     </div>
@@ -756,6 +830,7 @@ export function UserManagePreview({
                       ) : (
                         primaryEntries.map(([key, group], idx) => {
                           const focused = collapsedFocusedKey === `p:${key}`;
+                          const isRemovedNode = !primaryByNode[key] && Boolean(previousPrimaryByNode[key]);
                           return (
                             <div key={key}>
                               {focused ? (
@@ -764,6 +839,8 @@ export function UserManagePreview({
                                   parentSubtitle={group.parentSubtitle}
                                   nodeIndex={idx}
                                   categories={group.categories}
+                                  previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
+                                  isRemovedNode={isRemovedNode}
                                   isPrimary
                                   onClose={() => setCollapsedFocusedKey(null)}
                                 />
@@ -775,13 +852,14 @@ export function UserManagePreview({
                                     "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
                                     getNodeEdgeBorderClass(idx, true),
                                     getNodeHoverClass(idx, true),
+                                    isRemovedNode && "border-dashed bg-slate-50/80 opacity-75",
                                   )}
                                 >
                                   <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", getNodeBadgeClass(idx, true))}>
                                     P{idx + 1}
                                   </div>
                                   <div className="min-w-0">
-                                    <div className="truncate text-sm font-semibold text-slate-700">{group.nodeName}</div>
+                                    <div className={cn("truncate text-sm font-semibold text-slate-700", isRemovedNode && "text-slate-500 line-through")}>{group.nodeName}</div>
                                     {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
                                   </div>
                                   <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
@@ -807,6 +885,7 @@ export function UserManagePreview({
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                         {secondaryEntries.map(([key, group], idx) => {
                           const focused = collapsedFocusedKey === `s:${key}`;
+                          const isRemovedNode = !secondaryByNode[key] && Boolean(previousSecondaryByNode[key]);
                           return (
                             <div key={key}>
                               {focused ? (
@@ -815,6 +894,8 @@ export function UserManagePreview({
                                   parentSubtitle={group.parentSubtitle}
                                   nodeIndex={idx}
                                   categories={group.categories}
+                                  previousCategories={previousSecondaryByNode[key]?.categories ?? {}}
+                                  isRemovedNode={isRemovedNode}
                                   isPrimary={false}
                                   onClose={() => setCollapsedFocusedKey(null)}
                                 />
@@ -826,13 +907,14 @@ export function UserManagePreview({
                                     "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
                                     getNodeEdgeBorderClass(idx, false),
                                     getNodeHoverClass(idx, false),
+                                    isRemovedNode && "border-dashed bg-slate-50/80 opacity-75",
                                   )}
                                 >
                                   <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", getNodeBadgeClass(idx, false))}>
                                     S{idx + 1}
                                   </div>
                                   <div className="min-w-0">
-                                    <div className="truncate text-sm font-semibold text-slate-700">{group.nodeName}</div>
+                                    <div className={cn("truncate text-sm font-semibold text-slate-700", isRemovedNode && "text-slate-500 line-through")}>{group.nodeName}</div>
                                     {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
                                   </div>
                                   <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
@@ -850,7 +932,7 @@ export function UserManagePreview({
             )}
           </div>
 
-          {member.status === "Pending" && pendingDecision ? (
+          {isPendingMember && pendingDecision ? (
             <div ref={remarkCardRef} className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
               <div>
                 <h4 className="text-sm font-semibold text-slate-900">
@@ -876,7 +958,7 @@ export function UserManagePreview({
         </div>
       </div>
 
-      {member.status === "Pending" ? (
+      {isPendingMember ? (
         <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4">
           <div className="flex items-center justify-end gap-3">
             {pendingDecision !== "approve" ? (

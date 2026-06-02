@@ -13,6 +13,7 @@ import { getWorkflowPathPreview } from "@/features/workflow-management/utils/wor
 import { isRootWorkflowNode } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 type WorkflowStepInputsProps = {
+  mode?: "create" | "edit";
   wfName: string;
   wfModule: string;
   wfNode: string;
@@ -70,6 +71,7 @@ function SearchableFieldDropdown({
   workflowTypeOptions,
   onWorkflowTypeChange,
   showWorkflowTypeOptions = false,
+  disabled = false,
 }: {
   label: string;
   icon: ReactNode;
@@ -83,6 +85,7 @@ function SearchableFieldDropdown({
   workflowTypeOptions?: Array<{ value: WorkflowTypeScope; label: string }>;
   onWorkflowTypeChange?: (value: WorkflowTypeScope) => void;
   showWorkflowTypeOptions?: boolean;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -106,6 +109,10 @@ function SearchableFieldDropdown({
       <DropdownMenu
         open={open}
         onOpenChange={(nextOpen) => {
+          if (disabled) {
+            setOpen(false);
+            return;
+          }
           setOpen(nextOpen);
           if (!nextOpen) {
             setSearchTerm("");
@@ -118,7 +125,11 @@ function SearchableFieldDropdown({
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">{icon}</span>
             <button
               type="button"
-              className="flex h-[50px] w-full items-center justify-between rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-left text-sm font-semibold text-slate-800 transition-all focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-50"
+              disabled={disabled}
+              className={cn(
+                "flex h-[50px] w-full items-center justify-between rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-left text-sm font-semibold text-slate-800 transition-all focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-50",
+                disabled && "cursor-not-allowed bg-slate-50 text-slate-500",
+              )}
             >
               <span className="truncate">{hasValue ? selectedLabel : placeholder}</span>
               <ChevronDown className="h-4 w-4 text-slate-400" />
@@ -244,6 +255,7 @@ function SearchableFieldDropdown({
 }
 
 export default function WorkflowStepInputs({
+  mode = "create",
   wfName,
   wfModule,
   wfNode,
@@ -256,6 +268,7 @@ export default function WorkflowStepInputs({
   onSetWfNode,
   onSetWorkflowType,
 }: WorkflowStepInputsProps) {
+  const isEditMode = mode === "edit";
   const moduleGroupOrder = ["TRANSACTIONAL", "OPERATIONAL", "SYSTEM_ACCESS"];
   const orderedModuleGroups = [
     ...moduleGroups
@@ -327,6 +340,7 @@ export default function WorkflowStepInputs({
               workflowTypeOptions={WORKFLOW_TYPE_SCOPE_OPTIONS}
               onWorkflowTypeChange={onSetWorkflowType}
               showWorkflowTypeOptions={shouldShowWorkflowTypeOptions}
+              disabled={isEditMode}
             />
             {showMetaErrors && !wfModule.trim() ? <p className="mt-1 text-xs font-semibold text-red-500">Required</p> : null}
             {showMetaErrors && shouldShowWorkflowTypeOptions && !workflowType ? (
@@ -343,6 +357,7 @@ export default function WorkflowStepInputs({
               selectedLabel={selectedNodeLabel}
               options={nodeOptions}
               onChange={onSetWfNode}
+              disabled={isEditMode}
             />
             {showMetaErrors && !wfNode.trim() ? <p className="mt-1 text-xs font-semibold text-red-500">Required</p> : null}
           </div>

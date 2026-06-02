@@ -39,10 +39,8 @@ export function OrgCard({
   const normalizedStatus = node.status?.trim().toUpperCase() ?? "";
   const isPendingNode = normalizedStatus === "PENDING";
   const hasUpdateRequest = (node.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
-  const isPendingVisualState = isPendingNode || hasUpdateRequest;
-  const pendingBadgeClass = hasUpdateRequest
-    ? "bg-orange-100 text-orange-700"
-    : "bg-amber-100 text-amber-700";
+  const isPendingVisualState = Boolean(node.isPending);
+  const showPendingSubtext = !isRoot && isPendingVisualState;
 
   return (
     <div className="group relative">
@@ -66,15 +64,11 @@ export function OrgCard({
           <Icon className={cn(isRoot ? "h-4 w-4 text-indigo-600" : "h-3.5 w-3.5", !isRoot && theme.iconColor)} />
         </div>
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <p className={cn("truncate font-semibold", isRoot ? "text-[16px] font-bold tracking-[-0.01em] text-white" : "text-[16px]")}>{node.name}</p>
-            {isPendingVisualState && (
-              <span className={cn("inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider", pendingBadgeClass)}>
-                Pending
-              </span>
-            )}
-          </div>
+          <p className={cn("truncate font-semibold", isRoot ? "text-[16px] font-bold tracking-[-0.01em] text-white" : "text-[16px]")}>{node.name}</p>
           {!isRoot ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.1em] text-slate-500">{node.nodeType}</p> : null}
+          {showPendingSubtext ? (
+            <p className="mt-0.5 text-[11px] font-medium leading-4 text-amber-700">Modification in progress</p>
+          ) : null}
         </div>
       </button>
 

@@ -85,14 +85,6 @@ export const formatLooseDateLabel = (value?: string) => {
   return fallback === "-" ? cleaned : fallback;
 };
 
-export const INITIATOR_FALLBACK = {
-  name: "—",
-  email: "—",
-  initiatedAt: "",
-};
-
-export const DEMO_SECONDARY_ACCESS: NonNullable<AppUser["accessDetails"]> = [];
-
 export type GroupedByNode = Record<string, {
   nodeName: string;
   nodeType: string;

@@ -25,6 +25,7 @@ import { useEditLockSession } from "@/hooks/useEditLockSession";
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 import PaginationFooter from "@/components/PaginationFooter";
+import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
 
 const tabClassName =
   "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:shadow-sm";
@@ -214,9 +215,10 @@ export default function WorkflowManagementView() {
   const [onboardingMode, setOnboardingMode] = useState<"create" | "edit">("create");
   const [workflowSeedForEdit, setWorkflowSeedForEdit] = useState<(typeof manageWorkflow) | null>(null);
   const [onboardingStep, setOnboardingStep] = useState(1);
-  const [showOnboardingPrevious, setShowOnboardingPrevious] = useState(false);
   const [manageLockArmed, setManageLockArmed] = useState(false);
   const [isRefreshTooltipOpen, setIsRefreshTooltipOpen] = useState(false);
+  const isNotificationsPanelOpen = useNotificationsPanelOpen();
+  const isAnyWorkflowDialogOpen = addDialogOpen || Boolean(manageWorkflow);
   const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
   const shouldUseAdaptivePendingLayout = useMemo(
     () =>
@@ -262,7 +264,6 @@ export default function WorkflowManagementView() {
     setOnboardingMode("create");
     setWorkflowSeedForEdit(null);
     setOnboardingStep(1);
-    setShowOnboardingPrevious(false);
   };
   const getWorkflowLockTarget = (workflow: NonNullable<typeof manageWorkflow>) => ({
     type: "workflow" as const,
@@ -342,8 +343,8 @@ export default function WorkflowManagementView() {
 
   const availableContentWidth = Math.max(0, viewportWidth - shellOffset.left);
   const MIN_DIALOG_SPLIT_WIDTH = 860;
-  const MIN_HISTORY_WIDTH = 420;
-  const MAX_HISTORY_WIDTH = 560;
+  const MIN_HISTORY_WIDTH = 380;
+  const MAX_HISTORY_WIDTH = 500;
   const computedHistoryPanelWidth = Math.max(
     MIN_HISTORY_WIDTH,
     Math.min(MAX_HISTORY_WIDTH, availableContentWidth - MIN_DIALOG_SPLIT_WIDTH),
@@ -574,7 +575,7 @@ export default function WorkflowManagementView() {
 
             <div className="relative flex h-12 w-12 items-center justify-center">
               <TooltipProvider delayDuration={120}>
-                <Tooltip open={isRefreshTooltipOpen}>
+                <Tooltip open={(!isAnyWorkflowDialogOpen && !isNotificationsPanelOpen && hasNewWorkflowEvent) || isRefreshTooltipOpen}>
                   <TooltipTrigger asChild>
                     <Button
                       type="button"
@@ -604,12 +605,12 @@ export default function WorkflowManagementView() {
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              {refreshLabel ? (
+                <p className="pointer-events-none absolute top-full right-0 mt-1 whitespace-nowrap text-right text-[11px] font-medium leading-none text-muted-foreground">
+                  {refreshLabel}
+                </p>
+              ) : null}
             </div>
-            {refreshLabel ? (
-              <p className="pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-xs font-medium leading-none text-muted-foreground">
-                {refreshLabel}
-              </p>
-            ) : null}
           </div>
         </div>
       </div>
@@ -647,19 +648,27 @@ export default function WorkflowManagementView() {
             </div>
 
             <div className="divide-y divide-slate-100">
-              {paginatedWorkflows.map((workflow) => (
+              {paginatedWorkflows.map((workflow) => {
+                const showModificationSubtext = Boolean(workflow.isPending);
+
+                return (
                 <div key={workflow.id} className={cn("grid grid-cols-1 gap-2 p-4 md:items-center md:gap-x-4", workflowGridTemplateClass)}>
-                  <div
-                    className={cn(
-                      "text-sm font-semibold text-slate-800",
-                      shouldUseAdaptivePendingLayout
-                        ? "[overflow-wrap:anywhere]"
-                        : "truncate whitespace-nowrap",
-                    )}
-                    style={shouldUseAdaptivePendingLayout ? { maxWidth: `${WORKFLOW_NAME_WRAP_THRESHOLD}ch` } : undefined}
-                    title={workflow.name}
-                  >
-                    {workflow.name || "—"}
+                  <div className="min-w-0">
+                    <div
+                      className={cn(
+                        "text-sm font-semibold text-slate-800",
+                        shouldUseAdaptivePendingLayout
+                          ? "[overflow-wrap:anywhere]"
+                          : "truncate whitespace-nowrap",
+                      )}
+                      style={shouldUseAdaptivePendingLayout ? { maxWidth: `${WORKFLOW_NAME_WRAP_THRESHOLD}ch` } : undefined}
+                      title={workflow.name}
+                    >
+                      {workflow.name || "—"}
+                    </div>
+                    {showModificationSubtext ? (
+                      <p className="mt-0.5 text-[12px] font-medium leading-5 text-amber-700">Modification in progress</p>
+                    ) : null}
                   </div>
                   <div className="truncate whitespace-nowrap text-sm text-slate-700" title={workflow.alias}>{workflow.alias}</div>
                   <div className="truncate whitespace-nowrap text-sm text-slate-700" title={workflow.module}>{workflow.module}</div>
@@ -717,7 +726,8 @@ export default function WorkflowManagementView() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -765,20 +775,6 @@ export default function WorkflowManagementView() {
               <h2 className="text-sm font-semibold text-slate-900">{onboardingMode === "edit" ? "Edit Workflow" : "Add Workflow"}</h2>
             </div>
             <div className="flex items-center gap-2">
-              {onboardingMode === "edit" && workflowSeedForEdit && onboardingStep === 3 ? (
-                <button
-                  type="button"
-                  onClick={() => setShowOnboardingPrevious((current) => !current)}
-                  className={cn(
-                    "h-11 rounded-[18px] border px-6 text-lg font-semibold transition",
-                    showOnboardingPrevious
-                      ? "border-emerald-300 bg-emerald-100 text-emerald-700"
-                      : "border-[#f2c84b] bg-[#fef7dc] text-[#b85a0e]",
-                  )}
-                >
-                  {showOnboardingPrevious ? "Updated" : "Previous"}
-                </button>
-              ) : null}
               <button
                 type="button"
                 onClick={() => void closeOnboardingDialog()}
@@ -794,7 +790,6 @@ export default function WorkflowManagementView() {
               isOpen={addDialogOpen}
               mode={onboardingMode}
               seedWorkflow={workflowSeedForEdit}
-              showPrevious={showOnboardingPrevious}
               onStepChange={setOnboardingStep}
               onPublished={async () => {
                 await loadWorkflows();

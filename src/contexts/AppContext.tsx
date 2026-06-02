@@ -41,6 +41,7 @@ export interface GroupCompany {
 export interface OrgNode {
   id: string;
   uuid?: string;
+  isPending?: boolean;
   name: string;
   companyId?: string;
   nodeType: string;
@@ -62,6 +63,7 @@ export interface OrgNode {
 export interface AppUser {
   id?: string;
   uuid?: string;
+  isPending?: boolean;
   name: string;
   email: string;
   role: string;

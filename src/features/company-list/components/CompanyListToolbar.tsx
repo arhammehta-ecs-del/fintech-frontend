@@ -41,6 +41,7 @@ export default function CompanyListToolbar({
   onClearAdvancedFilters,
   onOpenOnboarding,
   hasNewCompanyListEvent,
+  suppressAutoEventTooltip = false,
   onRefresh,
   refreshInitializedAt,
 }: CompanyListToolbarProps) {
@@ -271,7 +272,7 @@ export default function CompanyListToolbar({
 
             <div className="relative flex h-12 w-12 items-center justify-center">
               <TooltipProvider delayDuration={120}>
-                <Tooltip>
+                <Tooltip open={!suppressAutoEventTooltip && hasNewCompanyListEvent ? true : undefined}>
                   <TooltipTrigger asChild>
                     <Button
                       type="button"
@@ -291,15 +292,17 @@ export default function CompanyListToolbar({
                       <RefreshCw className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  {hasNewCompanyListEvent ? <TooltipContent side="top">New event occured</TooltipContent> : null}
+                  <TooltipContent side="top">
+                    {hasNewCompanyListEvent ? "New event occurred" : "Refresh company list"}
+                  </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              {refreshLabel ? (
+                <p className="pointer-events-none absolute top-full right-0 mt-1 whitespace-nowrap text-right text-[11px] font-medium leading-none text-muted-foreground">
+                  {refreshLabel}
+                </p>
+              ) : null}
             </div>
-            {refreshLabel ? (
-              <p className="pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-xs font-medium leading-none text-muted-foreground">
-                {refreshLabel}
-              </p>
-            ) : null}
           </div>
         </div>
       </div>

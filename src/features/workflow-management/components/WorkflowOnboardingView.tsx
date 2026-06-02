@@ -13,7 +13,6 @@ type WorkflowOnboardingViewProps = {
   onPublished?: () => void | Promise<void>;
   mode?: "create" | "edit";
   seedWorkflow?: import("@/features/workflow-management/types/workflow.types").WorkflowRecord | null;
-  showPrevious?: boolean;
   onStepChange?: (step: number) => void;
 };
 
@@ -22,7 +21,6 @@ export default function WorkflowOnboardingView({
   onPublished,
   mode = "create",
   seedWorkflow = null,
-  showPrevious = false,
   onStepChange,
 }: WorkflowOnboardingViewProps) {
   const {
@@ -75,6 +73,7 @@ export default function WorkflowOnboardingView({
         <div className="mt-3 h-[calc(100%-56px)] overflow-hidden rounded-2xl border border-slate-200 bg-[#fcfcfd]">
           {step === 1 ? (
             <WorkflowStepInputs
+              mode={resolvedMode}
               wfName={wfName}
               wfModule={wfModule}
               wfNode={wfNode}
@@ -108,13 +107,22 @@ export default function WorkflowOnboardingView({
 
           {step === 3 ? (
             <WorkflowStepSummary
-              wfName={showPrevious && seedSnapshot ? seedSnapshot.wfName : wfName}
-              wfAlias={showPrevious && seedSnapshot ? seedSnapshot.wfAlias : wfAlias}
-              moduleLabel={showPrevious && seedSnapshot ? seedSnapshot.selectedModuleLabel : selectedModuleLabel}
+              wfName={wfName}
+              wfAlias={wfAlias}
+              moduleLabel={selectedModuleLabel}
               workflowType={workflowType || "-"}
-              nodeNameLabel={showPrevious && seedSnapshot ? seedSnapshot.selectedNodeNameLabel : selectedNodeNameLabel}
-              levels={showPrevious && seedSnapshot ? seedSnapshot.levels : levels}
-              visibleLevels={showPrevious && seedSnapshot ? seedSnapshot.visibleLevels : visibleLevels}
+              nodeNameLabel={selectedNodeNameLabel}
+              levels={levels}
+              visibleLevels={visibleLevels}
+              previous={resolvedMode === "edit" && seedSnapshot ? {
+                wfName: seedSnapshot.wfName,
+                wfAlias: seedSnapshot.wfAlias,
+                moduleLabel: seedSnapshot.selectedModuleLabel,
+                workflowType: workflowType || "-",
+                nodeNameLabel: seedSnapshot.selectedNodeNameLabel,
+                levels: seedSnapshot.levels,
+                visibleLevels: seedSnapshot.visibleLevels,
+              } : null}
             />
           ) : null}
         </div>

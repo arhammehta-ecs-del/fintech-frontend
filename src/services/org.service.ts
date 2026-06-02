@@ -132,7 +132,10 @@ const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"):
     pendingRequest && typeof pendingRequest.newData === "object" && pendingRequest.newData !== null
       ? (pendingRequest.newData as Record<string, unknown>)
       : undefined;
-  const shouldTreatAsPending = Boolean(pendingRequest) && (!pendingRequestStatus || pendingRequestStatus === "PENDING");
+  const isPendingFlag = Boolean(record.isPending);
+  const shouldTreatAsPending =
+    isPendingFlag ||
+    (Boolean(pendingRequest) && (!pendingRequestStatus || pendingRequestStatus === "PENDING"));
   const nodeUuid = pendingRequestId || getString(record, ["uuid"], nodeId);
   const requestedStatusRaw =
     (typeof pendingRequestNewData?.status === "string" ? pendingRequestNewData.status.trim() : "") ||
@@ -146,6 +149,7 @@ const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"):
   return {
     id: nodeId,
     uuid: nodeUuid || undefined,
+    isPending: shouldTreatAsPending,
     companyId: getNullableString(record, ["companyId"]) ?? undefined,
     name: nodeName,
     nodeType,
@@ -236,6 +240,7 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
   return {
     id: requestId || derivedNodePath || `pending-${normalizePathSegment(newNodeName)}`,
     uuid: requestId || undefined,
+    isPending: false,
     companyId: getNullableString(record, ["companyId"]) ?? undefined,
     name: newNodeName,
     nodeType: nodeType || "NODE",

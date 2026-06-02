@@ -11,6 +11,15 @@ import { formatCollapsedNodePath } from "@/features/user-management/utils";
 type StepReviewSubmitProps = {
   orgStructure: OrgNode | null;
   basic: UserOnboardingFormData["basic"];
+  isEditMode?: boolean;
+  previousReviewSnapshot?: {
+    basic: UserOnboardingFormData["basic"];
+    selectedNodes: OrgNode[];
+    primaryNodeId: string | null;
+    nodePermissions: Record<string, NodePermissionBuckets>;
+    nodePermissionScopes: Record<string, NodePermissionScopeBuckets>;
+    selectedWorkflow: string;
+  } | null;
   isGlobalSignatory: boolean;
   selectedNodes: OrgNode[];
   primaryNodeId: string | null;
@@ -221,28 +230,92 @@ const countSelectedRights = (permissions: UserOnboardingPermissions) =>
     0,
   );
 
+const normalizeValue = (value?: string) => (value || "").trim();
+
+const DiffValue = ({
+  previousValue,
+  currentValue,
+  highlightAdded = false,
+}: {
+  previousValue?: string;
+  currentValue: string;
+  highlightAdded?: boolean;
+}) => {
+  const prev = normalizeValue(previousValue);
+  const curr = normalizeValue(currentValue);
+  if (highlightAdded && !prev && curr && curr !== "-") {
+    return (
+      <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
+        {curr}
+      </span>
+    );
+  }
+  if (!prev || prev === curr) {
+    return <span className="font-semibold text-slate-900">{curr || "-"}</span>;
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span className="rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-rose-500 line-through">{prev}</span>
+      <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+      <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">{curr || "-"}</span>
+    </span>
+  );
+};
+
 function NodePermissionCard({
   node,
+  isDiffMode = false,
   badgeLabel,
   permissions,
+  previousPermissions,
   branchMetaMap,
   breadcrumbByNodeId,
   emptyText,
   permissionScopes,
+  previousPermissionScopes,
   onClose,
 }: {
   node: OrgNode;
+  isDiffMode?: boolean;
   badgeLabel: string;
   permissions: UserOnboardingPermissions;
+  previousPermissions?: UserOnboardingPermissions;
   branchMetaMap: Map<string, BranchMeta>;
   breadcrumbByNodeId: Map<string, string>;
   emptyText: string;
   permissionScopes: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>;
+  previousPermissionScopes?: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>;
   onClose?: () => void;
 }) {
   const selectedSections = getSelectedSections(permissions, permissionScopes);
+  const previousSections = getSelectedSections(previousPermissions ?? {}, previousPermissionScopes ?? {});
   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
   const parentSubtitle = isRoot ? "" : formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "");
+
+  const buildLookup = (
+    sourcePermissions: UserOnboardingPermissions,
+    sourceScopes: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>,
+  ) => {
+    const map = new Map<string, { label: string; scopeLabel: string | null }>();
+    const sections = getSelectedSections(sourcePermissions, sourceScopes);
+    sections.forEach((section) => {
+      section.selectedItems.forEach((item) => {
+        const orderedLabels = getOrderedPermissionLabels(item.activeRights);
+        orderedLabels.forEach((label) => {
+          const action = getPermissionActionFromText(label);
+          const scopeLabel =
+            action && section.categoryKey.trim().toUpperCase() === "SYSTEM_ACCESS"
+              ? formatScopeLabel(item.activeScopeByAction[action] ?? "NODE")
+              : null;
+          map.set(`${section.categoryKey}|${item.itemKey}|${label}`, { label, scopeLabel });
+        });
+      });
+    });
+    return map;
+  };
+
+  const currentLookup = buildLookup(permissions, permissionScopes);
+  const previousLookup = buildLookup(previousPermissions ?? {}, previousPermissionScopes ?? {});
 
   return (
     <div
@@ -283,6 +356,10 @@ function NodePermissionCard({
               </div>
               {section.selectedItems.map((item) => {
                 const orderedLabels = getOrderedPermissionLabels(item.activeRights);
+                const previousSection = previousSections.find((entry) => entry.categoryKey === section.categoryKey);
+                const previousItem = previousSection?.selectedItems.find((entry) => entry.itemKey === item.itemKey);
+                const previousOrderedLabels = previousItem ? getOrderedPermissionLabels(previousItem.activeRights) : [];
+                const allLabels = Array.from(new Set([...orderedLabels, ...previousOrderedLabels]));
                 return (
                   <div
                     key={`${node.id}-${section.categoryKey}-${item.itemKey}`}
@@ -292,21 +369,58 @@ function NodePermissionCard({
                       {formatRoleTokenLabel(item.itemKey)}
                     </span>
                     <span className="flex max-w-[520px] flex-wrap justify-start gap-2 md:justify-end">
-                      {orderedLabels.map((label) => {
+                      {allLabels.map((label) => {
                         const theme = getPermissionBadgeTheme(label);
                         const BadgeIcon = theme.Icon;
-                        const action = getPermissionActionFromText(label);
-                        const scopeLabel =
-                          action && section.categoryKey.trim().toUpperCase() === "SYSTEM_ACCESS"
-                            ? formatScopeLabel(item.activeScopeByAction[action] ?? "NODE")
-                            : null;
+                        const key = `${section.categoryKey}|${item.itemKey}|${label}`;
+                        const currentValue = currentLookup.get(key);
+                        const previousValue = previousLookup.get(key);
+                        const isAdded = !previousValue && Boolean(currentValue);
+                        const isRemoved = Boolean(previousValue) && !currentValue;
+                        const isChanged =
+                          Boolean(previousValue && currentValue) &&
+                          previousValue.scopeLabel !== currentValue.scopeLabel;
+                        const showAsDiff = isDiffMode && (isAdded || isRemoved || isChanged);
+                        const currentLabelText = currentValue
+                          ? currentValue.scopeLabel
+                            ? `${currentValue.label} - ${currentValue.scopeLabel}`
+                            : currentValue.label
+                          : "";
+                        const previousLabelText = previousValue
+                          ? previousValue.scopeLabel
+                            ? `${previousValue.label} - ${previousValue.scopeLabel}`
+                            : previousValue.label
+                          : "";
+
+                        if (isDiffMode && isRemoved) {
+                          return (
+                            <span
+                              key={`${node.id}-${section.categoryKey}-${item.itemKey}-${label}-removed`}
+                              className="inline-flex min-w-[96px] items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-500 line-through"
+                            >
+                              <BadgeIcon className="h-3.5 w-3.5 shrink-0" />
+                              {previousLabelText}
+                            </span>
+                          );
+                        }
                         return (
                           <span
                             key={`${node.id}-${section.categoryKey}-${item.itemKey}-${label}`}
-                            className={cn("inline-flex min-w-[96px] items-center justify-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium", theme.className)}
+                            className={cn(
+                              "inline-flex min-w-[96px] items-center justify-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium",
+                              showAsDiff
+                                ? isAdded
+                                  ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : theme.className,
+                            )}
                           >
                             <BadgeIcon className="h-3.5 w-3.5 shrink-0" />
-                            {scopeLabel ? `${label} - ${scopeLabel}` : label}
+                            {showAsDiff ? (
+                              <DiffValue previousValue={previousLabelText} currentValue={currentLabelText} highlightAdded={isAdded} />
+                            ) : (
+                              currentLabelText || previousLabelText
+                            )}
                           </span>
                         );
                       })}
@@ -322,12 +436,22 @@ function NodePermissionCard({
   );
 }
 
-function BasicDetailRow({ label, value }: { label: string; value: string }) {
+function BasicDetailRow({
+  label,
+  value,
+  previousValue,
+  highlightAdded = false,
+}: {
+  label: string;
+  value: string;
+  previousValue?: string;
+  highlightAdded?: boolean;
+}) {
   return (
     <div className="grid grid-cols-[120px_10px_1fr] items-center gap-x-2">
       <span className="text-slate-500">{label}</span>
       <span className="text-slate-400">:</span>
-      <span className="font-semibold text-slate-900">{value || "-"}</span>
+      <DiffValue previousValue={previousValue} currentValue={value || "-"} highlightAdded={highlightAdded} />
     </div>
   );
 }
@@ -335,6 +459,8 @@ function BasicDetailRow({ label, value }: { label: string; value: string }) {
 export function UserOnboardingStepReviewSubmit({
   orgStructure,
   basic,
+  isEditMode = false,
+  previousReviewSnapshot = null,
   isGlobalSignatory,
   selectedNodes,
   primaryNodeId,
@@ -345,6 +471,12 @@ export function UserOnboardingStepReviewSubmit({
   onSetExpandedAccessNodeIds,
   onSetIsReviewAccessExpanded,
 }: StepReviewSubmitProps) {
+  const previousBasic = previousReviewSnapshot?.basic ?? null;
+  const previousSelectedNodes = previousReviewSnapshot?.selectedNodes ?? [];
+  const previousPrimaryNodeId = previousReviewSnapshot?.primaryNodeId ?? null;
+  const previousNodePermissions = previousReviewSnapshot?.nodePermissions ?? {};
+  const previousNodePermissionScopes = previousReviewSnapshot?.nodePermissionScopes ?? {};
+  const previousSelectedWorkflow = previousReviewSnapshot?.selectedWorkflow ?? "";
   const reportingManagerName = basic.reportingManagerName || basic.reportingManager || "-";
   const reportingManagerEmail =
     basic.reportingManagerEmail ||
@@ -354,11 +486,18 @@ export function UserOnboardingStepReviewSubmit({
   const breadcrumbByNodeId = useMemo(() => buildNodeBreadcrumbMap(orgStructure), [orgStructure]);
   const [collapsedFocusedNodeId, setCollapsedFocusedNodeId] = useState<"primary" | string | null>(null);
   const primaryNode = primaryNodeId ? selectedNodes.find((node) => node.id === primaryNodeId) ?? null : null;
+  const previousPrimaryNode = previousPrimaryNodeId
+    ? previousSelectedNodes.find((node) => node.id === previousPrimaryNodeId) ?? null
+    : null;
   const globalNodeName = (orgStructure?.name || selectedNodes[0]?.name || "-").trim() || "-";
   const primaryPermissions = primaryNode ? nodePermissions[primaryNode.id]?.primary ?? {} : {};
   const secondaryNodesWithRights = selectedNodes.filter((node) => {
     const buckets = nodePermissions[node.id];
     return buckets && getSelectedSections(buckets.secondary, nodePermissionScopes[node.id]?.secondary ?? {}).length > 0;
+  });
+  const previousSecondaryNodesWithRights = previousSelectedNodes.filter((node) => {
+    const buckets = previousNodePermissions[node.id];
+    return buckets && getSelectedSections(buckets.secondary, previousNodePermissionScopes[node.id]?.secondary ?? {}).length > 0;
   });
   const primaryRightsCount = countSelectedRights(primaryPermissions);
   const secondaryRightsCount = secondaryNodesWithRights.reduce(
@@ -410,12 +549,12 @@ export function UserOnboardingStepReviewSubmit({
                       Basic Details
                     </div>
                     <div className="space-y-2 text-sm">
-                      <BasicDetailRow label="Name" value={basic.name} />
-                      <BasicDetailRow label="Email" value={basic.email} />
-                      <BasicDetailRow label="Phone" value={basic.phone} />
-                      <BasicDetailRow label="Designation" value={basic.designation} />
-                      {basic.employeeId?.trim() ? <BasicDetailRow label="Employee ID" value={basic.employeeId} /> : null}
-                      {selectedWorkflow.trim() ? <BasicDetailRow label="Workflow" value={selectedWorkflow} /> : null}
+                      <BasicDetailRow label="Name" value={basic.name} previousValue={isEditMode ? previousBasic?.name : undefined} highlightAdded={isEditMode} />
+                      <BasicDetailRow label="Email" value={basic.email} previousValue={isEditMode ? previousBasic?.email : undefined} highlightAdded={isEditMode} />
+                      <BasicDetailRow label="Phone" value={basic.phone} previousValue={isEditMode ? previousBasic?.phone : undefined} highlightAdded={isEditMode} />
+                      <BasicDetailRow label="Designation" value={basic.designation} previousValue={isEditMode ? previousBasic?.designation : undefined} highlightAdded={isEditMode} />
+                      <BasicDetailRow label="Employee ID" value={basic.employeeId || "-"} previousValue={isEditMode ? previousBasic?.employeeId : undefined} highlightAdded={isEditMode} />
+                      <BasicDetailRow label="Workflow" value={selectedWorkflow || "-"} previousValue={isEditMode ? previousSelectedWorkflow : undefined} highlightAdded={isEditMode} />
                     </div>
                   </div>
 
@@ -452,9 +591,12 @@ export function UserOnboardingStepReviewSubmit({
                       {primaryNode ? (
                         <NodePermissionCard
                           node={primaryNode}
+                          isDiffMode={isEditMode}
                           badgeLabel="P1"
                           permissions={primaryPermissions}
+                          previousPermissions={previousPrimaryNode ? previousNodePermissions[previousPrimaryNode.id]?.primary ?? {} : {}}
                           permissionScopes={nodePermissionScopes[primaryNode.id]?.primary ?? {}}
+                          previousPermissionScopes={previousPrimaryNode ? previousNodePermissionScopes[previousPrimaryNode.id]?.primary ?? {} : {}}
                           branchMetaMap={branchMetaMap}
                           breadcrumbByNodeId={breadcrumbByNodeId}
                           emptyText="No primary access configured."
@@ -492,24 +634,34 @@ export function UserOnboardingStepReviewSubmit({
                   <span className="h-2 w-2 rounded-full bg-slate-400" />
                   <span className="text-[12px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
                 </div>
-                {secondaryNodesWithRights.length === 0 ? (
+                {secondaryNodesWithRights.length === 0 && previousSecondaryNodesWithRights.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-sm text-slate-400">
                     No secondary access assigned.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {secondaryNodesWithRights.map((node) => (
-                      <NodePermissionCard
-                        key={node.id}
-                        node={node}
-                        badgeLabel={`S${selectedNodes.findIndex((n) => n.id === node.id) + 1}`}
-                        permissions={nodePermissions[node.id].secondary}
-                        permissionScopes={nodePermissionScopes[node.id]?.secondary ?? {}}
-                        branchMetaMap={branchMetaMap}
-                        breadcrumbByNodeId={breadcrumbByNodeId}
-                        emptyText="No secondary access assigned."
-                      />
-                    ))}
+                    {Array.from(new Set([...secondaryNodesWithRights.map((node) => node.id), ...previousSecondaryNodesWithRights.map((node) => node.id)]))
+                      .map((nodeId) => {
+                        const currentNode = selectedNodes.find((node) => node.id === nodeId) ?? null;
+                        const previousNode = previousSelectedNodes.find((node) => node.id === nodeId) ?? null;
+                        const node = currentNode ?? previousNode;
+                        if (!node) return null;
+                        return (
+                          <NodePermissionCard
+                            key={node.id}
+                            node={node}
+                            isDiffMode={isEditMode}
+                            badgeLabel={`S${Math.max(selectedNodes.findIndex((n) => n.id === node.id), previousSelectedNodes.findIndex((n) => n.id === node.id)) + 1}`}
+                            permissions={currentNode ? nodePermissions[node.id]?.secondary ?? {} : {}}
+                            previousPermissions={previousNode ? previousNodePermissions[node.id]?.secondary ?? {} : {}}
+                            permissionScopes={currentNode ? nodePermissionScopes[node.id]?.secondary ?? {} : {}}
+                            previousPermissionScopes={previousNode ? previousNodePermissionScopes[node.id]?.secondary ?? {} : {}}
+                            branchMetaMap={branchMetaMap}
+                            breadcrumbByNodeId={breadcrumbByNodeId}
+                            emptyText="No secondary access assigned."
+                          />
+                        );
+                      })}
                   </div>
                 )}
                 </div>
@@ -529,12 +681,12 @@ export function UserOnboardingStepReviewSubmit({
                       Basic Details
                     </div>
                     <div className="space-y-2 text-sm">
-                      <BasicDetailRow label="Name" value={basic.name} />
-                      <BasicDetailRow label="Email" value={basic.email} />
-                      <BasicDetailRow label="Phone" value={basic.phone} />
-                      <BasicDetailRow label="Designation" value={basic.designation} />
-                      {basic.employeeId?.trim() ? <BasicDetailRow label="Employee ID" value={basic.employeeId} /> : null}
-                      {selectedWorkflow.trim() ? <BasicDetailRow label="Workflow" value={selectedWorkflow} /> : null}
+                      <BasicDetailRow label="Name" value={basic.name} previousValue={isEditMode ? previousBasic?.name : undefined} highlightAdded={isEditMode} />
+                      <BasicDetailRow label="Email" value={basic.email} previousValue={isEditMode ? previousBasic?.email : undefined} highlightAdded={isEditMode} />
+                      <BasicDetailRow label="Phone" value={basic.phone} previousValue={isEditMode ? previousBasic?.phone : undefined} highlightAdded={isEditMode} />
+                      <BasicDetailRow label="Designation" value={basic.designation} previousValue={isEditMode ? previousBasic?.designation : undefined} highlightAdded={isEditMode} />
+                      <BasicDetailRow label="Employee ID" value={basic.employeeId || "-"} previousValue={isEditMode ? previousBasic?.employeeId : undefined} highlightAdded={isEditMode} />
+                      <BasicDetailRow label="Workflow" value={selectedWorkflow || "-"} previousValue={isEditMode ? previousSelectedWorkflow : undefined} highlightAdded={isEditMode} />
                     </div>
                   </div>
                   {isGlobalSignatory ? (
@@ -591,9 +743,12 @@ export function UserOnboardingStepReviewSubmit({
                     collapsedFocusedNodeId === "primary" ? (
                       <NodePermissionCard
                         node={primaryNode}
+                        isDiffMode={isEditMode}
                         badgeLabel="P1"
                         permissions={primaryPermissions}
+                        previousPermissions={previousPrimaryNode ? previousNodePermissions[previousPrimaryNode.id]?.primary ?? {} : {}}
                         permissionScopes={nodePermissionScopes[primaryNode.id]?.primary ?? {}}
+                        previousPermissionScopes={previousPrimaryNode ? previousNodePermissionScopes[previousPrimaryNode.id]?.primary ?? {} : {}}
                         branchMetaMap={branchMetaMap}
                         breadcrumbByNodeId={breadcrumbByNodeId}
                         emptyText="No primary access configured."

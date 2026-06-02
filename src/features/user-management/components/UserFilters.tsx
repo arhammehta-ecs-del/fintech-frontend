@@ -68,6 +68,7 @@ type UserFiltersProps = {
   sortOrder: SortOrder;
   onSortOrderChange: (value: SortOrder) => void;
   hasNewUserEvent: boolean;
+  suppressAutoEventTooltip?: boolean;
   onRefresh: () => void | Promise<void>;
   refreshInitializedAt?: number | null;
   roles: string[];
@@ -107,6 +108,7 @@ export default function UserFilters({
   onClearAdvancedFilters,
   onApplyAdvancedFilters,
   hasNewUserEvent,
+  suppressAutoEventTooltip = false,
   onRefresh,
   refreshInitializedAt,
   onSortOrderChange,
@@ -394,7 +396,7 @@ export default function UserFilters({
 
           <div className="relative flex h-12 w-12 items-center justify-center">
             <TooltipProvider delayDuration={120}>
-              <Tooltip open={isRefreshTooltipOpen}>
+              <Tooltip open={(!suppressAutoEventTooltip && hasNewUserEvent) || isRefreshTooltipOpen}>
                 <TooltipTrigger asChild>
                   <Button
                     type="button"
@@ -423,12 +425,12 @@ export default function UserFilters({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            {refreshLabel ? (
+              <p className="pointer-events-none absolute top-full right-0 mt-1 whitespace-nowrap text-right text-[11px] font-medium leading-none text-muted-foreground">
+                {refreshLabel}
+              </p>
+            ) : null}
           </div>
-          {refreshLabel ? (
-            <p className="pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-xs font-medium leading-none text-muted-foreground">
-              {refreshLabel}
-            </p>
-          ) : null}
         </div>
       </div>
     </div>
