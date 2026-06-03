@@ -289,6 +289,8 @@ function NodePermissionCard({
 }) {
   const selectedSections = getSelectedSections(permissions, permissionScopes);
   const previousSections = getSelectedSections(previousPermissions ?? {}, previousPermissionScopes ?? {});
+  const hasRemovedOnly = isDiffMode && selectedSections.length === 0 && previousSections.length > 0;
+  const displaySections = selectedSections.length > 0 ? selectedSections : (isDiffMode ? previousSections : []);
   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
   const parentSubtitle = isRoot ? "" : formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "");
 
@@ -322,6 +324,7 @@ function NodePermissionCard({
       className={cn(
         "relative overflow-hidden rounded-xl border border-l-[4px] border-slate-200 bg-white p-3 shadow-sm",
         getNodeBorderLeftClass(node, branchMetaMap),
+        hasRemovedOnly && "border-rose-200 bg-rose-50/40",
       )}
     >
       {onClose ? (
@@ -346,10 +349,10 @@ function NodePermissionCard({
         </div>
 
       <div className="space-y-2.5 rounded-xl bg-slate-50/30 p-3">
-        {selectedSections.length === 0 ? (
-          <div className="text-sm text-slate-400">{emptyText}</div>
+        {displaySections.length === 0 ? (
+          <div className={cn("text-sm", hasRemovedOnly ? "text-rose-500" : "text-slate-400")}>{emptyText}</div>
         ) : (
-          selectedSections.map((section) => (
+          displaySections.map((section) => (
             <div key={`${node.id}-${section.categoryKey}`} className="space-y-2">
               <div className="border-b border-slate-200 pb-1 text-[11px] font-black uppercase tracking-widest text-slate-500">
                 {formatRoleTokenLabel(section.categoryKey)}

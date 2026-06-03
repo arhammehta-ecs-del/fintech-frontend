@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import HistorySidebar, { type HistoryEntry } from "@/components/HistorySidebar";
-import HistoryDetailDialog, { normalizeHistoryDetail, type HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
+import { normalizeHistoryDetail, type HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 import { formatDateParts } from "@/lib/historyDate.utils";
 import { getInitials } from "@/lib/userIdentity.utils";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ export type WorkflowHistorySidebarProps = {
   isOpen: boolean;
   onClose: () => void;
   workflow: WorkflowRecord | null;
+  onOpenHistoryDetail?: (detail: HistoryDetailViewModel, sourceId: string) => void;
   dockOffset?: {
     top: number;
     left: number;
@@ -150,15 +151,12 @@ export default function WorkflowHistorySidebar({
   isOpen,
   onClose,
   workflow,
+  onOpenHistoryDetail,
   dockOffset,
   splitView = Boolean(dockOffset),
   panelWidth,
 }: WorkflowHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailSourceId, setDetailSourceId] = useState("");
-  const [detailViewModel, setDetailViewModel] = useState<HistoryDetailViewModel | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -203,45 +201,27 @@ export default function WorkflowHistorySidebar({
     const sourceId = (entry.sourceId || entry.id).trim();
     if (!sourceId) return;
 
-    setDetailSourceId(sourceId);
-    setDetailOpen(true);
-    setDetailLoading(true);
-    setDetailViewModel(null);
-
     try {
       const response = await fetchHistoryDetail({ id: sourceId, type: "workflow" });
-      setDetailViewModel(normalizeHistoryDetail(response));
+      onOpenHistoryDetail?.(normalizeHistoryDetail(response), sourceId);
     } catch (error) {
       const message = getApiErrorMessage(error, "Failed to fetch history details.");
       toast({ title: "Unable to load history details", description: message, variant: "destructive" });
-      setDetailViewModel(null);
-    } finally {
-      setDetailLoading(false);
     }
   };
 
   return (
-    <>
-      <HistorySidebar
-        isOpen={isOpen}
-        onClose={onClose}
-        title="Workflow history"
-        subtitle={workflow?.name || "Unknown Workflow"}
-        showSystemGenerated={false}
-        data={historyData}
-        dockOffset={dockOffset}
-        splitView={splitView}
-        panelWidth={panelWidth}
-        onViewMore={handleViewMore}
-      />
-      <HistoryDetailDialog
-        isOpen={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        title="Workflow history details"
-        sourceId={detailSourceId}
-        loading={detailLoading}
-        detail={detailViewModel}
-      />
-    </>
+    <HistorySidebar
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Workflow history"
+      subtitle={workflow?.name || "Unknown Workflow"}
+      showSystemGenerated={false}
+      data={historyData}
+      dockOffset={dockOffset}
+      splitView={splitView}
+      panelWidth={panelWidth}
+      onViewMore={handleViewMore}
+    />
   );
 }

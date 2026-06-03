@@ -7,8 +7,10 @@ export type UserOnboardingPermission = {
   roleName: string;
   nodeName: string;
   nodePath?: string;
+  nodeType?: string;
   accessCategory?: "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null;
   accessType?: "PRIMARY" | "SECONDARY";
+  remove?: boolean;
 };
 
 export type UserOnboardingPayload = {
@@ -253,6 +255,10 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
     readString(record.userId).trim() ||
     readString(basicDetails.id).trim() ||
     readString(basicDetails.userId).trim();
+  const requestId =
+    readString(pendingRequest.id).trim() ||
+    readString(pendingRequest.requestId).trim() ||
+    readString(record.requestId).trim();
   const uuid = readString(record.uuid).trim() || readString(basicDetails.uuid).trim();
   const companyId = readString(record.companyId).trim();
   const isPending = Boolean(record.isPending) || pendingRequestStatus === "PENDING";
@@ -260,6 +266,7 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   return {
     id: backendId || undefined,
     uuid: uuid || undefined,
+    requestId: requestId || undefined,
     isPending,
     name,
     email,

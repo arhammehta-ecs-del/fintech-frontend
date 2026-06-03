@@ -18,6 +18,7 @@ import WorkflowOnboardingView from "@/features/workflow-management/components/Wo
 import WorkflowHistorySidebar from "./WorkflowHistorySidebar";
 import { History } from "lucide-react";
 import WorkflowManageDialog from "./WorkflowManageDialog";
+import type { HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 import { useWorkflowManagement } from "@/features/workflow-management/hooks/useWorkflowManagement";
 import { cn } from "@/lib/utils";
 import { getWorkflowPathPreview, isRootWorkflowNode, isWorkflowUpdateRequest } from "@/features/workflow-management/utils/workflowRecord.utils";
@@ -147,6 +148,7 @@ function NodePathMarquee({ text }: { text: string }) {
 export default function WorkflowManagementView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
+  const lastNotificationKeyRef = useRef<string | null>(null);
   const workflowLockSession = useEditLockSession();
   const {
     WORKFLOW_PAGE_SIZE_OPTIONS,
@@ -206,6 +208,7 @@ export default function WorkflowManagementView() {
   const hasAnyFilter = activeFilterCount > 0;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [manageHistoryOpen, setManageHistoryOpen] = useState(false);
+  const [workflowHistoryPreviewDetail, setWorkflowHistoryPreviewDetail] = useState<HistoryDetailViewModel | null>(null);
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const [viewportWidth, setViewportWidth] = useState(0);
   const [draftWorkflowFilters, setDraftWorkflowFilters] = useState<string[]>(workflowFilters);
@@ -241,6 +244,20 @@ export default function WorkflowManagementView() {
         ? statusCounts.inactive
         : statusCounts.active;
 
+  const clearNotificationIntentParams = (params: URLSearchParams) => {
+    const nextParams = new URLSearchParams(params);
+    [
+      "notif_action",
+      "notif_ref_type",
+      "notif_ref_id",
+      "notif_type",
+      "notif_email",
+      "notif_entity_name",
+      "notif_target_status",
+    ].forEach((key) => nextParams.delete(key));
+    return nextParams;
+  };
+
   useEffect(() => {
     if ((searchParams.get("tab") || "").trim() !== "workflows") return;
     if ((searchParams.get("notif_ref_type") || "").trim().toUpperCase() !== "WORKFLOW") return;
@@ -249,6 +266,13 @@ export default function WorkflowManagementView() {
     const notificationType = (searchParams.get("notif_type") || "").trim().toUpperCase();
     const referenceId = (searchParams.get("notif_ref_id") || "").trim();
     const entityName = (searchParams.get("notif_entity_name") || "").trim().toLowerCase();
+    const notificationKey = [notificationAction, notificationType, referenceId, entityName].join("|");
+
+    if (!notificationAction && !notificationType && !referenceId && !entityName) {
+      lastNotificationKeyRef.current = null;
+      return;
+    }
+    if (lastNotificationKeyRef.current === notificationKey) return;
     const targetStatus =
       notificationAction === "approve"
         ? "Pending"
@@ -257,6 +281,24 @@ export default function WorkflowManagementView() {
           : notificationType.includes("INACTIV")
             ? "Inactive"
             : "Pending";
+
+    const targetStatusCount =
+      targetStatus === "Pending"
+        ? statusCounts.pending
+        : targetStatus === "Inactive"
+          ? statusCounts.inactive
+          : statusCounts.active;
+
+    if (hasLoadedWorkflowsOnce && targetStatusCount === 0) {
+      toast({
+        title: "Request not found",
+        description: "The workflow request is no longer available.",
+        variant: "destructive",
+      });
+      setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
+      lastNotificationKeyRef.current = notificationKey;
+      return;
+    }
 
     if (activeStatus !== targetStatus) {
       setActiveStatus(targetStatus as typeof activeStatus);
@@ -271,22 +313,36 @@ export default function WorkflowManagementView() {
       return Boolean(entityName) && (workflow.name || "").trim().toLowerCase() === entityName;
     });
 
-    if (!matchedWorkflow) return;
+    if (!matchedWorkflow) {
+      if (hasLoadedWorkflowsOnce) {
+        toast({
+          title: "Request not found",
+          description: "The workflow request is no longer available.",
+          variant: "destructive",
+        });
+        setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
+        lastNotificationKeyRef.current = notificationKey;
+      }
+      return;
+    }
 
     setManageHistoryOpen(false);
+    setWorkflowHistoryPreviewDetail(null);
     setManageWorkflow(matchedWorkflow);
-    const nextParams = new URLSearchParams(searchParams);
-    [
-      "notif_action",
-      "notif_ref_type",
-      "notif_ref_id",
-      "notif_type",
-      "notif_email",
-      "notif_entity_name",
-      "notif_target_status",
-    ].forEach((key) => nextParams.delete(key));
-    setSearchParams(nextParams, { replace: true });
-  }, [activeStatus, paginatedWorkflows, searchParams, setActiveStatus, setManageWorkflow, setSearchParams]);
+    setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
+    lastNotificationKeyRef.current = notificationKey;
+  }, [
+    activeStatus,
+    hasLoadedWorkflowsOnce,
+    paginatedWorkflows,
+    searchParams,
+    setActiveStatus,
+    setManageWorkflow,
+    setSearchParams,
+    statusCounts.active,
+    statusCounts.inactive,
+    statusCounts.pending,
+  ]);
 
   const toggleValue = (current: string[], value: string) =>
     current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
@@ -331,6 +387,7 @@ export default function WorkflowManagementView() {
     await workflowLockSession.stopSession(shouldReleaseLock);
     setManageLockArmed(false);
     setManageHistoryOpen(false);
+    setWorkflowHistoryPreviewDetail(null);
     setManageWorkflow(null);
   };
 
@@ -338,6 +395,7 @@ export default function WorkflowManagementView() {
     if (!manageWorkflow) {
       setManageLockArmed(false);
       setManageHistoryOpen(false);
+      setWorkflowHistoryPreviewDetail(null);
     }
   }, [manageWorkflow]);
 
@@ -401,12 +459,12 @@ export default function WorkflowManagementView() {
   const manageWorkflowIsPendingLike =
     !!manageWorkflow &&
     (manageWorkflow.status === "Pending" || isWorkflowUpdateRequest(manageWorkflow));
+  const hasOpenManageWorkflowHistory = Boolean(manageWorkflow) && manageHistoryOpen;
   const canSplitManageHistoryLayout =
-    manageWorkflowIsPendingLike &&
+    hasOpenManageWorkflowHistory &&
     availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
   const canUseSplitManageHistory =
-    manageWorkflowIsPendingLike &&
-    manageHistoryOpen &&
+    hasOpenManageWorkflowHistory &&
     availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
   const splitHistoryTopOverlap = 2;
   const splitWorkflowDockOffset = canSplitManageHistoryLayout
@@ -873,11 +931,20 @@ export default function WorkflowManagementView() {
         onClose={() => {
           if (manageHistoryOpen) {
             setManageHistoryOpen(false);
+            setWorkflowHistoryPreviewDetail(null);
             return;
           }
           setHistoryWorkflow(null);
         }}
         workflow={manageHistoryOpen ? manageWorkflow : historyWorkflow}
+        onOpenHistoryDetail={(detail) => {
+          if (historyWorkflow) {
+            setManageWorkflow(historyWorkflow);
+            setHistoryWorkflow(null);
+            setManageHistoryOpen(true);
+          }
+          setWorkflowHistoryPreviewDetail(detail);
+        }}
         dockOffset={splitWorkflowDockOffset}
         splitView={canSplitManageHistoryLayout}
         panelWidth={computedHistoryPanelWidth}
@@ -937,8 +1004,13 @@ export default function WorkflowManagementView() {
             }
           })();
         }}
-        onToggleHistory={manageWorkflowIsPendingLike ? () => setManageHistoryOpen((current) => !current) : undefined}
-        isHistoryOpen={canUseSplitManageHistory}
+        onToggleHistory={() => setManageHistoryOpen((current) => {
+          const next = !current;
+          if (!next) setWorkflowHistoryPreviewDetail(null);
+          return next;
+        })}
+        historyDetailOverride={workflowHistoryPreviewDetail}
+        isHistoryOpen={manageHistoryOpen}
         overlayClassName="hidden"
         contentClassName={
           canUseSplitManageHistory

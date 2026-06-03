@@ -217,6 +217,14 @@ export function AppTopBar({
   const [customToDate, setCustomToDate] = useState("");
   const [expandedNotificationIds, setExpandedNotificationIds] = useState<string[]>([]);
 
+  const resetNotificationFilters = useCallback(() => {
+    setNotificationStatusFilter("ALL");
+    setNotificationModuleFilter("ALL");
+    setNotificationDateRange(DEFAULT_DATE_RANGE);
+    setCustomFromDate("");
+    setCustomToDate("");
+  }, []);
+
   useEffect(() => {
     setNotificationsPanelOpenFlag(allNotificationsOpen || notificationsPopoverOpen);
     return () => setNotificationsPanelOpenFlag(false);
@@ -436,6 +444,7 @@ export function AppTopBar({
 
     setNotificationsPopoverOpen(false);
     setAllNotificationsOpen(false);
+    resetNotificationFilters();
     navigate(`/settings?${searchParams.toString()}`);
   };
 
@@ -699,7 +708,13 @@ export function AppTopBar({
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
-        <Popover open={notificationsPopoverOpen} onOpenChange={setNotificationsPopoverOpen}>
+        <Popover
+          open={notificationsPopoverOpen}
+          onOpenChange={(nextOpen) => {
+            setNotificationsPopoverOpen(nextOpen);
+            if (!nextOpen) resetNotificationFilters();
+          }}
+        >
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5 text-muted-foreground" />
@@ -753,7 +768,13 @@ export function AppTopBar({
           </PopoverContent>
         </Popover>
 
-        <Dialog open={allNotificationsOpen} onOpenChange={setAllNotificationsOpen}>
+        <Dialog
+          open={allNotificationsOpen}
+          onOpenChange={(nextOpen) => {
+            setAllNotificationsOpen(nextOpen);
+            if (!nextOpen) resetNotificationFilters();
+          }}
+        >
           <DialogContent showCloseButton={false} className="h-[88vh] w-[min(94vw,760px)] max-w-[760px] overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-2xl">
             <DialogHeader className="border-b border-slate-200 px-6 py-4">
               <DialogTitle className="flex items-center justify-between text-slate-900">
@@ -762,7 +783,10 @@ export function AppTopBar({
                   <button type="button" onClick={() => void markAllAsRead()} className="rounded-md px-2 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
                     Mark all as read
                   </button>
-                  <button type="button" onClick={() => setAllNotificationsOpen(false)} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="Close notifications">
+                  <button type="button" onClick={() => {
+                    setAllNotificationsOpen(false);
+                    resetNotificationFilters();
+                  }} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="Close notifications">
                     ×
                   </button>
                 </div>

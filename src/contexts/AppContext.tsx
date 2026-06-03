@@ -63,6 +63,7 @@ export interface OrgNode {
 export interface AppUser {
   id?: string;
   uuid?: string;
+  requestId?: string;
   isPending?: boolean;
   name: string;
   email: string;

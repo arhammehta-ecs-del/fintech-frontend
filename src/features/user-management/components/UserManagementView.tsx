@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { EyeOff, Users, UserPlus } from "lucide-react";
 import type { AppUser } from "@/contexts/AppContext";
@@ -21,12 +21,14 @@ import { fetchCompanyNodesWithAccess } from "@/services/user.service";
 import { useEditLockSession } from "@/hooks/useEditLockSession";
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
+import type { HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 // import { acquireEditLock } from "@/services/edit-lock.service";
 
 export function UserManagementView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const userLockSession = useEditLockSession();
+  const lastNotificationKeyRef = useRef<string | null>(null);
   const {
     search,
     setSearch,
@@ -98,6 +100,7 @@ export function UserManagementView() {
   } = useUserManagement();
   const [refreshInitializedAt, setRefreshInitializedAt] = useState<number | null>(null);
   const [historyOpenForMember, setHistoryOpenForMember] = useState(false);
+  const [historyPreviewDetail, setHistoryPreviewDetail] = useState<HistoryDetailViewModel | null>(null);
   const [onboardingSeedMember, setOnboardingSeedMember] = useState<AppUser | null>(null);
   const [showDeleteActions, setShowDeleteActions] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState("__none__");
@@ -112,43 +115,8 @@ export function UserManagementView() {
   const pageMemberCount = useMemo(() => paginatedMembers.length, [paginatedMembers]);
   const totalMembersForTab = statusCounts[statusTab];
 
-  useEffect(() => {
-    if ((searchParams.get("tab") || "").trim() !== "users") return;
-    if ((searchParams.get("notif_ref_type") || "").trim().toUpperCase() !== "USER") return;
-
-    const notificationAction = (searchParams.get("notif_action") || "").trim().toLowerCase();
-    const notificationType = (searchParams.get("notif_type") || "").trim().toUpperCase();
-    const referenceId = (searchParams.get("notif_ref_id") || "").trim();
-    const email = (searchParams.get("notif_email") || "").trim().toLowerCase();
-    const targetTab =
-      notificationAction === "approve"
-        ? "pending"
-        : notificationType.includes("ONBOARD")
-          ? "active"
-          : notificationType.includes("INACTIV")
-            ? "inactive"
-            : "pending";
-
-    if (statusTab !== targetTab) {
-      setStatusTab(targetTab);
-      return;
-    }
-
-    const candidates = [...paginatedMembers, ...currentMembers].filter(
-      (member, index, array) => array.findIndex((candidate) => candidate.email === member.email) === index,
-    );
-    const matchedMember = candidates.find((member) => {
-      const memberId = (member.id || "").trim();
-      const memberUuid = (member.uuid || "").trim();
-      const memberEmail = (member.email || "").trim().toLowerCase();
-      if (referenceId && (memberId === referenceId || memberUuid === referenceId)) return true;
-      return Boolean(email) && memberEmail === email;
-    });
-
-    if (!matchedMember) return;
-
-    setViewingMember(matchedMember);
-    const nextParams = new URLSearchParams(searchParams);
+  const clearNotificationIntentParams = (params: URLSearchParams) => {
+    const nextParams = new URLSearchParams(params);
     [
       "notif_action",
       "notif_ref_type",
@@ -158,8 +126,114 @@ export function UserManagementView() {
       "notif_entity_name",
       "notif_target_status",
     ].forEach((key) => nextParams.delete(key));
-    setSearchParams(nextParams, { replace: true });
-  }, [currentMembers, paginatedMembers, searchParams, setSearchParams, setStatusTab, setViewingMember, statusTab]);
+    return nextParams;
+  };
+
+  useEffect(() => {
+    if (!viewingMember) {
+      setHistoryPreviewDetail(null);
+    }
+  }, [viewingMember]);
+
+  useEffect(() => {
+    if ((searchParams.get("tab") || "").trim() !== "users") return;
+    if ((searchParams.get("notif_ref_type") || "").trim().toUpperCase() !== "USER") return;
+
+    const notificationAction = (searchParams.get("notif_action") || "").trim().toLowerCase();
+    const notificationType = (searchParams.get("notif_type") || "").trim().toUpperCase();
+    const referenceId = (searchParams.get("notif_ref_id") || "").trim();
+    const email = (searchParams.get("notif_email") || "").trim().toLowerCase();
+    const notificationKey = [notificationAction, notificationType, referenceId, email].join("|");
+
+    if (!notificationAction && !notificationType && !referenceId && !email) {
+      lastNotificationKeyRef.current = null;
+      return;
+    }
+    if (lastNotificationKeyRef.current === notificationKey) return;
+    const targetTab =
+      notificationAction === "approve"
+        ? "pending"
+        : notificationType.includes("ONBOARD")
+          ? "active"
+          : notificationType.includes("INACTIV")
+            ? "inactive"
+            : "pending";
+
+    const targetStatusCount =
+      targetTab === "pending"
+        ? statusCounts.pending
+        : targetTab === "inactive"
+          ? statusCounts.inactive
+          : statusCounts.active;
+
+    if (hasLoadedUsersOnce && targetStatusCount === 0) {
+      toast({
+        title: "Request not found",
+        description: "The user request is no longer available.",
+        variant: "destructive",
+      });
+      setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
+      lastNotificationKeyRef.current = notificationKey;
+      return;
+    }
+
+    if (statusTab !== targetTab) {
+      setStatusTab(targetTab);
+      return;
+    }
+
+    const candidates = [...paginatedMembers, ...currentMembers].filter(
+      (member, index, array) =>
+        array.findIndex(
+          (candidate) =>
+            (candidate.requestId || "").trim() === (member.requestId || "").trim() &&
+            (candidate.email || "").trim().toLowerCase() === (member.email || "").trim().toLowerCase(),
+        ) === index,
+    );
+    const matchedMember = candidates.find((member) => {
+      const memberId = (member.id || "").trim();
+      const memberUuid = (member.uuid || "").trim();
+      const memberRequestId = (member.requestId || "").trim();
+      const memberEmail = (member.email || "").trim().toLowerCase();
+      const basicEmail = (member.basicDetails?.email || "").trim().toLowerCase();
+      if (referenceId && (memberId === referenceId || memberUuid === referenceId || memberRequestId === referenceId)) return true;
+      if (Boolean(email) && (memberEmail === email || basicEmail === email)) return true;
+      if (!email) return false;
+      const requestNewEmail = `${member.basicDetails?.requestNewData?.targetUserEmail ?? ""}`.trim().toLowerCase();
+      const requestOldEmail = `${member.basicDetails?.requestOldData?.targetUserEmail ?? ""}`.trim().toLowerCase();
+      return requestNewEmail === email || requestOldEmail === email;
+    });
+
+    if (!matchedMember) {
+      if (hasLoadedUsersOnce) {
+        toast({
+          title: "Request not found",
+          description: "The user request is no longer available.",
+          variant: "destructive",
+        });
+        setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
+        lastNotificationKeyRef.current = notificationKey;
+      }
+      return;
+    }
+
+    setHistoryPreviewDetail(null);
+    setViewingMember(matchedMember);
+    setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
+    lastNotificationKeyRef.current = notificationKey;
+  }, [
+    currentMembers,
+    hasLoadedUsersOnce,
+    paginatedMembers,
+    searchParams,
+    setSearchParams,
+    setStatusTab,
+    setViewingMember,
+    statusCounts.active,
+    statusCounts.inactive,
+    statusCounts.pending,
+    statusTab,
+  ]);
   const startUserLockSession = async (member: AppUser) => {
     const targetMail = (member.email || "").trim();
     if (!targetMail) {
@@ -353,12 +427,12 @@ export function UserManagementView() {
     MIN_HISTORY_WIDTH,
     Math.min(MAX_HISTORY_WIDTH, availableContentWidth - MIN_DIALOG_SPLIT_WIDTH),
   );
+  const hasOpenManageHistory = Boolean(viewingMember) && historyOpenForMember;
   const canSplitHistoryLayout =
-    (viewingMember?.status === "Pending" || Boolean(viewingMember?.isPending)) &&
+    hasOpenManageHistory &&
     availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
   const canUseSplitHistory =
-    (viewingMember?.status === "Pending" || Boolean(viewingMember?.isPending)) &&
-    historyOpenForMember &&
+    hasOpenManageHistory &&
     availableContentWidth >= MIN_DIALOG_SPLIT_WIDTH + MIN_HISTORY_WIDTH;
   const splitHistoryTopOverlap = 2;
   const splitDockOffset = canSplitHistoryLayout
@@ -454,6 +528,11 @@ export function UserManagementView() {
               currentMembers={currentMembers}
               paginatedMembers={paginatedMembers}
               onView={setViewingMember}
+              onOpenHistoryDetail={(member, detail) => {
+                setViewingMember(member);
+                setHistoryOpenForMember(true);
+                setHistoryPreviewDetail(detail);
+              }}
               onDelete={(member) => {
                 void openDeleteActions(member);
               }}
@@ -527,6 +606,7 @@ export function UserManagementView() {
           if (!open) {
             void (async () => {
               await userLockSession.stopSession(true);
+              setHistoryPreviewDetail(null);
               setViewingMember(null);
             })();
           }
@@ -536,7 +616,7 @@ export function UserManagementView() {
           showCloseButton={false}
           overlayClassName="hidden"
           onInteractOutside={(event) => {
-            if (canUseSplitHistory) {
+            if (canUseSplitHistory || historyOpenForMember) {
               event.preventDefault();
             }
           }}
@@ -615,6 +695,7 @@ export function UserManagementView() {
               onClose={() =>
                 void (async () => {
                   await userLockSession.stopSession(true);
+                  setHistoryPreviewDetail(null);
                   setViewingMember(null);
                 })()
               }
@@ -664,8 +745,13 @@ export function UserManagementView() {
                   setManageActionRemarkError("");
                 })();
               }}
-              onToggleHistory={() => setHistoryOpenForMember((current) => !current)}
+              onToggleHistory={() => setHistoryOpenForMember((current) => {
+                const next = !current;
+                if (!next) setHistoryPreviewDetail(null);
+                return next;
+              })}
               isHistoryOpen={historyOpenForMember}
+              historyDetailOverride={historyPreviewDetail}
             />
           ) : null}
         </DialogContent>
@@ -674,8 +760,14 @@ export function UserManagementView() {
       {viewingMember ? (
         <UserHistorySidebar
           isOpen={historyOpenForMember}
-          onClose={() => setHistoryOpenForMember(false)}
+          onClose={() => {
+            setHistoryOpenForMember(false);
+            setHistoryPreviewDetail(null);
+          }}
           user={viewingMember}
+          onOpenHistoryDetail={(detail) => {
+            setHistoryPreviewDetail(detail);
+          }}
           dockOffset={splitDockOffset}
           splitView={canSplitHistoryLayout}
           panelWidth={computedHistoryPanelWidth}

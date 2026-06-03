@@ -1,4 +1,5 @@
 import type { AppUser } from "@/contexts/AppContext";
+import type { HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -12,6 +13,7 @@ type UserTableProps = {
   currentMembers: AppUser[];
   paginatedMembers: AppUser[];
   onView: (member: AppUser) => void;
+  onOpenHistoryDetail?: (member: AppUser, detail: HistoryDetailViewModel) => void;
   onDelete?: (member: AppUser) => void;
 };
 
@@ -106,6 +108,7 @@ export default function UserTable({
   currentMembers,
   paginatedMembers,
   onView,
+  onOpenHistoryDetail,
   onDelete,
 }: UserTableProps) {
   const [historyOpenForUser, setHistoryOpenForUser] = useState<AppUser | null>(null);
@@ -282,6 +285,11 @@ export default function UserTable({
       isOpen={!!historyOpenForUser}
       onClose={() => setHistoryOpenForUser(null)}
       user={historyOpenForUser}
+      onOpenHistoryDetail={(detail) => {
+        if (!historyOpenForUser) return;
+        setHistoryOpenForUser(null);
+        onOpenHistoryDetail?.(historyOpenForUser, detail);
+      }}
     />
     <style
       dangerouslySetInnerHTML={{

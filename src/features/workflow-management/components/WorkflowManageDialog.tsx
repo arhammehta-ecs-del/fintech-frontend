@@ -11,6 +11,7 @@ import { formatSnakeCaseLabel, isWorkflowUpdateRequest } from "@/features/workfl
 import { cn } from "@/lib/utils";
 import { formatToIst, SummaryPreview } from "@/features/workflow-management/components/WorkflowManageDialogSummary";
 import { useToast } from "@/hooks/use-toast";
+import type { HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 
 type WorkflowManageDialogProps = {
   open: boolean;
@@ -31,11 +32,44 @@ type WorkflowManageDialogProps = {
   contentClassName?: string;
   contentStyle?: CSSProperties;
   preventOutsideClose?: boolean;
+  historyDetailOverride?: HistoryDetailViewModel | null;
 };
 
 const toRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+const toNestedHistoryRecord = (
+  source: Record<string, unknown>,
+  keys: string[],
+) => {
+  for (const key of keys) {
+    const candidate = toRecord(source[key]);
+    if (Object.keys(candidate).length > 0) {
+      return candidate;
+    }
+  }
+  return {} as Record<string, unknown>;
+};
+
+const toHistoryWorkflowSource = (detail: HistoryDetailViewModel | null) => {
+  if (!detail) return {} as Record<string, unknown>;
+  if (detail.mode === "comparison") return toRecord(detail.newData);
+  if (detail.mode === "single") {
+    const nested = toNestedHistoryRecord(detail.record, ["newData", "currentData", "pendingNewData"]);
+    return Object.keys(nested).length > 0 ? nested : toRecord(detail.record);
+  }
+  return {} as Record<string, unknown>;
+};
+
+const toHistoryWorkflowPreviousSource = (detail: HistoryDetailViewModel | null) => {
+  if (!detail) return {} as Record<string, unknown>;
+  if (detail.mode === "comparison") return toRecord(detail.oldData);
+  if (detail.mode === "single") {
+    return toNestedHistoryRecord(detail.record, ["oldData", "previousData", "pendingOldData"]);
+  }
+  return {} as Record<string, unknown>;
+};
 
 const applyPendingDataView = (
   base: WorkflowRecord,
@@ -74,6 +108,7 @@ export default function WorkflowManageDialog({
   contentClassName,
   contentStyle,
   preventOutsideClose = false,
+  historyDetailOverride = null,
 }: WorkflowManageDialogProps) {
   const { toast } = useToast();
 
@@ -115,31 +150,52 @@ export default function WorkflowManageDialog({
     });
   }, [pendingDecision]);
 
+  const isHistoryPreviewActive = Boolean(historyDetailOverride);
+  const historyOldData = toHistoryWorkflowPreviousSource(historyDetailOverride);
+  const historyNewData = toHistoryWorkflowSource(historyDetailOverride);
   const displayWorkflow = useMemo(() => {
     if (!workflow) return null;
-    const pendingOldData = toRecord(workflow.pendingOldData);
-    const pendingNewData = toRecord(workflow.pendingNewData);
+    const pendingOldData = isHistoryPreviewActive ? historyOldData : toRecord(workflow.pendingOldData);
+    const pendingNewData = isHistoryPreviewActive ? historyNewData : toRecord(workflow.pendingNewData);
     const hasPendingDataDiff = Object.keys(pendingOldData).length > 0 || Object.keys(pendingNewData).length > 0;
-    const isUpdateRequest = isWorkflowUpdateRequest(workflow) || hasPendingDataDiff;
-    if (!isUpdateRequest) return workflow;
+    const isUpdateRequest = isHistoryPreviewActive
+      ? historyDetailOverride?.mode === "comparison"
+      : isWorkflowUpdateRequest(workflow) || hasPendingDataDiff;
+    if (!isUpdateRequest) {
+      if (isHistoryPreviewActive && Object.keys(pendingNewData).length > 0) {
+        return applyPendingDataView(workflow, pendingNewData);
+      }
+      return workflow;
+    }
     const source = pendingNewData;
-    if (!Object.keys(source).length) return workflow;
+    if (!Object.keys(source).length) {
+      if (isHistoryPreviewActive && Object.keys(pendingOldData).length > 0) {
+        return applyPendingDataView(workflow, pendingOldData);
+      }
+      return workflow;
+    }
     return applyPendingDataView(workflow, source);
-  }, [workflow]);
+  }, [workflow, isHistoryPreviewActive, historyOldData, historyNewData, historyDetailOverride?.mode]);
   const previousWorkflow = useMemo(() => {
     if (!workflow) return null;
-    const pendingOldData = toRecord(workflow.pendingOldData);
+    const pendingOldData = isHistoryPreviewActive ? historyOldData : toRecord(workflow.pendingOldData);
     if (!Object.keys(pendingOldData).length) return null;
     return applyPendingDataView(workflow, pendingOldData);
-  }, [workflow]);
+  }, [workflow, isHistoryPreviewActive, historyOldData]);
   if (!workflow || !displayWorkflow) return null;
-  const pendingOldData = toRecord(workflow.pendingOldData);
-  const pendingNewData = toRecord(workflow.pendingNewData);
+  const pendingOldData = isHistoryPreviewActive ? historyOldData : toRecord(workflow.pendingOldData);
+  const pendingNewData = isHistoryPreviewActive ? historyNewData : toRecord(workflow.pendingNewData);
   const hasPendingDataDiff = Object.keys(pendingOldData).length > 0 || Object.keys(pendingNewData).length > 0;
-  const isUpdateRequest = isWorkflowUpdateRequest(workflow) || hasPendingDataDiff;
+  const isUpdateRequest = isHistoryPreviewActive
+    ? historyDetailOverride?.mode === "comparison"
+    : isWorkflowUpdateRequest(workflow) || hasPendingDataDiff;
   const isPending = workflow.status === "Pending" || isUpdateRequest || Boolean(workflow.isPending);
   const normalizedRequestImpact = (workflow.pendingRequestImpact || "").trim().toUpperCase();
-  const normalizedRequestType = (workflow.pendingRequestType || "").trim().toUpperCase();
+  const normalizedRequestType = isHistoryPreviewActive
+    ? historyDetailOverride?.mode === "comparison"
+      ? "UPDATE"
+      : "INITIATE"
+    : (workflow.pendingRequestType || "").trim().toUpperCase();
   const pendingNewBasicDetails = toRecord(pendingNewData.basicDetails);
   const normalizedRequestStatus = (
     readString(pendingNewBasicDetails.status) ||
@@ -158,19 +214,20 @@ export default function WorkflowManageDialog({
     PROFILE_UPDATE: "border-sky-200 bg-sky-100 text-sky-700",
   };
   const hiddenImpactTokens = new Set(["", "NO_ISSUES", "NO ISSUES", "NONE", "NA", "N/A"]);
+  const canShowPendingActions = isPending && !isHistoryPreviewActive;
   const isPendingInactiveRequest =
-    isPending && (
+    canShowPendingActions && (
       normalizedRequestType === "INACTIVE" ||
       normalizedRequestStatus === "INACTIVE" ||
       normalizedRequestImpact === "INACTIVE"
     );
   const isPendingActiveRequest =
-    isPending && (
+    canShowPendingActions && (
       normalizedRequestType === "ACTIVE" ||
       normalizedRequestStatus === "ACTIVE" ||
       normalizedRequestImpact === "ACTIVE"
     );
-  const isPendingUpdateRequest = isPending && normalizedRequestType === "UPDATE";
+  const isPendingUpdateRequest = canShowPendingActions && normalizedRequestType === "UPDATE";
   const pendingApprovalLabel = isPendingActiveRequest
     ? "Re-activation Approval"
     : isPendingInactiveRequest
@@ -323,7 +380,7 @@ export default function WorkflowManageDialog({
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
-              {onEdit && !isPending && workflow.status !== "Inactive" ? (
+              {onEdit && !isPending && !isHistoryPreviewActive && workflow.status !== "Inactive" ? (
                 <TooltipProvider delayDuration={120}>
                   <Tooltip open={isEditTooltipOpen}>
                     <TooltipTrigger asChild>
@@ -344,7 +401,7 @@ export default function WorkflowManageDialog({
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
-              {!isPending && onSubmitStatusUpdate ? (
+              {!isPending && !isHistoryPreviewActive && onSubmitStatusUpdate ? (
                 <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
                   <button
                     type="button"
@@ -382,7 +439,7 @@ export default function WorkflowManageDialog({
               </button>
             </div>
           </div>
-          {isPending ? (
+          {canShowPendingActions ? (
             <div className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
               <div className="space-y-2 text-[12px]">
                 <div className="flex w-full flex-wrap items-center gap-2">
@@ -430,7 +487,7 @@ export default function WorkflowManageDialog({
         <div className="space-y-4 overflow-y-auto px-5 py-4">
           <SummaryPreview workflow={{ ...displayWorkflow, previousWorkflow }} />
 
-          {!isPending && pendingStatus && onSubmitStatusUpdate ? (
+          {!isPending && !isHistoryPreviewActive && pendingStatus && onSubmitStatusUpdate ? (
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
                 {pendingStatus === "inactive" ? "Submit Inactive Request" : "Submit Active Request"}
@@ -447,7 +504,7 @@ export default function WorkflowManageDialog({
             </div>
           ) : null}
 
-          {isPending && pendingDecision ? (
+          {canShowPendingActions && pendingDecision ? (
             <div ref={remarkCardRef} className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                 <GitBranch className="h-4 w-4" />
@@ -469,7 +526,7 @@ export default function WorkflowManageDialog({
         </div>
 
         <div className="flex w-full items-center justify-end gap-2 border-t border-slate-200 bg-slate-50/40 px-6 py-4">
-          {isPending ? (
+          {canShowPendingActions ? (
             pendingDecision === "approve" ? (
               <>
                 <Button variant="outline" onClick={handleClosePendingAction} disabled={isSubmitting}>

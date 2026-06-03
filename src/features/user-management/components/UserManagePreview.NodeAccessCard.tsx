@@ -25,7 +25,7 @@ type NodeAccessCardProps = {
     nodeType?: string;
     accessCategory?: "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null;
   }>>;
-  isRemovedNode?: boolean;
+  changeState?: "unchanged" | "added" | "removed" | "changed";
   onClose?: () => void;
 };
 
@@ -36,12 +36,15 @@ export function NodeAccessCard({
   categories,
   previousCategories,
   isPrimary,
-  isRemovedNode = false,
+  changeState = "unchanged",
   onClose,
 }: NodeAccessCardProps) {
   const edgeCls = getNodeEdgeBorderClass(nodeIndex, isPrimary);
   const badgeCls = getNodeBadgeClass(nodeIndex, isPrimary);
   const badgeLabel = `${isPrimary ? "P" : "S"}${nodeIndex + 1}`;
+  const isRemovedNode = changeState === "removed";
+  const isAddedNode = changeState === "added";
+  const isChangedNode = changeState === "changed";
 
   const categoryHasRows = (cat: string) =>
     (categories[cat]?.length ?? 0) > 0 || (previousCategories?.[cat]?.length ?? 0) > 0;
@@ -84,11 +87,15 @@ export function NodeAccessCard({
     <div
       className={cn(
         "relative w-full overflow-hidden rounded-xl border border-l-[4px] bg-white p-4",
-        edgeCls,
-        isPrimary
-          ? "border-slate-200 bg-white shadow-sm"
-          : "border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
-        isRemovedNode && "border-dashed !bg-slate-50/80 opacity-75",
+        isRemovedNode
+          ? "border-rose-300 bg-rose-50/70 shadow-[0_8px_24px_rgba(244,63,94,0.10)]"
+          : edgeCls,
+        !isRemovedNode && (
+          isPrimary
+            ? "border-slate-200 bg-white shadow-sm"
+            : "border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)]"
+        ),
+        isRemovedNode && "border-dashed opacity-75",
       )}
     >
       {onClose ? (
@@ -114,6 +121,14 @@ export function NodeAccessCard({
         {isRemovedNode ? (
           <span className="ml-auto shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-rose-600">
             Removed
+          </span>
+        ) : isAddedNode ? (
+          <span className="ml-auto shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-600">
+            Added
+          </span>
+        ) : isChangedNode ? (
+          <span className="ml-auto shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-700">
+            Changed
           </span>
         ) : null}
       </div>

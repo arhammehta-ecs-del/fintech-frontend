@@ -76,6 +76,7 @@ export function useUserManagement() {
   const [hasNext, setHasNext] = useState(false);
   const [pageCursors, setPageCursors] = useState<Record<number, string | null>>({ 1: null });
   const lastActivityToastKeyRef = useRef<string>("");
+  const isLoadingRef = useRef(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [viewingMember, setViewingMember] = useState<AppUser | null>(null);
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
@@ -109,13 +110,15 @@ export function useUserManagement() {
   );
 
   const loadUsers = useCallback(
-    async (showRefreshToast = false) => {
+    async (showRefreshToast = false, overrideStatusTab?: MemberStatusTab) => {
       const companyCode = currentUser?.companyCode?.trim().toUpperCase();
       if (!companyCode) return;
+      if (isLoadingRef.current) return;
+      isLoadingRef.current = true;
 
       setIsLoading(true);
       try {
-        const targetTab = statusTab;
+        const targetTab = overrideStatusTab ?? statusTab;
         const response = await fetchCompanyUsersPaginated(targetTab, {
           companyCode,
           limit: pageSize,
@@ -133,11 +136,11 @@ export function useUserManagement() {
         setHasNext(response.pageInfo.hasNext);
         setResolvedTotalPages(
           response.pageInfo.totalPages ||
-            Math.max(1, Math.ceil(getCountForTab(response.counts, statusTab) / pageSize)),
+            Math.max(1, Math.ceil(getCountForTab(response.counts, targetTab) / pageSize)),
         );
         setStatusCounts(response.counts);
         setHasLoadedUsersOnce(true);
-        maybeShowActivityToast(response, statusTab);
+        maybeShowActivityToast(response, targetTab);
         if (showRefreshToast) {
           toast({
             title: "Users refreshed",
@@ -153,6 +156,7 @@ export function useUserManagement() {
         });
       } finally {
         setIsLoading(false);
+        isLoadingRef.current = false;
       }
     },
     [currentUser?.companyCode, debouncedSearch, getCountForTab, maybeShowActivityToast, pageSize, setUsers, statusTab, toast],

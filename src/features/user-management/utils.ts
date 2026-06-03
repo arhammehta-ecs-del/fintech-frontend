@@ -82,6 +82,7 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
                   roleName: `${roleNameBase} ${action[0].toUpperCase()}${action.slice(1)}`,
                   nodeName: nodeEntry.nodeName,
                   nodePath: nodeEntry.nodePath.trim(),
+                  nodeType: nodeEntry.nodeType?.trim(),
                   accessCategory:
                     category.trim().toUpperCase() === "SYSTEM_ACCESS" && SYSTEM_ACCESS_SCOPE_ITEMS.has(normalizeScopeKey(subCategory))
                       ? scope
@@ -169,10 +170,40 @@ export const buildUserUpdatePayload = (formData: UserOnboardingFormData, seedMem
       (permission.accessCategory || "").trim().toUpperCase(),
     ].join("|");
 
-  const existingPermissionKeys = new Set((seedMember.accessDetails || []).map((permission) => toPermissionKey(permission)));
+  const existingPermissions = seedMember.accessDetails || [];
+  const existingPermissionKeys = new Set(existingPermissions.map((permission) => toPermissionKey(permission)));
   const nextPermissionKeys = new Set(fullPayload.permissions.map((permission) => toPermissionKey(permission)));
 
+  const removedPermissions = existingPermissions
+    .filter((permission) => !nextPermissionKeys.has(toPermissionKey(permission)))
+    .map((permission) => ({
+      roleCategory: permission.roleCategory as UserOnboardingPermission["roleCategory"],
+      roleSubCategory: permission.roleSubCategory,
+      roleName: permission.roleName,
+      nodeName: permission.nodeName,
+      nodePath: permission.nodePath,
+      nodeType: permission.nodeType,
+      accessCategory: permission.accessCategory ?? null,
+      accessType: permission.accessType,
+      remove: true as const,
+    }));
+
+  const addedPermissions = fullPayload.permissions
+    .filter((permission) => !existingPermissionKeys.has(toPermissionKey(permission)))
+    .map((permission) => ({
+      roleCategory: permission.roleCategory,
+      roleSubCategory: permission.roleSubCategory,
+      roleName: permission.roleName,
+      nodeName: permission.nodeName,
+      nodePath: permission.nodePath,
+      nodeType: permission.nodeType,
+      accessCategory: permission.accessCategory ?? null,
+      accessType: permission.accessType,
+    }));
+
   const hasPermissionDelta =
+    removedPermissions.length > 0 ||
+    addedPermissions.length > 0 ||
     nextPermissionKeys.size !== existingPermissionKeys.size ||
     Array.from(nextPermissionKeys).some((key) => !existingPermissionKeys.has(key));
 
@@ -190,15 +221,7 @@ export const buildUserUpdatePayload = (formData: UserOnboardingFormData, seedMem
   }
 
   if (hasPermissionDelta) {
-    payload.permissions = fullPayload.permissions.map((permission) => ({
-      roleCategory: permission.roleCategory,
-      roleSubCategory: permission.roleSubCategory,
-      roleName: permission.roleName,
-      nodeName: permission.nodeName,
-      nodePath: permission.nodePath,
-      accessCategory: permission.accessCategory ?? null,
-      accessType: permission.accessType,
-    }));
+    payload.permissions = [...addedPermissions, ...removedPermissions];
   }
 
   return payload;

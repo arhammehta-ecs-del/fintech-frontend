@@ -40,6 +40,7 @@ import {
 } from "@/features/user-management/components/UserManagePreview.utils";
 import type { GroupedByNode } from "@/features/user-management/components/UserManagePreview.utils";
 import { NodeAccessCard } from "@/features/user-management/components/UserManagePreview.NodeAccessCard";
+import type { HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -66,6 +67,7 @@ export function UserManagePreview({
   onCancelDeleteActions,
   onRequestStatusToggle,
   isHistoryOpen = false,
+  historyDetailOverride = null,
 }: {
   member: AppUser;
   onApprovePending?: (member: AppUser, remark?: string) => void;
@@ -89,6 +91,7 @@ export function UserManagePreview({
   onCancelDeleteActions?: () => void;
   onRequestStatusToggle?: (member: AppUser, isActive: boolean) => void;
   isHistoryOpen?: boolean;
+  historyDetailOverride?: HistoryDetailViewModel | null;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isEditTooltipOpen, setIsEditTooltipOpen] = useState(false);
@@ -151,24 +154,45 @@ export function UserManagePreview({
       })
       .filter((row) => row.nodeName || row.nodePath);
   };
-  const requestType = (member.basicDetails?.requestType || "").trim().toUpperCase();
-  const requestOldData = toRecord(member.basicDetails?.requestOldData);
-  const requestNewData = toRecord(member.basicDetails?.requestNewData);
+  const historyOldData = historyDetailOverride?.mode === "comparison" ? toRecord(historyDetailOverride.oldData) : {};
+  const historyNewData =
+    historyDetailOverride?.mode === "comparison"
+      ? toRecord(historyDetailOverride.newData)
+      : historyDetailOverride?.mode === "single"
+        ? toRecord(historyDetailOverride.record)
+        : {};
+  const isHistoryPreviewActive = Boolean(historyDetailOverride);
+  const requestType = isHistoryPreviewActive
+    ? historyDetailOverride?.mode === "comparison"
+      ? "UPDATE"
+      : "INITIATE"
+    : (member.basicDetails?.requestType || "").trim().toUpperCase();
+  const requestOldData = isHistoryPreviewActive ? historyOldData : toRecord(member.basicDetails?.requestOldData);
+  const requestNewData = isHistoryPreviewActive ? historyNewData : toRecord(member.basicDetails?.requestNewData);
   const requestOldBasicDetails = toRecord(requestOldData.basicDetails);
   const requestNewBasicDetails = toRecord(requestNewData.basicDetails);
   const isPendingMember = member.status === "Pending" || Boolean(member.isPending);
+  const historyFallbackBasicDetails = isHistoryPreviewActive ? requestOldBasicDetails : {};
+  const canShowPendingActions = isPendingMember && !isHistoryPreviewActive;
   const hasOwn = (record: Record<string, unknown>, key: string) => Object.prototype.hasOwnProperty.call(record, key);
   const hasOldBasicField = (field: string) => hasOwn(requestOldBasicDetails, field);
   const hasAnyBasicField = (field: string) => hasOldBasicField(field) || hasOwn(requestNewBasicDetails, field);
+  const canShowHistoryComparison =
+    isHistoryPreviewActive &&
+    historyDetailOverride?.mode === "comparison" &&
+    (Object.keys(requestOldData).length > 0 || Object.keys(requestNewData).length > 0);
   const canTogglePreviousUpdated =
-    isPendingMember &&
     requestType === "UPDATE" &&
+    (canShowPendingActions || canShowHistoryComparison) &&
     (Object.keys(requestOldData).length > 0 || Object.keys(requestNewData).length > 0);
   const selectedRequestData = showPreviousData ? requestOldData : requestNewData;
   const selectedRequestBasicDetails = showPreviousData ? requestOldBasicDetails : requestNewBasicDetails;
   const readRequestedBasicValue = (field: string, fallback: unknown) => {
     if (hasOwn(selectedRequestBasicDetails, field)) {
       return readString(selectedRequestBasicDetails[field]).trim();
+    }
+    if (isHistoryPreviewActive && hasOwn(historyFallbackBasicDetails, field)) {
+      return readString(historyFallbackBasicDetails[field]).trim();
     }
     return readString(fallback).trim();
   };
@@ -183,7 +207,11 @@ export function UserManagePreview({
       ? requestPermissionsAccess
       : requestPrimaryAccess.length > 0 || requestSecondaryAccess.length > 0
         ? [...requestPrimaryAccess, ...requestSecondaryAccess]
-        : member.accessDetails ?? [];
+        : isHistoryPreviewActive && (oldRequestPermissionsAccess.length > 0 || oldRequestPrimaryAccess.length > 0 || oldRequestSecondaryAccess.length > 0)
+          ? oldRequestPermissionsAccess.length > 0
+            ? oldRequestPermissionsAccess
+            : [...oldRequestPrimaryAccess, ...oldRequestSecondaryAccess]
+          : member.accessDetails ?? [];
   const previousAccessDetails =
     oldRequestPermissionsAccess.length > 0
       ? oldRequestPermissionsAccess
@@ -252,6 +280,33 @@ export function UserManagePreview({
         },
       ];
     });
+  };
+  const serializeNodeCategories = (categories: GroupedByNode[string]["categories"]) =>
+    JSON.stringify(
+      Object.keys(categories)
+        .sort()
+        .reduce<Record<string, string[]>>((acc, categoryKey) => {
+          acc[categoryKey] = (categories[categoryKey] ?? [])
+            .map((entry) => [
+              (entry.roleSubCategory || "").trim(),
+              (entry.roleName || "").trim(),
+              (entry.nodeType || "").trim(),
+              ((entry.accessCategory || "NODE") ?? "NODE").toString().trim(),
+            ].join("|"))
+            .sort();
+          return acc;
+        }, {}),
+    );
+  const getNodeChangeState = (
+    currentGroup: GroupedByNode[string] | undefined,
+    previousGroup: GroupedByNode[string] | undefined,
+  ): "unchanged" | "added" | "removed" | "changed" => {
+    if (currentGroup && !previousGroup) return "added";
+    if (!currentGroup && previousGroup) return "removed";
+    if (!currentGroup || !previousGroup) return "unchanged";
+    return serializeNodeCategories(currentGroup.categories) === serializeNodeCategories(previousGroup.categories)
+      ? "unchanged"
+      : "changed";
   };
   const primaryEntries = buildAccessEntries(primaryByNode, previousPrimaryByNode);
   const secondaryEntries = buildAccessEntries(secondaryByNode, previousSecondaryByNode);
@@ -333,11 +388,11 @@ export function UserManagePreview({
   const normalizedRequestType = requestType;
   const normalizedRequestImpact = readString(member.basicDetails?.requestImpact).toUpperCase();
   const normalizedRequestStatus = readString(requestNewBasicDetails.status).toUpperCase();
-  const isPendingUpdateRequest = isPendingMember && normalizedRequestType === "UPDATE";
+  const isPendingUpdateRequest = canShowPendingActions && normalizedRequestType === "UPDATE";
   const isPendingInactiveRequest =
-    isPendingMember && (normalizedRequestType === "INACTIVE" || normalizedRequestStatus === "INACTIVE");
+    canShowPendingActions && (normalizedRequestType === "INACTIVE" || normalizedRequestStatus === "INACTIVE");
   const isPendingActiveRequest =
-    isPendingMember && (normalizedRequestType === "ACTIVE" || normalizedRequestStatus === "ACTIVE");
+    canShowPendingActions && (normalizedRequestType === "ACTIVE" || normalizedRequestStatus === "ACTIVE");
   const pendingApprovalLabel = isPendingUpdateRequest
     ? "Edit Request Approval"
     : isPendingInactiveRequest
@@ -536,7 +591,7 @@ export function UserManagePreview({
           </div>
         </div>
 
-        {isPendingMember ? (
+        {canShowPendingActions ? (
           <div className="mb-4 mt-3 rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
             <div className="flex flex-wrap items-center gap-2 text-[12px]">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
@@ -679,18 +734,21 @@ export function UserManagePreview({
                             No primary access configured.
                           </div>
                         ) : (
-                          primaryEntries.map(([key, group], idx) => (
-                            <NodeAccessCard
-                              key={key}
-                              nodeName={group.nodeName}
-                              parentSubtitle={group.parentSubtitle}
-                              nodeIndex={idx}
-                              categories={group.categories}
-                              previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
-                              isRemovedNode={!primaryByNode[key] && Boolean(previousPrimaryByNode[key])}
-                              isPrimary
-                            />
-                          ))
+                          primaryEntries.map(([key, group], idx) => {
+                            const changeState = getNodeChangeState(primaryByNode[key], previousPrimaryByNode[key]);
+                            return (
+                              <NodeAccessCard
+                                key={key}
+                                nodeName={group.nodeName}
+                                parentSubtitle={group.parentSubtitle}
+                                nodeIndex={idx}
+                                categories={group.categories}
+                                previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
+                                changeState={changeState}
+                                isPrimary
+                              />
+                            );
+                          })
                         )}
                       </div>
                     )}
@@ -726,18 +784,21 @@ export function UserManagePreview({
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        {secondaryEntries.map(([key, group], idx) => (
-                          <NodeAccessCard
-                            key={key}
-                            nodeName={group.nodeName}
-                            parentSubtitle={group.parentSubtitle}
-                            nodeIndex={idx}
-                            categories={group.categories}
-                            previousCategories={previousSecondaryByNode[key]?.categories ?? {}}
-                            isRemovedNode={!secondaryByNode[key] && Boolean(previousSecondaryByNode[key])}
-                            isPrimary={false}
-                          />
-                        ))}
+                        {secondaryEntries.map(([key, group], idx) => {
+                          const changeState = getNodeChangeState(secondaryByNode[key], previousSecondaryByNode[key]);
+                          return (
+                            <NodeAccessCard
+                              key={key}
+                              nodeName={group.nodeName}
+                              parentSubtitle={group.parentSubtitle}
+                              nodeIndex={idx}
+                              categories={group.categories}
+                              previousCategories={previousSecondaryByNode[key]?.categories ?? {}}
+                              changeState={changeState}
+                              isPrimary={false}
+                            />
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -830,7 +891,10 @@ export function UserManagePreview({
                       ) : (
                         primaryEntries.map(([key, group], idx) => {
                           const focused = collapsedFocusedKey === `p:${key}`;
-                          const isRemovedNode = !primaryByNode[key] && Boolean(previousPrimaryByNode[key]);
+                          const changeState = getNodeChangeState(primaryByNode[key], previousPrimaryByNode[key]);
+                          const isRemovedNode = changeState === "removed";
+                          const isAddedNode = changeState === "added";
+                          const isChangedNode = changeState === "changed";
                           return (
                             <div key={key}>
                               {focused ? (
@@ -840,7 +904,7 @@ export function UserManagePreview({
                                   nodeIndex={idx}
                                   categories={group.categories}
                                   previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
-                                  isRemovedNode={isRemovedNode}
+                                  changeState={changeState}
                                   isPrimary
                                   onClose={() => setCollapsedFocusedKey(null)}
                                 />
@@ -850,9 +914,11 @@ export function UserManagePreview({
                                   onClick={() => setCollapsedFocusedKey(`p:${key}`)}
                                   className={cn(
                                     "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
-                                    getNodeEdgeBorderClass(idx, true),
+                                    isRemovedNode
+                                      ? "border-rose-300 bg-rose-50/70 opacity-75"
+                                      : getNodeEdgeBorderClass(idx, true),
                                     getNodeHoverClass(idx, true),
-                                    isRemovedNode && "border-dashed bg-slate-50/80 opacity-75",
+                                    isRemovedNode && "border-dashed",
                                   )}
                                 >
                                   <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", getNodeBadgeClass(idx, true))}>
@@ -885,7 +951,10 @@ export function UserManagePreview({
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                         {secondaryEntries.map(([key, group], idx) => {
                           const focused = collapsedFocusedKey === `s:${key}`;
-                          const isRemovedNode = !secondaryByNode[key] && Boolean(previousSecondaryByNode[key]);
+                          const changeState = getNodeChangeState(secondaryByNode[key], previousSecondaryByNode[key]);
+                          const isRemovedNode = changeState === "removed";
+                          const isAddedNode = changeState === "added";
+                          const isChangedNode = changeState === "changed";
                           return (
                             <div key={key}>
                               {focused ? (
@@ -895,7 +964,7 @@ export function UserManagePreview({
                                   nodeIndex={idx}
                                   categories={group.categories}
                                   previousCategories={previousSecondaryByNode[key]?.categories ?? {}}
-                                  isRemovedNode={isRemovedNode}
+                                  changeState={changeState}
                                   isPrimary={false}
                                   onClose={() => setCollapsedFocusedKey(null)}
                                 />
@@ -905,9 +974,11 @@ export function UserManagePreview({
                                   onClick={() => setCollapsedFocusedKey(`s:${key}`)}
                                   className={cn(
                                     "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
-                                    getNodeEdgeBorderClass(idx, false),
+                                    isRemovedNode
+                                      ? "border-rose-300 bg-rose-50/70 opacity-75"
+                                      : getNodeEdgeBorderClass(idx, false),
                                     getNodeHoverClass(idx, false),
-                                    isRemovedNode && "border-dashed bg-slate-50/80 opacity-75",
+                                    isRemovedNode && "border-dashed",
                                   )}
                                 >
                                   <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", getNodeBadgeClass(idx, false))}>
@@ -932,7 +1003,7 @@ export function UserManagePreview({
             )}
           </div>
 
-          {isPendingMember && pendingDecision ? (
+          {canShowPendingActions && pendingDecision ? (
             <div ref={remarkCardRef} className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
               <div>
                 <h4 className="text-sm font-semibold text-slate-900">
@@ -958,7 +1029,7 @@ export function UserManagePreview({
         </div>
       </div>
 
-      {isPendingMember ? (
+      {canShowPendingActions ? (
         <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4">
           <div className="flex items-center justify-end gap-3">
             {pendingDecision !== "approve" ? (

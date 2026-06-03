@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
 import { connectNotificationStream } from "@/services/notification.service";
@@ -26,6 +26,7 @@ const fuzzyMatch = (text: string, query: string) => {
 
 export function useWorkflowManagement() {
   const { toast } = useToast();
+  const isFetchingRef = useRef(false);
   const [activeStatus, setActiveStatus] = useState<WorkflowStatus>("Active");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -74,37 +75,43 @@ export function useWorkflowManagement() {
       },
       showLoader = false,
     ) => {
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
       if (showLoader) setPage(params.targetPage);
-      const type = activeStatus === "Pending" ? "pending" : activeStatus === "Inactive" ? "inactive" : "active";
-      const response = await fetchWorkflowsPaginated(type, {
-        limit: pageSize,
-        cursor: params.cursor,
-        topCursor: params.topCursor,
-        page: params.page,
-        direction: params.direction,
-        query: debouncedSearch || "",
-      });
-      const mapped = response.rows.map((row) => mapWorkflowRecord(row, activeStatus));
-      setWorkflows(mapped);
-      setHasLoadedWorkflowsOnce(true);
-      setStatusCounts(response.counts);
-      setPage(params.targetPage);
-      setTopCursor(response.pageInfo.topCursor || params.topCursor || null);
-      setNextCursor(response.pageInfo.nextCursor);
-      setHasNext(response.pageInfo.hasNext);
-      setPageCursors((current) => ({
-        ...current,
-        [params.targetPage]: params.cursor,
-        [params.targetPage + 1]: response.pageInfo.nextCursor,
-      }));
-      const targetCount =
-        activeStatus === "Pending"
-          ? response.counts.pending
-          : activeStatus === "Inactive"
-            ? response.counts.inactive
-            : response.counts.active;
-      const fallbackTotalPages = Math.max(1, Math.ceil((targetCount || mapped.length) / pageSize));
-      setResolvedTotalPages(Math.max(response.pageInfo.totalPages || 0, fallbackTotalPages));
+      try {
+        const type = activeStatus === "Pending" ? "pending" : activeStatus === "Inactive" ? "inactive" : "active";
+        const response = await fetchWorkflowsPaginated(type, {
+          limit: pageSize,
+          cursor: params.cursor,
+          topCursor: params.topCursor,
+          page: params.page,
+          direction: params.direction,
+          query: debouncedSearch || "",
+        });
+        const mapped = response.rows.map((row) => mapWorkflowRecord(row, activeStatus));
+        setWorkflows(mapped);
+        setHasLoadedWorkflowsOnce(true);
+        setStatusCounts(response.counts);
+        setPage(params.targetPage);
+        setTopCursor(response.pageInfo.topCursor || params.topCursor || null);
+        setNextCursor(response.pageInfo.nextCursor);
+        setHasNext(response.pageInfo.hasNext);
+        setPageCursors((current) => ({
+          ...current,
+          [params.targetPage]: params.cursor,
+          [params.targetPage + 1]: response.pageInfo.nextCursor,
+        }));
+        const targetCount =
+          activeStatus === "Pending"
+            ? response.counts.pending
+            : activeStatus === "Inactive"
+              ? response.counts.inactive
+              : response.counts.active;
+        const fallbackTotalPages = Math.max(1, Math.ceil((targetCount || mapped.length) / pageSize));
+        setResolvedTotalPages(Math.max(response.pageInfo.totalPages || 0, fallbackTotalPages));
+      } finally {
+        isFetchingRef.current = false;
+      }
     },
     [activeStatus, debouncedSearch, pageSize],
   );
@@ -122,26 +129,6 @@ export function useWorkflowManagement() {
       targetPage: 1,
     }, true);
   }, [fetchPage]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const safeLoadWorkflows = async () => {
-      try {
-        await loadWorkflows();
-      } catch (error) {
-        if (!isMounted) return;
-        toast({
-          title: "Unable to load workflows",
-          description: getApiErrorMessage(error, "Failed to fetch workflows."),
-          variant: "destructive",
-        });
-      }
-    };
-    void safeLoadWorkflows();
-    return () => {
-      isMounted = false;
-    };
-  }, [loadWorkflows, toast]);
 
   useEffect(() => {
     const disconnect = connectNotificationStream({
@@ -318,8 +305,34 @@ export function useWorkflowManagement() {
   }, [activeStatus, statusCounts.active, statusCounts.pending, statusCounts.inactive]);
 
   useEffect(() => {
-    void loadWorkflows();
-  }, [activeStatus, debouncedSearch, pageSize, loadWorkflows]);
+    let isMounted = true;
+    const safeLoadWorkflows = async () => {
+      try {
+        setPageCursors({ 1: null });
+        setTopCursor(null);
+        setNextCursor(null);
+        setHasNext(false);
+        await fetchPage({
+          cursor: null,
+          topCursor: null,
+          page: null,
+          direction: "NEXT",
+          targetPage: 1,
+        }, true);
+      } catch (error) {
+        if (!isMounted) return;
+        toast({
+          title: "Unable to load workflows",
+          description: getApiErrorMessage(error, "Failed to fetch workflows."),
+          variant: "destructive",
+        });
+      }
+    };
+    void safeLoadWorkflows();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeStatus, debouncedSearch, pageSize, fetchPage, toast]);
 
   const totalPages = Math.max(1, resolvedTotalPages);
   const safePage = page;

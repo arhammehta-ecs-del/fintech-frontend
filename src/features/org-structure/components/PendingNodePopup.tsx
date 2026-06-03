@@ -43,6 +43,108 @@ const formatRequestedAtToIst = (value?: string) => {
 
 const REMARK_MAX_LENGTH = 100;
 
+const toRecord = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+
+const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+const formatDiffValue = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+};
+
+const getNodeDisplayNameFromPath = (value: string) => {
+  const segments = value.split(".").map((segment) => segment.trim()).filter(Boolean);
+  return segments[segments.length - 1] || value;
+};
+
+const buildOrgDiffRows = (node: OrgNode) => {
+  const oldData = toRecord(node.pendingOldData);
+  const newData = toRecord(node.pendingNewData);
+  const pendingType = (node.pendingRequestType || "").trim().toUpperCase();
+  const parentFromNew = toRecord(newData.parentNode);
+  const parentFromOld = toRecord(oldData.parentNode);
+
+  const oldValues: Record<string, string> = {
+    nodeName: formatDiffValue(oldData.nodeName) || formatDiffValue(oldData.newNodeName),
+    nodeType: formatDiffValue(oldData.nodeType),
+    status: formatDiffValue(oldData.status),
+    parentNodeName: formatDiffValue(parentFromOld.nodeName),
+    parentNodePath: formatDiffValue(parentFromOld.nodePath),
+    workflowName: formatDiffValue(oldData.workflowName),
+    alias: formatDiffValue(oldData.alias),
+  };
+
+  const targetNodePath = formatDiffValue(newData.targetNodePath);
+  const newValues: Record<string, string> = {
+    nodeName:
+      formatDiffValue(newData.nodeName) ||
+      formatDiffValue(newData.newNodeName) ||
+      (targetNodePath ? getNodeDisplayNameFromPath(targetNodePath) : ""),
+    nodeType: formatDiffValue(newData.nodeType),
+    status: formatDiffValue(newData.status),
+    parentNodeName: formatDiffValue(parentFromNew.nodeName),
+    parentNodePath: formatDiffValue(parentFromNew.nodePath),
+    workflowName: formatDiffValue(newData.workflowName),
+    alias: formatDiffValue(newData.alias),
+  };
+
+  const labels: Array<{ key: keyof typeof newValues; label: string }> = [
+    { key: "nodeName", label: "Node Name" },
+    { key: "nodeType", label: "Node Type" },
+    { key: "status", label: "Status" },
+    { key: "parentNodeName", label: "Parent Node" },
+    { key: "parentNodePath", label: "Parent Path" },
+    { key: "workflowName", label: "Workflow Name" },
+    { key: "alias", label: "Workflow Alias" },
+  ];
+
+  const hasOldValues = Object.values(oldValues).some(Boolean);
+  const hasNewValues = Object.values(newValues).some(Boolean);
+
+  if (pendingType === "INITIATE" && !hasOldValues) {
+    return [];
+  }
+
+  return labels
+    .map(({ key, label }) => ({
+      key,
+      label,
+      oldValue: oldValues[key] || "",
+      newValue: newValues[key] || "",
+    }))
+    .filter((row) => row.oldValue || row.newValue)
+    .filter((row) => row.oldValue !== row.newValue || (row.oldValue && row.newValue));
+};
+
+function DiffValue({
+  nextValue,
+  previousValue,
+}: {
+  nextValue: string;
+  previousValue: string;
+}) {
+  const next = (nextValue || "").trim();
+  const prev = (previousValue || "").trim();
+
+  if (!prev && !next) {
+    return <span className="font-semibold text-slate-900">-</span>;
+  }
+  if (!prev || prev === next) {
+    return <span className="font-semibold text-slate-900">{next || prev || "-"}</span>;
+  }
+
+  return (
+    <span className="font-semibold text-slate-900">
+      <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-rose-600 line-through">{prev}</span>
+      <span className="px-1 text-slate-400">→</span>
+      <span className="rounded border border-emerald-100 bg-emerald-50 px-1 py-0.5 text-emerald-700">{next || "-"}</span>
+    </span>
+  );
+}
+
 export function PendingNodePopup({
   open,
   node,
@@ -93,6 +195,7 @@ export function PendingNodePopup({
       ? "Activation Approval"
       : "New Node Approval";
   const nodePathSegments = node.nodePath.split(".").filter(Boolean);
+  const diffRows = buildOrgDiffRows(node);
 
   const validateAndRun = (action: "approve" | "reject") => {
     const cleanedRemark = remark.trim();
@@ -280,6 +383,24 @@ export function PendingNodePopup({
                     </div>
                   </div>
                 ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {diffRows.length > 0 ? (
+            <div className={cn("rounded-2xl border bg-white p-4 shadow-sm", useUpdateTheme ? "border-orange-200/80" : "border-slate-200")}>
+              <div className="mb-3 flex items-center gap-2">
+                <div className={cn("h-1.5 w-1.5 rounded-full", useUpdateTheme ? "bg-orange-500" : "bg-amber-500")} />
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-700">Requested Changes</p>
+              </div>
+              <div className="space-y-2.5 text-sm">
+                {diffRows.map((row) => (
+                  <div key={row.key} className="grid grid-cols-[110px_10px_1fr] items-start gap-x-2">
+                    <span className="text-slate-500">{row.label}</span>
+                    <span className="text-slate-400">:</span>
+                    <DiffValue nextValue={row.newValue} previousValue={row.oldValue} />
+                  </div>
+                ))}
               </div>
             </div>
           ) : null}

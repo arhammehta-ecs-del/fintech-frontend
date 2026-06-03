@@ -18,7 +18,7 @@ type CreateActionsInput = {
   setEditingMember: Dispatch<SetStateAction<AppUser | null>>;
   setPendingAction: Dispatch<SetStateAction<PendingAction>>;
   setRemarkDialogOpen: Dispatch<SetStateAction<boolean>>;
-  loadUsers: (showRefreshToast?: boolean) => Promise<void>;
+  loadUsers: (showRefreshToast?: boolean, overrideStatusTab?: "active" | "pending" | "inactive") => Promise<void>;
   editingMember: AppUser | null;
   pendingAction: PendingAction;
   orgStructure: OrgNode | null;
@@ -66,7 +66,7 @@ export const createUserManagementActions = ({
         );
       setAddDialogOpen(false);
       setStatusTab("pending");
-      await loadUsers(true);
+      await loadUsers(true, "pending");
 
       toast({
         title: isUpdateRequest ? "Update initiated" : "User added",
@@ -162,11 +162,12 @@ export const createUserManagementActions = ({
           levelsHash: levelsHash?.trim() || null,
         });
       }
-      await loadUsers();
-      setViewingMember(null);
-      if (action === "activate") {
-        setStatusTab("active");
+      const nextTab = isPendingMember && action === "activate" ? "active" : undefined;
+      if (nextTab) {
+        setStatusTab(nextTab);
       }
+      await loadUsers(false, nextTab);
+      setViewingMember(null);
       toast({
         title:
           isPendingMember

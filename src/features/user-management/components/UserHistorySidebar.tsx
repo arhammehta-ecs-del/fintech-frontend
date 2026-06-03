@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import type { AppUser } from "@/contexts/AppContext";
 import HistorySidebar, { type HistoryEntry } from "@/components/HistorySidebar";
-import HistoryDetailDialog, { normalizeHistoryDetail, type HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
+import { normalizeHistoryDetail, type HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 import { formatDateParts } from "@/lib/historyDate.utils";
 import { getInitials } from "@/lib/userIdentity.utils";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ type UserHistorySidebarProps = {
   isOpen: boolean;
   onClose: () => void;
   user: AppUser | null;
+  onOpenHistoryDetail?: (detail: HistoryDetailViewModel, sourceId: string) => void;
   dockOffset?: {
     top: number;
     left: number;
@@ -203,15 +204,12 @@ export default function UserHistorySidebar({
   isOpen,
   onClose,
   user,
+  onOpenHistoryDetail,
   dockOffset,
   splitView = Boolean(dockOffset),
   panelWidth,
 }: UserHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailSourceId, setDetailSourceId] = useState("");
-  const [detailViewModel, setDetailViewModel] = useState<HistoryDetailViewModel | null>(null);
   const { toast } = useToast();
   const requestNewData = toRecord(user?.basicDetails?.requestNewData);
   const requestOldData = toRecord(user?.basicDetails?.requestOldData);
@@ -274,45 +272,30 @@ export default function UserHistorySidebar({
     const sourceId = (entry.sourceId || entry.id).trim();
     if (!sourceId) return;
 
-    setDetailSourceId(sourceId);
-    setDetailOpen(true);
-    setDetailLoading(true);
-    setDetailViewModel(null);
-
     try {
       const response = await fetchHistoryDetail({ id: sourceId, type: "user" });
-      setDetailViewModel(normalizeHistoryDetail(response));
+      const detail = normalizeHistoryDetail(response);
+      if (detail && onOpenHistoryDetail) {
+        onOpenHistoryDetail(detail, sourceId);
+      }
     } catch (error) {
       const message = getApiErrorMessage(error, "Failed to fetch history details.");
       toast({ title: "Unable to load history details", description: message, variant: "destructive" });
-      setDetailViewModel(null);
-    } finally {
-      setDetailLoading(false);
     }
   };
 
   return (
-    <>
-      <HistorySidebar
-        isOpen={isOpen}
-        onClose={onClose}
-        title="User history"
-        subtitle={user?.name || "Unknown User"}
-        showSystemGenerated={false}
-        data={historyData}
-        dockOffset={dockOffset}
-        splitView={splitView}
-        panelWidth={panelWidth}
-        onViewMore={handleViewMore}
-      />
-      <HistoryDetailDialog
-        isOpen={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        title="User history details"
-        sourceId={detailSourceId}
-        loading={detailLoading}
-        detail={detailViewModel}
-      />
-    </>
+    <HistorySidebar
+      isOpen={isOpen}
+      onClose={onClose}
+      title="User history"
+      subtitle={user?.name || "Unknown User"}
+      showSystemGenerated={false}
+      data={historyData}
+      dockOffset={dockOffset}
+      splitView={splitView}
+      panelWidth={panelWidth}
+      onViewMore={handleViewMore}
+    />
   );
 }
