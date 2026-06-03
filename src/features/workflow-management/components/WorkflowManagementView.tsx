@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Filter, Info, Plus, RefreshCw, Search, Settings, SlidersHorizontal, X } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -144,6 +145,7 @@ function NodePathMarquee({ text }: { text: string }) {
 }
 
 export default function WorkflowManagementView() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const workflowLockSession = useEditLockSession();
   const {
@@ -238,6 +240,53 @@ export default function WorkflowManagementView() {
       : activeStatus === "Inactive"
         ? statusCounts.inactive
         : statusCounts.active;
+
+  useEffect(() => {
+    if ((searchParams.get("tab") || "").trim() !== "workflows") return;
+    if ((searchParams.get("notif_ref_type") || "").trim().toUpperCase() !== "WORKFLOW") return;
+
+    const notificationAction = (searchParams.get("notif_action") || "").trim().toLowerCase();
+    const notificationType = (searchParams.get("notif_type") || "").trim().toUpperCase();
+    const referenceId = (searchParams.get("notif_ref_id") || "").trim();
+    const entityName = (searchParams.get("notif_entity_name") || "").trim().toLowerCase();
+    const targetStatus =
+      notificationAction === "approve"
+        ? "Pending"
+        : notificationType.includes("ONBOARD")
+          ? "Active"
+          : notificationType.includes("INACTIV")
+            ? "Inactive"
+            : "Pending";
+
+    if (activeStatus !== targetStatus) {
+      setActiveStatus(targetStatus as typeof activeStatus);
+      return;
+    }
+
+    const matchedWorkflow = paginatedWorkflows.find((workflow) => {
+      const workflowId = (workflow.id || "").trim();
+      const workflowHash = (workflow.levelsHash || "").trim();
+      const workflowUuid = (workflow.workflowId || "").trim();
+      if (referenceId && (workflowId === referenceId || workflowHash === referenceId || workflowUuid === referenceId)) return true;
+      return Boolean(entityName) && (workflow.name || "").trim().toLowerCase() === entityName;
+    });
+
+    if (!matchedWorkflow) return;
+
+    setManageHistoryOpen(false);
+    setManageWorkflow(matchedWorkflow);
+    const nextParams = new URLSearchParams(searchParams);
+    [
+      "notif_action",
+      "notif_ref_type",
+      "notif_ref_id",
+      "notif_type",
+      "notif_email",
+      "notif_entity_name",
+      "notif_target_status",
+    ].forEach((key) => nextParams.delete(key));
+    setSearchParams(nextParams, { replace: true });
+  }, [activeStatus, paginatedWorkflows, searchParams, setActiveStatus, setManageWorkflow, setSearchParams]);
 
   const toggleValue = (current: string[], value: string) =>
     current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
@@ -649,8 +698,6 @@ export default function WorkflowManagementView() {
 
             <div className="divide-y divide-slate-100">
               {paginatedWorkflows.map((workflow) => {
-                const showModificationSubtext = Boolean(workflow.isPending);
-
                 return (
                 <div key={workflow.id} className={cn("grid grid-cols-1 gap-2 p-4 md:items-center md:gap-x-4", workflowGridTemplateClass)}>
                   <div className="min-w-0">
@@ -666,9 +713,6 @@ export default function WorkflowManagementView() {
                     >
                       {workflow.name || "—"}
                     </div>
-                    {showModificationSubtext ? (
-                      <p className="mt-0.5 text-[12px] font-medium leading-5 text-amber-700">Modification in progress</p>
-                    ) : null}
                   </div>
                   <div className="truncate whitespace-nowrap text-sm text-slate-700" title={workflow.alias}>{workflow.alias}</div>
                   <div className="truncate whitespace-nowrap text-sm text-slate-700" title={workflow.module}>{workflow.module}</div>

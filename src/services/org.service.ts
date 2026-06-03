@@ -256,6 +256,82 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
   };
 };
 
+const mergePendingUpdatesIntoActiveNodes = (activeNodes: OrgNode[], pendingRecords: RawOrgRequestRecord[]) => {
+  const activeNodeByPath = new Map(
+    activeNodes
+      .filter((node) => node.nodePath.trim())
+      .map((node) => [node.nodePath.trim().toUpperCase(), node] as const),
+  );
+
+  pendingRecords.forEach((record) => {
+    const requestData =
+      typeof record.data === "object" && record.data !== null
+        ? (record.data as RawOrgRecord)
+        : record;
+    const requestType = getString(requestData, ["type"], getString(record, ["type"], "")).trim().toUpperCase();
+    if (requestType !== "UPDATE") return;
+
+    const pendingNewData =
+      typeof requestData.newData === "object" && requestData.newData !== null
+        ? (requestData.newData as Record<string, unknown>)
+        : undefined;
+    const pendingOldData =
+      typeof requestData.oldData === "object" && requestData.oldData !== null
+        ? (requestData.oldData as Record<string, unknown>)
+        : undefined;
+
+    const targetNodePath = getString(
+      requestData,
+      ["targetNodePath", "newNodeName", "nodePath"],
+      getString(record, ["targetNodePath", "newNodeName", "nodePath"], ""),
+    ).trim().toUpperCase();
+
+    if (!targetNodePath) return;
+
+    const matchedNode = activeNodeByPath.get(targetNodePath);
+    if (!matchedNode) return;
+
+    const requestedStatusRaw =
+      getString(requestData, ["status"], getString(record, ["status"], "")).trim().toUpperCase();
+
+    matchedNode.isPending = true;
+    matchedNode.pendingRequestType = "UPDATE";
+    matchedNode.pendingOldData = pendingOldData;
+    matchedNode.pendingNewData = pendingNewData;
+    matchedNode.requestedStatus =
+      requestedStatusRaw === "INACTIVE"
+        ? "INACTIVE"
+        : requestedStatusRaw === "ACTIVE"
+          ? "ACTIVE"
+          : matchedNode.requestedStatus ?? null;
+    matchedNode.requestedByName =
+      getString(record, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"], "") ||
+      getString(requestData, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"], "") ||
+      matchedNode.requestedByName ||
+      undefined;
+    matchedNode.requestedByEmail =
+      getString(record, ["requestedByEmail", "initiatorEmail", "requesterEmail", "createdByEmail"], "") ||
+      getString(requestData, ["requestedByEmail", "initiatorEmail", "requesterEmail", "createdByEmail"], "") ||
+      matchedNode.requestedByEmail ||
+      undefined;
+    matchedNode.requestedAt =
+      getString(record, ["requestedAt", "initiatedAt", "initiatedDate", "createdAt", "requestedOn", "requestDate"], "") ||
+      getString(requestData, ["requestedAt", "initiatedAt", "initiatedDate", "createdAt", "requestedOn", "requestDate"], "") ||
+      matchedNode.requestedAt ||
+      undefined;
+    matchedNode.workflowName =
+      getString(record, ["workflowName"], "") ||
+      getString(requestData, ["workflowName"], "") ||
+      matchedNode.workflowName ||
+      undefined;
+    matchedNode.alias =
+      getString(record, ["alias"], "") ||
+      getString(requestData, ["alias"], "") ||
+      matchedNode.alias ||
+      undefined;
+  });
+};
+
 const buildOrgTree = (nodes: OrgNode[]): OrgNode | null => {
   if (!nodes.length) return null;
 
@@ -394,6 +470,7 @@ export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNo
   }
 
   const activeNodes = payload.data.active.map((record) => mapOrgNode(record, "Active"));
+  mergePendingUpdatesIntoActiveNodes(activeNodes, payload.data.pending);
   const pendingNodes = payload.data.pending
     .map((record) => mapPendingOrgRequest(record))
     .filter((node): node is OrgNode => node !== null);

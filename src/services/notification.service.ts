@@ -14,7 +14,9 @@ export type NotificationSsePacket = {
   message?: string;
   type?: string;
   refType?: string;
+  referenceId?: string | null;
   status?: string;
+  isPending?: boolean;
   createdByname?: string;
   createdByemail?: string;
   createat_timestamp?: string;
@@ -30,16 +32,24 @@ type NotificationReadResponse = {
 };
 
 export type NotificationFetchStatus = "UNREAD" | "READ" | "ALL";
+export type NotificationFetchRefType = "USER" | "WORKFLOW" | "ORG" | null;
+export type NotificationFetchDateRange = "7DAYS" | "15DAYS" | "1MONTH" | "CUSTOM";
 
 export type NotificationFetchRequest = {
   status: NotificationFetchStatus;
   limit: number;
   offset: number;
+  refType?: NotificationFetchRefType;
+  dateRange?: NotificationFetchDateRange;
+  fromDate?: string | null;
+  toDate?: string | null;
 };
 
 type NotificationFetchResponse = {
   data?: NotificationSsePacket[];
   count?: number;
+  allCount?: number;
+  unreadCount?: number;
   limit?: number;
   offset?: number;
   status?: string;
@@ -51,6 +61,8 @@ type NotificationFetchResponse = {
 export type NotificationFetchResult = {
   data: NotificationSsePacket[];
   count: number;
+  allCount: number;
+  unreadCount: number | null;
   limit: number;
   offset: number;
   status: string;
@@ -108,6 +120,8 @@ export async function fetchNotificationPage(payload: NotificationFetchRequest) {
     return {
       data: response,
       count: response.length,
+      allCount: response.length,
+      unreadCount: null,
       limit: payload.limit,
       offset: payload.offset,
       status: payload.status,
@@ -120,6 +134,8 @@ export async function fetchNotificationPage(payload: NotificationFetchRequest) {
   return {
     data: Array.isArray(response.data) ? response.data : [],
     count: Number(response.count ?? 0),
+    allCount: Number(response.allCount ?? response.count ?? 0),
+    unreadCount: typeof response.unreadCount === "number" ? response.unreadCount : null,
     limit: Number(response.limit ?? payload.limit),
     offset: Number(response.offset ?? payload.offset),
     status: String(response.status ?? payload.status),

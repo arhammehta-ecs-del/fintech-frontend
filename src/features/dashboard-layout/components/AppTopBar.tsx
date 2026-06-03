@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bell, LogOut, Menu, Settings, ShieldCheck, User } from "lucide-react";
 import type { NavigateFunction } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,9 @@ import { AppSidebar } from "@/features/dashboard-layout/components/AppSidebar";
 import {
   connectNotificationStream,
   fetchNotificationPage,
+  type NotificationFetchDateRange,
+  type NotificationFetchRefType,
+  type NotificationFetchStatus,
   type NotificationSsePacket,
   updateNotificationReadStatus,
 } from "@/services/notification.service";
@@ -28,6 +31,166 @@ type AppTopBarProps = {
   onLogout: () => void;
 };
 
+type NotificationTone = "blue" | "green" | "orange" | "red" | "slate";
+type NotificationEntity = "User" | "Workflow" | "Org" | "Company List";
+type NotificationRefTypeFilter = "ALL" | "USER" | "WORKFLOW" | "ORG";
+type NotificationIntent = "approve" | "view";
+
+type NotificationItem = {
+  id: string;
+  badgeLabel: string;
+  badgeTone: NotificationTone;
+  title: string;
+  entity: NotificationEntity;
+  refType: string | null;
+  referenceId: string | null;
+  rawType: string;
+  message: string;
+  previewMessage: string;
+  initiatedByName: string;
+  initiatedByEmail: string;
+  occurredAt: string;
+  unread: boolean;
+  isPending: boolean;
+  affectedSegments: string[];
+  affectedHeading: string;
+  extractedEmail: string;
+  extractedEntityName: string;
+};
+
+const COMPACT_NOTIFICATIONS_LIMIT = 10;
+const DIALOG_PAGE_SIZE = 50;
+const MESSAGE_PREVIEW_LIMIT = 150;
+const DEFAULT_DATE_RANGE: NotificationFetchDateRange = "7DAYS";
+const STATUS_OPTIONS: NotificationFetchStatus[] = ["ALL", "READ", "UNREAD"];
+const MODULE_OPTIONS: NotificationRefTypeFilter[] = ["ALL", "USER", "WORKFLOW", "ORG"];
+const DATE_RANGE_OPTIONS: NotificationFetchDateRange[] = ["7DAYS", "15DAYS", "1MONTH"];
+
+const formatRelativeTime = (occurredAt: string) => {
+  const parsed = new Date(occurredAt);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+  const startOfTomorrow = new Date(startOfToday);
+  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+  const timeLabel = parsed.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+  if (parsed >= startOfToday && parsed < startOfTomorrow) return `Today, ${timeLabel}`;
+  if (parsed >= startOfYesterday && parsed < startOfToday) return `Yesterday, ${timeLabel}`;
+  return `${parsed.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" })}, ${timeLabel}`;
+};
+
+const formatPastTimeline = (occurredAt: string) => formatRelativeTime(occurredAt);
+
+const truncateMessage = (value: string, limit = MESSAGE_PREVIEW_LIMIT) => {
+  if (value.length <= limit) return value;
+  return `${value.slice(0, Math.max(0, limit - 3)).trimEnd()}...`;
+};
+
+const buildNotificationPreview = (message: string) => {
+  const normalizedMessage = message.replace(/\s+/g, " ").trim();
+  if (!normalizedMessage) return "";
+
+  const impactedIndex = normalizedMessage.indexOf("Impacted:");
+  if (impactedIndex >= 0) {
+    const impactedSection = normalizedMessage.slice(impactedIndex);
+    const impactedTail = impactedSection.match(/^Impacted:\s*[^,]+/i)?.[0];
+    if (impactedTail) {
+      const preview = `${normalizedMessage.slice(0, impactedIndex)}${impactedTail}`.trimEnd();
+      return preview.endsWith("...") ? preview : `${preview}...`;
+    }
+  }
+
+  return truncateMessage(normalizedMessage);
+};
+
+const extractEmailFromText = (value: string) => {
+  const match = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return match?.[0] ?? "";
+};
+
+const extractEntityName = (name: string, message: string, refType?: string | null) => {
+  const normalizedRefType = String(refType ?? "").trim().toUpperCase();
+  if (normalizedRefType === "USER") {
+    const match = message.match(/for\s+(.+?)\s+\([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\)/i);
+    return match?.[1]?.trim() || name.trim();
+  }
+
+  const forMatch = message.match(/for\s+([^,.()]+)/i);
+  if (forMatch?.[1]) return forMatch[1].trim();
+
+  const titleMatch = name.match(/(?:initiated|approved|rejected|blocked|updated|onboarded|generated)\s+for\s+(.+)$/i);
+  if (titleMatch?.[1]) return titleMatch[1].trim();
+
+  return name.trim();
+};
+
+const getAffectedSegments = (message: string) => {
+  const base = message.includes(":") ? message.slice(message.indexOf(":") + 1) : message;
+  return base
+    .split(",")
+    .map((segment) => segment.replace(/\n/g, " ").trim())
+    .filter(Boolean);
+};
+
+const mapTypeToBadge = (value?: string): { label: string; tone: NotificationTone } => {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  if (normalized.includes("INACTIV")) return { label: "Inactive", tone: "red" };
+  if (normalized.includes("ACTIV")) return { label: "Active", tone: "green" };
+  if (normalized.includes("APPROV") || normalized.includes("ONBOARD")) return { label: "Approved", tone: "green" };
+  if (normalized.includes("INITIAT")) return { label: "Initiated", tone: "blue" };
+  if (normalized.includes("MODIF")) return { label: "Modify", tone: "orange" };
+  if (normalized.includes("REJECT")) return { label: "Rejected", tone: "red" };
+  if (normalized) {
+    const fallbackLabel = normalized
+      .replace(/[_-]+/g, " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+    return { label: fallbackLabel, tone: "slate" };
+  }
+  return { label: "Initiated", tone: "blue" };
+};
+
+const mapRefTypeToEntity = (value?: string | null): NotificationEntity => {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  if (normalized === "WORKFLOW") return "Workflow";
+  if (normalized === "ORG") return "Org";
+  if (normalized === "COMPANYLIST" || normalized === "COMPANY LIST") return "Company List";
+  return "User";
+};
+
+const statusStyles: Record<
+  NotificationTone,
+  { unreadBorder: string; readBorder: string; badge: string }
+> = {
+  blue: {
+    unreadBorder: "border-l-blue-500",
+    readBorder: "border-l-blue-500/40",
+    badge: "bg-blue-100/70 text-blue-700 border-transparent",
+  },
+  red: {
+    unreadBorder: "border-l-red-500",
+    readBorder: "border-l-red-500/40",
+    badge: "bg-red-100/70 text-red-700 border-transparent",
+  },
+  green: {
+    unreadBorder: "border-l-emerald-500",
+    readBorder: "border-l-emerald-500/40",
+    badge: "bg-emerald-100/70 text-emerald-700 border-transparent",
+  },
+  orange: {
+    unreadBorder: "border-l-amber-500",
+    readBorder: "border-l-amber-500/40",
+    badge: "bg-amber-100/80 text-amber-700 border-transparent",
+  },
+  slate: {
+    unreadBorder: "border-l-slate-500",
+    readBorder: "border-l-slate-400/50",
+    badge: "bg-slate-100 text-slate-700 border-transparent",
+  },
+};
+
 export function AppTopBar({
   mobileNavOpen,
   onMobileNavOpenChange,
@@ -37,178 +200,162 @@ export function AppTopBar({
   navigate,
   onLogout,
 }: AppTopBarProps) {
-  type NotificationTone = "blue" | "green" | "orange" | "red" | "slate";
-  type NotificationEntity = "User" | "Workflow" | "Org" | "Company List";
-  type NotificationItem = {
-    id: string;
-    badgeLabel: string;
-    badgeTone: NotificationTone;
-    title: string;
-    entity: NotificationEntity;
-    userName: string;
-    userEmail: string;
-    initiatedByName: string;
-    initiatedByEmail: string;
-    occurredAt: string;
-    unread: boolean;
-  };
-
-  const mapTypeToBadge = (value?: string): { label: string; tone: NotificationTone } => {
-    const normalized = String(value ?? "").trim().toUpperCase();
-    if (normalized.includes("INACTIV")) {
-      return { label: "Inactive", tone: "red" };
-    }
-    if (normalized.includes("ACTIV")) {
-      return { label: "Active", tone: "green" };
-    }
-    if (normalized.includes("APPROV") || normalized.includes("ONBOARD")) {
-      return { label: "Approved", tone: "green" };
-    }
-    if (normalized.includes("INITIAT")) {
-      return { label: "Initiated", tone: "blue" };
-    }
-    if (normalized.includes("MODIF")) {
-      return { label: "Modify", tone: "orange" };
-    }
-    if (normalized.includes("REJECT")) {
-      return { label: "Rejected", tone: "red" };
-    }
-    if (normalized) {
-      const fallbackLabel = normalized
-        .replace(/[_-]+/g, " ")
-        .toLowerCase()
-        .replace(/\b\w/g, (char) => char.toUpperCase());
-      return { label: fallbackLabel, tone: "slate" };
-    }
-    return { label: "Initiated", tone: "blue" };
-  };
-
-  const mapRefTypeToEntity = (value?: string): NotificationEntity => {
-    const normalized = String(value ?? "").trim().toUpperCase();
-    if (normalized === "WORKFLOW") return "Workflow";
-    if (normalized === "ORG") return "Org";
-    if (normalized === "COMPANYLIST" || normalized === "COMPANY LIST") return "Company List";
-    return "User";
-  };
-
-  const formatRelativeTime = (occurredAt: string) => {
-    const parsed = new Date(occurredAt);
-    if (Number.isNaN(parsed.getTime())) return "";
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfYesterday = new Date(startOfToday);
-    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
-    const startOfTomorrow = new Date(startOfToday);
-    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
-    const timeLabel = parsed.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
-    if (parsed >= startOfToday && parsed < startOfTomorrow) return `Today, ${timeLabel}`;
-    if (parsed >= startOfYesterday && parsed < startOfToday) return `Yesterday, ${timeLabel}`;
-    return `${parsed.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" })}, ${timeLabel}`;
-  };
-
-  const mapPacketToNotification = (packet: NotificationSsePacket): NotificationItem => {
-    const badge = mapTypeToBadge(packet.type);
-    const entity = mapRefTypeToEntity(packet.refType);
-    const title = String(packet.name ?? "").trim();
-    const message = String(packet.message ?? "").trim();
-    const createdAt = String(packet.createat_timestamp ?? "").trim() || new Date().toISOString();
-    const unread = String(packet.status ?? "").trim().toUpperCase() === "UNREAD";
-
-    return {
-      id: String(packet.id ?? `${createdAt}-${Math.random().toString(36).slice(2, 10)}`),
-      badgeLabel: badge.label,
-      badgeTone: badge.tone,
-      title: title || `${entity} ${badge.label}`,
-      entity,
-      userName: message,
-      userEmail: "",
-      initiatedByName: String(packet.createdByname ?? "").trim() || "-",
-      initiatedByEmail: String(packet.createdByemail ?? "").trim() || "-",
-      occurredAt: createdAt,
-      unread,
-    };
-  };
-
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [dialogNotifications, setDialogNotifications] = useState<NotificationItem[]>([]);
   const [dialogLoading, setDialogLoading] = useState(false);
   const [dialogLoadingMore, setDialogLoadingMore] = useState(false);
-  const [dialogOffset, setDialogOffset] = useState(0);
+  const [dialogOffset, setDialogOffset] = useState(COMPACT_NOTIFICATIONS_LIMIT);
   const [dialogHasNextPage, setDialogHasNextPage] = useState(false);
   const [unreadTotalCount, setUnreadTotalCount] = useState(0);
   const [allNotificationCount, setAllNotificationCount] = useState(0);
-  const INITIAL_VISIBLE_NOTIFICATIONS = 10;
   const [allNotificationsOpen, setAllNotificationsOpen] = useState(false);
   const [notificationsPopoverOpen, setNotificationsPopoverOpen] = useState(false);
-  const COMPACT_NOTIFICATIONS_LIMIT = 10;
-  const DIALOG_PAGE_SIZE = 50;
-  const TODAY_ONLY_THRESHOLD = 3;
+  const [notificationStatusFilter, setNotificationStatusFilter] = useState<NotificationFetchStatus>("ALL");
+  const [notificationModuleFilter, setNotificationModuleFilter] = useState<NotificationRefTypeFilter>("ALL");
+  const [notificationDateRange, setNotificationDateRange] = useState<NotificationFetchDateRange>(DEFAULT_DATE_RANGE);
+  const [customFromDate, setCustomFromDate] = useState("");
+  const [customToDate, setCustomToDate] = useState("");
+  const [expandedNotificationIds, setExpandedNotificationIds] = useState<string[]>([]);
 
   useEffect(() => {
     setNotificationsPanelOpenFlag(allNotificationsOpen || notificationsPopoverOpen);
     return () => setNotificationsPanelOpenFlag(false);
   }, [allNotificationsOpen, notificationsPopoverOpen]);
 
+  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const activeDateRange = customFromDate && customToDate ? "CUSTOM" : notificationDateRange;
+  const customDateRangeIsComplete = notificationDateRange !== "CUSTOM" || Boolean(customFromDate && customToDate);
+
+  const mapPacketToNotification = useCallback((packet: NotificationSsePacket): NotificationItem => {
+    const badge = mapTypeToBadge(packet.type);
+    const message = String(packet.message ?? "").trim();
+    const affectedSegments = getAffectedSegments(message);
+    const title = String(packet.name ?? "").trim();
+    const createdAt = String(packet.createat_timestamp ?? "").trim() || new Date().toISOString();
+    const extractedEmail = extractEmailFromText(message);
+    const extractedEntityName = extractEntityName(title, message, packet.refType);
+
+    return {
+      id: String(packet.id ?? `${createdAt}-${Math.random().toString(36).slice(2, 10)}`),
+      badgeLabel: badge.label,
+      badgeTone: badge.tone,
+      title: title || `${mapRefTypeToEntity(packet.refType)} ${badge.label}`,
+      entity: mapRefTypeToEntity(packet.refType),
+      refType: packet.refType?.trim().toUpperCase() || null,
+      referenceId: packet.referenceId?.trim() || null,
+      rawType: String(packet.type ?? "").trim().toUpperCase(),
+      message,
+      previewMessage: buildNotificationPreview(message),
+      initiatedByName: String(packet.createdByname ?? "").trim() || "-",
+      initiatedByEmail: String(packet.createdByemail ?? "").trim() || "-",
+      occurredAt: createdAt,
+      unread: String(packet.status ?? "").trim().toUpperCase() === "UNREAD",
+      isPending: Boolean(packet.isPending),
+      affectedSegments,
+      affectedHeading: affectedSegments.length > 1 ? `${affectedSegments.length} tracks affected` : "",
+      extractedEmail,
+      extractedEntityName,
+    };
+  }, []);
+
+  const buildNotificationPayload = useCallback(
+    (limit: number, offset: number, statusOverride?: NotificationFetchStatus) => ({
+      limit,
+      offset,
+      status: statusOverride ?? notificationStatusFilter,
+      refType: notificationModuleFilter === "ALL" ? null : (notificationModuleFilter as NotificationFetchRefType),
+      dateRange: activeDateRange,
+      fromDate: activeDateRange === "CUSTOM" ? customFromDate || null : null,
+      toDate: activeDateRange === "CUSTOM" ? customToDate || null : null,
+    }),
+    [activeDateRange, customFromDate, customToDate, notificationModuleFilter, notificationStatusFilter],
+  );
+
+  const handleCustomFromDateChange = useCallback((value: string) => {
+    setCustomFromDate(value);
+    if (value && customToDate && value > customToDate) {
+      setCustomToDate(value);
+    }
+  }, [customToDate]);
+
+  const handleCustomToDateChange = useCallback((value: string) => {
+    setCustomToDate(value);
+    if (value && customFromDate && value < customFromDate) {
+      setCustomFromDate(value);
+    }
+  }, [customFromDate]);
+
+  const loadCompactNotifications = useCallback(async () => {
+    try {
+      const response = await fetchNotificationPage(buildNotificationPayload(COMPACT_NOTIFICATIONS_LIMIT, 0));
+      const mapped = response.data
+        .map(mapPacketToNotification)
+        .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+      setNotifications(mapped);
+      setAllNotificationCount(response.allCount || response.count || mapped.length);
+      if (notificationStatusFilter === "ALL") {
+        setUnreadTotalCount(
+          response.unreadCount
+            ?? mapped.filter((item) => item.unread).length,
+        );
+      }
+    } catch {
+      setNotifications([]);
+      setAllNotificationCount(0);
+    }
+  }, [buildNotificationPayload, mapPacketToNotification, notificationStatusFilter]);
+
+  const loadDialogNotifications = useCallback(async () => {
+    setDialogLoading(true);
+    setDialogLoadingMore(false);
+    try {
+      const response = await fetchNotificationPage(buildNotificationPayload(DIALOG_PAGE_SIZE, COMPACT_NOTIFICATIONS_LIMIT));
+      const mapped = response.data
+        .map(mapPacketToNotification)
+        .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+      const compactIds = new Set(notifications.map((item) => item.id));
+      const combined = [...notifications, ...mapped.filter((item) => !compactIds.has(item.id))]
+        .filter((item, index, array) => array.findIndex((candidate) => candidate.id === item.id) === index)
+        .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+      setDialogNotifications(combined);
+      setAllNotificationCount(response.count || combined.length);
+      setDialogOffset(COMPACT_NOTIFICATIONS_LIMIT + response.data.length);
+      setDialogHasNextPage(COMPACT_NOTIFICATIONS_LIMIT + response.data.length < (response.count || combined.length));
+    } catch {
+      setDialogNotifications([...notifications]);
+      setDialogHasNextPage(false);
+    } finally {
+      setDialogLoading(false);
+    }
+  }, [buildNotificationPayload, mapPacketToNotification, notifications]);
+
+  useEffect(() => {
+    if (!currentUser?.email) return;
+    if (!customDateRangeIsComplete) return;
+    void loadCompactNotifications();
+  }, [currentUser?.email, customDateRangeIsComplete, loadCompactNotifications]);
+
+  useEffect(() => {
+    if (!allNotificationsOpen) return;
+    if (!customDateRangeIsComplete) return;
+    void loadDialogNotifications();
+  }, [allNotificationsOpen, customDateRangeIsComplete, loadDialogNotifications]);
+
   useEffect(() => {
     const disconnect = connectNotificationStream({
-      onNotification: (packet) => {
-        const incoming = mapPacketToNotification(packet);
-        if (incoming.unread) {
-          setUnreadTotalCount((current) => current + 1);
+      onNotification: () => {
+        void loadCompactNotifications();
+        if (allNotificationsOpen) {
+          void loadDialogNotifications();
         }
-        setNotifications((current) => {
-          const withoutDuplicate = current.filter((item) => item.id !== incoming.id);
-          return [incoming, ...withoutDuplicate].sort(
-            (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
-          );
-        });
       },
     });
 
     return disconnect;
-  }, []);
+  }, [allNotificationsOpen, loadCompactNotifications, loadDialogNotifications]);
 
-  useEffect(() => {
-    if (!currentUser?.email) return;
-
-    let isActive = true;
-    const loadUnreadNotifications = async () => {
-      try {
-        const response = await fetchNotificationPage({
-          status: "UNREAD",
-          limit: COMPACT_NOTIFICATIONS_LIMIT,
-          offset: 0,
-        });
-        if (!isActive) return;
-        const nextNotifications = response.data
-          .map(mapPacketToNotification)
-          .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
-        setNotifications(nextNotifications);
-        setUnreadTotalCount(response.count || nextNotifications.length);
-      } catch {
-        if (!isActive) return;
-      }
-    };
-
-    void loadUnreadNotifications();
-
-    return () => {
-      isActive = false;
-    };
-  }, [currentUser?.email]);
-
-  const todaysNotifications = useMemo(() => {
-    const now = new Date();
-    return notifications.filter((item) => {
-      const d = new Date(item.occurredAt);
-      return (
-        d.getFullYear() === now.getFullYear() &&
-        d.getMonth() === now.getMonth() &&
-        d.getDate() === now.getDate()
-      );
-    });
-  }, [notifications]);
-  const { todayDialogNotifications, yesterdayNotifications, olderNotifications, upcomingNotifications } = useMemo(() => {
+  const groupedDialogNotifications = useMemo(() => {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfYesterday = new Date(startOfToday);
@@ -217,71 +364,84 @@ export function AppTopBar({
     startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
 
     return {
-      todayDialogNotifications: dialogNotifications.filter((item) => {
-        const d = new Date(item.occurredAt);
-        return d >= startOfToday && d < startOfTomorrow;
+      today: dialogNotifications.filter((item) => {
+        const date = new Date(item.occurredAt);
+        return date >= startOfToday && date < startOfTomorrow;
       }),
-      yesterdayNotifications: dialogNotifications.filter((item) => {
-        const d = new Date(item.occurredAt);
-        return d >= startOfYesterday && d < startOfToday;
+      yesterday: dialogNotifications.filter((item) => {
+        const date = new Date(item.occurredAt);
+        return date >= startOfYesterday && date < startOfToday;
       }),
-      olderNotifications: dialogNotifications.filter((item) => new Date(item.occurredAt) < startOfYesterday),
-      upcomingNotifications: dialogNotifications.filter((item) => new Date(item.occurredAt) >= startOfTomorrow),
+      earlier: dialogNotifications.filter((item) => new Date(item.occurredAt) < startOfYesterday),
+      upcoming: dialogNotifications.filter((item) => new Date(item.occurredAt) >= startOfTomorrow),
     };
   }, [dialogNotifications]);
 
-  const compactNotifications = useMemo(() => {
-    const nonTodayNotifications = notifications.filter((item) => !todaysNotifications.some((today) => today.id === item.id));
-    if (todaysNotifications.length <= TODAY_ONLY_THRESHOLD) {
-      return [...todaysNotifications, ...nonTodayNotifications].slice(0, COMPACT_NOTIFICATIONS_LIMIT);
-    }
-    return todaysNotifications.slice(0, COMPACT_NOTIFICATIONS_LIMIT);
-  }, [notifications, todaysNotifications]);
-  const visibleNotifications = useMemo(
-    () => compactNotifications.slice(0, INITIAL_VISIBLE_NOTIFICATIONS),
-    [compactNotifications],
-  );
-  const remainingNotificationCount = Math.max(0, unreadTotalCount - compactNotifications.length);
-  const shouldShowSeeAll = unreadTotalCount > compactNotifications.length;
-
   const unreadCountBadgeLabel = unreadTotalCount > 99 ? "99+" : String(unreadTotalCount);
-  const notificationCountLabel = unreadTotalCount > 99 ? "99+" : String(unreadTotalCount || notifications.length);
+  const notificationCountLabel = allNotificationCount > 99 ? "99+" : String(allNotificationCount || notifications.length);
   const unreadCountLabel = unreadTotalCount === 1 ? "1 unread" : `${unreadTotalCount} unread`;
+  const remainingNotificationCount = Math.max(0, allNotificationCount - notifications.length);
+  const shouldShowSeeAll = allNotificationCount > notifications.length;
 
-  const statusStyles: Record<
-    NotificationTone,
-    { unreadBorder: string; readBorder: string; badge: string }
-  > = {
-    blue: {
-      unreadBorder: "border-l-blue-500",
-      readBorder: "border-l-blue-500/40",
-      badge: "bg-blue-100/70 text-blue-700 border-transparent",
-    },
-    red: {
-      unreadBorder: "border-l-red-500",
-      readBorder: "border-l-red-500/40",
-      badge: "bg-red-100/70 text-red-700 border-transparent",
-    },
-    green: {
-      unreadBorder: "border-l-emerald-500",
-      readBorder: "border-l-emerald-500/40",
-      badge: "bg-emerald-100/70 text-emerald-700 border-transparent",
-    },
-    orange: {
-      unreadBorder: "border-l-amber-500",
-      readBorder: "border-l-amber-500/40",
-      badge: "bg-amber-100/80 text-amber-700 border-transparent",
-    },
-    slate: {
-      unreadBorder: "border-l-slate-500",
-      readBorder: "border-l-slate-400/50",
-      badge: "bg-slate-100 text-slate-700 border-transparent",
-    },
+  const toggleNotificationExpansion = (id: string) => {
+    setExpandedNotificationIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+  };
+
+  const clearNotificationIntentParams = useCallback((search: URLSearchParams) => {
+    const next = new URLSearchParams(search);
+    [
+      "notif_action",
+      "notif_ref_type",
+      "notif_ref_id",
+      "notif_type",
+      "notif_email",
+      "notif_entity_name",
+    ].forEach((key) => next.delete(key));
+    return next;
+  }, []);
+
+  const navigateFromNotification = async (notification: NotificationItem, intent: NotificationIntent) => {
+    if (notification.unread) {
+      await markAsRead(notification.id);
+    }
+
+    const refType = String(notification.refType ?? "").trim().toUpperCase();
+    const searchParams = new URLSearchParams();
+    const type = notification.rawType;
+    const targetTab =
+      refType === "WORKFLOW" ? "workflows" : refType === "ORG" ? "org" : "users";
+
+    if (intent === "approve") {
+      searchParams.set("tab", targetTab);
+      searchParams.set("notif_action", "approve");
+    } else {
+      const targetStatus =
+        type.includes("ONBOARD")
+          ? "active"
+          : type.includes("INACTIV")
+            ? "inactive"
+            : "pending";
+      searchParams.set("tab", targetTab);
+      searchParams.set("notif_action", "view");
+      searchParams.set("notif_target_status", targetStatus);
+    }
+
+    if (notification.refType) searchParams.set("notif_ref_type", notification.refType);
+    if (notification.referenceId) searchParams.set("notif_ref_id", notification.referenceId);
+    if (notification.rawType) searchParams.set("notif_type", notification.rawType);
+    if (notification.extractedEmail) searchParams.set("notif_email", notification.extractedEmail);
+    if (notification.extractedEntityName) searchParams.set("notif_entity_name", notification.extractedEntityName);
+
+    setNotificationsPopoverOpen(false);
+    setAllNotificationsOpen(false);
+    navigate(`/settings?${searchParams.toString()}`);
   };
 
   const markAllAsRead = async () => {
     const unreadIds = Array.from(
-      new Set([...notifications, ...dialogNotifications].filter((item) => item.unread).map((item) => item.id))
+      new Set([...notifications, ...dialogNotifications].filter((item) => item.unread).map((item) => item.id)),
     );
     if (unreadIds.length === 0) return;
 
@@ -293,14 +453,9 @@ export function AppTopBar({
     setUnreadTotalCount(0);
 
     try {
-      await Promise.all(
-        unreadIds.map((id) =>
-          updateNotificationReadStatus({
-            id,
-            status: "READ",
-          })
-        )
-      );
+      await Promise.all(unreadIds.map((id) => updateNotificationReadStatus({ id, status: "READ" })));
+      void loadCompactNotifications();
+      if (allNotificationsOpen) void loadDialogNotifications();
     } catch {
       setNotifications(previousNotifications);
       setDialogNotifications(previousDialogNotifications);
@@ -312,106 +467,212 @@ export function AppTopBar({
     const selected = notifications.find((item) => item.id === id) || dialogNotifications.find((item) => item.id === id);
     if (!selected || !selected.unread) return;
 
-    setNotifications((current) =>
-      current.map((item) => (item.id === id ? { ...item, unread: false } : item))
-    );
-    setDialogNotifications((current) =>
-      current.map((item) => (item.id === id ? { ...item, unread: false } : item))
-    );
+    setNotifications((current) => current.map((item) => (item.id === id ? { ...item, unread: false } : item)));
+    setDialogNotifications((current) => current.map((item) => (item.id === id ? { ...item, unread: false } : item)));
     setUnreadTotalCount((current) => Math.max(0, current - 1));
 
     try {
       await updateNotificationReadStatus({ id, status: "READ" });
     } catch {
-      setNotifications((current) =>
-        current.map((item) => (item.id === id ? { ...item, unread: true } : item))
-      );
-      setDialogNotifications((current) =>
-        current.map((item) => (item.id === id ? { ...item, unread: true } : item))
-      );
+      setNotifications((current) => current.map((item) => (item.id === id ? { ...item, unread: true } : item)));
+      setDialogNotifications((current) => current.map((item) => (item.id === id ? { ...item, unread: true } : item)));
       setUnreadTotalCount((current) => current + 1);
     }
-  };
-
-  const formatPastTimeline = (occurredAt: string) => {
-    const parsed = new Date(occurredAt);
-    if (Number.isNaN(parsed.getTime())) return "";
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfYesterday = new Date(startOfToday);
-    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
-    const startOfTomorrow = new Date(startOfToday);
-    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
-    const timeLabel = parsed.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
-    if (parsed >= startOfToday && parsed < startOfTomorrow) {
-      return `Today, ${timeLabel}`;
-    }
-    if (parsed >= startOfYesterday && parsed < startOfToday) {
-      return `Yesterday, ${timeLabel}`;
-    }
-    const dateLabel = parsed.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
-    return `${dateLabel}, ${timeLabel}`;
   };
 
   const handleSeeAllNotifications = async () => {
     setNotificationsPopoverOpen(false);
     setAllNotificationsOpen(true);
-    setDialogLoading(true);
-    setDialogLoadingMore(false);
-    try {
-      const response = await fetchNotificationPage({
-        status: "ALL",
-        limit: DIALOG_PAGE_SIZE,
-        offset: compactNotifications.length,
-      });
-      const compactIds = new Set(compactNotifications.map((item) => item.id));
-      const pagedNotifications = response.data
-        .map(mapPacketToNotification)
-        .filter((item) => !compactIds.has(item.id))
-        .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
-      setDialogNotifications(
-        [...compactNotifications, ...pagedNotifications]
-          .filter((item, index, array) => array.findIndex((match) => match.id === item.id) === index)
-          .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
-      );
-      setAllNotificationCount(response.count || compactNotifications.length + response.data.length);
-      setDialogOffset(compactNotifications.length + response.data.length);
-      setDialogHasNextPage(
-        response.hasNextPage || compactNotifications.length + response.data.length < (response.count || allNotificationCount)
-      );
-    } catch {
-      setDialogNotifications([...compactNotifications]);
-      setDialogHasNextPage(false);
-    } finally {
-      setDialogLoading(false);
-    }
   };
 
   const handleSeeMoreNotifications = async () => {
     if (dialogLoadingMore || !dialogHasNextPage) return;
     setDialogLoadingMore(true);
     try {
-      const response = await fetchNotificationPage({
-        status: "ALL",
-        limit: DIALOG_PAGE_SIZE,
-        offset: dialogOffset,
-      });
+      const response = await fetchNotificationPage(buildNotificationPayload(DIALOG_PAGE_SIZE, dialogOffset));
       const nextBatch = response.data
         .map(mapPacketToNotification)
         .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
       setDialogNotifications((current) =>
         [...current, ...nextBatch]
-          .filter((item, index, array) => array.findIndex((match) => match.id === item.id) === index)
-          .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+          .filter((item, index, array) => array.findIndex((candidate) => candidate.id === item.id) === index)
+          .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()),
       );
       const nextOffset = dialogOffset + response.data.length;
       setDialogOffset(nextOffset);
-      setDialogHasNextPage(response.hasNextPage || nextOffset < (response.count || allNotificationCount));
       setAllNotificationCount((current) => Math.max(current, response.count || current));
+      setDialogHasNextPage(nextOffset < (response.count || allNotificationCount));
     } finally {
       setDialogLoadingMore(false);
     }
   };
+
+  const renderNotificationCard = (notification: NotificationItem, key: string, compact = false) => {
+    const styles = statusStyles[notification.badgeTone];
+    const isExpanded = expandedNotificationIds.includes(notification.id);
+    const messageToShow = isExpanded ? notification.message : notification.previewMessage;
+
+    return (
+      <div
+        key={key}
+        className={`w-full overflow-hidden rounded-xl border border-l-4 ${
+          notification.unread ? styles.unreadBorder : styles.readBorder
+        } ${notification.unread ? "border-slate-300 bg-slate-200/80" : "border-slate-200 bg-white"} px-4 py-4 text-left shadow-sm transition-colors`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center gap-2">
+              {notification.unread ? (
+                <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-2 ring-blue-100" />
+              ) : null}
+              <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
+            </div>
+            {notification.affectedHeading ? (
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                {notification.affectedHeading}
+              </p>
+            ) : null}
+            {notification.affectedSegments.length > 1 && isExpanded ? (
+              <div className="space-y-1">
+                {notification.affectedSegments.map((segment, index) => (
+                  <p key={`${notification.id}-segment-${index}`} className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
+                    {segment}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">{messageToShow}</p>
+            )}
+            <p className="mt-1 text-xs leading-[1.35] text-slate-500">Initiated by {notification.initiatedByName}</p>
+            <p className="mt-0.5 text-xs leading-[1.35] text-slate-500">({notification.initiatedByEmail})</p>
+          </div>
+          <div className="shrink-0">
+            <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}>
+              {notification.badgeLabel}
+            </span>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {notification.message.length > MESSAGE_PREVIEW_LIMIT || notification.affectedSegments.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => toggleNotificationExpansion(notification.id)}
+                className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                {isExpanded ? "See less" : "See more"}
+              </button>
+            ) : null}
+            {notification.isPending ? (
+              <button
+                type="button"
+                onClick={() => void navigateFromNotification(notification, "approve")}
+                className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100"
+              >
+                Approve Req
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void navigateFromNotification(notification, "view")}
+                className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+              >
+                View Details
+              </button>
+            )}
+          </div>
+          <p className="text-right text-xs font-medium text-slate-500">
+            {compact ? formatRelativeTime(notification.occurredAt) : formatPastTimeline(notification.occurredAt)}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  const renderNotificationFilters = (compact = false) => (
+    <div className={`flex flex-col gap-3 border-b border-slate-200 bg-white ${compact ? "px-4 py-3" : "px-6 py-4"}`}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <select
+            value={notificationStatusFilter}
+            onChange={(event) => setNotificationStatusFilter(event.target.value as NotificationFetchStatus)}
+            className="h-8 w-28 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none"
+          >
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option} value={option}>{option === "ALL" ? "All Status" : option}</option>
+            ))}
+          </select>
+          <select
+            value={notificationModuleFilter}
+            onChange={(event) => setNotificationModuleFilter(event.target.value as NotificationRefTypeFilter)}
+            className="h-8 w-28 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none"
+          >
+            {MODULE_OPTIONS.map((option) => (
+              <option key={option} value={option}>{option === "ALL" ? "All Module" : option}</option>
+            ))}
+          </select>
+          <div className="flex min-w-0 flex-nowrap items-center gap-1.5 whitespace-nowrap">
+          {DATE_RANGE_OPTIONS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                setNotificationDateRange(option);
+                setCustomFromDate("");
+                setCustomToDate("");
+              }}
+              className={`shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                activeDateRange === option
+                  ? "bg-blue-600 text-white"
+                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {option === "1MONTH" ? "1 Month" : option === "15DAYS" ? "15 Days" : "7 Days"}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              if (notificationDateRange === "CUSTOM") {
+                setNotificationDateRange(DEFAULT_DATE_RANGE);
+                setCustomFromDate("");
+                setCustomToDate("");
+                return;
+              }
+              setNotificationDateRange("CUSTOM");
+            }}
+            className={`shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+              activeDateRange === "CUSTOM"
+                ? "bg-blue-600 text-white"
+                : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            Custom
+          </button>
+        </div>
+        </div>
+      </div>
+      {notificationDateRange === "CUSTOM" ? (
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <input
+            type="date"
+            max={customToDate || todayIso}
+            value={customFromDate}
+            onChange={(event) => handleCustomFromDateChange(event.target.value)}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none"
+          />
+          <input
+            type="date"
+            max={todayIso}
+            min={customFromDate || undefined}
+            value={customToDate}
+            onChange={(event) => handleCustomToDateChange(event.target.value)}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none"
+          />
+        </div>
+      ) : null}
+    </div>
+  );
 
   return (
     <header className="sticky top-0 z-20 flex min-h-14 items-center justify-between gap-3 border-b border-border bg-card px-3 sm:px-4 lg:px-6">
@@ -426,12 +687,7 @@ export function AppTopBar({
             <SheetHeader className="sr-only">
               <SheetTitle>Navigation</SheetTitle>
             </SheetHeader>
-            <AppSidebar
-              mobile
-              locationPathname={locationPathname}
-              onNavigate={() => onMobileNavOpenChange(false)}
-              onLogout={onLogout}
-            />
+            <AppSidebar mobile locationPathname={locationPathname} onNavigate={() => onMobileNavOpenChange(false)} onLogout={onLogout} />
           </SheetContent>
         </Sheet>
         <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={onToggleCollapsed}>
@@ -454,81 +710,33 @@ export function AppTopBar({
               ) : null}
             </Button>
           </PopoverTrigger>
-          <PopoverContent
-            className="mr-0 w-[min(460px,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl sm:mr-2"
-            align="end"
-          >
+          <PopoverContent className="mr-0 w-[min(560px,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl sm:mr-2" align="end">
             <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
               <div className="flex items-center gap-2">
-                <p className="text-[1.05rem] font-semibold tracking-tight text-slate-900">
-                  Notifications ({notificationCountLabel})
-                </p>
+                <p className="text-[1.05rem] font-semibold tracking-tight text-slate-900">Notifications ({notificationCountLabel})</p>
                 <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
                   {unreadCountLabel}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => void markAllAsRead()}
-                className="text-xs font-medium text-slate-600 transition-colors hover:text-slate-900"
-              >
+              <button type="button" onClick={() => void markAllAsRead()} className="text-xs font-medium text-slate-600 transition-colors hover:text-slate-900">
                 Mark all as read
               </button>
             </div>
-            <div className="flex h-[520px] flex-col bg-slate-50/60">
+            {renderNotificationFilters(true)}
+            <div className="flex h-[560px] flex-col bg-slate-50/60">
               <div className="flex-1 overflow-y-auto p-3">
-                {compactNotifications.length === 0 ? (
+                {notifications.length === 0 ? (
                   <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/80 px-4 text-center">
                     <div>
                       <p className="text-sm font-semibold text-slate-800">All caught up</p>
                       <p className="mt-1 text-xs text-slate-500">No recent notifications available.</p>
                     </div>
                   </div>
-                ) : visibleNotifications.map((notification, index) => {
-                  const styles = statusStyles[notification.badgeTone];
-                  const isLastVisibleNotification = index === visibleNotifications.length - 1;
-                  return (
-                    <button
-                      type="button"
-                      key={notification.id}
-                      onClick={() => void markAsRead(notification.id)}
-                      className={`w-full overflow-hidden rounded-xl border border-l-4 ${
-                        notification.unread ? styles.unreadBorder : styles.readBorder
-                      } bg-transparent px-4 py-4 text-left shadow-sm transition-colors ${
-                        notification.unread
-                          ? "border-slate-300 bg-slate-200/80 hover:bg-slate-200/80"
-                          : "border-slate-200 bg-white hover:bg-slate-50"
-                      } ${isLastVisibleNotification ? "" : "mb-3"}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="mb-1 flex items-center gap-2">
-                            {notification.unread ? (
-                              <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-2 ring-blue-100" />
-                            ) : null}
-                            <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
-                          </div>
-                          <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
-                            <span>{notification.userName}</span>{" "}
-                            <span className="font-normal text-slate-500">{notification.userEmail}</span>
-                          </p>
-                          <p className="mt-1 text-xs leading-[1.35] text-slate-500">Initiated by {notification.initiatedByName}</p>
-                          <p className="mt-0.5 text-xs leading-[1.35] text-slate-500">({notification.initiatedByEmail})</p>
-                        </div>
-                        <div className="shrink-0">
-                          <span
-                            className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}
-                          >
-                            {notification.badgeLabel}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="mt-2 text-right text-xs font-medium text-slate-500">
-                        {formatRelativeTime(notification.occurredAt)}
-                      </p>
-                    </button>
-                  );
-                })}
+                ) : notifications.map((notification, index) => (
+                  <div key={notification.id} className={index === notifications.length - 1 ? "" : "mb-3"}>
+                    {renderNotificationCard(notification, notification.id, true)}
+                  </div>
+                ))}
               </div>
               {shouldShowSeeAll ? (
                 <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-3 py-2 backdrop-blur">
@@ -544,43 +752,36 @@ export function AppTopBar({
             </div>
           </PopoverContent>
         </Popover>
+
         <Dialog open={allNotificationsOpen} onOpenChange={setAllNotificationsOpen}>
-          <DialogContent
-            showCloseButton={false}
-            className="h-[88vh] w-[min(94vw,720px)] max-w-[720px] overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-2xl"
-          >
+          <DialogContent showCloseButton={false} className="h-[88vh] w-[min(94vw,760px)] max-w-[760px] overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-2xl">
             <DialogHeader className="border-b border-slate-200 px-6 py-4">
               <DialogTitle className="flex items-center justify-between text-slate-900">
-                <span>
-                  All Notifications ({allNotificationCount || (todayDialogNotifications.length + yesterdayNotifications.length + olderNotifications.length + upcomingNotifications.length)})
-                </span>
+                <span>All Notifications ({allNotificationCount || dialogNotifications.length})</span>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void markAllAsRead()}
-                    className="rounded-md px-2 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                  >
+                  <button type="button" onClick={() => void markAllAsRead()} className="rounded-md px-2 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
                     Mark all as read
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setAllNotificationsOpen(false)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                    aria-label="Close notifications"
-                  >
+                  <button type="button" onClick={() => setAllNotificationsOpen(false)} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="Close notifications">
                     ×
                   </button>
                 </div>
               </DialogTitle>
             </DialogHeader>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-4">
+            {renderNotificationFilters()}
+            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 p-4">
               {dialogLoading ? (
                 <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/80 px-4 text-center">
-                  <p className="text-sm font-semibold text-slate-700">Loading past notifications...</p>
+                  <p className="text-sm font-semibold text-slate-700">Loading notifications...</p>
                 </div>
               ) : null}
+
               {!dialogLoading &&
-              todayDialogNotifications.length + yesterdayNotifications.length + olderNotifications.length + upcomingNotifications.length === 0 ? (
+              groupedDialogNotifications.today.length +
+                groupedDialogNotifications.yesterday.length +
+                groupedDialogNotifications.earlier.length +
+                groupedDialogNotifications.upcoming.length ===
+                0 ? (
                 <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/80 px-4 text-center">
                   <div>
                     <p className="text-sm font-semibold text-slate-800">No notifications</p>
@@ -589,218 +790,36 @@ export function AppTopBar({
                 </div>
               ) : null}
 
-              {todayDialogNotifications.length > 0 ? (
-                <p className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Today</p>
-              ) : null}
-              {todayDialogNotifications.map((notification) => {
-                const styles = statusStyles[notification.badgeTone];
-                return (
-                  <button
-                    type="button"
-                    key={`today-${notification.id}`}
-                    onClick={() => void markAsRead(notification.id)}
-                    className={`w-full overflow-hidden rounded-xl border border-l-4 ${
-                      notification.unread ? styles.unreadBorder : styles.readBorder
-                    } bg-transparent px-4 py-4 text-left shadow-sm transition-colors ${
-                      notification.unread
-                        ? "border-slate-300 bg-slate-200/80 hover:bg-slate-200/80"
-                        : "border-slate-200 bg-white hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex items-center gap-2">
-                          {notification.unread ? (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-2 ring-blue-100" />
-                          ) : null}
-                          <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
-                        </div>
-                        <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
-                          <span>{notification.userName}</span>{" "}
-                          <span className="font-normal text-slate-500">{notification.userEmail}</span>
-                        </p>
-                        <p className="mt-1 text-xs leading-[1.35] text-slate-500">
-                          Initiated by {notification.initiatedByName}
-                        </p>
-                        <p className="mt-0.5 text-xs leading-[1.35] text-slate-500">
-                          ({notification.initiatedByEmail})
-                        </p>
+              {!dialogLoading ? (
+                <div className="space-y-3">
+                  {([
+                    ["Today", groupedDialogNotifications.today],
+                    ["Yesterday", groupedDialogNotifications.yesterday],
+                    ["Earlier", groupedDialogNotifications.earlier],
+                    ["Upcoming", groupedDialogNotifications.upcoming],
+                  ] as const).map(([label, rows]) =>
+                    rows.length > 0 ? (
+                      <div key={label} className="space-y-3">
+                        <p className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+                        {rows.map((notification) => renderNotificationCard(notification, `${label}-${notification.id}`))}
                       </div>
-                      <div className="shrink-0">
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}
-                        >
-                          {notification.badgeLabel}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="mt-2 text-right text-xs font-medium text-slate-500">{formatPastTimeline(notification.occurredAt)}</p>
-                  </button>
-                );
-              })}
-
-              {yesterdayNotifications.length > 0 ? (
-                <p className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Yesterday</p>
-              ) : null}
-              {yesterdayNotifications.map((notification) => {
-                const styles = statusStyles[notification.badgeTone];
-                return (
-                  <button
-                    type="button"
-                    key={`yesterday-${notification.id}`}
-                    onClick={() => void markAsRead(notification.id)}
-                    className={`w-full overflow-hidden rounded-xl border border-l-4 ${
-                      notification.unread ? styles.unreadBorder : styles.readBorder
-                    } bg-transparent px-4 py-4 text-left shadow-sm transition-colors ${
-                      notification.unread
-                        ? "border-slate-300 bg-slate-200/80 hover:bg-slate-200/80"
-                        : "border-slate-200 bg-white hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex items-center gap-2">
-                          {notification.unread ? (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-2 ring-blue-100" />
-                          ) : null}
-                          <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
-                        </div>
-                        <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
-                          <span>{notification.userName}</span>{" "}
-                          <span className="font-normal text-slate-500">{notification.userEmail}</span>
-                        </p>
-                        <p className="mt-1 text-xs leading-[1.35] text-slate-500">
-                          Initiated by {notification.initiatedByName}
-                        </p>
-                        <p className="mt-0.5 text-xs leading-[1.35] text-slate-500">
-                          ({notification.initiatedByEmail})
-                        </p>
-                      </div>
-                      <div className="shrink-0">
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}
-                        >
-                          {notification.badgeLabel}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="mt-2 text-right text-xs font-medium text-slate-500">{formatPastTimeline(notification.occurredAt)}</p>
-                  </button>
-                );
-              })}
-
-              {olderNotifications.length > 0 ? (
-                <p className="pt-2 px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Earlier</p>
-              ) : null}
-              {olderNotifications.map((notification) => {
-                const styles = statusStyles[notification.badgeTone];
-                return (
-                  <button
-                    type="button"
-                    key={`older-${notification.id}`}
-                    onClick={() => void markAsRead(notification.id)}
-                    className={`w-full overflow-hidden rounded-xl border border-l-4 ${
-                      notification.unread ? styles.unreadBorder : styles.readBorder
-                    } bg-transparent px-4 py-4 text-left shadow-sm transition-colors ${
-                      notification.unread
-                        ? "border-slate-300 bg-slate-200/80 hover:bg-slate-200/80"
-                        : "border-slate-200 bg-white hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex items-center gap-2">
-                          {notification.unread ? (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-2 ring-blue-100" />
-                          ) : null}
-                          <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
-                        </div>
-                        <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
-                          <span>{notification.userName}</span>{" "}
-                          <span className="font-normal text-slate-500">{notification.userEmail}</span>
-                        </p>
-                        <p className="mt-1 text-xs leading-[1.35] text-slate-500">
-                          Initiated by {notification.initiatedByName}
-                        </p>
-                        <p className="mt-0.5 text-xs leading-[1.35] text-slate-500">
-                          ({notification.initiatedByEmail})
-                        </p>
-                      </div>
-                      <div className="shrink-0">
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}
-                        >
-                          {notification.badgeLabel}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="mt-2 text-right text-xs font-medium text-slate-500">{formatPastTimeline(notification.occurredAt)}</p>
-                  </button>
-                );
-              })}
-
-              {upcomingNotifications.length > 0 ? (
-                <p className="pt-2 px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Upcoming</p>
-              ) : null}
-              {upcomingNotifications.map((notification) => {
-                const styles = statusStyles[notification.badgeTone];
-                return (
-                  <button
-                    type="button"
-                    key={`upcoming-${notification.id}`}
-                    onClick={() => void markAsRead(notification.id)}
-                    className={`w-full overflow-hidden rounded-xl border border-l-4 ${
-                      notification.unread ? styles.unreadBorder : styles.readBorder
-                    } bg-transparent px-4 py-4 text-left shadow-sm transition-colors ${
-                      notification.unread
-                        ? "border-slate-300 bg-slate-200/80 hover:bg-slate-200/80"
-                        : "border-slate-200 bg-white hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex items-center gap-2">
-                          {notification.unread ? (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 ring-2 ring-blue-100" />
-                          ) : null}
-                          <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
-                        </div>
-                        <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
-                          <span>{notification.userName}</span>{" "}
-                          <span className="font-normal text-slate-500">{notification.userEmail}</span>
-                        </p>
-                        <p className="mt-1 text-xs leading-[1.35] text-slate-500">
-                          Initiated by {notification.initiatedByName}
-                        </p>
-                        <p className="mt-0.5 text-xs leading-[1.35] text-slate-500">
-                          ({notification.initiatedByEmail})
-                        </p>
-                      </div>
-                      <div className="shrink-0">
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}
-                        >
-                          {notification.badgeLabel}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="mt-2 text-right text-xs font-medium text-slate-500">{formatPastTimeline(notification.occurredAt)}</p>
-                  </button>
-                );
-              })}
-              {dialogHasNextPage ? (
-                <div className="flex justify-center pt-1">
-                  <button
-                    type="button"
-                    onClick={() => void handleSeeMoreNotifications()}
-                    disabled={dialogLoadingMore}
-                    className="rounded-full border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {dialogLoadingMore ? "Loading..." : "See more"}
-                  </button>
+                    ) : null,
+                  )}
                 </div>
               ) : null}
             </div>
+            {dialogHasNextPage ? (
+              <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+                <button
+                  type="button"
+                  onClick={() => void handleSeeMoreNotifications()}
+                  disabled={dialogLoadingMore}
+                  className="w-full rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {dialogLoadingMore ? "Loading..." : "See more"}
+                </button>
+              </div>
+            ) : null}
           </DialogContent>
         </Dialog>
 
@@ -814,10 +833,7 @@ export function AppTopBar({
               {(currentUser?.name || currentUser?.email || "U").charAt(0).toUpperCase()}
             </button>
           </PopoverTrigger>
-          <PopoverContent
-            align="end"
-            className="w-[min(22rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border-border bg-white p-0 text-foreground shadow-2xl"
-          >
+          <PopoverContent align="end" className="w-[min(22rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border-border bg-white p-0 text-foreground shadow-2xl">
             <div className="border-b border-border bg-white px-4 py-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">
@@ -860,26 +876,23 @@ export function AppTopBar({
                     }
                   }}
                 >
-                  <span className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl border ${item.tone}`}>
+                  <div className={`mb-2 inline-flex h-8 w-8 items-center justify-center rounded-xl border ${item.tone}`}>
                     <item.icon className="h-4 w-4" />
-                  </span>
+                  </div>
                   <p className="text-sm font-semibold text-foreground">{item.label}</p>
                 </button>
               ))}
             </div>
 
-            <div className="border-t border-border bg-white px-4 py-3">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between rounded-xl px-2 py-2 text-left transition hover:bg-red-50"
-                onClick={onLogout}
-              >
-                <span className="flex items-center gap-3 text-red-400">
-                  <LogOut className="h-4 w-4" />
-                  <span className="font-medium">Log out</span>
-                </span>
-                <span className="text-xs text-red-300/80">End session</span>
-              </button>
+            <div className="space-y-2 px-4 pb-4">
+              <Button variant="outline" className="w-full justify-start rounded-xl border-slate-200 text-slate-700" onClick={() => navigate("/profile")}>
+                <User className="mr-2 h-4 w-4" />
+                View Profile
+              </Button>
+              <Button variant="destructive" className="w-full justify-start rounded-xl" onClick={onLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </Button>
             </div>
           </PopoverContent>
         </Popover>
@@ -887,5 +900,3 @@ export function AppTopBar({
     </header>
   );
 }
-
-export default AppTopBar;

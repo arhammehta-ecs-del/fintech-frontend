@@ -72,6 +72,18 @@ export default function WorkflowStepSummary({
   visibleLevels,
   previous = null,
 }: WorkflowStepSummaryProps) {
+  const currentLevels = levels.slice(0, visibleLevels);
+  const previousLevels = previous?.levels?.slice(0, previous.visibleLevels) ?? [];
+  const mergedLevels = Array.from(
+    new Set([...currentLevels.map((level) => level.id), ...previousLevels.map((level) => level.id)]),
+  )
+    .sort((left, right) => left - right)
+    .map((id) => ({
+      id,
+      current: currentLevels.find((level) => level.id === id) ?? null,
+      previous: previousLevels.find((level) => level.id === id) ?? null,
+    }));
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-white p-6">
       <div className="mb-5 flex-none rounded-2xl border border-slate-200 bg-white p-4">
@@ -87,16 +99,21 @@ export default function WorkflowStepSummary({
       <div className="flex min-h-0 flex-1 flex-col">
         <h4 className="mb-3 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Levels</h4>
         <div className="custom-scrollbar flex-1 space-y-2 overflow-y-auto pr-2 pb-4">
-          {levels.slice(0, visibleLevels).map((level, idx) => {
-            const previousLevel = previous?.levels?.[idx];
-            const isNewLevel = !previousLevel;
-            const hasLevelDiff = previousLevel ? levelSignature(previousLevel) !== levelSignature(level) : false;
+          {mergedLevels.map(({ id, current, previous: previousLevel }) => {
+            const level = current ?? previousLevel;
+            if (!level) return null;
+            const isNewLevel = Boolean(current && !previousLevel);
+            const isRemovedLevel = Boolean(previousLevel && !current);
+            const hasLevelDiff = Boolean(current && previousLevel && levelSignature(previousLevel) !== levelSignature(current));
+            const renderedApprovals = current?.approvals ?? previousLevel?.approvals ?? [];
             return (
               <div
-                key={level.id}
+                key={id}
                 className={[
                   "flex min-h-[64px] items-center gap-4 rounded-xl border p-2.5 shadow-sm transition-all hover:border-blue-300",
-                  isNewLevel
+                  isRemovedLevel
+                    ? "border-rose-300 bg-rose-50/40 opacity-75"
+                    : isNewLevel
                     ? "border-emerald-200 bg-emerald-50/60"
                     : hasLevelDiff
                       ? "border-amber-200 bg-amber-50/60"
@@ -106,17 +123,19 @@ export default function WorkflowStepSummary({
                 <div
                   className={[
                     "flex h-9 w-9 flex-none items-center justify-center rounded-lg text-[10px] font-black",
-                    isNewLevel
+                    isRemovedLevel
+                      ? "bg-rose-100 text-rose-700"
+                      : isNewLevel
                       ? "bg-emerald-100 text-emerald-700"
                       : hasLevelDiff
                         ? "bg-amber-100 text-amber-700"
                         : "bg-slate-100 text-slate-600",
                   ].join(" ")}
                 >
-                  L{level.id}
+                  L{id}
                 </div>
                 <div className="flex flex-1 flex-wrap items-center gap-4">
-                  {level.approvals.map((approval, approvalIdx) => {
+                  {renderedApprovals.map((approval, approvalIdx) => {
                     const previousApproval = previousLevel?.approvals?.[approvalIdx];
                     const nextLabel = approverLabel(approval.option);
                     const previousOption = previousApproval?.option?.trim() || "";
@@ -124,12 +143,14 @@ export default function WorkflowStepSummary({
                     const changed = Boolean(previousOption) && prevLabel !== nextLabel;
                     const addedApproval = !previousOption && Boolean(approval.option);
                     return (
-                      <div key={`${level.id}-${approvalIdx}`} className="flex items-center gap-4">
+                      <div key={`${id}-${approvalIdx}`} className="flex items-center gap-4">
                         {approvalIdx > 0 ? <span className="text-[10px] font-black uppercase text-slate-300">{level.type}</span> : null}
                         <div className="flex flex-col">
                           <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400">Approver {approvalIdx + 1}</span>
                           <span className="text-xs font-semibold text-slate-800">
-                            {changed ? (
+                            {isRemovedLevel ? (
+                              <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-rose-600 line-through">{nextLabel}</span>
+                            ) : changed ? (
                               <>
                                 <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-rose-600 line-through">{prevLabel}</span>
                                 <span className="px-1 text-slate-400">→</span>
@@ -148,7 +169,9 @@ export default function WorkflowStepSummary({
                 </div>
                 <CheckCircle2
                   className={
-                    isNewLevel
+                    isRemovedLevel
+                      ? "mr-2 h-4 w-4 text-rose-500"
+                      : isNewLevel
                       ? "mr-2 h-4 w-4 text-emerald-500"
                       : hasLevelDiff
                         ? "mr-2 h-4 w-4 text-amber-500"

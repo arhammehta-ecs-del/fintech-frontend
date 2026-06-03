@@ -6,6 +6,7 @@ export type HistoryStatus = "pending" | "approved";
 
 export type HistoryEntry = {
   id: string;
+  sourceId?: string;
   sortEpochMs?: number;
   year: string;
   month: string;
@@ -49,6 +50,7 @@ export type HistorySidebarProps = {
   splitView?: boolean;
   panelWidth?: number;
   closeOnOutsideClick?: boolean;
+  onViewMore?: (item: HistoryEntry) => void;
 };
 
 const MONTHS = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
@@ -164,7 +166,7 @@ function ActorFooter({ item }: { item: HistoryEntry }) {
   );
 }
 
-function MilestoneTimeline({ data }: { data: HistoryEntry[] }) {
+function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewMore?: (item: HistoryEntry) => void }) {
   return (
     <div className="relative py-1">
       <div className="space-y-6">
@@ -222,8 +224,19 @@ function MilestoneTimeline({ data }: { data: HistoryEntry[] }) {
               ].join(" ")}
             >
               <StatusHeader item={item} />
+              <div className="mb-2 flex items-start justify-between gap-3 px-1">
+                <h4 className="min-w-0 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
+                {onViewMore ? (
+                  <button
+                    type="button"
+                    onClick={() => onViewMore(item)}
+                    className="shrink-0 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    View More
+                  </button>
+                ) : null}
+              </div>
               <div className="mb-2 px-1">
-                <h4 className="mb-1.5 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
                 <p className="text-[11.5px] leading-relaxed text-slate-600">{item.details}</p>
                 {item.remarks ? (
                   <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600">
@@ -285,6 +298,7 @@ export function HistorySidebar({
   splitView = false,
   panelWidth = 560,
   closeOnOutsideClick = false,
+  onViewMore,
 }: HistorySidebarProps) {
   const [expandedYears, setExpandedYears] = useState(new Set<string>([(new Date().getFullYear()).toString()]));
   const [expandedMonths, setExpandedMonths] = useState(new Set<string>());
@@ -531,7 +545,7 @@ export function HistorySidebar({
 
                           {isExpanded ? (
                             <div className="animate-in slide-in-from-top-1 fade-in py-2 duration-200">
-                              <MilestoneTimeline data={logs} />
+                          <MilestoneTimeline data={logs} onViewMore={onViewMore} />
                             </div>
                           ) : null}
                         </div>

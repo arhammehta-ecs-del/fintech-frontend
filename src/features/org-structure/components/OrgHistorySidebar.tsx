@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import HistorySidebar, { type HistoryEntry } from "@/components/HistorySidebar";
+import HistoryDetailDialog, { normalizeHistoryDetail, type HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 import { formatDateParts } from "@/lib/historyDate.utils";
 import { getInitials } from "@/lib/userIdentity.utils";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
 import { fetchOrgHistory } from "@/services/org.service";
+import { fetchHistoryDetail } from "@/services/history.service";
 
 type OrgHistorySidebarProps = {
   isOpen: boolean;
@@ -133,6 +135,7 @@ const mapOrgHistoryEntry = (
 
   return {
     id: readString(record.id) || readString(record.requestId) || `${createdAt || "history"}-${index}`,
+    sourceId: readString(record.id) || readString(record.requestId),
     sortEpochMs: Number.isFinite(sortEpochMs) ? sortEpochMs : undefined,
     year,
     month,
@@ -176,6 +179,10 @@ export default function OrgHistorySidebar({
   closeOnOutsideClick = true,
 }: OrgHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailSourceId, setDetailSourceId] = useState("");
+  const [detailViewModel, setDetailViewModel] = useState<HistoryDetailViewModel | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -214,17 +221,49 @@ export default function OrgHistorySidebar({
     };
   }, [isOpen, companyCode, subtitle, nodeName, nodePath, isPending, parentNodePath, toast]);
 
+  const handleViewMore = async (entry: HistoryEntry) => {
+    const sourceId = (entry.sourceId || entry.id).trim();
+    if (!sourceId) return;
+
+    setDetailSourceId(sourceId);
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setDetailViewModel(null);
+
+    try {
+      const response = await fetchHistoryDetail({ id: sourceId, type: "org" });
+      setDetailViewModel(normalizeHistoryDetail(response));
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Failed to fetch history details.");
+      toast({ title: "Unable to load history details", description: message, variant: "destructive" });
+      setDetailViewModel(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   return (
-    <HistorySidebar
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Org history"
-      subtitle={subtitle || "Organisation Structure"}
-      showSystemGenerated={false}
-      data={historyData}
-      dockOffset={dockOffset}
-      splitView={splitView}
-      closeOnOutsideClick={closeOnOutsideClick}
-    />
+    <>
+      <HistorySidebar
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Org history"
+        subtitle={subtitle || "Organisation Structure"}
+        showSystemGenerated={false}
+        data={historyData}
+        dockOffset={dockOffset}
+        splitView={splitView}
+        closeOnOutsideClick={closeOnOutsideClick}
+        onViewMore={handleViewMore}
+      />
+      <HistoryDetailDialog
+        isOpen={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        title="Org history details"
+        sourceId={detailSourceId}
+        loading={detailLoading}
+        detail={detailViewModel}
+      />
+    </>
   );
 }

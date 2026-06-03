@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { EyeOff, Users, UserPlus } from "lucide-react";
 import type { AppUser } from "@/contexts/AppContext";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -23,6 +24,7 @@ import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
 // import { acquireEditLock } from "@/services/edit-lock.service";
 
 export function UserManagementView() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const userLockSession = useEditLockSession();
   const {
@@ -109,6 +111,55 @@ export function UserManagementView() {
   const isAnyUserDialogOpen = addDialogOpen || Boolean(viewingMember) || Boolean(editingMember) || remarkDialogOpen;
   const pageMemberCount = useMemo(() => paginatedMembers.length, [paginatedMembers]);
   const totalMembersForTab = statusCounts[statusTab];
+
+  useEffect(() => {
+    if ((searchParams.get("tab") || "").trim() !== "users") return;
+    if ((searchParams.get("notif_ref_type") || "").trim().toUpperCase() !== "USER") return;
+
+    const notificationAction = (searchParams.get("notif_action") || "").trim().toLowerCase();
+    const notificationType = (searchParams.get("notif_type") || "").trim().toUpperCase();
+    const referenceId = (searchParams.get("notif_ref_id") || "").trim();
+    const email = (searchParams.get("notif_email") || "").trim().toLowerCase();
+    const targetTab =
+      notificationAction === "approve"
+        ? "pending"
+        : notificationType.includes("ONBOARD")
+          ? "active"
+          : notificationType.includes("INACTIV")
+            ? "inactive"
+            : "pending";
+
+    if (statusTab !== targetTab) {
+      setStatusTab(targetTab);
+      return;
+    }
+
+    const candidates = [...paginatedMembers, ...currentMembers].filter(
+      (member, index, array) => array.findIndex((candidate) => candidate.email === member.email) === index,
+    );
+    const matchedMember = candidates.find((member) => {
+      const memberId = (member.id || "").trim();
+      const memberUuid = (member.uuid || "").trim();
+      const memberEmail = (member.email || "").trim().toLowerCase();
+      if (referenceId && (memberId === referenceId || memberUuid === referenceId)) return true;
+      return Boolean(email) && memberEmail === email;
+    });
+
+    if (!matchedMember) return;
+
+    setViewingMember(matchedMember);
+    const nextParams = new URLSearchParams(searchParams);
+    [
+      "notif_action",
+      "notif_ref_type",
+      "notif_ref_id",
+      "notif_type",
+      "notif_email",
+      "notif_entity_name",
+      "notif_target_status",
+    ].forEach((key) => nextParams.delete(key));
+    setSearchParams(nextParams, { replace: true });
+  }, [currentMembers, paginatedMembers, searchParams, setSearchParams, setStatusTab, setViewingMember, statusTab]);
   const startUserLockSession = async (member: AppUser) => {
     const targetMail = (member.email || "").trim();
     if (!targetMail) {

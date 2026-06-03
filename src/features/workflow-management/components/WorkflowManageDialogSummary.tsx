@@ -112,6 +112,7 @@ const renderInlineDiff = (currentValue: string, previousValue?: string) => {
 export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
   const summaryLevels = toSummaryLevels(workflow.levels);
   const previousWorkflow = (workflow as WorkflowRecord & { previousWorkflow?: WorkflowRecord | null }).previousWorkflow ?? null;
+  const hasComparisonData = Boolean(previousWorkflow);
   const previousSummaryLevels = useMemo(
     () => (previousWorkflow ? toSummaryLevels(previousWorkflow.levels) : []),
     [previousWorkflow],
@@ -222,9 +223,9 @@ export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
             mergedLevels.map(({ id, current, previous }) => {
               const level = current ?? previous;
               if (!level) return null;
-              const isAdded = Boolean(current && !previous);
-              const isRemoved = Boolean(previous && !current);
-              const isChanged = Boolean(current && previous && levelSignature(current) !== levelSignature(previous));
+              const isAdded = hasComparisonData && Boolean(current && !previous);
+              const isRemoved = hasComparisonData && Boolean(previous && !current);
+              const isChanged = hasComparisonData && Boolean(current && previous && levelSignature(current) !== levelSignature(previous));
               const currentApprovals = current?.approvals ?? [];
               const previousApprovals = previous?.approvals ?? [];
               const slotCount = Math.max(currentApprovals.length, previousApprovals.length);

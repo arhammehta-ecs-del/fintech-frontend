@@ -64,6 +64,11 @@ export function PendingNodePopup({
     }
   }, [open, node?.id]);
 
+  useEffect(() => {
+    if (!open || !node || isHistoryOpen || !onOpenHistory) return;
+    onOpenHistory(node);
+  }, [open, node, isHistoryOpen, onOpenHistory]);
+
   if (!open || !node) return null;
 
   const Icon = getNodeIcon(node.nodeType);
@@ -79,6 +84,9 @@ export function PendingNodePopup({
   const isStatusUpdateRequest = pendingRequestType === "UPDATE";
   const isInactiveUpdateRequest = isStatusUpdateRequest && nextStatusFromRequest === "INACTIVE";
   const isActiveUpdateRequest = isStatusUpdateRequest && nextStatusFromRequest === "ACTIVE";
+  const useUpdateTheme = isStatusUpdateRequest;
+  const showRequestMetadata =
+    isStatusUpdateRequest || Boolean(requesterName !== "Not available" || requesterEmail !== "Not available" || workflowName || workflowAlias);
   const approvalHeading = isInactiveUpdateRequest
     ? "Deactivation Approval"
     : isActiveUpdateRequest
@@ -127,6 +135,7 @@ export function PendingNodePopup({
       <div
         className={cn(
           "relative w-full overflow-hidden rounded-[28px] bg-white shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-in zoom-in-95 fade-in duration-300",
+          useUpdateTheme && "ring-1 ring-amber-200/80",
           isHistoryOpen
             ? cn("mx-auto my-auto max-h-full", hasLongWorkflowLabel ? "max-w-[620px]" : "max-w-[480px]")
             : hasLongWorkflowLabel
@@ -135,7 +144,7 @@ export function PendingNodePopup({
         )}
       >
         {/* Header Section */}
-        <div className="relative bg-amber-50/50 px-6 pb-5 pt-5">
+        <div className={cn("relative px-6 pb-5 pt-5", useUpdateTheme ? "bg-gradient-to-b from-amber-100/80 to-orange-50" : "bg-amber-50/50")}>
           <div className="absolute right-4 top-4 flex items-center gap-2">
             <TooltipProvider delayDuration={120}>
               <Tooltip>
@@ -163,11 +172,23 @@ export function PendingNodePopup({
           </div>
 
           <div className="flex flex-col items-center gap-2.5 text-center">
-            <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.13em] text-amber-700">
+            <span
+              className={cn(
+                "inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.13em]",
+                useUpdateTheme ? "bg-orange-100 text-orange-700" : "bg-amber-100 text-amber-700",
+              )}
+            >
               {approvalHeading}
             </span>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-[0_6px_16px_rgba(245,158,11,0.14)]">
-              <Icon className="h-6 w-6 text-amber-500" />
+            <div
+              className={cn(
+                "flex h-12 w-12 items-center justify-center rounded-xl bg-white",
+                useUpdateTheme
+                  ? "shadow-[0_6px_16px_rgba(249,115,22,0.16)]"
+                  : "shadow-[0_6px_16px_rgba(245,158,11,0.14)]",
+              )}
+            >
+              <Icon className={cn("h-6 w-6", useUpdateTheme ? "text-orange-500" : "text-amber-500")} />
             </div>
             <h2 className="text-[2rem] font-bold leading-none tracking-tight text-slate-900">{node.name}</h2>
           </div>
@@ -175,10 +196,10 @@ export function PendingNodePopup({
 
         {/* Details Section */}
         <div className="space-y-4 px-6 py-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className={cn("rounded-2xl border bg-white p-4 shadow-sm", useUpdateTheme ? "border-orange-200/80" : "border-slate-200")}>
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <div className={cn("h-1.5 w-1.5 rounded-full", useUpdateTheme ? "bg-orange-500" : "bg-amber-500")} />
                 <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-700">Node Details</p>
               </div>
               {isInactiveUpdateRequest ? (
@@ -211,8 +232,8 @@ export function PendingNodePopup({
             </div>
           </div>
 
-          {!isInactiveUpdateRequest ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          {showRequestMetadata ? (
+            <div className={cn("rounded-2xl border bg-white p-4 shadow-sm", useUpdateTheme ? "border-orange-200/80" : "border-slate-200")}>
               <div className={cn("grid gap-3", hasLongWorkflowLabel ? "md:grid-cols-[0.9fr_1.3fr]" : "md:grid-cols-[1fr_0.85fr]")}>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Initiator Info</p>
@@ -263,8 +284,13 @@ export function PendingNodePopup({
             </div>
           ) : null}
 
-          <div className="flex items-center gap-2.5 rounded-xl bg-slate-50 px-3.5 py-2 text-[11px] text-slate-500">
-            <CheckCircle2 size={13} className="text-emerald-500" />
+          <div
+            className={cn(
+              "flex items-center gap-2.5 rounded-xl px-3.5 py-2 text-[11px]",
+              useUpdateTheme ? "bg-orange-50 text-orange-700" : "bg-slate-50 text-slate-500",
+            )}
+          >
+            <CheckCircle2 size={13} className={useUpdateTheme ? "text-orange-500" : "text-emerald-500"} />
             <p>
               {isInactiveUpdateRequest
                 ? "Approving this node will delete it from the Organization Structure."

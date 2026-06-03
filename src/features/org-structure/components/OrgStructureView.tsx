@@ -20,8 +20,24 @@ import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
 
+const getPendingHistoryContext = (node: OrgNode) => {
+  const targetNodePath =
+    typeof node.pendingNewData?.targetNodePath === "string" && node.pendingNewData.targetNodePath.trim()
+      ? node.pendingNewData.targetNodePath.trim()
+      : (node.nodePath || "").trim();
+  const parentNodePath = targetNodePath.includes(".")
+    ? targetNodePath.split(".").slice(0, -1).join(".").trim()
+    : "";
+
+  return {
+    nodeName: node.name.trim(),
+    nodePath: targetNodePath,
+    parentNodePath,
+  };
+};
+
 export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const newNodeTypeOptions: NewNodeType[] = ["DEPARTMENT", "DIVISION", "TEAM", "PLANT", "LOCATION"];
   const {
     companyCode,
@@ -146,16 +162,73 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
 
   useEffect(() => {
     if (!pendingNodeForReview) return;
-    const currentNodePath = (pendingNodeForReview.nodePath || "").trim();
-    const parentPath = currentNodePath.includes(".")
-      ? currentNodePath.split(".").slice(0, -1).join(".").trim()
-      : "";
-    setHistoryNodeName(pendingNodeForReview.name.trim());
-    setHistoryNodePath(currentNodePath);
-    setHistoryParentNodePath(parentPath);
+    const historyContext = getPendingHistoryContext(pendingNodeForReview);
+    setHistoryNodeName(historyContext.nodeName);
+    setHistoryNodePath(historyContext.nodePath);
+    setHistoryParentNodePath(historyContext.parentNodePath);
     setHistoryViewContext("pending");
     setIsOrgHistoryOpen(true);
   }, [pendingNodeForReview]);
+
+  useEffect(() => {
+    if ((searchParams.get("tab") || "").trim() !== "org") return;
+    if ((searchParams.get("notif_ref_type") || "").trim().toUpperCase() !== "ORG") return;
+    if (!orgStructure) return;
+
+    const notificationAction = (searchParams.get("notif_action") || "").trim().toLowerCase();
+    const referenceId = (searchParams.get("notif_ref_id") || "").trim();
+    const entityName = (searchParams.get("notif_entity_name") || "").trim().toLowerCase();
+    const notificationType = (searchParams.get("notif_type") || "").trim().toUpperCase();
+    const nodes: OrgNode[] = [];
+    const stack: OrgNode[] = [orgStructure];
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) continue;
+      nodes.push(current);
+      current.children.forEach((child) => stack.push(child));
+    }
+
+    const matchedNode =
+      nodes.find((node) => {
+        const nodeId = (node.id || "").trim();
+        const nodeUuid = (node.uuid || "").trim();
+        if (referenceId && (nodeId === referenceId || nodeUuid === referenceId)) return true;
+        if (!entityName) return false;
+        const nodeName = (node.name || "").trim().toLowerCase();
+        const nodePath = (node.nodePath || "").trim().toLowerCase();
+        const nodePathLeaf = nodePath.split(".").filter(Boolean).pop() || "";
+        return (
+          nodeName === entityName ||
+          nodePath === entityName ||
+          nodePath.endsWith(`.${entityName}`) ||
+          nodePathLeaf === entityName
+        );
+      }) ?? null;
+
+    if (!matchedNode) return;
+
+    const isModificationNotification =
+      notificationType.includes("MODIF") || (matchedNode.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
+
+    if (notificationAction === "approve" || isModificationNotification || matchedNode.status === "Pending" || matchedNode.isPending) {
+      setPendingNodeForReview(matchedNode);
+    } else {
+      handleDepartmentClick(matchedNode);
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    [
+      "notif_action",
+      "notif_ref_type",
+      "notif_ref_id",
+      "notif_type",
+      "notif_email",
+      "notif_entity_name",
+      "notif_target_status",
+    ].forEach((key) => nextParams.delete(key));
+    setSearchParams(nextParams, { replace: true });
+  }, [handleDepartmentClick, orgStructure, searchParams, setPendingNodeForReview, setSearchParams]);
 
   const handleNavigateToUsers = ({
     nodeName,
@@ -465,13 +538,10 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         isHistoryOpen={isOrgHistoryOpen}
         dockOffset={historyLayoutOffset}
         onOpenHistory={(node) => {
-          const currentNodePath = (node.nodePath || "").trim();
-          const parentPath = currentNodePath.includes(".")
-            ? currentNodePath.split(".").slice(0, -1).join(".").trim()
-            : "";
-          setHistoryNodeName(node.name.trim());
-          setHistoryNodePath(currentNodePath);
-          setHistoryParentNodePath(parentPath);
+          const historyContext = getPendingHistoryContext(node);
+          setHistoryNodeName(historyContext.nodeName);
+          setHistoryNodePath(historyContext.nodePath);
+          setHistoryParentNodePath(historyContext.parentNodePath);
           setHistoryViewContext("pending");
           setIsOrgHistoryOpen(true);
         }}

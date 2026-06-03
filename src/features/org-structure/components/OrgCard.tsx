@@ -67,7 +67,9 @@ export function OrgCard({
           <p className={cn("truncate font-semibold", isRoot ? "text-[16px] font-bold tracking-[-0.01em] text-white" : "text-[16px]")}>{node.name}</p>
           {!isRoot ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.1em] text-slate-500">{node.nodeType}</p> : null}
           {showPendingSubtext ? (
-            <p className="mt-0.5 text-[11px] font-medium leading-4 text-amber-700">Modification in progress</p>
+            <p className={cn("mt-0.5 text-[11px] font-medium leading-4", hasUpdateRequest ? "text-orange-700" : "text-amber-700")}>
+              Modification in progress
+            </p>
           ) : null}
         </div>
       </button>

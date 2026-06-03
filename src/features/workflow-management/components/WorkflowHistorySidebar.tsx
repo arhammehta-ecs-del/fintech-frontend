@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import HistorySidebar, { type HistoryEntry } from "@/components/HistorySidebar";
+import HistoryDetailDialog, { normalizeHistoryDetail, type HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 import { formatDateParts } from "@/lib/historyDate.utils";
 import { getInitials } from "@/lib/userIdentity.utils";
 import { useToast } from "@/hooks/use-toast";
 import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 import { getApiErrorMessage } from "@/services/client";
 import { fetchWorkflowHistory } from "@/services/workflow.service";
+import { fetchHistoryDetail } from "@/services/history.service";
 
 export type WorkflowHistorySidebarProps = {
   isOpen: boolean;
@@ -114,6 +116,7 @@ const mapWorkflowHistoryEntry = (
 
   return {
     id: readString(record.id) || readString(record.workflowId) || `${createdAt || "history"}-${index}`,
+    sourceId: readString(record.id) || readString(record.workflowId) || readString(record.requestId),
     sortEpochMs: Number.isFinite(sortEpochMs) ? sortEpochMs : undefined,
     year,
     month,
@@ -152,6 +155,10 @@ export default function WorkflowHistorySidebar({
   panelWidth,
 }: WorkflowHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailSourceId, setDetailSourceId] = useState("");
+  const [detailViewModel, setDetailViewModel] = useState<HistoryDetailViewModel | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -192,17 +199,49 @@ export default function WorkflowHistorySidebar({
     };
   }, [isOpen, workflow, toast]);
 
+  const handleViewMore = async (entry: HistoryEntry) => {
+    const sourceId = (entry.sourceId || entry.id).trim();
+    if (!sourceId) return;
+
+    setDetailSourceId(sourceId);
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setDetailViewModel(null);
+
+    try {
+      const response = await fetchHistoryDetail({ id: sourceId, type: "workflow" });
+      setDetailViewModel(normalizeHistoryDetail(response));
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Failed to fetch history details.");
+      toast({ title: "Unable to load history details", description: message, variant: "destructive" });
+      setDetailViewModel(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   return (
-    <HistorySidebar
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Workflow history"
-      subtitle={workflow?.name || "Unknown Workflow"}
-      showSystemGenerated={false}
-      data={historyData}
-      dockOffset={dockOffset}
-      splitView={splitView}
-      panelWidth={panelWidth}
-    />
+    <>
+      <HistorySidebar
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Workflow history"
+        subtitle={workflow?.name || "Unknown Workflow"}
+        showSystemGenerated={false}
+        data={historyData}
+        dockOffset={dockOffset}
+        splitView={splitView}
+        panelWidth={panelWidth}
+        onViewMore={handleViewMore}
+      />
+      <HistoryDetailDialog
+        isOpen={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        title="Workflow history details"
+        sourceId={detailSourceId}
+        loading={detailLoading}
+        detail={detailViewModel}
+      />
+    </>
   );
 }
