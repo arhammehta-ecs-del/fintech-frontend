@@ -520,6 +520,7 @@ export function AppTopBar({
     const styles = statusStyles[notification.badgeTone];
     const isExpanded = expandedNotificationIds.includes(notification.id);
     const messageToShow = isExpanded ? notification.message : notification.previewMessage;
+    const canShowViewDetails = !(!notification.isPending && notification.rawType.trim().toUpperCase() === "MODIFICATION");
 
     return (
       <div
@@ -580,7 +581,7 @@ export function AppTopBar({
               >
                 Approve Req
               </button>
-            ) : (
+            ) : canShowViewDetails ? (
               <button
                 type="button"
                 onClick={() => void navigateFromNotification(notification, "view")}
@@ -588,7 +589,7 @@ export function AppTopBar({
               >
                 View Details
               </button>
-            )}
+            ) : null}
           </div>
           <p className="text-right text-xs font-medium text-slate-500">
             {compact ? formatRelativeTime(notification.occurredAt) : formatPastTimeline(notification.occurredAt)}

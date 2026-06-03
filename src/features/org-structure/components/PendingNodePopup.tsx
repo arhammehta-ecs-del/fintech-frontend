@@ -305,7 +305,7 @@ export function PendingNodePopup({
                 <div className={cn("h-1.5 w-1.5 rounded-full", useUpdateTheme ? "bg-orange-500" : "bg-amber-500")} />
                 <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-700">Node Details</p>
               </div>
-              {isInactiveUpdateRequest ? (
+              {!isStatusUpdateRequest ? (
                 <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
                   {requestedOn}
                 </span>
@@ -387,7 +387,7 @@ export function PendingNodePopup({
             </div>
           ) : null}
 
-          {diffRows.length > 0 ? (
+          {!isStatusUpdateRequest && diffRows.length > 0 ? (
             <div className={cn("rounded-2xl border bg-white p-4 shadow-sm", useUpdateTheme ? "border-orange-200/80" : "border-slate-200")}>
               <div className="mb-3 flex items-center gap-2">
                 <div className={cn("h-1.5 w-1.5 rounded-full", useUpdateTheme ? "bg-orange-500" : "bg-amber-500")} />

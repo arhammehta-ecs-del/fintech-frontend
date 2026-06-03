@@ -82,7 +82,6 @@ export const buildUserOnboardingPayload = (formData: UserOnboardingFormData): Us
                   roleName: `${roleNameBase} ${action[0].toUpperCase()}${action.slice(1)}`,
                   nodeName: nodeEntry.nodeName,
                   nodePath: nodeEntry.nodePath.trim(),
-                  nodeType: nodeEntry.nodeType?.trim(),
                   accessCategory:
                     category.trim().toUpperCase() === "SYSTEM_ACCESS" && SYSTEM_ACCESS_SCOPE_ITEMS.has(normalizeScopeKey(subCategory))
                       ? scope

@@ -19,7 +19,6 @@ type Props = {
   breadcrumbByNodeId: Map<string, string>;
   expandedAccessNodeIds: string[];
   onSetExpandedAccessNodeIds: (ids: string[] | ((current: string[]) => string[])) => void;
-  onSetPrimaryNodeId: (nodeId: string) => void;
   onReorderSelectedNodes: (draggedNodeId: string, targetNodeId: string) => void;
   onSetInfoNodeId: (nodeId: string | null) => void;
   getAccessBadgeLabel: (nodeId: string) => string;
@@ -32,7 +31,6 @@ export function SelectedNodesPanel({
   breadcrumbByNodeId,
   expandedAccessNodeIds,
   onSetExpandedAccessNodeIds,
-  onSetPrimaryNodeId,
   onReorderSelectedNodes,
   onSetInfoNodeId,
   getAccessBadgeLabel,
@@ -69,7 +67,7 @@ export function SelectedNodesPanel({
       <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-200/60 pb-3">
         <div>
           <h3 className="text-sm font-bold text-slate-800">Selected Nodes</h3>
-          <p className="mt-0.5 text-xs text-slate-500">Drag to reorder or click to select.</p>
+          <p className="mt-0.5 text-xs text-slate-500">Drag to reorder or click to expand.</p>
         </div>
       </div>
 
@@ -108,13 +106,11 @@ export function SelectedNodesPanel({
                     tabIndex={0}
                     onClick={() => {
                       onSetExpandedAccessNodeIds((current) => (current.includes(node.id) ? current : [...current, node.id]));
-                      onSetPrimaryNodeId(node.id);
                     }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
                         onSetExpandedAccessNodeIds((current) => (current.includes(node.id) ? current : [...current, node.id]));
-                        onSetPrimaryNodeId(node.id);
                       }
                     }}
                     onDragOver={(event) => {

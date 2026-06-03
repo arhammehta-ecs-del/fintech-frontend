@@ -204,12 +204,20 @@ export function UserManagePreview({
   const oldRequestPrimaryAccess = mapRequestAccessEntries(requestOldData.primary, "PRIMARY");
   const oldRequestSecondaryAccess = mapRequestAccessEntries(requestOldData.secondary, "SECONDARY");
   const oldRequestPermissionsAccess = mapRequestPermissionsEntries(requestOldData.permissions);
-  const previousAccessDetails: RequestAccessEntry[] =
+  const currentPrimaryAccess = (member.accessDetails ?? []).filter((permission) => permission.accessType === "PRIMARY") as RequestAccessEntry[];
+  const currentSecondaryAccess = (member.accessDetails ?? []).filter((permission) => permission.accessType !== "PRIMARY") as RequestAccessEntry[];
+  const previousAccessDetailsFromRequest: RequestAccessEntry[] =
     oldRequestPermissionsAccess.length > 0
       ? oldRequestPermissionsAccess
       : oldRequestPrimaryAccess.length > 0 || oldRequestSecondaryAccess.length > 0
         ? [...oldRequestPrimaryAccess, ...oldRequestSecondaryAccess]
         : [];
+  const previousPrimaryAccess: RequestAccessEntry[] =
+    oldRequestPrimaryAccess.length > 0 ? oldRequestPrimaryAccess : currentPrimaryAccess;
+  const previousSecondaryAccess: RequestAccessEntry[] =
+    previousAccessDetailsFromRequest.length > 0
+      ? previousAccessDetailsFromRequest.filter((permission) => permission.accessType !== "PRIMARY")
+      : currentSecondaryAccess;
   const toPermissionKey = (permission: RequestAccessEntry) =>
     [
       (permission.roleCategory || "").trim().toUpperCase(),
@@ -225,20 +233,24 @@ export function UserManagePreview({
   const addedRequestPermissions = requestPermissionsAccess.filter((permission) => !permission.remove);
   const mergePermissions = (items: RequestAccessEntry[]) =>
     Array.from(new Map(items.map((permission) => [toPermissionKey(permission), permission])).values());
-  const hasRemovePermissions = removedPermissionKeys.size > 0;
-  const effectiveAccessDetails: RequestAccessEntry[] =
-    hasRemovePermissions
+  const hasPermissionDeltaEntries = requestPermissionsAccess.length > 0;
+  const effectivePrimaryAccess: RequestAccessEntry[] =
+    requestPrimaryAccess.length > 0 ? requestPrimaryAccess : currentPrimaryAccess;
+  const effectiveSecondaryAccess: RequestAccessEntry[] =
+    requestType === "UPDATE" && hasPermissionDeltaEntries
       ? mergePermissions([
-          ...previousAccessDetails.filter((permission) => !removedPermissionKeys.has(toPermissionKey(permission))),
+          ...previousSecondaryAccess.filter((permission) => !removedPermissionKeys.has(toPermissionKey(permission))),
           ...addedRequestPermissions,
         ])
       : requestPermissionsAccess.length > 0
         ? requestPermissionsAccess
         : requestPrimaryAccess.length > 0 || requestSecondaryAccess.length > 0
-          ? [...requestPrimaryAccess, ...requestSecondaryAccess]
-          : isHistoryPreviewActive && (previousAccessDetails.length > 0)
-            ? previousAccessDetails
-            : member.accessDetails ?? [];
+          ? requestSecondaryAccess
+          : previousSecondaryAccess;
+  const effectiveAccessDetails: RequestAccessEntry[] = [
+    ...effectivePrimaryAccess,
+    ...effectiveSecondaryAccess,
+  ];
   const effectiveMember: AppUser = {
     ...member,
     basicDetails: {
@@ -274,8 +286,8 @@ export function UserManagePreview({
   const avatar = getAvatarColor(userData.name);
 
   const accessDetails = effectiveMember.accessDetails ?? [];
-  const previousPrimaryByNode = groupByNode(previousAccessDetails.filter((a) => a.accessType === "PRIMARY"));
-  const previousSecondaryByNode = groupByNode(previousAccessDetails.filter((a) => a.accessType !== "PRIMARY"));
+  const previousPrimaryByNode = groupByNode(previousPrimaryAccess);
+  const previousSecondaryByNode = groupByNode(previousSecondaryAccess);
   const primaryItems = accessDetails.filter((a) => a.accessType === "PRIMARY");
   const secondaryItemsRaw = accessDetails.filter((a) => a.accessType !== "PRIMARY");
   const secondaryItems =

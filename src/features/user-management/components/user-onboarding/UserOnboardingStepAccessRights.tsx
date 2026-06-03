@@ -38,7 +38,6 @@ type StepAccessRightsProps = {
   nodePermissions: Record<string, NodePermissionBuckets>;
   nodePermissionScopes: Record<string, NodePermissionScopeBuckets>;
   onSetExpandedAccessNodeIds: (ids: string[] | ((current: string[]) => string[])) => void;
-  onSetPrimaryNodeId: (nodeId: string) => void;
   onReorderSelectedNodes: (draggedNodeId: string, targetNodeId: string) => void;
   onSetInfoNodeId: (nodeId: string | null) => void;
   onTogglePermission: (
@@ -58,7 +57,6 @@ type StepAccessRightsProps = {
   ) => void;
 };
 
-
 export function UserOnboardingStepAccessRights({
   orgStructure,
   selectedNodes,
@@ -70,7 +68,6 @@ export function UserOnboardingStepAccessRights({
   nodePermissions,
   nodePermissionScopes,
   onSetExpandedAccessNodeIds,
-  onSetPrimaryNodeId,
   onReorderSelectedNodes,
   onSetInfoNodeId,
   onTogglePermission,
@@ -79,8 +76,15 @@ export function UserOnboardingStepAccessRights({
   const branchMetaMap = buildBranchMetaMap(orgStructure);
   const breadcrumbByNodeId = useMemo(() => buildNodeBreadcrumbMap(orgStructure), [orgStructure]);
   const primarySelectedNode = selectedNodes.find((node) => node.id === primaryNodeId) ?? selectedNodes[0] ?? null;
+  const selectedNodeIndexMap = useMemo(
+    () => new Map(selectedNodes.map((node, index) => [node.id, index + 1] as const)),
+    [selectedNodes],
+  );
   const secondarySelectedNodes = selectedNodes;
-  const selectedNodeIndexMap = new Map(selectedNodes.map((node, index) => [node.id, index + 1] as const));
+  const secondarySelectedNodeIndexMap = useMemo(
+    () => new Map(secondarySelectedNodes.map((node, index) => [node.id, index + 1] as const)),
+    [secondarySelectedNodes],
+  );
   const getAccessBadgeLabel = useCallback(
     (nodeId: string) => {
       const nodeOrder = selectedNodeIndexMap.get(nodeId) ?? 0;
@@ -182,13 +186,15 @@ export function UserOnboardingStepAccessRights({
     );
   };
 
-  const areAllExpanded = selectedNodes.length > 0 && selectedNodes.every((node) => expandedAccessNodeIds.includes(node.id));
+  const areAllExpanded =
+    secondarySelectedNodes.length > 0 &&
+    secondarySelectedNodes.every((node) => expandedAccessNodeIds.includes(node.id));
 
   const toggleExpandAll = () => {
     if (areAllExpanded) {
       onSetExpandedAccessNodeIds([]);
     } else {
-      onSetExpandedAccessNodeIds(selectedNodes.map(n => n.id));
+      onSetExpandedAccessNodeIds(secondarySelectedNodes.map((node) => node.id));
     }
   };
 
@@ -208,7 +214,6 @@ export function UserOnboardingStepAccessRights({
           breadcrumbByNodeId={breadcrumbByNodeId}
           expandedAccessNodeIds={expandedAccessNodeIds}
           onSetExpandedAccessNodeIds={onSetExpandedAccessNodeIds}
-          onSetPrimaryNodeId={onSetPrimaryNodeId}
           onReorderSelectedNodes={onReorderSelectedNodes}
           onSetInfoNodeId={onSetInfoNodeId}
           getAccessBadgeLabel={getAccessBadgeLabel}
@@ -308,7 +313,7 @@ export function UserOnboardingStepAccessRights({
                 {secondarySelectedNodes.length > 0 ? (
                   secondarySelectedNodes.map((node) => {
                     const isExpanded = expandedAccessNodeIds.includes(node.id);
-                    const nodeIndex = selectedNodeIndexMap.get(node.id) ?? 0;
+                    const nodeIndex = secondarySelectedNodeIndexMap.get(node.id) ?? 0;
 
                     return (
                       <div key={node.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/40 shadow-sm">

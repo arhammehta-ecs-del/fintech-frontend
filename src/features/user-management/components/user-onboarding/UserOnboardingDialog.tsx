@@ -202,7 +202,6 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
                   nodePermissions={nodePermissions}
                   nodePermissionScopes={nodePermissionScopes}
                   onSetExpandedAccessNodeIds={setExpandedAccessNodeIds}
-                  onSetPrimaryNodeId={setPrimaryNodeId}
                   onReorderSelectedNodes={reorderSelectedNodes}
                   onSetInfoNodeId={setInfoNodeId}
                   onTogglePermission={togglePermission}

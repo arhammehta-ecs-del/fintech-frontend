@@ -38,6 +38,40 @@ type BranchMeta = {
   branchDepth: number;
 };
 
+type NodeDiffStatus = "added" | "removed" | null;
+
+type SecondaryReviewEntry = {
+  node: OrgNode;
+  nodeId: string;
+  diffStatus: NodeDiffStatus;
+};
+
+const EMPTY_NODES: OrgNode[] = [];
+
+const getNodeDiffTheme = (status: NodeDiffStatus) => {
+  if (status === "added") {
+    return {
+      wrapper: "border-emerald-300 bg-white",
+    };
+  }
+
+  if (status === "removed") {
+    return {
+      wrapper: "border-rose-200 bg-rose-50/40",
+      leftBorder: "border-l-rose-500",
+      badge: "border-rose-300 bg-rose-50 text-rose-700",
+      title: "text-rose-700",
+    };
+  }
+
+  return {
+    wrapper: "border-slate-200 bg-white",
+    leftBorder: "",
+    badge: "",
+    title: "text-slate-800",
+  };
+};
+
 const buildNodeBreadcrumbMap = (root: OrgNode | null) => {
   const map = new Map<string, string>();
   if (!root) return map;
@@ -219,18 +253,12 @@ const getSelectedSections = (
   });
 };
 
-const countSelectedRights = (permissions: UserOnboardingPermissions) =>
-  Object.values(permissions).reduce(
-    (categoryTotal, items) =>
-      categoryTotal +
-      Object.values(items).reduce(
-        (itemTotal, rights) => itemTotal + Object.values(rights as Record<string, boolean>).filter(Boolean).length,
-        0,
-      ),
-    0,
-  );
-
 const normalizeValue = (value?: string) => (value || "").trim();
+
+const hasSelectedRights = (
+  permissions: UserOnboardingPermissions,
+  permissionScopes: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>,
+) => getSelectedSections(permissions, permissionScopes).length > 0;
 
 const DiffValue = ({
   previousValue,
@@ -265,6 +293,7 @@ const DiffValue = ({
 function NodePermissionCard({
   node,
   isDiffMode = false,
+  diffStatus = null,
   badgeLabel,
   permissions,
   previousPermissions,
@@ -277,6 +306,7 @@ function NodePermissionCard({
 }: {
   node: OrgNode;
   isDiffMode?: boolean;
+  diffStatus?: NodeDiffStatus;
   badgeLabel: string;
   permissions: UserOnboardingPermissions;
   previousPermissions?: UserOnboardingPermissions;
@@ -293,6 +323,10 @@ function NodePermissionCard({
   const displaySections = selectedSections.length > 0 ? selectedSections : (isDiffMode ? previousSections : []);
   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
   const parentSubtitle = isRoot ? "" : formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "");
+  const diffTheme = getNodeDiffTheme(diffStatus);
+  const nodeBorderLeftClass = diffStatus === "removed" ? "border-l-rose-500" : getNodeBorderLeftClass(node, branchMetaMap);
+  const nodeBadgeClass = diffStatus === "removed" ? "border-rose-300 bg-rose-50 text-rose-700" : getNodeBadgeClass(node, branchMetaMap);
+  const nodeTitleClass = diffStatus === "removed" ? "text-rose-700" : "text-slate-800";
 
   const buildLookup = (
     sourcePermissions: UserOnboardingPermissions,
@@ -322,8 +356,9 @@ function NodePermissionCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-xl border border-l-[4px] border-slate-200 bg-white p-3 shadow-sm",
-        getNodeBorderLeftClass(node, branchMetaMap),
+        "relative overflow-hidden rounded-xl border border-l-[4px] p-3 shadow-sm",
+        diffTheme.wrapper,
+        nodeBorderLeftClass,
         hasRemovedOnly && "border-rose-200 bg-rose-50/40",
       )}
     >
@@ -338,11 +373,11 @@ function NodePermissionCard({
         </button>
       ) : null}
         <div className="mb-3 flex items-center gap-3">
-          <div className={cn("flex h-9 w-9 items-center justify-center rounded-full border text-xs font-bold", getNodeBadgeClass(node, branchMetaMap))}>
+          <div className={cn("flex h-9 w-9 items-center justify-center rounded-full border text-xs font-bold", nodeBadgeClass || getNodeBadgeClass(node, branchMetaMap))}>
             {badgeLabel}
           </div>
           <div>
-            <div className="text-[18px] font-semibold leading-tight text-slate-800">{node.name}</div>
+            <div className={cn("text-[18px] font-semibold leading-tight", nodeTitleClass)}>{node.name}</div>
             {!isRoot && parentSubtitle ? <div className="text-[11px] font-medium text-slate-500">{parentSubtitle}</div> : null}
             {!isRoot ? <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{node.nodeType}</div> : null}
           </div>
@@ -475,7 +510,7 @@ export function UserOnboardingStepReviewSubmit({
   onSetIsReviewAccessExpanded,
 }: StepReviewSubmitProps) {
   const previousBasic = previousReviewSnapshot?.basic ?? null;
-  const previousSelectedNodes = previousReviewSnapshot?.selectedNodes ?? [];
+  const previousSelectedNodes = previousReviewSnapshot?.selectedNodes ?? EMPTY_NODES;
   const previousPrimaryNodeId = previousReviewSnapshot?.primaryNodeId ?? null;
   const previousNodePermissions = previousReviewSnapshot?.nodePermissions ?? {};
   const previousNodePermissionScopes = previousReviewSnapshot?.nodePermissionScopes ?? {};
@@ -494,25 +529,82 @@ export function UserOnboardingStepReviewSubmit({
     : null;
   const globalNodeName = (orgStructure?.name || selectedNodes[0]?.name || "-").trim() || "-";
   const primaryPermissions = primaryNode ? nodePermissions[primaryNode.id]?.primary ?? {} : {};
-  const secondaryNodesWithRights = selectedNodes.filter((node) => {
-    const buckets = nodePermissions[node.id];
-    return buckets && getSelectedSections(buckets.secondary, nodePermissionScopes[node.id]?.secondary ?? {}).length > 0;
-  });
-  const previousSecondaryNodesWithRights = previousSelectedNodes.filter((node) => {
-    const buckets = previousNodePermissions[node.id];
-    return buckets && getSelectedSections(buckets.secondary, previousNodePermissionScopes[node.id]?.secondary ?? {}).length > 0;
-  });
-  const primaryRightsCount = countSelectedRights(primaryPermissions);
-  const secondaryRightsCount = secondaryNodesWithRights.reduce(
-    (total, node) => total + countSelectedRights(nodePermissions[node.id]?.secondary ?? {}),
-    0,
+  const hasPrimaryChanged = Boolean(primaryNode?.id !== previousPrimaryNode?.id && (primaryNode || previousPrimaryNode));
+  const currentPrimaryDiffStatus: NodeDiffStatus = hasPrimaryChanged && primaryNode ? "added" : null;
+  const previousPrimaryReplacementNode = hasPrimaryChanged ? previousPrimaryNode : null;
+  const currentSecondaryNodeIds = selectedNodes
+    .filter((node) => hasSelectedRights(nodePermissions[node.id]?.secondary ?? {}, nodePermissionScopes[node.id]?.secondary ?? {}))
+    .map((node) => node.id);
+  const previousSecondaryNodeIds = previousSelectedNodes
+    .filter((node) =>
+      hasSelectedRights(previousNodePermissions[node.id]?.secondary ?? {}, previousNodePermissionScopes[node.id]?.secondary ?? {}),
+    )
+    .map((node) => node.id);
+  const currentSecondaryIndexById = useMemo(
+    () => new Map(currentSecondaryNodeIds.map((nodeId, index) => [nodeId, index])),
+    [currentSecondaryNodeIds],
+  );
+  const previousSecondaryIndexById = useMemo(
+    () => new Map(previousSecondaryNodeIds.map((nodeId, index) => [nodeId, index])),
+    [previousSecondaryNodeIds],
+  );
+  const secondaryReviewEntries = useMemo<SecondaryReviewEntry[]>(() => {
+    const currentNodeById = new Map(selectedNodes.map((node) => [node.id, node]));
+    const previousNodeById = new Map(previousSelectedNodes.map((node) => [node.id, node]));
+    const orderedIds = [...currentSecondaryNodeIds, ...previousSecondaryNodeIds.filter((nodeId) => !currentSecondaryNodeIds.includes(nodeId))];
+
+    return orderedIds
+      .map((nodeId) => {
+        const currentNode = currentNodeById.get(nodeId) ?? null;
+        const previousNode = previousNodeById.get(nodeId) ?? null;
+        const node = currentNode ?? previousNode;
+        if (!node) return null;
+        const currentSecondaryIndex = currentSecondaryIndexById.get(nodeId);
+        const previousSecondaryIndex = previousSecondaryIndexById.get(nodeId);
+        const movedBetweenPrimaryAndSecondary =
+          currentNode && previousNode && (previousPrimaryNodeId === nodeId || primaryNodeId === nodeId);
+        const reorderedWithinSecondary =
+          currentNode &&
+          previousNode &&
+          currentSecondaryIndex !== undefined &&
+          previousSecondaryIndex !== undefined &&
+          currentSecondaryIndex !== previousSecondaryIndex;
+
+        return {
+          node,
+          nodeId,
+          diffStatus:
+            currentNode && (!previousNode || movedBetweenPrimaryAndSecondary || reorderedWithinSecondary)
+              ? "added"
+              : !currentNode && previousNode
+                ? "removed"
+                : null,
+        };
+      })
+      .filter(Boolean) as SecondaryReviewEntry[];
+  }, [
+    currentSecondaryIndexById,
+    currentSecondaryNodeIds,
+    previousSecondaryIndexById,
+    previousSecondaryNodeIds,
+    previousPrimaryNodeId,
+    previousSelectedNodes,
+    primaryNodeId,
+    selectedNodes,
+  ]);
+  const secondaryBadgeByNodeId = useMemo(
+    () =>
+      new Map(
+        secondaryReviewEntries.map((entry, index) => [entry.nodeId, `S${index + 1}`]),
+      ),
+    [secondaryReviewEntries],
   );
   const collapsedSelectableIds = useMemo(() => {
     const ids: Array<"primary" | string> = [];
     if (primaryNode) ids.push("primary");
-    secondaryNodesWithRights.forEach((node) => ids.push(node.id));
+    secondaryReviewEntries.forEach((entry) => ids.push(entry.nodeId));
     return ids;
-  }, [primaryNode, secondaryNodesWithRights]);
+  }, [primaryNode, secondaryReviewEntries]);
 
   useEffect(() => {
     if (collapsedSelectableIds.length === 0 || (collapsedFocusedNodeId && !collapsedSelectableIds.includes(collapsedFocusedNodeId))) {
@@ -595,11 +687,14 @@ export function UserOnboardingStepReviewSubmit({
                         <NodePermissionCard
                           node={primaryNode}
                           isDiffMode={isEditMode}
+                          diffStatus={currentPrimaryDiffStatus}
                           badgeLabel="P1"
                           permissions={primaryPermissions}
-                          previousPermissions={previousPrimaryNode ? previousNodePermissions[previousPrimaryNode.id]?.primary ?? {} : {}}
+                          previousPermissions={hasPrimaryChanged ? {} : previousPrimaryNode ? previousNodePermissions[previousPrimaryNode.id]?.primary ?? {} : {}}
                           permissionScopes={nodePermissionScopes[primaryNode.id]?.primary ?? {}}
-                          previousPermissionScopes={previousPrimaryNode ? previousNodePermissionScopes[previousPrimaryNode.id]?.primary ?? {} : {}}
+                          previousPermissionScopes={
+                            hasPrimaryChanged ? {} : previousPrimaryNode ? previousNodePermissionScopes[previousPrimaryNode.id]?.primary ?? {} : {}
+                          }
                           branchMetaMap={branchMetaMap}
                           breadcrumbByNodeId={breadcrumbByNodeId}
                           emptyText="No primary access configured."
@@ -609,6 +704,21 @@ export function UserOnboardingStepReviewSubmit({
                           No primary access configured.
                         </div>
                       )}
+                      {previousPrimaryReplacementNode ? (
+                        <NodePermissionCard
+                          node={previousPrimaryReplacementNode}
+                          isDiffMode
+                          diffStatus="removed"
+                          badgeLabel="P1"
+                          permissions={{}}
+                          previousPermissions={previousNodePermissions[previousPrimaryReplacementNode.id]?.primary ?? {}}
+                          permissionScopes={{}}
+                          previousPermissionScopes={previousNodePermissionScopes[previousPrimaryReplacementNode.id]?.primary ?? {}}
+                          branchMetaMap={branchMetaMap}
+                          breadcrumbByNodeId={breadcrumbByNodeId}
+                          emptyText="No primary access configured."
+                        />
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -637,34 +747,28 @@ export function UserOnboardingStepReviewSubmit({
                   <span className="h-2 w-2 rounded-full bg-slate-400" />
                   <span className="text-[12px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
                 </div>
-                {secondaryNodesWithRights.length === 0 && previousSecondaryNodesWithRights.length === 0 ? (
+                {secondaryReviewEntries.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-5 text-sm text-slate-400">
                     No secondary access assigned.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {Array.from(new Set([...secondaryNodesWithRights.map((node) => node.id), ...previousSecondaryNodesWithRights.map((node) => node.id)]))
-                      .map((nodeId) => {
-                        const currentNode = selectedNodes.find((node) => node.id === nodeId) ?? null;
-                        const previousNode = previousSelectedNodes.find((node) => node.id === nodeId) ?? null;
-                        const node = currentNode ?? previousNode;
-                        if (!node) return null;
-                        return (
-                          <NodePermissionCard
-                            key={node.id}
-                            node={node}
-                            isDiffMode={isEditMode}
-                            badgeLabel={`S${Math.max(selectedNodes.findIndex((n) => n.id === node.id), previousSelectedNodes.findIndex((n) => n.id === node.id)) + 1}`}
-                            permissions={currentNode ? nodePermissions[node.id]?.secondary ?? {} : {}}
-                            previousPermissions={previousNode ? previousNodePermissions[node.id]?.secondary ?? {} : {}}
-                            permissionScopes={currentNode ? nodePermissionScopes[node.id]?.secondary ?? {} : {}}
-                            previousPermissionScopes={previousNode ? previousNodePermissionScopes[node.id]?.secondary ?? {} : {}}
-                            branchMetaMap={branchMetaMap}
-                            breadcrumbByNodeId={breadcrumbByNodeId}
-                            emptyText="No secondary access assigned."
-                          />
-                        );
-                      })}
+                    {secondaryReviewEntries.map((entry) => (
+                      <NodePermissionCard
+                        key={entry.nodeId}
+                        node={entry.node}
+                        isDiffMode={isEditMode}
+                        diffStatus={entry.diffStatus}
+                        badgeLabel={secondaryBadgeByNodeId.get(entry.nodeId) ?? "S1"}
+                        permissions={entry.diffStatus === "removed" ? {} : nodePermissions[entry.nodeId]?.secondary ?? {}}
+                        previousPermissions={previousNodePermissions[entry.nodeId]?.secondary ?? {}}
+                        permissionScopes={entry.diffStatus === "removed" ? {} : nodePermissionScopes[entry.nodeId]?.secondary ?? {}}
+                        previousPermissionScopes={previousNodePermissionScopes[entry.nodeId]?.secondary ?? {}}
+                        branchMetaMap={branchMetaMap}
+                        breadcrumbByNodeId={breadcrumbByNodeId}
+                        emptyText="No secondary access assigned."
+                      />
+                    ))}
                   </div>
                 )}
                 </div>
@@ -743,48 +847,69 @@ export function UserOnboardingStepReviewSubmit({
                     <span className="text-[12px] font-black uppercase tracking-widest text-blue-600">Primary Access</span>
                   </div>
                   {primaryNode ? (
-                    collapsedFocusedNodeId === "primary" ? (
-                      <NodePermissionCard
-                        node={primaryNode}
-                        isDiffMode={isEditMode}
-                        badgeLabel="P1"
-                        permissions={primaryPermissions}
-                        previousPermissions={previousPrimaryNode ? previousNodePermissions[previousPrimaryNode.id]?.primary ?? {} : {}}
-                        permissionScopes={nodePermissionScopes[primaryNode.id]?.primary ?? {}}
-                        previousPermissionScopes={previousPrimaryNode ? previousNodePermissionScopes[previousPrimaryNode.id]?.primary ?? {} : {}}
-                        branchMetaMap={branchMetaMap}
-                        breadcrumbByNodeId={breadcrumbByNodeId}
-                        emptyText="No primary access configured."
-                        onClose={() => setCollapsedFocusedNodeId(null)}
-                      />
-                    ) : (
-                  <button
-                        type="button"
-                        onClick={() => {
-                          setCollapsedFocusedNodeId("primary");
-                          onSetExpandedAccessNodeIds([primaryNode.id]);
-                        }}
-                        className={cn(
-                          "flex w-full items-center gap-2 rounded-md border border-l-[4px] border-slate-200 bg-white px-2.5 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
-                          getNodeBorderLeftClass(primaryNode, branchMetaMap),
-                          getNodeHoverClass(primaryNode, branchMetaMap),
-                        )}
-                      >
-                        <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold", getNodeBadgeClass(primaryNode, branchMetaMap))}>
-                          P1
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold text-slate-700">{primaryNode.name}</div>
-                          {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(primaryNode.id) ? (
-                            <div className="break-words text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(primaryNode.id) || "")}</div>
-                          ) : null}
-                          {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" ? (
-                            <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{primaryNode.nodeType}</div>
-                          ) : null}
-                        </div>
-                        <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      </button>
-                    )
+                    <>
+                      {collapsedFocusedNodeId === "primary" ? (
+                        <NodePermissionCard
+                          node={primaryNode}
+                          isDiffMode={isEditMode}
+                          diffStatus={currentPrimaryDiffStatus}
+                          badgeLabel="P1"
+                          permissions={primaryPermissions}
+                          previousPermissions={hasPrimaryChanged ? {} : previousPrimaryNode ? previousNodePermissions[previousPrimaryNode.id]?.primary ?? {} : {}}
+                          permissionScopes={nodePermissionScopes[primaryNode.id]?.primary ?? {}}
+                          previousPermissionScopes={
+                            hasPrimaryChanged ? {} : previousPrimaryNode ? previousNodePermissionScopes[previousPrimaryNode.id]?.primary ?? {} : {}
+                          }
+                          branchMetaMap={branchMetaMap}
+                          breadcrumbByNodeId={breadcrumbByNodeId}
+                          emptyText="No primary access configured."
+                          onClose={() => setCollapsedFocusedNodeId(null)}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCollapsedFocusedNodeId("primary");
+                            onSetExpandedAccessNodeIds([primaryNode.id]);
+                          }}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-md border border-l-[4px] px-2.5 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
+                            currentPrimaryDiffStatus ? "border-emerald-300 bg-white hover:border-emerald-300 hover:bg-emerald-50/70" : "border-slate-200 bg-white",
+                            getNodeBorderLeftClass(primaryNode, branchMetaMap),
+                            !currentPrimaryDiffStatus && getNodeHoverClass(primaryNode, branchMetaMap),
+                          )}
+                        >
+                          <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold", getNodeBadgeClass(primaryNode, branchMetaMap))}>
+                            P1
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-slate-700">{primaryNode.name}</div>
+                            {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(primaryNode.id) ? (
+                              <div className="break-words text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(primaryNode.id) || "")}</div>
+                            ) : null}
+                            {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" ? (
+                              <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{primaryNode.nodeType}</div>
+                            ) : null}
+                          </div>
+                          <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        </button>
+                      )}
+                      {previousPrimaryReplacementNode ? (
+                        <NodePermissionCard
+                          node={previousPrimaryReplacementNode}
+                          isDiffMode
+                          diffStatus="removed"
+                          badgeLabel="P1"
+                          permissions={{}}
+                          previousPermissions={previousNodePermissions[previousPrimaryReplacementNode.id]?.primary ?? {}}
+                          permissionScopes={{}}
+                          previousPermissionScopes={previousNodePermissionScopes[previousPrimaryReplacementNode.id]?.primary ?? {}}
+                          branchMetaMap={branchMetaMap}
+                          breadcrumbByNodeId={breadcrumbByNodeId}
+                          emptyText="No primary access configured."
+                        />
+                      ) : null}
+                    </>
                   ) : (
                     <div className="text-xs text-slate-500">No primary access configured.</div>
                   )}
@@ -798,51 +923,71 @@ export function UserOnboardingStepReviewSubmit({
                   <span className="h-2 w-2 rounded-full bg-slate-400" />
                   <span className="text-[12px] font-black uppercase tracking-widest text-slate-500">Secondary Access</span>
                 </div>
-                {secondaryNodesWithRights.length === 0 ? (
+                {secondaryReviewEntries.length === 0 ? (
                   <div className="text-xs text-slate-500">No secondary access assigned.</div>
                 ) : (
-                  secondaryNodesWithRights.map((node) =>
-                    collapsedFocusedNodeId === node.id ? (
-                      <NodePermissionCard
-                        key={`${node.id}-expanded`}
-                        node={node}
-                        badgeLabel={`S${selectedNodes.findIndex((n) => n.id === node.id) + 1}`}
-                        permissions={nodePermissions[node.id].secondary}
-                        permissionScopes={nodePermissionScopes[node.id]?.secondary ?? {}}
-                        branchMetaMap={branchMetaMap}
-                        breadcrumbByNodeId={breadcrumbByNodeId}
-                        emptyText="No secondary access assigned."
-                        onClose={() => setCollapsedFocusedNodeId(null)}
-                      />
-                    ) : (
-                      <button
-                        key={`${node.id}-collapsed`}
-                        type="button"
-                        onClick={() => {
-                          setCollapsedFocusedNodeId(node.id);
-                          onSetExpandedAccessNodeIds([node.id]);
-                        }}
-                        className={cn(
-                          "flex w-full items-center gap-2 rounded-md border border-l-[4px] border-slate-200 bg-white px-2.5 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
-                          getNodeBorderLeftClass(node, branchMetaMap),
-                          getNodeHoverClass(node, branchMetaMap),
-                        )}
-                      >
-                        <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold", getNodeBadgeClass(node, branchMetaMap))}>
-                          {`S${selectedNodes.findIndex((n) => n.id === node.id) + 1}`}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold text-slate-700">{node.name}</div>
-                          {node.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(node.id) ? (
-                            <div className="break-words text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "")}</div>
-                          ) : null}
-                          {node.nodeType.trim().toUpperCase() !== "ROOT" ? (
-                            <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</div>
-                          ) : null}
-                        </div>
-                        <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      </button>
-                    ),
+                  secondaryReviewEntries.map((entry) =>
+                    (() => {
+                      const diffTheme = getNodeDiffTheme(entry.diffStatus);
+
+                      return collapsedFocusedNodeId === entry.nodeId ? (
+                        <NodePermissionCard
+                          key={`${entry.nodeId}-expanded`}
+                          node={entry.node}
+                          isDiffMode={isEditMode}
+                          diffStatus={entry.diffStatus}
+                          badgeLabel={secondaryBadgeByNodeId.get(entry.nodeId) ?? "S1"}
+                          permissions={entry.diffStatus === "removed" ? {} : nodePermissions[entry.nodeId]?.secondary ?? {}}
+                          previousPermissions={previousNodePermissions[entry.nodeId]?.secondary ?? {}}
+                          permissionScopes={entry.diffStatus === "removed" ? {} : nodePermissionScopes[entry.nodeId]?.secondary ?? {}}
+                          previousPermissionScopes={previousNodePermissionScopes[entry.nodeId]?.secondary ?? {}}
+                          branchMetaMap={branchMetaMap}
+                          breadcrumbByNodeId={breadcrumbByNodeId}
+                          emptyText="No secondary access assigned."
+                          onClose={() => setCollapsedFocusedNodeId(null)}
+                        />
+                      ) : (
+                        <button
+                          key={`${entry.nodeId}-collapsed`}
+                          type="button"
+                          onClick={() => {
+                            setCollapsedFocusedNodeId(entry.nodeId);
+                            onSetExpandedAccessNodeIds([entry.nodeId]);
+                          }}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-md border border-l-[4px] px-2.5 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
+                            entry.diffStatus ? diffTheme.wrapper : "border-slate-200 bg-white",
+                            entry.diffStatus === "removed" ? "border-l-rose-500 hover:border-rose-300 hover:bg-rose-50/70" : getNodeBorderLeftClass(entry.node, branchMetaMap),
+                            entry.diffStatus === "added"
+                              ? "hover:border-emerald-300 hover:bg-emerald-50/70"
+                              : entry.diffStatus === "removed"
+                                ? ""
+                                : getNodeHoverClass(entry.node, branchMetaMap),
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold",
+                              entry.diffStatus === "removed" ? "border-rose-300 bg-rose-50 text-rose-700" : getNodeBadgeClass(entry.node, branchMetaMap),
+                            )}
+                          >
+                            {secondaryBadgeByNodeId.get(entry.nodeId) ?? "S1"}
+                          </div>
+                          <div className="min-w-0">
+                            <div className={cn("text-xs font-semibold", entry.diffStatus === "removed" ? "text-rose-700" : "text-slate-700")}>
+                              {entry.node.name}
+                            </div>
+                            {entry.node.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(entry.node.id) ? (
+                              <div className="break-words text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(entry.node.id) || "")}</div>
+                            ) : null}
+                            {entry.node.nodeType.trim().toUpperCase() !== "ROOT" ? (
+                              <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{entry.node.nodeType}</div>
+                            ) : null}
+                          </div>
+                          <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        </button>
+                      );
+                    })()
                   )
                 )}
               </div>

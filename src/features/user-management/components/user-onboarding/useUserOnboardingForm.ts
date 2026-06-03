@@ -4,12 +4,12 @@ import type { AppUser } from "@/contexts/AppContext";
 import type { RoleRecord } from "@/services/role.service";
 import { getCompanyRoles } from "@/services/role.service";
 import { fetchCompanyNodesWithAccess, fetchCompanyUsersPaginated } from "@/services/user.service";
+import { USER_FILTER_CONFIG } from "@/features/user-management/constants";
 import type {
   UserOnboardingFormData,
   NodePermissionBuckets,
   NodePermissionScopeBuckets,
   SystemAccessScope,
-  UserOnboardingPermissions,
   PermissionAction,
   ValidationErrors,
 } from "@/features/user-management/types";
@@ -21,6 +21,19 @@ import {
   validateUserOnboardingStep,
 } from "@/features/user-management/utils";
 import { buildOrgTreeFromCompanyNodes, buildWorkflowOptions } from "./useUserOnboardingForm.utils";
+
+const isSignatorySeedMember = (seedMember: AppUser) => {
+  const designation = (seedMember.designation || seedMember.basicDetails?.designation || "").trim().toLowerCase();
+  const name = (seedMember.name || seedMember.basicDetails?.name || "").trim().toLowerCase();
+  const role = (seedMember.role || "").trim().toLowerCase();
+
+  return (
+    role === "signatory" ||
+    USER_FILTER_CONFIG.roleType.signatoryDesignationKeywords.some(
+      (keyword) => designation.includes(keyword) || name.includes(keyword),
+    )
+  );
+};
 
 type UseUserOnboardingFormOptions = {
   open: boolean;
@@ -288,6 +301,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
     const selectedPrimaryNodeId = primaryCandidate || nodeOrder[0] || null;
     const selectedWorkflow = (seedMember.basicDetails?.workflowName || "").trim();
     const selectedWorkflowAlias = (seedMember.basicDetails?.alias || "").trim();
+    const isGlobalSignatory = isSignatorySeedMember(seedMember);
 
     const seedEmployeeId = seedMember.employeeId || seedMember.basicDetails?.employeeId || "";
 
@@ -303,6 +317,8 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
         reportingManagerName: seedMember.basicDetails?.reportingManagerName || seedMember.manager?.name || "",
         reportingManagerEmail: seedMember.basicDetails?.reportingManagerEmail || seedMember.manager?.email || "",
       },
+      isGlobalUserEligible: current.isGlobalUserEligible,
+      isGlobalSignatory,
       nodeSelections: nodeOrder.map((nodePath) => {
         const nodeMeta =
           accessRows.find((row) => (row.nodePath || "").trim() === nodePath) ||
@@ -424,7 +440,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
     setExpandedAccessNodeIds((current) => {
       return current.filter(id => selectedNodes.some(node => node.id === id));
     });
-  }, [selectedNodes]);
+  }, [roles, selectedNodes]);
 
   useEffect(() => {
     if (selectedNodes.length === 0) return;
@@ -677,31 +693,6 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
           }
         }
 
-        const pendingNodes = selectedNodes.filter((node) => {
-          const permissions = nodePermissions[node.id];
-          if (!permissions) return true;
-
-          const selectedCount = (Object.values(permissions) as UserOnboardingPermissions[]).reduce(
-            (bucketTotal, bucketPermissions) =>
-              bucketTotal +
-              Object.values(bucketPermissions).reduce((categoryTotal, categoryItems) => {
-                return (
-                  categoryTotal +
-                  Object.values(categoryItems).reduce((itemTotal, permissionItem) => {
-                    return itemTotal + Object.values(permissionItem).filter(Boolean).length;
-                  }, 0)
-                );
-              }, 0),
-            0,
-          );
-
-          return selectedCount === 0;
-        });
-
-        if (pendingNodes.length > 0) {
-          nextErrors.accessRights = `You need to select rights for: ${pendingNodes.map((node) => node.name).join(", ")}.`;
-          setExpandedAccessNodeIds([pendingNodes[0].id]);
-        }
       }
 
       setErrors(nextErrors);
