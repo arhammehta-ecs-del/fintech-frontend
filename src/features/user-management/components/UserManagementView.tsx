@@ -648,6 +648,7 @@ export function UserManagementView() {
           {viewingMember ? (
             <UserManagePreview
               member={viewingMember}
+              currentTab={statusTab}
               onApprovePending={handleActivateMember}
               onRejectPending={handleDeactivateMember}
               onToggleActiveStatus={(member, isActive) => {

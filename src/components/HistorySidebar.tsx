@@ -34,6 +34,11 @@ export type HistoryEntry = {
     time: string;
   };
   status: HistoryStatus;
+  changeSummaryBadges?: Array<{
+    key: string;
+    label: string;
+    tone?: "added" | "modified" | "removed";
+  }>;
 };
 
 export type HistorySidebarProps = {
@@ -120,6 +125,13 @@ function StatusHeader({ item }: { item: HistoryEntry }) {
     </div>
   );
 }
+
+const getChangeSummaryBadgeClassName = (tone?: "added" | "modified" | "removed") => {
+  if (tone === "added") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (tone === "modified") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (tone === "removed") return "border-rose-200 bg-rose-50 text-rose-700";
+  return "border-slate-200 bg-slate-50 text-slate-600";
+};
 
 function ActorFooter({ item }: { item: HistoryEntry }) {
   const actor = item.status === "approved" && item.approver?.name
@@ -225,16 +237,34 @@ function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewM
             >
               <StatusHeader item={item} />
               <div className="mb-2 flex items-start justify-between gap-3 px-1">
-                <h4 className="min-w-0 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
-                {onViewMore ? (
-                  <button
-                    type="button"
-                    onClick={() => onViewMore(item)}
-                    className="shrink-0 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                  >
-                    View More
-                  </button>
-                ) : null}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <h4 className="min-w-0 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {item.changeSummaryBadges && item.changeSummaryBadges.length > 0 ? (
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          {item.changeSummaryBadges.map((badge) => (
+                            <span
+                              key={badge.key}
+                              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getChangeSummaryBadgeClassName(badge.tone)}`}
+                            >
+                              {badge.label}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      {onViewMore ? (
+                        <button
+                          type="button"
+                          onClick={() => onViewMore(item)}
+                          className="shrink-0 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                        >
+                          View More
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="mb-2 px-1">
                 <p className="text-[11.5px] leading-relaxed text-slate-600">{item.details}</p>

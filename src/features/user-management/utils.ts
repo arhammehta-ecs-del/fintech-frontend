@@ -174,6 +174,7 @@ export const buildUserUpdatePayload = (formData: UserOnboardingFormData, seedMem
   const nextPermissionKeys = new Set(fullPayload.permissions.map((permission) => toPermissionKey(permission)));
 
   const removedPermissions = existingPermissions
+    .filter((permission) => (permission.accessType || "").trim().toUpperCase() !== "PRIMARY")
     .filter((permission) => !nextPermissionKeys.has(toPermissionKey(permission)))
     .map((permission) => ({
       roleCategory: permission.roleCategory as UserOnboardingPermission["roleCategory"],

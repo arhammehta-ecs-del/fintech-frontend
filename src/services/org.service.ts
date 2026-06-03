@@ -268,6 +268,7 @@ const mergePendingUpdatesIntoActiveNodes = (activeNodes: OrgNode[], pendingRecor
       typeof record.data === "object" && record.data !== null
         ? (record.data as RawOrgRecord)
         : record;
+    const requestId = getString(record, ["id", "requestId"], "").trim();
     const requestType = getString(requestData, ["type"], getString(record, ["type"], "")).trim().toUpperCase();
     if (requestType !== "UPDATE") return;
 
@@ -295,6 +296,7 @@ const mergePendingUpdatesIntoActiveNodes = (activeNodes: OrgNode[], pendingRecor
       getString(requestData, ["status"], getString(record, ["status"], "")).trim().toUpperCase();
 
     matchedNode.isPending = true;
+    matchedNode.uuid = requestId || matchedNode.uuid;
     matchedNode.pendingRequestType = "UPDATE";
     matchedNode.pendingOldData = pendingOldData;
     matchedNode.pendingNewData = pendingNewData;

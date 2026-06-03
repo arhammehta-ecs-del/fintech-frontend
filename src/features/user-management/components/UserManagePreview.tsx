@@ -46,6 +46,7 @@ import type { HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 
 export function UserManagePreview({
   member,
+  currentTab = "active",
   onApprovePending,
   onRejectPending,
   onToggleActiveStatus,
@@ -70,6 +71,7 @@ export function UserManagePreview({
   historyDetailOverride = null,
 }: {
   member: AppUser;
+  currentTab?: "active" | "pending" | "inactive";
   onApprovePending?: (member: AppUser, remark?: string) => void;
   onRejectPending?: (member: AppUser, remark?: string) => void;
   onToggleActiveStatus?: (member: AppUser, isActive: boolean) => void;
@@ -175,7 +177,7 @@ export function UserManagePreview({
   const requestNewBasicDetails = toRecord(requestNewData.basicDetails);
   const isPendingMember = member.status === "Pending" || Boolean(member.isPending);
   const historyFallbackBasicDetails = isHistoryPreviewActive ? requestOldBasicDetails : {};
-  const canShowPendingActions = isPendingMember && !isHistoryPreviewActive;
+  const canShowPendingActions = isPendingMember && currentTab === "pending" && !isHistoryPreviewActive;
   const hasOwn = (record: Record<string, unknown>, key: string) => Object.prototype.hasOwnProperty.call(record, key);
   const hasOldBasicField = (field: string) => hasOwn(requestOldBasicDetails, field);
   const hasAnyBasicField = (field: string) => hasOldBasicField(field) || hasOwn(requestNewBasicDetails, field);

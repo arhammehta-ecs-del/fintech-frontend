@@ -16,6 +16,7 @@ import type { HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 type WorkflowManageDialogProps = {
   open: boolean;
   workflow: WorkflowRecord | null;
+  currentTab?: "Active" | "Pending" | "Inactive";
   onClose: () => void;
   onSubmitAction: (workflow: WorkflowRecord, action: "approve" | "reject", remark: string) => Promise<void>;
   onRequestStatusWorkflowOptions?: (workflow: WorkflowRecord) => Promise<Array<{ id: string; label: string }>>;
@@ -97,6 +98,7 @@ const applyPendingDataView = (
 export default function WorkflowManageDialog({
   open,
   workflow,
+  currentTab = "Active",
   onClose,
   onSubmitAction,
   onRequestStatusWorkflowOptions,
@@ -214,7 +216,7 @@ export default function WorkflowManageDialog({
     PROFILE_UPDATE: "border-sky-200 bg-sky-100 text-sky-700",
   };
   const hiddenImpactTokens = new Set(["", "NO_ISSUES", "NO ISSUES", "NONE", "NA", "N/A"]);
-  const canShowPendingActions = isPending && !isHistoryPreviewActive;
+  const canShowPendingActions = isPending && currentTab === "Pending" && !isHistoryPreviewActive;
   const isPendingInactiveRequest =
     canShowPendingActions && (
       normalizedRequestType === "INACTIVE" ||

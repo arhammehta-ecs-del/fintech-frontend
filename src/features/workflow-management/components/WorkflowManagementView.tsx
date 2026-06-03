@@ -952,6 +952,7 @@ export default function WorkflowManagementView() {
       <WorkflowManageDialog
         open={!!manageWorkflow}
         workflow={manageWorkflow}
+        currentTab={activeStatus}
         onClose={() => {
           void closeManageWorkflowDialog();
         }}

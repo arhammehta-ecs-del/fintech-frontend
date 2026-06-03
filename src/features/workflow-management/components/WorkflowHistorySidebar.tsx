@@ -46,6 +46,50 @@ const toEpochMs = (value: unknown) => {
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
 };
 
+const readCount = (value: unknown) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+};
+
+const formatLevelCountLabel = (count: number, action: "added" | "modified" | "removed") =>
+  `${count} level${count === 1 ? "" : "s"} ${action}`;
+
+const getChangeSummaryBadges = (record: RawHistoryRecord): HistoryEntry["changeSummaryBadges"] => {
+  const changeCount = toRecord(record.changeCount);
+  const added = readCount(changeCount.added);
+  const modified = readCount(changeCount.modify);
+  const removed = readCount(changeCount.remove);
+
+  const badges: NonNullable<HistoryEntry["changeSummaryBadges"]> = [];
+  if (added > 0) {
+    badges.push({
+      key: "added",
+      label: formatLevelCountLabel(added, "added"),
+      tone: "added",
+    });
+  }
+  if (modified > 0) {
+    badges.push({
+      key: "modified",
+      label: formatLevelCountLabel(modified, "modified"),
+      tone: "modified",
+    });
+  }
+  if (removed > 0) {
+    badges.push({
+      key: "removed",
+      label: formatLevelCountLabel(removed, "removed"),
+      tone: "removed",
+    });
+  }
+
+  return badges.length > 0 ? badges : undefined;
+};
+
 const getHistorySubject = (record: RawHistoryRecord, fallbackWorkflowName: string) => {
   const payload = toRecord(record.data);
   return (
@@ -144,6 +188,7 @@ const mapWorkflowHistoryEntry = (
       }
       : undefined,
     status: isPendingAction ? "pending" : "approved",
+    changeSummaryBadges: getChangeSummaryBadges(record),
   };
 };
 
