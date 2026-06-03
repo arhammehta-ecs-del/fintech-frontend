@@ -67,6 +67,7 @@ export function UserManagementView() {
     clearAdvancedFilters,
     isLoading,
     currentMembers,
+    pendingMembers,
     paginatedMembers,
     pageSize,
     setPageSize,
@@ -182,7 +183,8 @@ export function UserManagementView() {
       return;
     }
 
-    const candidates = [...paginatedMembers, ...currentMembers].filter(
+    const sourceMembers = notificationAction === "approve" ? pendingMembers : [...paginatedMembers, ...currentMembers];
+    const candidates = sourceMembers.filter(
       (member, index, array) =>
         array.findIndex(
           (candidate) =>
@@ -196,7 +198,7 @@ export function UserManagementView() {
       const memberRequestId = (member.requestId || "").trim();
       const memberEmail = (member.email || "").trim().toLowerCase();
       const basicEmail = (member.basicDetails?.email || "").trim().toLowerCase();
-      if (referenceId && (memberId === referenceId || memberUuid === referenceId || memberRequestId === referenceId)) return true;
+      if (referenceId && (memberRequestId === referenceId || memberId === referenceId || memberUuid === referenceId)) return true;
       if (Boolean(email) && (memberEmail === email || basicEmail === email)) return true;
       if (!email) return false;
       const requestNewEmail = `${member.basicDetails?.requestNewData?.targetUserEmail ?? ""}`.trim().toLowerCase();
@@ -224,6 +226,7 @@ export function UserManagementView() {
   }, [
     currentMembers,
     hasLoadedUsersOnce,
+    pendingMembers,
     paginatedMembers,
     searchParams,
     setSearchParams,

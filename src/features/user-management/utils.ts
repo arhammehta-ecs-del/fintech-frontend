@@ -182,7 +182,6 @@ export const buildUserUpdatePayload = (formData: UserOnboardingFormData, seedMem
       roleName: permission.roleName,
       nodeName: permission.nodeName,
       nodePath: permission.nodePath,
-      nodeType: permission.nodeType,
       accessCategory: permission.accessCategory ?? null,
       accessType: permission.accessType,
       remove: true as const,

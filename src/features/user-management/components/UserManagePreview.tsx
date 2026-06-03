@@ -130,7 +130,8 @@ export function UserManagePreview({
       }))
       .filter((row) => row.nodeName || row.nodePath);
   };
-  const mapRequestPermissionsEntries = (source: unknown): NonNullable<AppUser["accessDetails"]> => {
+  type RequestAccessEntry = NonNullable<AppUser["accessDetails"]>[number] & { remove?: boolean };
+  const mapRequestPermissionsEntries = (source: unknown): RequestAccessEntry[] => {
     if (!Array.isArray(source)) return [];
     return source
       .map((row) => toRecord(row))
@@ -150,6 +151,7 @@ export function UserManagePreview({
             return null;
           })(),
           accessType,
+          remove: Boolean(row.remove),
         };
       })
       .filter((row) => row.nodeName || row.nodePath);
@@ -202,22 +204,41 @@ export function UserManagePreview({
   const oldRequestPrimaryAccess = mapRequestAccessEntries(requestOldData.primary, "PRIMARY");
   const oldRequestSecondaryAccess = mapRequestAccessEntries(requestOldData.secondary, "SECONDARY");
   const oldRequestPermissionsAccess = mapRequestPermissionsEntries(requestOldData.permissions);
-  const effectiveAccessDetails =
-    requestPermissionsAccess.length > 0
-      ? requestPermissionsAccess
-      : requestPrimaryAccess.length > 0 || requestSecondaryAccess.length > 0
-        ? [...requestPrimaryAccess, ...requestSecondaryAccess]
-        : isHistoryPreviewActive && (oldRequestPermissionsAccess.length > 0 || oldRequestPrimaryAccess.length > 0 || oldRequestSecondaryAccess.length > 0)
-          ? oldRequestPermissionsAccess.length > 0
-            ? oldRequestPermissionsAccess
-            : [...oldRequestPrimaryAccess, ...oldRequestSecondaryAccess]
-          : member.accessDetails ?? [];
-  const previousAccessDetails =
+  const previousAccessDetails: RequestAccessEntry[] =
     oldRequestPermissionsAccess.length > 0
       ? oldRequestPermissionsAccess
       : oldRequestPrimaryAccess.length > 0 || oldRequestSecondaryAccess.length > 0
         ? [...oldRequestPrimaryAccess, ...oldRequestSecondaryAccess]
         : [];
+  const toPermissionKey = (permission: RequestAccessEntry) =>
+    [
+      (permission.roleCategory || "").trim().toUpperCase(),
+      (permission.roleSubCategory || "").trim(),
+      (permission.roleName || "").trim(),
+      (permission.nodePath || "").trim(),
+      (permission.accessType || "").trim().toUpperCase(),
+      (permission.accessCategory || "").trim().toUpperCase(),
+    ].join("|");
+  const removedPermissionKeys = new Set(
+    requestPermissionsAccess.filter((permission) => permission.remove).map((permission) => toPermissionKey(permission)),
+  );
+  const addedRequestPermissions = requestPermissionsAccess.filter((permission) => !permission.remove);
+  const mergePermissions = (items: RequestAccessEntry[]) =>
+    Array.from(new Map(items.map((permission) => [toPermissionKey(permission), permission])).values());
+  const hasRemovePermissions = removedPermissionKeys.size > 0;
+  const effectiveAccessDetails: RequestAccessEntry[] =
+    hasRemovePermissions
+      ? mergePermissions([
+          ...previousAccessDetails.filter((permission) => !removedPermissionKeys.has(toPermissionKey(permission))),
+          ...addedRequestPermissions,
+        ])
+      : requestPermissionsAccess.length > 0
+        ? requestPermissionsAccess
+        : requestPrimaryAccess.length > 0 || requestSecondaryAccess.length > 0
+          ? [...requestPrimaryAccess, ...requestSecondaryAccess]
+          : isHistoryPreviewActive && (previousAccessDetails.length > 0)
+            ? previousAccessDetails
+            : member.accessDetails ?? [];
   const effectiveMember: AppUser = {
     ...member,
     basicDetails: {
