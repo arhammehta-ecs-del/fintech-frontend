@@ -15,6 +15,7 @@ export type NotificationSsePacket = {
   type?: string;
   refType?: string;
   referenceId?: string | null;
+  target?: string | null;
   status?: string;
   isPending?: boolean;
   createdByname?: string;

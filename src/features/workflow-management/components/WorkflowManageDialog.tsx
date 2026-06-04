@@ -78,18 +78,31 @@ const applyPendingDataView = (
 ): WorkflowRecord => {
   const next = { ...base };
   const target = toRecord(source.target);
+  const statusRaw = readString(source.status).toUpperCase();
+  const workflowTypeRaw = readString(source.workflowType);
+  const levelsHashRaw = readString(source.levelsHash);
+  const nodePathRaw = readString(source.nodePath);
 
   if ("name" in source) next.name = readString(source.name) || next.name;
   if ("alias" in source) next.alias = readString(source.alias) || next.alias;
   if ("module" in source) next.rawModule = readString(source.module) || next.rawModule;
   if ("subModule" in source) next.subModule = readString(source.subModule) || next.subModule;
-  if ("nodePath" in source) next.nodePath = readString(source.nodePath) || next.nodePath;
+  if ("workflowType" in source) next.workflowType = workflowTypeRaw || next.workflowType;
+  if ("nodePath" in source) next.nodePath = nodePathRaw || next.nodePath;
   if ("levels" in source) next.levels = source.levels ?? next.levels;
+  if ("levelsHash" in source) next.levelsHash = levelsHashRaw || next.levelsHash;
+  if (statusRaw === "ACTIVE") next.status = "Active";
+  if (statusRaw === "INACTIVE") next.status = "Inactive";
+  if (statusRaw === "PENDING") next.status = "Pending";
 
   if ("module" in target) next.rawModule = readString(target.module) || next.rawModule;
   if ("subModule" in target) next.subModule = readString(target.subModule) || next.subModule;
   if ("nodePath" in target) next.nodePath = readString(target.nodePath) || next.nodePath;
   if ("levelsHash" in target) next.levelsHash = readString(target.levelsHash) || next.levelsHash;
+
+  if (next.subModule || next.rawModule) {
+    next.module = formatSnakeCaseLabel(next.subModule || next.rawModule || next.module || "");
+  }
 
   return next;
 };
@@ -169,6 +182,13 @@ export default function WorkflowManageDialog({
       }
       return workflow;
     }
+    if (isHistoryPreviewActive && Object.keys(pendingOldData).length > 0) {
+      const historyBase = applyPendingDataView(workflow, pendingOldData);
+      if (Object.keys(pendingNewData).length > 0) {
+        return applyPendingDataView(historyBase, pendingNewData);
+      }
+      return historyBase;
+    }
     const source = pendingNewData;
     if (!Object.keys(source).length) {
       if (isHistoryPreviewActive && Object.keys(pendingOldData).length > 0) {
@@ -217,6 +237,7 @@ export default function WorkflowManageDialog({
   };
   const hiddenImpactTokens = new Set(["", "NO_ISSUES", "NO ISSUES", "NONE", "NA", "N/A"]);
   const canShowPendingActions = isPending && currentTab === "Pending" && !isHistoryPreviewActive;
+  const isManageActionLocked = !canShowPendingActions && (Boolean(workflow.isPending) || isUpdateRequest);
   const isPendingInactiveRequest =
     canShowPendingActions && (
       normalizedRequestType === "INACTIVE" ||
@@ -382,18 +403,25 @@ export default function WorkflowManageDialog({
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
-              {onEdit && !isPending && !isHistoryPreviewActive && workflow.status !== "Inactive" ? (
+              {onEdit && !isHistoryPreviewActive && workflow.status === "Active" ? (
                 <TooltipProvider delayDuration={120}>
                   <Tooltip open={isEditTooltipOpen}>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
-                        onClick={() => onEdit(workflow)}
+                        disabled={isManageActionLocked}
+                        onClick={() => {
+                          if (isManageActionLocked) return;
+                          onEdit(workflow);
+                        }}
                         onMouseEnter={() => setIsEditTooltipOpen(true)}
                         onMouseLeave={() => setIsEditTooltipOpen(false)}
                         onFocus={() => setIsEditTooltipOpen(false)}
                         onBlur={() => setIsEditTooltipOpen(false)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
+                        className={cn(
+                          "inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50",
+                          "disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-40",
+                        )}
                         aria-label="Edit workflow"
                       >
                         <Pencil className="h-4 w-4" />
@@ -403,29 +431,39 @@ export default function WorkflowManageDialog({
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
-              {!isPending && !isHistoryPreviewActive && onSubmitStatusUpdate ? (
+              {!isHistoryPreviewActive && workflow.status !== "Pending" && onSubmitStatusUpdate ? (
                 <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
                   <button
                     type="button"
+                    disabled={isManageActionLocked}
                     className={cn(
                       "rounded-full px-3 py-1 text-xs font-semibold transition",
                       currentWorkflowStatus === "active"
                         ? "bg-[#3553e9] text-white shadow-sm"
                         : "text-slate-600 hover:bg-slate-100",
+                      "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-40",
                     )}
-                    onClick={() => void handleStatusToggle("active")}
+                    onClick={() => {
+                      if (isManageActionLocked) return;
+                      void handleStatusToggle("active");
+                    }}
                   >
                     Active
                   </button>
                   <button
                     type="button"
+                    disabled={isManageActionLocked}
                     className={cn(
                       "rounded-full px-3 py-1 text-xs font-semibold transition",
                       currentWorkflowStatus === "inactive"
                         ? "bg-[#3553e9] text-white shadow-sm"
                         : "text-slate-600 hover:bg-slate-100",
+                      "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-40",
                     )}
-                    onClick={() => void handleStatusToggle("inactive")}
+                    onClick={() => {
+                      if (isManageActionLocked) return;
+                      void handleStatusToggle("inactive");
+                    }}
                   >
                     Inactive
                   </button>

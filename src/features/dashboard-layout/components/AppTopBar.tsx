@@ -44,6 +44,7 @@ type NotificationItem = {
   entity: NotificationEntity;
   refType: string | null;
   referenceId: string | null;
+  target: string | null;
   rawType: string;
   message: string;
   previewMessage: string;
@@ -252,6 +253,7 @@ export function AppTopBar({
       entity: mapRefTypeToEntity(packet.refType),
       refType: packet.refType?.trim().toUpperCase() || null,
       referenceId: packet.referenceId?.trim() || null,
+      target: packet.target?.trim() || null,
       rawType: String(packet.type ?? "").trim().toUpperCase(),
       message,
       previewMessage: buildNotificationPreview(message),
@@ -438,6 +440,7 @@ export function AppTopBar({
 
     if (notification.refType) searchParams.set("notif_ref_type", notification.refType);
     if (notification.referenceId) searchParams.set("notif_ref_id", notification.referenceId);
+    if (notification.target) searchParams.set("notif_target", notification.target);
     if (notification.rawType) searchParams.set("notif_type", notification.rawType);
     if (notification.extractedEmail) searchParams.set("notif_email", notification.extractedEmail);
     if (notification.extractedEntityName) searchParams.set("notif_entity_name", notification.extractedEntityName);
@@ -520,7 +523,11 @@ export function AppTopBar({
     const styles = statusStyles[notification.badgeTone];
     const isExpanded = expandedNotificationIds.includes(notification.id);
     const messageToShow = isExpanded ? notification.message : notification.previewMessage;
-    const canShowViewDetails = !(!notification.isPending && notification.rawType.trim().toUpperCase() === "MODIFICATION");
+    const normalizedRefType = String(notification.refType ?? "").trim().toUpperCase();
+    const normalizedRawType = notification.rawType.trim().toUpperCase();
+    const canShowViewDetails =
+      !(!notification.isPending && normalizedRawType === "MODIFICATION") &&
+      !(normalizedRefType === "ORG" && normalizedRawType === "REJECT");
 
     return (
       <div

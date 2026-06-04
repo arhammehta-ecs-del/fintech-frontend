@@ -27,7 +27,7 @@ const getPendingHistoryContext = (node: OrgNode) => {
       : (node.nodePath || "").trim();
   const parentNodePath = targetNodePath.includes(".")
     ? targetNodePath.split(".").slice(0, -1).join(".").trim()
-    : "";
+    : targetNodePath;
 
   return {
     nodeName: node.name.trim(),
@@ -107,6 +107,15 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const isAnyOrgDialogOpen = isNewNodePopupOpen || Boolean(pendingNodeForReview) || Boolean(statusUpdateNode);
   const historyLayoutOffset =
     isOrgHistoryOpen && historyViewContext === "pending" ? { top: 0, left: 0 } : shellOffset;
+
+  const handleClosePendingNodePopup = () => {
+    setPendingNodeForReview(null);
+    setIsOrgHistoryOpen(false);
+    setHistoryNodeName("");
+    setHistoryNodePath("");
+    setHistoryParentNodePath("");
+    setHistoryViewContext("active");
+  };
 
   useEffect(() => {
     const syncShellOffset = () => {
@@ -189,11 +198,19 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
       current.children.forEach((child) => stack.push(child));
     }
 
+    const pendingNodes = nodes.filter((node) => {
+      const normalizedStatus = (node.status || "").trim().toUpperCase();
+      const pendingRequestType = (node.pendingRequestType || "").trim().toUpperCase();
+      return Boolean(node.isPending) || normalizedStatus === "PENDING" || pendingRequestType === "UPDATE";
+    });
+    const candidateNodes = notificationAction === "approve" ? pendingNodes : nodes;
+
     const matchedNode =
-      nodes.find((node) => {
+      candidateNodes.find((node) => {
         const nodeId = (node.id || "").trim();
         const nodeUuid = (node.uuid || "").trim();
         if (referenceId && (nodeId === referenceId || nodeUuid === referenceId)) return true;
+        if (notificationAction === "approve" && referenceId) return false;
         if (!entityName) return false;
         const nodeName = (node.name || "").trim().toLowerCase();
         const nodePath = (node.nodePath || "").trim().toLowerCase();
@@ -211,7 +228,9 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     const isModificationNotification =
       notificationType.includes("MODIF") || (matchedNode.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
 
-    if (notificationAction === "approve" || isModificationNotification || matchedNode.status === "Pending" || matchedNode.isPending) {
+    if (notificationAction === "approve") {
+      handleDepartmentClick(matchedNode);
+    } else if (isModificationNotification || matchedNode.status === "Pending" || matchedNode.isPending) {
       setPendingNodeForReview(matchedNode);
     } else {
       handleDepartmentClick(matchedNode);
@@ -532,7 +551,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
       <PendingNodePopup
         open={!!pendingNodeForReview}
         node={pendingNodeForReview}
-        onClose={() => setPendingNodeForReview(null)}
+        onClose={handleClosePendingNodePopup}
         onApprove={handleApproveNode}
         onReject={handleRejectNode}
         isHistoryOpen={isOrgHistoryOpen}

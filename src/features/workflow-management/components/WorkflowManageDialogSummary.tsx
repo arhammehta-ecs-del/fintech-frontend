@@ -234,14 +234,14 @@ export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
                 <div
                   key={id}
                   className={cn(
-                    "flex min-h-[64px] items-center gap-4 rounded-xl border p-2.5 shadow-sm",
+                    "flex min-h-[64px] items-center gap-4 rounded-xl border border-l-[4px] p-2.5 shadow-sm",
                     isRemoved
-                      ? "border-rose-300 bg-rose-50/70 shadow-[0_8px_24px_rgba(244,63,94,0.10)]"
+                      ? "border-rose-300 border-l-rose-500 bg-rose-50/70 shadow-[0_8px_24px_rgba(244,63,94,0.10)]"
                       : isAdded
-                        ? "border-emerald-300 bg-emerald-50/80 shadow-[0_8px_24px_rgba(16,185,129,0.12)]"
+                        ? "border-emerald-300 border-l-emerald-500 bg-emerald-50 shadow-[0_10px_26px_rgba(16,185,129,0.18)] ring-1 ring-emerald-200/80"
                         : isChanged
-                          ? "border-amber-300 bg-amber-50/80 shadow-[0_8px_24px_rgba(245,158,11,0.12)]"
-                          : "border-slate-100 bg-white",
+                          ? "border-amber-300 border-l-amber-500 bg-amber-50/80 shadow-[0_8px_24px_rgba(245,158,11,0.12)]"
+                          : "border-slate-100 border-l-slate-200 bg-white",
                   )}
                 >
                   <div
@@ -262,29 +262,46 @@ export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
                     {Array.from({ length: slotCount }).map((_, approvalIdx) => {
                       const currentApproval = currentApprovals[approvalIdx];
                       const prevApproval = previousApprovals[approvalIdx];
-                      const approvalChanged = Boolean(currentApproval || prevApproval) && (currentApproval?.option || "") !== (prevApproval?.option || "");
-                      const approvalAdded = Boolean(currentApproval?.option) && !prevApproval?.option;
-                      const nextLabel = currentApproval
-                        ? APPROVAL_OPTIONS.find((option) => option.id === currentApproval.option)?.label || currentApproval.option || "Not Assigned"
+                      const currentOption = currentApproval?.option?.trim() || "";
+                      const previousOption = prevApproval?.option?.trim() || "";
+                      const approvalChanged = Boolean(currentOption || previousOption) && currentOption !== previousOption;
+                      const approvalAdded = Boolean(currentOption) && !previousOption;
+                      const approvalRemoved = Boolean(previousOption) && !currentOption;
+                      const nextLabel = currentOption
+                        ? APPROVAL_OPTIONS.find((option) => option.id === currentOption)?.label || currentOption || "Not Assigned"
                         : "-";
+                      const previousLabel = previousOption
+                        ? APPROVAL_OPTIONS.find((option) => option.id === previousOption)?.label || previousOption || "Not Assigned"
+                        : "";
                       return (
                         <div key={`${level.id}-${approvalIdx}`} className="flex items-center gap-4">
                           {approvalIdx > 0 ? <span className="text-[10px] font-black uppercase text-slate-300">{current?.type || previous?.type || "-"}</span> : null}
                           <div className="flex flex-col">
                             <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400">Approver {approvalIdx + 1}</span>
-                            <span
-                              className={cn(
-                                "text-xs font-semibold",
-                                isRemoved
-                                  ? "text-rose-800"
-                                  : isAdded || approvalAdded || approvalChanged
-                                    ? "text-emerald-800"
-                                    : isChanged
-                                      ? "text-amber-900"
-                                    : "text-slate-800",
+                            <span className="text-xs font-semibold text-slate-800">
+                              {isRemoved || approvalRemoved ? (
+                                <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-rose-600 line-through">
+                                  {previousLabel || nextLabel}
+                                </span>
+                              ) : approvalChanged ? (
+                                <>
+                                  {previousLabel ? (
+                                    <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-rose-600 line-through">
+                                      {previousLabel}
+                                    </span>
+                                  ) : null}
+                                  {previousLabel ? <span className="px-1 text-slate-400">→</span> : null}
+                                  <span className="rounded border border-emerald-100 bg-emerald-50 px-1 py-0.5 text-emerald-700">
+                                    {nextLabel}
+                                  </span>
+                                </>
+                              ) : isAdded || approvalAdded ? (
+                                <span className="rounded border border-emerald-100 bg-emerald-50 px-1 py-0.5 text-emerald-700">
+                                  {nextLabel}
+                                </span>
+                              ) : (
+                                nextLabel
                               )}
-                            >
-                              {nextLabel}
                             </span>
                           </div>
                         </div>

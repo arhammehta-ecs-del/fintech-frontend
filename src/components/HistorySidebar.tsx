@@ -48,6 +48,7 @@ export type HistorySidebarProps = {
   subtitle: string;
   showSystemGenerated?: boolean;
   data: HistoryEntry[];
+  isLoading?: boolean;
   dockOffset?: {
     top: number;
     left: number;
@@ -107,7 +108,7 @@ function StatusHeader({ item }: { item: HistoryEntry }) {
           : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
 
   return (
-    <div className="mb-3 flex items-center border-b border-slate-100 pb-3">
+    <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
       <div className={`flex items-center gap-1.5 rounded border px-2 py-1 ${badgeClassName}`}>
         {tone === "pending" ? (
           <Clock className="h-3 w-3" />
@@ -122,6 +123,18 @@ function StatusHeader({ item }: { item: HistoryEntry }) {
         )}
         <span className="text-[10px] font-bold uppercase tracking-tight">{item.action}</span>
       </div>
+      {item.changeSummaryBadges && item.changeSummaryBadges.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {item.changeSummaryBadges.map((badge) => (
+            <span
+              key={badge.key}
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getChangeSummaryBadgeClassName(badge.tone)}`}
+            >
+              {badge.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -241,18 +254,6 @@ function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewM
                   <div className="flex items-start justify-between gap-3">
                     <h4 className="min-w-0 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
                     <div className="flex shrink-0 items-center gap-2">
-                      {item.changeSummaryBadges && item.changeSummaryBadges.length > 0 ? (
-                        <div className="flex flex-wrap items-center justify-end gap-1.5">
-                          {item.changeSummaryBadges.map((badge) => (
-                            <span
-                              key={badge.key}
-                              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getChangeSummaryBadgeClassName(badge.tone)}`}
-                            >
-                              {badge.label}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
                       {onViewMore ? (
                         <button
                           type="button"
@@ -324,6 +325,7 @@ export function HistorySidebar({
   subtitle,
   showSystemGenerated = true,
   data,
+  isLoading = false,
   dockOffset,
   splitView = false,
   panelWidth = 560,
@@ -474,7 +476,7 @@ export function HistorySidebar({
   return (
     <div
       className={[
-        "fixed bottom-0 right-0 z-[60] flex min-h-0 justify-end overflow-hidden font-sans transition-[width,height,top] duration-500",
+        "fixed bottom-0 right-0 z-[60] flex min-h-0 justify-end overflow-hidden font-sans transition-[width,height,top] duration-300",
         splitView && !isOpen ? "pointer-events-none" : "pointer-events-auto",
       ].join(" ")}
       style={
@@ -493,7 +495,7 @@ export function HistorySidebar({
       <div
         ref={panelRef}
         className={[
-          "relative flex h-full w-full min-h-0 flex-col overflow-hidden bg-white transition-[transform,opacity] duration-500 will-change-[transform,opacity]",
+          "relative flex h-full w-full min-h-0 flex-col overflow-hidden bg-white transition-[transform,opacity] duration-300 will-change-[transform,opacity]",
           splitView ? "border-l border-slate-200 shadow-none" : "max-w-[560px] border-l border-slate-200 shadow-2xl",
           splitView && !isOpen ? "translate-x-3 opacity-0" : "translate-x-0 opacity-100",
         ].join(" ")}
@@ -535,7 +537,39 @@ export function HistorySidebar({
           className="custom-scrollbar flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-6 pr-3"
           style={{ scrollbarGutter: "stable", WebkitOverflowScrolling: "touch" }}
         >
-          {Object.entries(structuredHistory)
+          {isLoading ? (
+            Array.from({ length: 3 }).map((_, index) => (
+              <div key={`history-loading-${index}`} className="relative pl-14">
+                <div className="absolute left-0 top-0 h-9 w-[52px] animate-pulse rounded-xl border border-slate-200 bg-white" />
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div className="h-7 w-32 animate-pulse rounded-md bg-slate-100" />
+                    <div className="h-5 w-24 animate-pulse rounded-full bg-slate-100" />
+                  </div>
+                  <div className="space-y-2 px-1">
+                    <div className="h-4 w-28 animate-pulse rounded bg-slate-100" />
+                    <div className="h-3 w-full animate-pulse rounded bg-slate-100" />
+                    <div className="h-3 w-5/6 animate-pulse rounded bg-slate-100" />
+                  </div>
+                  <div className="mt-4 flex items-center justify-between rounded-b-[14px] border-t border-slate-100 bg-slate-50/50 px-4 pb-4 pt-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-6 w-6 animate-pulse rounded-full bg-slate-100" />
+                      <div className="space-y-1">
+                        <div className="h-3 w-24 animate-pulse rounded bg-slate-100" />
+                        <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
+                      </div>
+                    </div>
+                    <div className="h-3 w-24 animate-pulse rounded bg-slate-100" />
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : Object.keys(structuredHistory).length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
+              <p className="text-sm font-semibold text-slate-700">No history available</p>
+              <p className="mt-1 text-xs text-slate-500">Timeline entries will appear here once activity is recorded.</p>
+            </div>
+          ) : Object.entries(structuredHistory)
             .sort((a, b) => Number(b[0]) - Number(a[0]))
             .map(([year, months], index, array) => {
               const showYearLine = array.length > 1;

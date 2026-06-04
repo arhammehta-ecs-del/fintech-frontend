@@ -202,16 +202,19 @@ export default function WorkflowHistorySidebar({
   panelWidth,
 }: WorkflowHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (!isOpen || !workflow) {
       setHistoryData([]);
+      setIsLoading(false);
       return;
     }
 
     let isMounted = true;
     const loadHistory = async () => {
+      setIsLoading(true);
       try {
         const levelsHash = (workflow.levelsHash || workflow.id || "").trim();
         const module = workflow.rawModule?.trim() || workflow.module?.trim() || null;
@@ -233,6 +236,8 @@ export default function WorkflowHistorySidebar({
       } catch (error) {
         const message = getApiErrorMessage(error, "Failed to fetch workflow history.");
         toast({ title: "Unable to load workflow history", description: message, variant: "destructive" });
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     };
 
@@ -263,6 +268,7 @@ export default function WorkflowHistorySidebar({
       subtitle={workflow?.name || "Unknown Workflow"}
       showSystemGenerated={false}
       data={historyData}
+      isLoading={isLoading}
       dockOffset={dockOffset}
       splitView={splitView}
       panelWidth={panelWidth}

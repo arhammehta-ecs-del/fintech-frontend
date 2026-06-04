@@ -83,6 +83,7 @@ function NodeSidebarContent({
     return next;
   }, [department, isUpdateRequest, showPrevious]);
   const effectiveStatus = displayDepartment?.status === "Inactive" ? "Inactive" : "Active";
+  const isStatusToggleLocked = Boolean(department?.isPending) || isUpdateRequest;
 
   const showBreadcrumbs = breadcrumbs.length > 1 || breadcrumbs[0] !== (department?.name ?? "Organisation");
   const compactBreadcrumbs = buildCompactBreadcrumbs(breadcrumbs);
@@ -130,24 +131,28 @@ function NodeSidebarContent({
         <div className="mt-4 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm">
           <button
             type="button"
+            disabled={isStatusToggleLocked}
             onClick={() => onRequestStatusChange?.(true)}
             className={cn(
               "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
               effectiveStatus === "Active"
                 ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
                 : "text-slate-500 hover:text-slate-700",
+              "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-40",
             )}
           >
             Active
           </button>
           <button
             type="button"
+            disabled={isStatusToggleLocked}
             onClick={() => onRequestStatusChange?.(false)}
             className={cn(
               "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
               effectiveStatus === "Inactive"
                 ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
                 : "text-slate-500 hover:text-slate-700",
+              "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-40",
             )}
           >
             Inactive
@@ -245,7 +250,7 @@ export function NodeSidebar({
   return (
     <aside
       className={cn(
-        "h-full min-w-0 self-stretch overflow-hidden border-l border-slate-200 bg-white transition-[opacity,transform] duration-500",
+        "h-full min-w-0 self-stretch overflow-hidden border-l border-slate-200 bg-white transition-[opacity,transform] duration-300",
         open ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-8 opacity-0",
       )}
       style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}

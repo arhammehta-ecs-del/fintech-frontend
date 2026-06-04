@@ -26,6 +26,7 @@ const fuzzyMatch = (text: string, query: string) => {
 
 export function useWorkflowManagement() {
   const { toast } = useToast();
+  const toastRef = useRef(toast);
   const isFetchingRef = useRef(false);
   const [activeStatus, setActiveStatus] = useState<WorkflowStatus>("Active");
   const [search, setSearch] = useState("");
@@ -49,6 +50,10 @@ export function useWorkflowManagement() {
   const [workflows, setWorkflows] = useState<WorkflowRecord[]>([]);
   const [hasNewWorkflowEvent, setHasNewWorkflowEvent] = useState(false);
   const [hasLoadedWorkflowsOnce, setHasLoadedWorkflowsOnce] = useState(false);
+
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
 
   useEffect(() => {
     const trimmedSearch = search.trim();
@@ -321,7 +326,7 @@ export function useWorkflowManagement() {
         }, true);
       } catch (error) {
         if (!isMounted) return;
-        toast({
+        toastRef.current({
           title: "Unable to load workflows",
           description: getApiErrorMessage(error, "Failed to fetch workflows."),
           variant: "destructive",
@@ -332,7 +337,7 @@ export function useWorkflowManagement() {
     return () => {
       isMounted = false;
     };
-  }, [activeStatus, debouncedSearch, pageSize, fetchPage, toast]);
+  }, [activeStatus, debouncedSearch, pageSize, fetchPage]);
 
   const totalPages = Math.max(1, resolvedTotalPages);
   const safePage = page;

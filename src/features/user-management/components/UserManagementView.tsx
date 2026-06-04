@@ -192,12 +192,21 @@ export function UserManagementView() {
             (candidate.email || "").trim().toLowerCase() === (member.email || "").trim().toLowerCase(),
         ) === index,
     );
-    const matchedMember = candidates.find((member) => {
+    const matchedByReferenceId = referenceId
+      ? candidates.find((member) => {
+          const memberRequestId = (member.requestId || "").trim();
+          const memberId = (member.id || "").trim();
+          const memberUuid = (member.uuid || "").trim();
+          return memberRequestId === referenceId || memberId === referenceId || memberUuid === referenceId;
+        }) ?? null
+      : null;
+    const matchedMember = matchedByReferenceId ?? candidates.find((member) => {
       const memberId = (member.id || "").trim();
       const memberUuid = (member.uuid || "").trim();
       const memberRequestId = (member.requestId || "").trim();
       const memberEmail = (member.email || "").trim().toLowerCase();
       const basicEmail = (member.basicDetails?.email || "").trim().toLowerCase();
+      if (notificationAction === "approve" && referenceId) return false;
       if (referenceId && (memberRequestId === referenceId || memberId === referenceId || memberUuid === referenceId)) return true;
       if (Boolean(email) && (memberEmail === email || basicEmail === email)) return true;
       if (!email) return false;
@@ -579,7 +588,7 @@ export function UserManagementView() {
       {viewingMember && typeof document !== "undefined"
         ? createPortal(
             <div
-              className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm transition-[top,left,width,height,opacity] duration-500"
+              className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm transition-[top,left,width,height,opacity] duration-300"
               style={
                 canUseSplitHistory
                   ? {
@@ -625,7 +634,7 @@ export function UserManagementView() {
           }}
           className={
             canUseSplitHistory
-              ? "flex flex-col overflow-hidden rounded-none p-0 max-w-none transition-[top,left,width,height,transform] duration-500 will-change-[width] data-[state=open]:animate-none data-[state=closed]:animate-none"
+              ? "flex flex-col overflow-hidden rounded-none p-0 max-w-none transition-[top,left,width,height,transform] duration-300 will-change-[width] data-[state=open]:animate-none data-[state=closed]:animate-none"
               : "flex h-[92vh] w-[96vw] max-w-[1200px] flex-col overflow-hidden p-0 transition-[transform,opacity] duration-350 data-[state=open]:animate-none data-[state=closed]:animate-none"
           }
           style={

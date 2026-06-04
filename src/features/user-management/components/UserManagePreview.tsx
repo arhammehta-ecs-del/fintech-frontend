@@ -158,6 +158,10 @@ export function UserManagePreview({
       })
       .filter((row) => row.nodeName || row.nodePath);
   };
+  const splitAccessEntriesByType = (entries: RequestAccessEntry[]) => ({
+    primary: entries.filter((entry) => entry.accessType === "PRIMARY"),
+    secondary: entries.filter((entry) => entry.accessType !== "PRIMARY"),
+  });
   const historyOldData = historyDetailOverride?.mode === "comparison" ? toRecord(historyDetailOverride.oldData) : {};
   const historyNewData =
     historyDetailOverride?.mode === "comparison"
@@ -203,19 +207,32 @@ export function UserManagePreview({
   const requestPrimaryAccess = mapRequestAccessEntries(selectedRequestData.primary, "PRIMARY");
   const requestSecondaryAccess = mapRequestAccessEntries(selectedRequestData.secondary, "SECONDARY");
   const requestPermissionsAccess = mapRequestPermissionsEntries(selectedRequestData.permissions);
+  const requestPermissionsAccessByType = splitAccessEntriesByType(requestPermissionsAccess);
   const oldRequestPrimaryAccess = mapRequestAccessEntries(requestOldData.primary, "PRIMARY");
   const oldRequestSecondaryAccess = mapRequestAccessEntries(requestOldData.secondary, "SECONDARY");
   const oldRequestPermissionsAccess = mapRequestPermissionsEntries(requestOldData.permissions);
+  const oldRequestPermissionsRecord = toRecord(requestOldData.permissions);
+  const oldRequestPermissionRemovedEntries = mapRequestPermissionsEntries(oldRequestPermissionsRecord.removed);
+  const oldRequestPermissionUpdatedEntries = mapRequestPermissionsEntries(oldRequestPermissionsRecord.updated);
+  const oldRequestPermissionDiffEntries =
+    oldRequestPermissionsAccess.length > 0
+      ? oldRequestPermissionsAccess
+      : [...oldRequestPermissionRemovedEntries, ...oldRequestPermissionUpdatedEntries];
+  const oldRequestPermissionDiffEntriesByType = splitAccessEntriesByType(oldRequestPermissionDiffEntries);
   const currentPrimaryAccess = (member.accessDetails ?? []).filter((permission) => permission.accessType === "PRIMARY") as RequestAccessEntry[];
   const currentSecondaryAccess = (member.accessDetails ?? []).filter((permission) => permission.accessType !== "PRIMARY") as RequestAccessEntry[];
   const previousAccessDetailsFromRequest: RequestAccessEntry[] =
-    oldRequestPermissionsAccess.length > 0
-      ? oldRequestPermissionsAccess
+    oldRequestPermissionDiffEntries.length > 0
+      ? oldRequestPermissionDiffEntries
       : oldRequestPrimaryAccess.length > 0 || oldRequestSecondaryAccess.length > 0
         ? [...oldRequestPrimaryAccess, ...oldRequestSecondaryAccess]
         : [];
   const previousPrimaryAccess: RequestAccessEntry[] =
-    oldRequestPrimaryAccess.length > 0 ? oldRequestPrimaryAccess : currentPrimaryAccess;
+    oldRequestPrimaryAccess.length > 0
+      ? oldRequestPrimaryAccess
+      : oldRequestPermissionDiffEntriesByType.primary.length > 0
+        ? oldRequestPermissionDiffEntriesByType.primary
+        : currentPrimaryAccess;
   const previousSecondaryAccess: RequestAccessEntry[] =
     previousAccessDetailsFromRequest.length > 0
       ? previousAccessDetailsFromRequest.filter((permission) => permission.accessType !== "PRIMARY")
@@ -235,17 +252,21 @@ export function UserManagePreview({
   const addedRequestPermissions = requestPermissionsAccess.filter((permission) => !permission.remove);
   const mergePermissions = (items: RequestAccessEntry[]) =>
     Array.from(new Map(items.map((permission) => [toPermissionKey(permission), permission])).values());
-  const hasPermissionDeltaEntries = requestPermissionsAccess.length > 0;
+  const hasPermissionDeltaEntries = requestPermissionsAccess.some((permission) => permission.remove);
   const effectivePrimaryAccess: RequestAccessEntry[] =
-    requestPrimaryAccess.length > 0 ? requestPrimaryAccess : currentPrimaryAccess;
+    requestPrimaryAccess.length > 0
+      ? requestPrimaryAccess
+      : requestPermissionsAccessByType.primary.length > 0
+        ? requestPermissionsAccessByType.primary
+        : currentPrimaryAccess;
   const effectiveSecondaryAccess: RequestAccessEntry[] =
     requestType === "UPDATE" && hasPermissionDeltaEntries
       ? mergePermissions([
           ...previousSecondaryAccess.filter((permission) => !removedPermissionKeys.has(toPermissionKey(permission))),
           ...addedRequestPermissions,
         ])
-      : requestPermissionsAccess.length > 0
-        ? requestPermissionsAccess
+      : requestPermissionsAccessByType.secondary.length > 0
+        ? requestPermissionsAccessByType.secondary
         : requestPrimaryAccess.length > 0 || requestSecondaryAccess.length > 0
           ? requestSecondaryAccess
           : previousSecondaryAccess;
@@ -365,7 +386,9 @@ export function UserManagePreview({
   const showRemarkError = remarkTouched && !isRemarkValid;
   const isActive = member.status !== "Inactive";
   const showActiveToggle = member.status === "Active" || member.status === "Inactive";
+  const isActionLocked = Boolean(member.isPending);
   const handleInactiveToggleClick = () => {
+    if (isActionLocked) return;
     const targetActiveState = member.status === "Inactive";
     if (onRequestStatusToggle) {
       onRequestStatusToggle(member, targetActiveState);
@@ -519,12 +542,19 @@ export function UserManagePreview({
                     <TooltipTrigger asChild>
                       <button
                         type="button"
-                        onClick={() => onEdit(member)}
+                        disabled={isActionLocked}
+                        onClick={() => {
+                          if (isActionLocked) return;
+                          onEdit(member);
+                        }}
                         onMouseEnter={() => setIsEditTooltipOpen(true)}
                         onMouseLeave={() => setIsEditTooltipOpen(false)}
                         onFocus={() => setIsEditTooltipOpen(false)}
                         onBlur={() => setIsEditTooltipOpen(false)}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+                        className={cn(
+                          "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700",
+                          "disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-40",
+                        )}
                         aria-label="Edit user"
                       >
                         <Pencil className="h-4 w-4" />
@@ -537,8 +567,15 @@ export function UserManagePreview({
               {onDelete && member.status !== "Pending" ? (
                 <button
                   type="button"
-                  onClick={() => onDelete(member)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 transition hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700"
+                  disabled={isActionLocked}
+                  onClick={() => {
+                    if (isActionLocked) return;
+                    onDelete(member);
+                  }}
+                  className={cn(
+                    "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 transition hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700",
+                    "disabled:cursor-not-allowed disabled:border-rose-200 disabled:bg-rose-50 disabled:text-rose-300 disabled:opacity-40",
+                  )}
                   aria-label="Delete user"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -597,12 +634,17 @@ export function UserManagePreview({
               <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm">
                 <button
                   type="button"
-                  onClick={() => (onRequestStatusToggle ? onRequestStatusToggle(member, true) : onToggleActiveStatus?.(member, true))}
+                  disabled={isActionLocked}
+                  onClick={() => {
+                    if (isActionLocked) return;
+                    return onRequestStatusToggle ? onRequestStatusToggle(member, true) : onToggleActiveStatus?.(member, true);
+                  }}
                   className={cn(
                     "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
                     isActive
                       ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
                       : "text-slate-500 hover:text-slate-700",
+                    "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-40",
                   )}
                   aria-pressed={isActive}
                 >
@@ -610,12 +652,14 @@ export function UserManagePreview({
                 </button>
                 <button
                   type="button"
+                  disabled={isActionLocked}
                   onClick={handleInactiveToggleClick}
                   className={cn(
                     "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
                     !isActive
                       ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
                       : "text-slate-500 hover:text-slate-700",
+                    "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-40",
                   )}
                   aria-pressed={!isActive}
                 >

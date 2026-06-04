@@ -177,23 +177,30 @@ export default function OrgHistorySidebar({
   closeOnOutsideClick = true,
 }: OrgHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const resolvedNodePath = nodePath.trim();
+  const resolvedPendingParentNodePath = isPending
+    ? (parentNodePath.trim() || resolvedNodePath)
+    : "";
 
   useEffect(() => {
     if (!isOpen || !companyCode.trim()) {
       setHistoryData([]);
+      setIsLoading(false);
       return;
     }
 
     let isMounted = true;
     const loadHistory = async () => {
+      setIsLoading(true);
       try {
         const response = await fetchOrgHistory(
           (nodeName || subtitle).trim(),
-          nodePath.trim(),
+          resolvedNodePath,
           {
             isPending,
-            parentNodePath: isPending ? parentNodePath.trim() : "",
+            parentNodePath: resolvedPendingParentNodePath,
           },
         );
         if (!isMounted) return;
@@ -206,6 +213,8 @@ export default function OrgHistorySidebar({
       } catch (error) {
         const message = getApiErrorMessage(error, "Failed to fetch org history.");
         toast({ title: "Unable to load org history", description: message, variant: "destructive" });
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     };
 
@@ -213,7 +222,7 @@ export default function OrgHistorySidebar({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, companyCode, subtitle, nodeName, nodePath, isPending, parentNodePath, toast]);
+  }, [isOpen, companyCode, subtitle, nodeName, resolvedNodePath, isPending, resolvedPendingParentNodePath, toast]);
 
   return (
     <HistorySidebar
@@ -223,6 +232,7 @@ export default function OrgHistorySidebar({
       subtitle={subtitle || "Organisation Structure"}
       showSystemGenerated={false}
       data={historyData}
+      isLoading={isLoading}
       dockOffset={dockOffset}
       splitView={splitView}
       closeOnOutsideClick={closeOnOutsideClick}

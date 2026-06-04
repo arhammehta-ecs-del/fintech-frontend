@@ -45,6 +45,22 @@ export function NodeAccessCard({
   const isRemovedNode = changeState === "removed";
   const isAddedNode = changeState === "added";
   const isChangedNode = changeState === "changed";
+  const accentBorderClass = isRemovedNode
+    ? "border-rose-300"
+    : isAddedNode
+      ? "border-emerald-300"
+      : isChangedNode
+        ? "border-amber-300"
+        : "border-slate-200";
+  const accentShadowClass = isRemovedNode
+    ? "shadow-[0_8px_24px_rgba(244,63,94,0.10)]"
+    : isAddedNode
+      ? "shadow-[0_8px_24px_rgba(16,185,129,0.08)]"
+      : isChangedNode
+        ? "shadow-[0_8px_24px_rgba(245,158,11,0.08)]"
+        : isPrimary
+          ? "shadow-sm"
+          : "shadow-[0_2px_8px_rgba(15,23,42,0.04)]";
 
   const categoryHasRows = (cat: string) =>
     (categories[cat]?.length ?? 0) > 0 || (previousCategories?.[cat]?.length ?? 0) > 0;
@@ -82,20 +98,47 @@ export function NodeAccessCard({
     if (normalized === "IMMEDIATE_CHILD") return "Immediate Child";
     return "Node";
   };
+  const buildActionScopeMap = (
+    rows: Array<{
+      roleSubCategory: string;
+      roleName: string;
+      nodeType?: string;
+      accessCategory?: "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null;
+    }>,
+  ) => {
+    const grouped = rows.reduce<Map<string, Map<string, string>>>((acc, row) => {
+      const key = row.roleSubCategory || row.nodeType || "ROOT";
+      const actionMap = acc.get(key) ?? new Map<string, string>();
+      const isGlobalAccessRoleMissing = !row.roleName.trim() && !row.roleSubCategory.trim();
+      const actionLabel = isGlobalAccessRoleMissing
+        ? "Global Access"
+        : getPermissionActionLabelFromRoleName(row.roleName || "Viewer");
+      actionMap.set(actionLabel, formatScopeLabel(row.accessCategory));
+      acc.set(key, actionMap);
+      return acc;
+    }, new Map<string, Map<string, string>>());
+
+    if (grouped.has("USER_MANAGEMENT")) {
+      const labels = grouped.get("USER_MANAGEMENT");
+      if (labels) {
+        labels.set("Checker", labels.get("Checker") ?? "Node");
+        labels.set("Maker", labels.get("Maker") ?? "Node");
+        labels.set("Viewer", labels.get("Viewer") ?? "Node");
+      }
+    }
+
+    return grouped;
+  };
+  const labelPriority = ["Global Access", "Corp Admin", "Checker", "Maker", "Viewer"];
 
   return (
     <div
       className={cn(
         "relative w-full overflow-hidden rounded-xl border border-l-[4px] bg-white p-4",
-        isRemovedNode
-          ? "border-rose-300 bg-rose-50/70 shadow-[0_8px_24px_rgba(244,63,94,0.10)]"
-          : edgeCls,
-        !isRemovedNode && (
-          isPrimary
-            ? "border-slate-200 bg-white shadow-sm"
-            : "border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)]"
-        ),
-        isRemovedNode && "border-dashed opacity-75",
+        isRemovedNode ? "border-rose-300 bg-rose-50/70" : edgeCls,
+        isRemovedNode ? "border-dashed opacity-75" : "border-slate-200 bg-white",
+        accentBorderClass,
+        accentShadowClass,
       )}
     >
       {onClose ? (
@@ -122,14 +165,6 @@ export function NodeAccessCard({
           <span className="ml-auto shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-rose-600">
             Removed
           </span>
-        ) : isAddedNode ? (
-          <span className="ml-auto shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-600">
-            Added
-          </span>
-        ) : isChangedNode ? (
-          <span className="ml-auto shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-700">
-            Changed
-          </span>
         ) : null}
       </div>
 
@@ -138,39 +173,9 @@ export function NodeAccessCard({
           <div className="text-xs text-slate-400">No permissions assigned.</div>
         ) : presentCats.map((cat) => {
           const rows = categories[cat] ?? [];
-          const groupedRows = rows.reduce<Map<string, Set<string>>>((acc, row) => {
-            const key = row.roleSubCategory || row.nodeType || "ROOT";
-            const labels = acc.get(key) ?? new Set<string>();
-            const isGlobalAccessRoleMissing = !row.roleName.trim() && !row.roleSubCategory.trim();
-            const actionLabel = isGlobalAccessRoleMissing
-              ? "Global Access"
-              : getPermissionActionLabelFromRoleName(row.roleName || "Viewer");
-            labels.add(`${actionLabel}::${formatScopeLabel(row.accessCategory)}`);
-            acc.set(key, labels);
-            return acc;
-          }, new Map());
-
-          if (cat === "SYSTEM_ACCESS" && groupedRows.has("USER_MANAGEMENT")) {
-            const labels = groupedRows.get("USER_MANAGEMENT");
-            if (labels) {
-              labels.add("Checker::Node");
-              labels.add("Maker::Node");
-              labels.add("Viewer::Node");
-            }
-          }
-
+          const groupedRows = buildActionScopeMap(rows);
           const prevRows = previousCategories?.[cat] ?? [];
-          const groupedPrevRows = prevRows.reduce<Map<string, Set<string>>>((acc, row) => {
-            const key = row.roleSubCategory || row.nodeType || "ROOT";
-            const labels = acc.get(key) ?? new Set<string>();
-            const isGlobalAccessRoleMissing = !row.roleName.trim() && !row.roleSubCategory.trim();
-            const actionLabel = isGlobalAccessRoleMissing
-              ? "Global Access"
-              : getPermissionActionLabelFromRoleName(row.roleName || "Viewer");
-            labels.add(`${actionLabel}::${formatScopeLabel(row.accessCategory)}`);
-            acc.set(key, labels);
-            return acc;
-          }, new Map());
+          const groupedPrevRows = buildActionScopeMap(prevRows);
 
           return (
             <div key={cat} className="space-y-2">
@@ -178,41 +183,50 @@ export function NodeAccessCard({
                 {formatKey(cat)}
               </div>
               {Array.from(new Set([...Array.from(groupedRows.keys()), ...Array.from(groupedPrevRows.keys())])).map((roleSubCategory, i) => {
-                const labels = groupedRows.get(roleSubCategory) ?? new Set<string>();
-                const previousLabels = groupedPrevRows.get(roleSubCategory) ?? new Set<string>();
-                const allBadgeTokens = Array.from(new Set([...Array.from(labels), ...Array.from(previousLabels)]));
-                const labelPriority = ["Global Access", "Corp Admin", "Checker", "Maker", "Viewer"];
-                const orderedBadgeTokens = labelPriority.flatMap((label) =>
-                  allBadgeTokens.filter((token) => token.startsWith(`${label}::`)),
-                );
-                const remainingBadgeTokens = allBadgeTokens
-                  .filter((token) => !labelPriority.some((label) => token.startsWith(`${label}::`)))
-                  .sort((left, right) => {
-                    const leftLabel = left.split("::")[0] || "";
-                    const rightLabel = right.split("::")[0] || "";
-                    return leftLabel.localeCompare(rightLabel);
-                  });
-                const finalBadgeTokens = [...orderedBadgeTokens, ...remainingBadgeTokens];
+                const labels = groupedRows.get(roleSubCategory) ?? new Map<string, string>();
+                const previousLabels = groupedPrevRows.get(roleSubCategory) ?? new Map<string, string>();
+                const allActionLabels = Array.from(new Set([...Array.from(labels.keys()), ...Array.from(previousLabels.keys())]));
+                const orderedActionLabels = [
+                  ...labelPriority.filter((label) => allActionLabels.includes(label)),
+                  ...allActionLabels
+                    .filter((label) => !labelPriority.includes(label))
+                    .sort((left, right) => left.localeCompare(right)),
+                ];
                 return (
                   <div key={i} className="grid grid-cols-1 items-start gap-2 text-[15px] leading-[1.35] sm:grid-cols-[minmax(120px,1fr)_minmax(0,2fr)] sm:gap-x-5">
                     <span className="min-w-0 break-words pt-0.5 pr-1 font-medium text-slate-600">{formatKey(roleSubCategory)}</span>
                     <span className="flex min-w-0 flex-nowrap gap-2 sm:justify-end">
-                      {finalBadgeTokens.map((token) => {
-                        const [label, scope] = token.split("::");
+                      {orderedActionLabels.map((label) => {
                         const BadgeIcon = getBadgeIcon(label || "Viewer");
-                        const existsInCurrent = labels.has(token);
-                        const existsInPrevious = previousLabels.has(token);
+                        const currentScope = labels.get(label);
+                        const previousScope = previousLabels.get(label);
+                        const existsInCurrent = Boolean(currentScope);
+                        const existsInPrevious = Boolean(previousScope);
                         const isRemoved = existsInPrevious && !existsInCurrent;
+                        const isAdded = !existsInPrevious && existsInCurrent;
+                        const isChanged = existsInPrevious && existsInCurrent && previousScope !== currentScope;
                         return (
                           <span
-                            key={`${roleSubCategory}-${token}`}
+                            key={`${roleSubCategory}-${label}`}
                             className={cn(
                               "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium whitespace-nowrap",
-                              isRemoved ? getRemovedBadgeStyle(label || "Viewer") : getBadgeStyle(label || "Viewer"),
+                              isRemoved
+                                ? getRemovedBadgeStyle(label || "Viewer")
+                                : isAdded || isChanged
+                                  ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : getBadgeStyle(label || "Viewer"),
                             )}
                           >
                             <BadgeIcon className="h-3.5 w-3.5 shrink-0" />
-                            <span>{`${label || "Viewer"} - ${scope || "Node"}`}</span>
+                            {isChanged ? (
+                              <span className="inline-flex items-center gap-1">
+                                <span className="line-through text-rose-500">{`${label || "Viewer"} - ${previousScope || "Node"}`}</span>
+                                <ChevronRight className="h-3 w-3 shrink-0 text-slate-400" />
+                                <span>{`${label || "Viewer"} - ${currentScope || "Node"}`}</span>
+                              </span>
+                            ) : (
+                              <span>{`${label || "Viewer"} - ${currentScope || previousScope || "Node"}`}</span>
+                            )}
                           </span>
                         );
                       })}

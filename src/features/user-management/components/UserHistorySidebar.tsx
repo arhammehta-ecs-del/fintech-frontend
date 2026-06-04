@@ -41,6 +41,47 @@ const toEpochMs = (value: unknown) => {
   const timestamp = Date.parse(raw);
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
 };
+const readCount = (value: unknown) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+};
+const formatAccessRightsCountLabel = (count: number, action: "added" | "modified" | "removed") =>
+  `${count} access-right${count === 1 ? "" : "s"} ${action}`;
+const getChangeSummaryBadges = (record: RawHistoryRecord): HistoryEntry["changeSummaryBadges"] => {
+  const changeCount = toRecord(record.changeCount);
+  const added = readCount(changeCount.added);
+  const modified = readCount(changeCount.modify);
+  const removed = readCount(changeCount.remove);
+
+  const badges: NonNullable<HistoryEntry["changeSummaryBadges"]> = [];
+  if (added > 0) {
+    badges.push({
+      key: "added",
+      label: formatAccessRightsCountLabel(added, "added"),
+      tone: "added",
+    });
+  }
+  if (modified > 0) {
+    badges.push({
+      key: "modified",
+      label: formatAccessRightsCountLabel(modified, "modified"),
+      tone: "modified",
+    });
+  }
+  if (removed > 0) {
+    badges.push({
+      key: "removed",
+      label: formatAccessRightsCountLabel(removed, "removed"),
+      tone: "removed",
+    });
+  }
+
+  return badges.length > 0 ? badges : undefined;
+};
 const toEventPhrase = (action: string) => {
   const normalized = action.trim().toUpperCase();
   if (normalized.includes("APPROVE")) return "approval";
@@ -197,6 +238,7 @@ const mapUserHistoryEntry = (
       }
       : undefined,
     status: isPendingAction ? "pending" : "approved",
+    changeSummaryBadges: getChangeSummaryBadges(record),
   };
 };
 
@@ -210,6 +252,7 @@ export default function UserHistorySidebar({
   panelWidth,
 }: UserHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const requestNewData = toRecord(user?.basicDetails?.requestNewData);
   const requestOldData = toRecord(user?.basicDetails?.requestOldData);
@@ -222,11 +265,13 @@ export default function UserHistorySidebar({
   useEffect(() => {
     if (!isOpen || !effectiveUserEmail) {
       setHistoryData([]);
+      setIsLoading(false);
       return;
     }
 
     let isMounted = true;
     const loadHistory = async () => {
+      setIsLoading(true);
       try {
         const response = await fetchUserHistory(effectiveUserEmail);
         if (isMounted && response?.data) {
@@ -259,6 +304,8 @@ export default function UserHistorySidebar({
       } catch (error) {
         const message = getApiErrorMessage(error, "Failed to fetch user history.");
         toast({ title: "Unable to load user history", description: message, variant: "destructive" });
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     };
 
@@ -292,6 +339,7 @@ export default function UserHistorySidebar({
       subtitle={user?.name || "Unknown User"}
       showSystemGenerated={false}
       data={historyData}
+      isLoading={isLoading}
       dockOffset={dockOffset}
       splitView={splitView}
       panelWidth={panelWidth}

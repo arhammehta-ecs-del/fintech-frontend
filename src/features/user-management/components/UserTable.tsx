@@ -261,8 +261,12 @@ export default function UserTable({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                              onClick={() => onDelete(member)}
+                              disabled={isPending}
+                              className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:bg-rose-50 disabled:text-rose-300 disabled:opacity-40"
+                              onClick={() => {
+                                if (isPending) return;
+                                onDelete(member);
+                              }}
                               aria-label={`Delete ${member.name || member.email || "member"}`}
                             >
                               <Trash2 className="h-4 w-4" />
