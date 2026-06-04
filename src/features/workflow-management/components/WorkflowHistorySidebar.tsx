@@ -216,15 +216,12 @@ export default function WorkflowHistorySidebar({
     const loadHistory = async () => {
       setIsLoading(true);
       try {
-        const levelsHash = (workflow.levelsHash || workflow.id || "").trim();
-        const module = workflow.rawModule?.trim() || workflow.module?.trim() || null;
-        const subModule = workflow.subModule?.trim() || null;
-        const nodePath = workflow.nodePath?.trim() || null;
-        if (!levelsHash) {
+        const id = (workflow.referenceId || workflow.id || workflow.workflowId || "").trim();
+        if (!id) {
           if (isMounted) setHistoryData([]);
           return;
         }
-        const response = await fetchWorkflowHistory({ levelsHash, module, subModule, nodePath });
+        const response = await fetchWorkflowHistory({ id });
         if (isMounted && response?.data) {
           const mappedHistory = Array.isArray(response.data)
             ? response.data

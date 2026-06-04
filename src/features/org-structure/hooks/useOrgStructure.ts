@@ -50,6 +50,7 @@ export function useOrgStructure() {
   const graphContentRef = useRef<HTMLDivElement | null>(null);
   const syncSourceRef = useRef<"tree" | "bottom" | null>(null);
   const didApplyInitialAutoZoomRef = useRef(false);
+  const suppressNextOrgEventRef = useRef(false);
   const orgLockSession = useEditLockSession();
   const companyCode = currentUser?.companyCode?.trim().toUpperCase() ?? "";
 
@@ -113,6 +114,10 @@ export function useOrgStructure() {
       onNotification: (packet) => {
         const refType = String(packet.refType ?? "").trim().toLowerCase();
         if (refType === "org") {
+          if (suppressNextOrgEventRef.current) {
+            suppressNextOrgEventRef.current = false;
+            return;
+          }
           setHasNewOrgEvent(true);
         }
       },
@@ -473,6 +478,7 @@ export function useOrgStructure() {
   };
 
   const handleApproveNode = async (node: OrgNode, remark: string) => {
+    suppressNextOrgEventRef.current = true;
     await performPendingNodeAction({
       node,
       action: "approve",
@@ -488,6 +494,7 @@ export function useOrgStructure() {
   };
 
   const handleRejectNode = async (node: OrgNode, remark: string) => {
+    suppressNextOrgEventRef.current = true;
     await performPendingNodeAction({
       node,
       action: "reject",

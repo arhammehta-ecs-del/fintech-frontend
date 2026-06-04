@@ -150,6 +150,7 @@ export default function WorkflowManagementView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const lastNotificationKeyRef = useRef<string | null>(null);
+  const notificationFetchKeyRef = useRef<string | null>(null);
   const workflowLockSession = useEditLockSession();
   const {
     WORKFLOW_PAGE_SIZE_OPTIONS,
@@ -265,26 +266,29 @@ export default function WorkflowManagementView() {
     if ((searchParams.get("notif_ref_type") || "").trim().toUpperCase() !== "WORKFLOW") return;
 
     const notificationAction = (searchParams.get("notif_action") || "").trim().toLowerCase();
+    const notificationTargetStatus = (searchParams.get("notif_target_status") || "").trim().toLowerCase();
     const notificationType = (searchParams.get("notif_type") || "").trim().toUpperCase();
     const referenceId = (searchParams.get("notif_ref_id") || "").trim();
     const notificationTarget = (searchParams.get("notif_target") || "").trim();
     const entityName = (searchParams.get("notif_entity_name") || "").trim().toLowerCase();
-    const notificationKey = [notificationAction, notificationType, referenceId, notificationTarget, entityName].join("|");
+    const notificationKey = [notificationAction, notificationTargetStatus, notificationType, referenceId, notificationTarget, entityName].join("|");
 
     if (!notificationAction && !notificationType && !referenceId && !notificationTarget && !entityName) {
       lastNotificationKeyRef.current = null;
+      notificationFetchKeyRef.current = null;
       return;
     }
     if (lastNotificationKeyRef.current === notificationKey) return;
     const targetStatus =
       notificationAction === "approve"
         ? "Pending"
-        : notificationType.includes("ONBOARD")
-          ? "Active"
-          : notificationType.includes("INACTIV")
-            ? "Inactive"
-            : "Pending";
-
+        : notificationTargetStatus === "inactive"
+          ? "Inactive"
+          : notificationTargetStatus === "pending"
+            ? "Pending"
+            : notificationType.includes("INACTIV") || notificationType.includes("ARCHIVE")
+              ? "Inactive"
+              : "Active";
     const targetStatusCount =
       targetStatus === "Pending"
         ? statusCounts.pending
@@ -300,110 +304,104 @@ export default function WorkflowManagementView() {
       });
       setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
       lastNotificationKeyRef.current = notificationKey;
+      notificationFetchKeyRef.current = null;
       return;
     }
 
     if (activeStatus !== targetStatus) {
+      notificationFetchKeyRef.current = null;
       setActiveStatus(targetStatus as typeof activeStatus);
       return;
     }
 
-    lastNotificationKeyRef.current = notificationKey;
     let isMounted = true;
     const openWorkflowFromNotification = async () => {
-      let matchedWorkflow = null;
+      const fetchType = targetStatus === "Pending" ? "pending" : targetStatus === "Inactive" ? "inactive" : "active";
+      const mapStatus = targetStatus as "Active" | "Pending" | "Inactive";
 
-      if (notificationAction === "approve") {
-        try {
-          const pendingResponse = await fetchWorkflowsPaginated("pending", {
-            limit: 15,
-            cursor: null,
-            topCursor: null,
-            page: null,
-            direction: "NEXT",
-            query: "",
-          });
-          const pendingWorkflows = pendingResponse.rows.map((row) => mapWorkflowRecord(row, "Pending"));
-          const [targetNodePathRaw = "", targetLevelsHashRaw = "", targetModuleRaw = "", targetSubModuleRaw = ""] =
-            notificationTarget.split(",").map((part) => part.trim());
-          const targetNodePath = targetNodePathRaw.toUpperCase();
-          const targetLevelsHash = targetLevelsHashRaw.toUpperCase();
-          const targetModule = targetModuleRaw.toUpperCase();
-          const targetSubModule = targetSubModuleRaw.toUpperCase();
-          matchedWorkflow =
-            (targetNodePath || targetLevelsHash || targetModule || targetSubModule
-              ? pendingWorkflows.find((workflow) => {
-                  const workflowNodePath = (workflow.nodePath || "").trim().toUpperCase();
-                  const workflowLevelsHash = (workflow.levelsHash || "").trim().toUpperCase();
-                  const workflowModule = (workflow.rawModule || workflow.module || "").trim().toUpperCase();
-                  const workflowSubModule = (workflow.subModule || "").trim().toUpperCase();
-                  return (
-                    (!targetNodePath || workflowNodePath === targetNodePath) &&
-                    (!targetLevelsHash || workflowLevelsHash === targetLevelsHash) &&
-                    (!targetModule || workflowModule === targetModule) &&
-                    (!targetSubModule || workflowSubModule === targetSubModule)
-                  );
-                }) ?? null
-              : null) ??
-            (referenceId
-              ? pendingWorkflows.find((workflow) => {
-                  const pendingId = (workflow.id || "").trim();
-                  const workflowUuid = (workflow.workflowId || "").trim();
-                  const workflowHash = (workflow.levelsHash || "").trim();
-                  return pendingId === referenceId || workflowUuid === referenceId || workflowHash === referenceId;
-                }) ?? null
-              : null) ??
-            (Boolean(entityName)
-              ? pendingWorkflows.find((workflow) => (workflow.name || "").trim().toLowerCase() === entityName) ?? null
-              : null);
-        } catch (error) {
-          if (!isMounted) return;
-          toast({
-            title: "Unable to load pending workflows",
-            description: getApiErrorMessage(error, "Failed to fetch pending workflows."),
-            variant: "destructive",
-          });
-          setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
-          return;
-        }
-      } else {
-        const matchedByReferenceId = referenceId
-          ? paginatedWorkflows.find((workflow) => {
-              const workflowId = (workflow.id || "").trim();
-              const workflowUuid = (workflow.workflowId || "").trim();
-              const workflowHash = (workflow.levelsHash || "").trim();
-              return workflowId === referenceId || workflowUuid === referenceId || workflowHash === referenceId;
-            }) ?? null
-          : null;
-        matchedWorkflow = matchedByReferenceId ?? paginatedWorkflows.find((workflow) => {
-          const workflowId = (workflow.id || "").trim();
-          const workflowHash = (workflow.levelsHash || "").trim();
-          const workflowUuid = (workflow.workflowId || "").trim();
-          if (referenceId && (workflowId === referenceId || workflowHash === referenceId || workflowUuid === referenceId)) return true;
-          return Boolean(entityName) && (workflow.name || "").trim().toLowerCase() === entityName;
+      try {
+        notificationFetchKeyRef.current = notificationKey;
+        const response = await fetchWorkflowsPaginated(fetchType, {
+          limit: 15,
+          cursor: null,
+          topCursor: null,
+          page: null,
+          direction: "NEXT",
+          query: "",
         });
-      }
+        const workflows = response.rows.map((row) => mapWorkflowRecord(row, mapStatus));
+        const [targetNodePathRaw = "", targetLevelsHashRaw = "", targetModuleRaw = "", targetSubModuleRaw = ""] =
+          notificationTarget.split(",").map((part) => part.trim());
+        const targetNodePath = targetNodePathRaw.toUpperCase();
+        const targetLevelsHash = targetLevelsHashRaw.toUpperCase();
+        const targetModule = targetModuleRaw.toUpperCase();
+        const targetSubModule = targetSubModuleRaw.toUpperCase();
 
-      if (!isMounted) return;
+        const matchedWorkflow =
+          (referenceId
+            ? workflows.find((workflow) => {
+                const workflowId = (workflow.id || "").trim();
+                const workflowReferenceId = (workflow.referenceId || "").trim();
+                const workflowUuid = (workflow.workflowId || "").trim();
+                const workflowHash = (workflow.levelsHash || "").trim();
+                return (
+                  workflowId === referenceId ||
+                  workflowReferenceId === referenceId ||
+                  workflowUuid === referenceId ||
+                  workflowHash === referenceId
+                );
+              }) ?? null
+            : null) ??
+          (targetNodePath || targetLevelsHash || targetModule || targetSubModule
+            ? workflows.find((workflow) => {
+                const workflowNodePath = (workflow.nodePath || "").trim().toUpperCase();
+                const workflowLevelsHash = (workflow.levelsHash || "").trim().toUpperCase();
+                const workflowModule = (workflow.rawModule || workflow.module || "").trim().toUpperCase();
+                const workflowSubModule = (workflow.subModule || "").trim().toUpperCase();
+                return (
+                  (!targetNodePath || workflowNodePath === targetNodePath) &&
+                  (!targetLevelsHash || workflowLevelsHash === targetLevelsHash) &&
+                  (!targetModule || workflowModule === targetModule) &&
+                  (!targetSubModule || workflowSubModule === targetSubModule)
+                );
+              }) ?? null
+            : null) ??
+          (Boolean(entityName)
+            ? workflows.find((workflow) => (workflow.name || "").trim().toLowerCase() === entityName) ?? null
+            : null);
 
-      if (!matchedWorkflow) {
-        if (hasLoadedWorkflowsOnce || notificationAction === "approve") {
+        if (!isMounted) return;
+
+        if (!matchedWorkflow) {
           toast({
             title: "Request not found",
             description: "The workflow request is no longer available.",
             variant: "destructive",
           });
           setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
+          lastNotificationKeyRef.current = notificationKey;
+          return;
         }
-        return;
-      }
 
-      setManageHistoryOpen(false);
-      setWorkflowHistoryPreviewDetail(null);
-      setManageWorkflow(matchedWorkflow);
-      setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
+        setManageHistoryOpen(false);
+        setWorkflowHistoryPreviewDetail(null);
+        setManageWorkflow(matchedWorkflow);
+        setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
+        lastNotificationKeyRef.current = notificationKey;
+      } catch (error) {
+        if (!isMounted) return;
+        toast({
+          title: `Unable to load ${fetchType} workflows`,
+          description: getApiErrorMessage(error, `Failed to fetch ${fetchType} workflows.`),
+          variant: "destructive",
+        });
+        setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
+        lastNotificationKeyRef.current = notificationKey;
+        notificationFetchKeyRef.current = null;
+      }
     };
 
+    if (notificationFetchKeyRef.current === notificationKey) return;
     void openWorkflowFromNotification();
     return () => {
       isMounted = false;
@@ -411,8 +409,6 @@ export default function WorkflowManagementView() {
   }, [
     activeStatus,
     hasLoadedWorkflowsOnce,
-    pageSize,
-    paginatedWorkflows,
     searchParams,
     setActiveStatus,
     setManageWorkflow,
@@ -420,6 +416,7 @@ export default function WorkflowManagementView() {
     statusCounts.active,
     statusCounts.inactive,
     statusCounts.pending,
+    toast,
   ]);
 
   const toggleValue = (current: string[], value: string) =>

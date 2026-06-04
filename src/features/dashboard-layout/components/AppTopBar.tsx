@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell, LogOut, Menu, Settings, ShieldCheck, User } from "lucide-react";
+import { Bell, Check, ChevronDown, LogOut, Menu, Settings, ShieldCheck, User } from "lucide-react";
 import type { NavigateFunction } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { AppSidebar } from "@/features/dashboard-layout/components/AppSidebar";
+import { cn } from "@/lib/utils";
 import {
   connectNotificationStream,
   fetchNotificationPage,
@@ -35,6 +37,8 @@ type NotificationTone = "blue" | "green" | "orange" | "red" | "slate";
 type NotificationEntity = "User" | "Workflow" | "Org" | "Company List";
 type NotificationRefTypeFilter = "ALL" | "USER" | "WORKFLOW" | "ORG";
 type NotificationIntent = "approve" | "view";
+type NotificationStatusFilterValue = Exclude<NotificationFetchStatus, "ALL">;
+type NotificationModuleFilterValue = Exclude<NotificationRefTypeFilter, "ALL">;
 
 type NotificationItem = {
   id: string;
@@ -63,9 +67,38 @@ const COMPACT_NOTIFICATIONS_LIMIT = 10;
 const DIALOG_PAGE_SIZE = 50;
 const MESSAGE_PREVIEW_LIMIT = 150;
 const DEFAULT_DATE_RANGE: NotificationFetchDateRange = "7DAYS";
-const STATUS_OPTIONS: NotificationFetchStatus[] = ["ALL", "READ", "UNREAD"];
-const MODULE_OPTIONS: NotificationRefTypeFilter[] = ["ALL", "USER", "WORKFLOW", "ORG"];
 const DATE_RANGE_OPTIONS: NotificationFetchDateRange[] = ["7DAYS", "15DAYS", "1MONTH"];
+const STATUS_FILTER_OPTIONS: Array<{ value: NotificationStatusFilterValue; label: string }> = [
+  { value: "READ", label: "Read" },
+  { value: "UNREAD", label: "Unread" },
+];
+const MODULE_FILTER_OPTIONS: Array<{ value: NotificationModuleFilterValue; label: string }> = [
+  { value: "USER", label: "User" },
+  { value: "WORKFLOW", label: "Workflow" },
+  { value: "ORG", label: "Org" },
+];
+
+const toggleArrayValue = <T extends string>(values: T[], value: T) =>
+  values.includes(value) ? values.filter((current) => current !== value) : [...values, value];
+
+const formatMultiFilterLabel = (values: string[], allLabel: string) => {
+  if (values.length === 0) return allLabel;
+  if (values.length === 1) return values[0];
+  return `${values.length} Selected`;
+};
+
+const filterNotificationsBySelection = (
+  items: NotificationItem[],
+  selectedStatusFilters: NotificationStatusFilterValue[],
+  selectedModuleFilters: NotificationModuleFilterValue[],
+) =>
+  items.filter((item) => {
+    const itemStatus = item.unread ? "UNREAD" : "READ";
+    const itemModule = (item.refType || "").trim().toUpperCase() as NotificationModuleFilterValue;
+    const matchesStatus = selectedStatusFilters.length === 0 || selectedStatusFilters.includes(itemStatus);
+    const matchesModule = selectedModuleFilters.length === 0 || selectedModuleFilters.includes(itemModule);
+    return matchesStatus && matchesModule;
+  });
 
 const formatRelativeTime = (occurredAt: string) => {
   const parsed = new Date(occurredAt);
@@ -211,16 +244,16 @@ export function AppTopBar({
   const [allNotificationCount, setAllNotificationCount] = useState(0);
   const [allNotificationsOpen, setAllNotificationsOpen] = useState(false);
   const [notificationsPopoverOpen, setNotificationsPopoverOpen] = useState(false);
-  const [notificationStatusFilter, setNotificationStatusFilter] = useState<NotificationFetchStatus>("ALL");
-  const [notificationModuleFilter, setNotificationModuleFilter] = useState<NotificationRefTypeFilter>("ALL");
+  const [notificationStatusFilters, setNotificationStatusFilters] = useState<NotificationStatusFilterValue[]>([]);
+  const [notificationModuleFilters, setNotificationModuleFilters] = useState<NotificationModuleFilterValue[]>([]);
   const [notificationDateRange, setNotificationDateRange] = useState<NotificationFetchDateRange>(DEFAULT_DATE_RANGE);
   const [customFromDate, setCustomFromDate] = useState("");
   const [customToDate, setCustomToDate] = useState("");
   const [expandedNotificationIds, setExpandedNotificationIds] = useState<string[]>([]);
 
   const resetNotificationFilters = useCallback(() => {
-    setNotificationStatusFilter("ALL");
-    setNotificationModuleFilter("ALL");
+    setNotificationStatusFilters([]);
+    setNotificationModuleFilters([]);
     setNotificationDateRange(DEFAULT_DATE_RANGE);
     setCustomFromDate("");
     setCustomToDate("");
@@ -235,6 +268,15 @@ export function AppTopBar({
 
   const activeDateRange = customFromDate && customToDate ? "CUSTOM" : notificationDateRange;
   const customDateRangeIsComplete = notificationDateRange !== "CUSTOM" || Boolean(customFromDate && customToDate);
+  const visibleNotifications = useMemo(
+    () => filterNotificationsBySelection(notifications, notificationStatusFilters, notificationModuleFilters),
+    [notifications, notificationModuleFilters, notificationStatusFilters],
+  );
+  const visibleDialogNotifications = useMemo(
+    () => filterNotificationsBySelection(dialogNotifications, notificationStatusFilters, notificationModuleFilters),
+    [dialogNotifications, notificationModuleFilters, notificationStatusFilters],
+  );
+  const hasAnyNotificationFilter = notificationStatusFilters.length > 0 || notificationModuleFilters.length > 0;
 
   const mapPacketToNotification = useCallback((packet: NotificationSsePacket): NotificationItem => {
     const badge = mapTypeToBadge(packet.type);
@@ -270,16 +312,16 @@ export function AppTopBar({
   }, []);
 
   const buildNotificationPayload = useCallback(
-    (limit: number, offset: number, statusOverride?: NotificationFetchStatus) => ({
+    (limit: number, offset: number) => ({
       limit,
       offset,
-      status: statusOverride ?? notificationStatusFilter,
-      refType: notificationModuleFilter === "ALL" ? null : (notificationModuleFilter as NotificationFetchRefType),
+      status: "ALL" as NotificationFetchStatus,
+      refType: null as NotificationFetchRefType,
       dateRange: activeDateRange,
       fromDate: activeDateRange === "CUSTOM" ? customFromDate || null : null,
       toDate: activeDateRange === "CUSTOM" ? customToDate || null : null,
     }),
-    [activeDateRange, customFromDate, customToDate, notificationModuleFilter, notificationStatusFilter],
+    [activeDateRange, customFromDate, customToDate],
   );
 
   const handleCustomFromDateChange = useCallback((value: string) => {
@@ -304,17 +346,15 @@ export function AppTopBar({
         .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
       setNotifications(mapped);
       setAllNotificationCount(response.allCount || response.count || mapped.length);
-      if (notificationStatusFilter === "ALL") {
-        setUnreadTotalCount(
-          response.unreadCount
-            ?? mapped.filter((item) => item.unread).length,
-        );
-      }
+      setUnreadTotalCount(
+        response.unreadCount
+          ?? mapped.filter((item) => item.unread).length,
+      );
     } catch {
       setNotifications([]);
       setAllNotificationCount(0);
     }
-  }, [buildNotificationPayload, mapPacketToNotification, notificationStatusFilter]);
+  }, [buildNotificationPayload, mapPacketToNotification]);
 
   const loadDialogNotifications = useCallback(async () => {
     setDialogLoading(true);
@@ -374,21 +414,25 @@ export function AppTopBar({
     startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
 
     return {
-      today: dialogNotifications.filter((item) => {
+      today: visibleDialogNotifications.filter((item) => {
         const date = new Date(item.occurredAt);
         return date >= startOfToday && date < startOfTomorrow;
       }),
-      yesterday: dialogNotifications.filter((item) => {
+      yesterday: visibleDialogNotifications.filter((item) => {
         const date = new Date(item.occurredAt);
         return date >= startOfYesterday && date < startOfToday;
       }),
-      earlier: dialogNotifications.filter((item) => new Date(item.occurredAt) < startOfYesterday),
-      upcoming: dialogNotifications.filter((item) => new Date(item.occurredAt) >= startOfTomorrow),
+      earlier: visibleDialogNotifications.filter((item) => new Date(item.occurredAt) < startOfYesterday),
+      upcoming: visibleDialogNotifications.filter((item) => new Date(item.occurredAt) >= startOfTomorrow),
     };
-  }, [dialogNotifications]);
+  }, [visibleDialogNotifications]);
 
   const unreadCountBadgeLabel = unreadTotalCount > 99 ? "99+" : String(unreadTotalCount);
-  const notificationCountLabel = allNotificationCount > 99 ? "99+" : String(allNotificationCount || notifications.length);
+  const notificationCountLabel = hasAnyNotificationFilter
+    ? String(visibleNotifications.length)
+    : allNotificationCount > 99
+      ? "99+"
+      : String(allNotificationCount || notifications.length);
   const unreadCountLabel = unreadTotalCount === 1 ? "1 unread" : `${unreadTotalCount} unread`;
   const remainingNotificationCount = Math.max(0, allNotificationCount - notifications.length);
   const shouldShowSeeAll = allNotificationCount > notifications.length;
@@ -405,6 +449,7 @@ export function AppTopBar({
       "notif_action",
       "notif_ref_type",
       "notif_ref_id",
+      "notif_target",
       "notif_type",
       "notif_email",
       "notif_entity_name",
@@ -426,13 +471,13 @@ export function AppTopBar({
     if (intent === "approve") {
       searchParams.set("tab", targetTab);
       searchParams.set("notif_action", "approve");
+      searchParams.set("notif_target_status", "pending");
     } else {
-      const targetStatus =
-        type.includes("ONBOARD")
-          ? "active"
-          : type.includes("INACTIV")
-            ? "inactive"
-            : "pending";
+      const targetStatus = notification.isPending
+        ? "pending"
+        : type.includes("INACTIV") || type.includes("ARCHIVE")
+          ? "inactive"
+          : "active";
       searchParams.set("tab", targetTab);
       searchParams.set("notif_action", "view");
       searchParams.set("notif_target_status", targetStatus);
@@ -440,7 +485,7 @@ export function AppTopBar({
 
     if (notification.refType) searchParams.set("notif_ref_type", notification.refType);
     if (notification.referenceId) searchParams.set("notif_ref_id", notification.referenceId);
-    if (notification.target) searchParams.set("notif_target", notification.target);
+    if (intent !== "approve" && notification.target) searchParams.set("notif_target", notification.target);
     if (notification.rawType) searchParams.set("notif_type", notification.rawType);
     if (notification.extractedEmail) searchParams.set("notif_email", notification.extractedEmail);
     if (notification.extractedEntityName) searchParams.set("notif_entity_name", notification.extractedEntityName);
@@ -607,67 +652,142 @@ export function AppTopBar({
   };
 
   const renderNotificationFilters = (compact = false) => (
-    <div className={`flex flex-col gap-3 border-b border-slate-200 bg-white ${compact ? "px-4 py-3" : "px-6 py-4"}`}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <select
-            value={notificationStatusFilter}
-            onChange={(event) => setNotificationStatusFilter(event.target.value as NotificationFetchStatus)}
-            className="h-8 w-28 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none"
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option === "ALL" ? "All Status" : option}</option>
-            ))}
-          </select>
-          <select
-            value={notificationModuleFilter}
-            onChange={(event) => setNotificationModuleFilter(event.target.value as NotificationRefTypeFilter)}
-            className="h-8 w-28 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none"
-          >
-            {MODULE_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option === "ALL" ? "All Module" : option}</option>
-            ))}
-          </select>
-          <div className="flex min-w-0 flex-nowrap items-center gap-1.5 whitespace-nowrap">
-          {DATE_RANGE_OPTIONS.map((option) => (
+    <div className={`flex flex-col gap-3 border-b border-slate-200 bg-white ${compact ? "px-4 py-3" : "px-4 py-4"}`}>
+      <div
+        className={cn(
+          "flex items-center",
+          compact
+            ? "flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            : "flex-nowrap gap-2",
+        )}
+      >
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <button
-              key={option}
               type="button"
-              onClick={() => {
-                setNotificationDateRange(option);
-                setCustomFromDate("");
-                setCustomToDate("");
-              }}
-              className={`shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
-                activeDateRange === option
-                  ? "bg-blue-600 text-white"
-                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              }`}
+              className={cn(
+                compact
+                  ? "inline-flex h-9 min-w-[104px] items-center justify-between gap-1.5 rounded-xl border px-2.5 text-[12px] font-medium transition"
+                  : "inline-flex h-9 min-w-[112px] items-center justify-between gap-1.5 rounded-xl border px-3 text-[13px] font-medium transition",
+                hasAnyNotificationFilter
+                  ? "border-blue-200 bg-blue-50 text-blue-700 shadow-sm"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
+              )}
             >
-              {option === "1MONTH" ? "1 Month" : option === "15DAYS" ? "15 Days" : "7 Days"}
+              <span className="truncate">{formatMultiFilterLabel(notificationStatusFilters, "All Status")}</span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
             </button>
-          ))}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="w-52 rounded-2xl border-slate-200 bg-white p-2 shadow-[0_22px_60px_rgba(15,23,42,0.18)]"
+          >
+            <div className="px-2 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              Status
+            </div>
+            {STATUS_FILTER_OPTIONS.map((option) => (
+              <DropdownMenuCheckboxItem
+                key={option.value}
+                checked={notificationStatusFilters.includes(option.value)}
+                onCheckedChange={() => {
+                  setNotificationStatusFilters((current) => toggleArrayValue(current, option.value));
+                }}
+                onSelect={(event) => event.preventDefault()}
+                className="rounded-lg px-2 py-2.5 text-sm"
+              >
+                <span className="flex items-center gap-2">
+                  <span>{option.label}</span>
+                  {notificationStatusFilters.includes(option.value) ? <Check className="h-4 w-4 text-blue-600" /> : null}
+                </span>
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                compact
+                  ? "inline-flex h-9 min-w-[104px] items-center justify-between gap-1.5 rounded-xl border px-2.5 text-[12px] font-medium transition"
+                  : "inline-flex h-9 min-w-[112px] items-center justify-between gap-1.5 rounded-xl border px-3 text-[13px] font-medium transition",
+                hasAnyNotificationFilter
+                  ? "border-blue-200 bg-blue-50 text-blue-700 shadow-sm"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
+              )}
+            >
+              <span className="truncate">{formatMultiFilterLabel(notificationModuleFilters, "All Module")}</span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="w-56 rounded-2xl border-slate-200 bg-white p-2 shadow-[0_22px_60px_rgba(15,23,42,0.18)]"
+          >
+            <div className="px-2 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              Module
+            </div>
+            {MODULE_FILTER_OPTIONS.map((option) => (
+              <DropdownMenuCheckboxItem
+                key={option.value}
+                checked={notificationModuleFilters.includes(option.value)}
+                onCheckedChange={() => {
+                  setNotificationModuleFilters((current) => toggleArrayValue(current, option.value));
+                }}
+                onSelect={(event) => event.preventDefault()}
+                className="rounded-lg px-2 py-2.5 text-sm"
+              >
+                <span className="flex items-center gap-2">
+                  <span>{option.label}</span>
+                  {notificationModuleFilters.includes(option.value) ? <Check className="h-4 w-4 text-blue-600" /> : null}
+                </span>
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {DATE_RANGE_OPTIONS.map((option) => (
           <button
+            key={option}
             type="button"
             onClick={() => {
-              if (notificationDateRange === "CUSTOM") {
-                setNotificationDateRange(DEFAULT_DATE_RANGE);
-                setCustomFromDate("");
-                setCustomToDate("");
-                return;
-              }
-              setNotificationDateRange("CUSTOM");
+              setNotificationDateRange(option);
+              setCustomFromDate("");
+              setCustomToDate("");
             }}
-            className={`shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
-              activeDateRange === "CUSTOM"
+            className={cn(
+              "shrink-0 whitespace-nowrap rounded-full font-semibold leading-none transition-colors",
+              compact ? "px-2.5 py-[5px] text-[10px]" : "px-3 py-[5px] text-[11px]",
+              activeDateRange === option
                 ? "bg-blue-600 text-white"
-                : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
+                : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+            )}
           >
-            Custom
+            {option === "1MONTH" ? "1 Month" : option === "15DAYS" ? "15 Days" : "7 Days"}
           </button>
-        </div>
-        </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => {
+            if (notificationDateRange === "CUSTOM") {
+              setNotificationDateRange(DEFAULT_DATE_RANGE);
+              setCustomFromDate("");
+              setCustomToDate("");
+              return;
+            }
+            setNotificationDateRange("CUSTOM");
+          }}
+          className={cn(
+            "shrink-0 whitespace-nowrap rounded-full font-semibold leading-none transition-colors",
+            compact ? "px-3 py-[5px] text-[10px]" : "px-3.5 py-[5px] text-[11px]",
+            activeDateRange === "CUSTOM"
+              ? "bg-blue-600 text-white"
+              : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+          )}
+        >
+          Custom
+        </button>
       </div>
       {notificationDateRange === "CUSTOM" ? (
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -748,15 +868,15 @@ export function AppTopBar({
             {renderNotificationFilters(true)}
             <div className="flex h-[560px] flex-col bg-slate-50/60">
               <div className="flex-1 overflow-y-auto p-3">
-                {notifications.length === 0 ? (
+                {visibleNotifications.length === 0 ? (
                   <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/80 px-4 text-center">
                     <div>
                       <p className="text-sm font-semibold text-slate-800">All caught up</p>
                       <p className="mt-1 text-xs text-slate-500">No recent notifications available.</p>
                     </div>
                   </div>
-                ) : notifications.map((notification, index) => (
-                  <div key={notification.id} className={index === notifications.length - 1 ? "" : "mb-3"}>
+                ) : visibleNotifications.map((notification, index) => (
+                  <div key={notification.id} className={index === visibleNotifications.length - 1 ? "" : "mb-3"}>
                     {renderNotificationCard(notification, notification.id, true)}
                   </div>
                 ))}
@@ -786,7 +906,7 @@ export function AppTopBar({
           <DialogContent showCloseButton={false} className="h-[88vh] w-[min(94vw,760px)] max-w-[760px] overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-2xl">
             <DialogHeader className="border-b border-slate-200 px-6 py-4">
               <DialogTitle className="flex items-center justify-between text-slate-900">
-                <span>All Notifications ({allNotificationCount || dialogNotifications.length})</span>
+                <span>All Notifications ({hasAnyNotificationFilter ? visibleDialogNotifications.length : (allNotificationCount || dialogNotifications.length)})</span>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => void markAllAsRead()} className="rounded-md px-2 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
                     Mark all as read

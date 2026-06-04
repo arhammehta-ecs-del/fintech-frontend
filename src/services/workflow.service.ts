@@ -152,28 +152,12 @@ export async function updateWorkflowAction(levelsHash: string, action: string, r
 }
 
 export type FetchWorkflowHistoryPayload = {
-  levelsHash: string;
-  module?: string | null;
-  subModule?: string | null;
-  nodePath?: string | null;
+  id: string;
 };
 
 export async function fetchWorkflowHistory(payload: FetchWorkflowHistoryPayload) {
-  const cleanedPayload: Record<string, string> = {
-    levelsHash: payload.levelsHash.trim(),
-  };
-
-  const moduleValue = payload.module?.trim();
-  if (moduleValue) cleanedPayload.module = moduleValue;
-
-  const subModuleValue = payload.subModule?.trim();
-  if (subModuleValue) cleanedPayload.subModule = subModuleValue;
-
-  const nodePathValue = payload.nodePath?.trim();
-  if (nodePathValue) cleanedPayload.nodePath = nodePathValue;
-
   return apiFetch<WorkflowApiResponse>(WORKFLOW_HISTORY_PATH, {
     method: "POST",
-    body: JSON.stringify(cleanedPayload),
+    body: JSON.stringify({ id: payload.id.trim() }),
   });
 }

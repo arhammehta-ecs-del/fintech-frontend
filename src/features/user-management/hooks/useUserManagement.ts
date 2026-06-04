@@ -77,6 +77,7 @@ export function useUserManagement() {
   const [pageCursors, setPageCursors] = useState<Record<number, string | null>>({ 1: null });
   const lastActivityToastKeyRef = useRef<string>("");
   const isLoadingRef = useRef(false);
+  const queuedLoadRequestRef = useRef<{ showRefreshToast: boolean; overrideStatusTab?: MemberStatusTab } | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [viewingMember, setViewingMember] = useState<AppUser | null>(null);
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
@@ -113,13 +114,16 @@ export function useUserManagement() {
     async (showRefreshToast = false, overrideStatusTab?: MemberStatusTab) => {
       const companyCode = currentUser?.companyCode?.trim().toUpperCase();
       if (!companyCode) return;
-      if (isLoadingRef.current) return;
+      const requestedTab = overrideStatusTab ?? statusTab;
+      if (isLoadingRef.current) {
+        queuedLoadRequestRef.current = { showRefreshToast, overrideStatusTab: requestedTab };
+        return;
+      }
       isLoadingRef.current = true;
 
       setIsLoading(true);
       try {
-        const targetTab = overrideStatusTab ?? statusTab;
-        const response = await fetchCompanyUsersPaginated(targetTab, {
+        const response = await fetchCompanyUsersPaginated(requestedTab, {
           companyCode,
           limit: pageSize,
           cursor: null,
@@ -136,11 +140,11 @@ export function useUserManagement() {
         setHasNext(response.pageInfo.hasNext);
         setResolvedTotalPages(
           response.pageInfo.totalPages ||
-            Math.max(1, Math.ceil(getCountForTab(response.counts, targetTab) / pageSize)),
+            Math.max(1, Math.ceil(getCountForTab(response.counts, requestedTab) / pageSize)),
         );
         setStatusCounts(response.counts);
         setHasLoadedUsersOnce(true);
-        maybeShowActivityToast(response, targetTab);
+        maybeShowActivityToast(response, requestedTab);
         if (showRefreshToast) {
           toast({
             title: "Users refreshed",
@@ -157,6 +161,11 @@ export function useUserManagement() {
       } finally {
         setIsLoading(false);
         isLoadingRef.current = false;
+        if (queuedLoadRequestRef.current) {
+          const queuedRequest = queuedLoadRequestRef.current;
+          queuedLoadRequestRef.current = null;
+          void loadUsers(queuedRequest.showRefreshToast, queuedRequest.overrideStatusTab);
+        }
       }
     },
     [currentUser?.companyCode, debouncedSearch, getCountForTab, maybeShowActivityToast, pageSize, setUsers, statusTab, toast],

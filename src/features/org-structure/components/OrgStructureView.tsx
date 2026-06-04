@@ -552,8 +552,16 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         open={!!pendingNodeForReview}
         node={pendingNodeForReview}
         onClose={handleClosePendingNodePopup}
-        onApprove={handleApproveNode}
-        onReject={handleRejectNode}
+        onApprove={async (node, remark) => {
+          await handleApproveNode(node, remark);
+          handleClosePendingNodePopup();
+          setHasNewOrgEvent(false);
+        }}
+        onReject={async (node, remark) => {
+          await handleRejectNode(node, remark);
+          handleClosePendingNodePopup();
+          setHasNewOrgEvent(false);
+        }}
         isHistoryOpen={isOrgHistoryOpen}
         dockOffset={historyLayoutOffset}
         onOpenHistory={(node) => {

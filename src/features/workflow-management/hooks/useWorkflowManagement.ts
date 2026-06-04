@@ -288,6 +288,8 @@ export function useWorkflowManagement() {
   }, [aliasFilters, moduleFilters, nodeNameFilters, typeFilters, workflowFilters, workflows]);
 
   useEffect(() => {
+    if (!hasLoadedWorkflowsOnce) return;
+
     const currentCount =
       activeStatus === "Pending"
         ? statusCounts.pending
@@ -307,7 +309,7 @@ export function useWorkflowManagement() {
     if (fallbackStatus !== activeStatus) {
       setActiveStatus(fallbackStatus);
     }
-  }, [activeStatus, statusCounts.active, statusCounts.pending, statusCounts.inactive]);
+  }, [activeStatus, hasLoadedWorkflowsOnce, statusCounts.active, statusCounts.pending, statusCounts.inactive]);
 
   useEffect(() => {
     let isMounted = true;

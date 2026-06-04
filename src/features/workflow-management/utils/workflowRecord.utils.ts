@@ -134,8 +134,10 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
 
   const id =
     readString(record.id) ||
+    readString(record.referenceId) ||
     readString(record.workflowId) ||
     readString(record.requestId) ||
+    readString(payload.referenceId) ||
     [
       readString(record.levelsHash) || readString(payload.levelsHash),
       rawModule || "module",
@@ -177,6 +179,10 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
 
   return {
     id,
+    referenceId:
+      readString(record.referenceId) ||
+      readString(record.requestId) ||
+      readString(payload.referenceId),
     workflowId,
     levelsHash,
     name,

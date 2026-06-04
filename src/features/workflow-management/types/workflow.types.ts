@@ -8,6 +8,7 @@ export type WorkflowOrgStructure = {
 
 export type WorkflowRecord = {
   id: string;
+  referenceId?: string;
   workflowId?: string;
   levelsHash?: string;
   name: string;

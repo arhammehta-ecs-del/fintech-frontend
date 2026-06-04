@@ -29,6 +29,7 @@ export function UserManagementView() {
   const { toast } = useToast();
   const userLockSession = useEditLockSession();
   const lastNotificationKeyRef = useRef<string | null>(null);
+  const notificationFetchKeyRef = useRef<string | null>(null);
   const {
     search,
     setSearch,
@@ -66,7 +67,9 @@ export function UserManagementView() {
     toggleFilterValue,
     clearAdvancedFilters,
     isLoading,
+    activeMembers,
     currentMembers,
+    inactiveMembers,
     pendingMembers,
     paginatedMembers,
     pageSize,
@@ -122,6 +125,7 @@ export function UserManagementView() {
       "notif_action",
       "notif_ref_type",
       "notif_ref_id",
+      "notif_target",
       "notif_type",
       "notif_email",
       "notif_entity_name",
@@ -144,21 +148,25 @@ export function UserManagementView() {
     const notificationType = (searchParams.get("notif_type") || "").trim().toUpperCase();
     const referenceId = (searchParams.get("notif_ref_id") || "").trim();
     const email = (searchParams.get("notif_email") || "").trim().toLowerCase();
-    const notificationKey = [notificationAction, notificationType, referenceId, email].join("|");
+    const notificationTargetStatus = (searchParams.get("notif_target_status") || "").trim().toLowerCase();
+    const notificationKey = [notificationAction, notificationType, referenceId, email, notificationTargetStatus].join("|");
 
     if (!notificationAction && !notificationType && !referenceId && !email) {
       lastNotificationKeyRef.current = null;
+      notificationFetchKeyRef.current = null;
       return;
     }
     if (lastNotificationKeyRef.current === notificationKey) return;
     const targetTab =
       notificationAction === "approve"
         ? "pending"
-        : notificationType.includes("ONBOARD")
-          ? "active"
-          : notificationType.includes("INACTIV")
-            ? "inactive"
-            : "pending";
+        : notificationTargetStatus === "active" || notificationTargetStatus === "inactive" || notificationTargetStatus === "pending"
+          ? notificationTargetStatus
+          : notificationType.includes("ONBOARD")
+            ? "active"
+            : notificationType.includes("INACTIV")
+              ? "inactive"
+              : "pending";
 
     const targetStatusCount =
       targetTab === "pending"
@@ -179,11 +187,29 @@ export function UserManagementView() {
     }
 
     if (statusTab !== targetTab) {
+      notificationFetchKeyRef.current = null;
       setStatusTab(targetTab);
       return;
     }
 
-    const sourceMembers = notificationAction === "approve" ? pendingMembers : [...paginatedMembers, ...currentMembers];
+    if (notificationFetchKeyRef.current !== notificationKey) {
+      notificationFetchKeyRef.current = notificationKey;
+      void loadUsers(false, targetTab);
+      return;
+    }
+
+    if (isLoading) {
+      return;
+    }
+
+    const sourceMembers =
+      notificationAction === "approve"
+        ? pendingMembers
+        : targetTab === "pending"
+          ? pendingMembers
+          : targetTab === "inactive"
+            ? inactiveMembers
+            : activeMembers;
     const candidates = sourceMembers.filter(
       (member, index, array) =>
         array.findIndex(
@@ -232,15 +258,18 @@ export function UserManagementView() {
     setViewingMember(matchedMember);
     setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
     lastNotificationKeyRef.current = notificationKey;
+    notificationFetchKeyRef.current = null;
   }, [
-    currentMembers,
+    activeMembers,
     hasLoadedUsersOnce,
+    inactiveMembers,
+    loadUsers,
     pendingMembers,
-    paginatedMembers,
     searchParams,
     setSearchParams,
     setStatusTab,
     setViewingMember,
+    isLoading,
     statusCounts.active,
     statusCounts.inactive,
     statusCounts.pending,
