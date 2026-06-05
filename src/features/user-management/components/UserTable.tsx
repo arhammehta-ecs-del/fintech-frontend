@@ -151,6 +151,7 @@ export default function UserTable({
       <tbody>
         {paginatedMembers.map((member) => {
           const isPending = Boolean(member.isPending);
+          const canDeleteMember = member.status !== "Pending" && member.status !== "Inactive";
 
           return (
           <tr key={member.email} className="border-b border-slate-200 transition hover:bg-slate-50/80">
@@ -255,7 +256,7 @@ export default function UserTable({
                         <TooltipContent side="top">Manage User</TooltipContent>
                       </Tooltip>
 
-                      {onDelete && member.status !== "Pending" ? (
+                      {onDelete && canDeleteMember ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button

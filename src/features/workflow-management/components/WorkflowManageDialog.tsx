@@ -84,6 +84,35 @@ const toHistoryWorkflowPreviousSource = (detail: HistoryDetailViewModel | null) 
   return {} as Record<string, unknown>;
 };
 
+const mergeWorkflowLevels = (baseLevels: unknown, incomingLevels: unknown) => {
+  const baseRecord =
+    typeof baseLevels === "object" && baseLevels !== null && !Array.isArray(baseLevels)
+      ? (baseLevels as Record<string, unknown>)
+      : {};
+  const incomingRecord =
+    typeof incomingLevels === "object" && incomingLevels !== null && !Array.isArray(incomingLevels)
+      ? (incomingLevels as Record<string, unknown>)
+      : null;
+
+  if (!incomingRecord) {
+    return incomingLevels ?? baseLevels;
+  }
+
+  return Object.entries(incomingRecord).reduce<Record<string, unknown>>((merged, [levelKey, incomingValue]) => {
+    const baseLevel =
+      typeof merged[levelKey] === "object" && merged[levelKey] !== null && !Array.isArray(merged[levelKey])
+        ? (merged[levelKey] as Record<string, unknown>)
+        : {};
+    const incomingLevel =
+      typeof incomingValue === "object" && incomingValue !== null && !Array.isArray(incomingValue)
+        ? (incomingValue as Record<string, unknown>)
+        : null;
+
+    merged[levelKey] = incomingLevel ? { ...baseLevel, ...incomingLevel } : incomingValue;
+    return merged;
+  }, { ...baseRecord });
+};
+
 const applyPendingDataView = (
   base: WorkflowRecord,
   source: Record<string, unknown>,
@@ -101,7 +130,7 @@ const applyPendingDataView = (
   if ("subModule" in source) next.subModule = readString(source.subModule) || next.subModule;
   if ("workflowType" in source) next.workflowType = workflowTypeRaw || next.workflowType;
   if ("nodePath" in source) next.nodePath = nodePathRaw || next.nodePath;
-  if ("levels" in source) next.levels = source.levels ?? next.levels;
+  if ("levels" in source) next.levels = mergeWorkflowLevels(next.levels, source.levels);
   if ("levelsHash" in source) next.levelsHash = levelsHashRaw || next.levelsHash;
   if (statusRaw === "ACTIVE") next.status = "Active";
   if (statusRaw === "INACTIVE") next.status = "Inactive";
@@ -190,7 +219,7 @@ export default function WorkflowManageDialog({
   }, [pendingDecision]);
 
   useEffect(() => {
-    if (!open || !workflow || initialAction !== "delete" || showDeleteActions) return;
+    if (!open || !workflow || initialAction !== "delete" || showDeleteActions || workflow.status === "Inactive") return;
     void onDeleteRequestStart?.(workflow);
   }, [initialAction, onDeleteRequestStart, open, showDeleteActions, workflow]);
 
@@ -301,6 +330,7 @@ export default function WorkflowManageDialog({
     : formattedImpactLabel;
 
   const currentWorkflowStatus = workflow.status === "Inactive" ? "inactive" : "active";
+  const canDeleteWorkflow = workflow.status !== "Pending" && workflow.status !== "Inactive";
   const isRemarkValid = Boolean(remark.trim());
   const showRemarkError = remarkTouched && !isRemarkValid;
   const initiatorName = workflow.initiatorName?.trim() || "";
@@ -308,6 +338,49 @@ export default function WorkflowManageDialog({
   const initiatedOn = formatToIst(workflow.initiatedDate);
   const pendingWorkflowName = workflow.workflowName?.trim() || "";
   const pendingWorkflowAlias = workflow.workflowAlias?.trim() || "";
+  const historyPreviewEvent = historyDetailOverride?.previewEvent;
+  const displayTitle =
+    (
+      (previousWorkflow?.name && isUpdateRequest ? previousWorkflow.name : "") ||
+      pendingWorkflowName ||
+      displayWorkflow.name
+    ).trim();
+  const getHistoryEventTone = (action: string, fallbackStatus?: "pending" | "approved") => {
+    const normalized = action.trim().toLowerCase();
+    if (normalized.includes("reject")) return "rejected" as const;
+    if (normalized.includes("inactive") || normalized.includes("archive")) return "inactive" as const;
+    if (
+      normalized.includes("modify") ||
+      normalized.includes("update") ||
+      normalized.includes("edit")
+    ) {
+      return "modified" as const;
+    }
+    if (normalized.includes("initiate")) return "initiation" as const;
+    if (normalized.includes("pending")) return "pending" as const;
+    if (normalized.includes("approve") || normalized.includes("active")) return "approved" as const;
+    return fallbackStatus === "pending" ? "pending" : "approved";
+  };
+  const historyEventTone = historyPreviewEvent ? getHistoryEventTone(historyPreviewEvent.action, historyPreviewEvent.status) : null;
+  const historyEventStripClassName =
+    historyEventTone === "pending"
+      ? "border-amber-200/50 bg-amber-50 text-amber-700"
+      : historyEventTone === "initiation"
+        ? "border-sky-200/60 bg-sky-50 text-sky-700"
+        : historyEventTone === "modified"
+          ? "border-orange-200/60 bg-orange-50 text-orange-700"
+          : historyEventTone === "rejected"
+            ? "border-rose-200/50 bg-rose-50 text-rose-700"
+            : historyEventTone === "inactive"
+              ? "border-slate-300/70 bg-slate-100 text-slate-700"
+              : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
+  const HistoryEventIcon = historyEventTone === "pending"
+    ? Calendar
+    : historyEventTone === "initiation" || historyEventTone === "modified"
+      ? History
+      : historyEventTone === "rejected"
+        ? X
+        : BadgeCheck;
 
   const handleStartPendingAction = (action: "approve" | "reject") => {
     setPendingDecision(action);
@@ -391,7 +464,18 @@ export default function WorkflowManageDialog({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2.5">
-                <DialogTitle className="text-xl text-slate-900">{displayWorkflow.name}</DialogTitle>
+                <DialogTitle className="text-xl text-slate-900">{displayTitle}</DialogTitle>
+                {historyPreviewEvent ? (
+                  <span className={cn("inline-flex items-center gap-1.5 rounded border px-2 py-1", historyEventStripClassName)}>
+                    <HistoryEventIcon className="h-3 w-3" />
+                    <span className="text-[10px] font-bold uppercase tracking-tight">{historyPreviewEvent.action}</span>
+                    {historyPreviewEvent.levelCount ? (
+                      <span className={cn("inline-flex h-4 min-w-4 items-center justify-center rounded-sm border px-1 text-[9px] font-bold leading-none", historyEventStripClassName)}>
+                        {historyPreviewEvent.levelCount}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -460,7 +544,7 @@ export default function WorkflowManageDialog({
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
-              {!isHistoryPreviewActive && workflow.status !== "Pending" && onConfirmDelete ? (
+              {!isHistoryPreviewActive && canDeleteWorkflow && onConfirmDelete ? (
                 <TooltipProvider delayDuration={120}>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -597,7 +681,7 @@ export default function WorkflowManageDialog({
             </div>
           ) : null}
 
-          {!isPending && !isHistoryPreviewActive && showDeleteActions ? (
+          {canDeleteWorkflow && !isPending && !isHistoryPreviewActive && showDeleteActions ? (
             <div className="rounded-xl border border-rose-200 bg-white p-4">
               <div className="mb-3 text-xs font-bold uppercase tracking-wider text-rose-600">
                 Submit Delete Request
@@ -684,7 +768,7 @@ export default function WorkflowManageDialog({
               <Button variant="outline" onClick={onClose} disabled={isSubmitting || statusSubmitting}>
                 Close
               </Button>
-              {showDeleteActions ? (
+              {canDeleteWorkflow && showDeleteActions ? (
                 <>
                   <Select value={deleteWorkflow} onValueChange={onDeleteWorkflowChange}>
                     <SelectTrigger className="h-10 min-w-[16rem]">

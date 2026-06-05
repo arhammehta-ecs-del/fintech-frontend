@@ -245,6 +245,7 @@ export function UserManagePreview({
     isHistoryPreviewActive &&
     historyDetailOverride?.mode === "comparison" &&
     (Object.keys(requestOldData).length > 0 || Object.keys(requestNewData).length > 0);
+  const canDeleteMember = member.status !== "Pending" && member.status !== "Inactive";
   const canTogglePreviousUpdated =
     requestType === "UPDATE" &&
     (canShowPendingActions || canShowHistoryComparison) &&
@@ -717,7 +718,7 @@ export function UserManagePreview({
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
-              {onDelete && member.status !== "Pending" ? (
+              {onDelete && canDeleteMember ? (
                 <button
                   type="button"
                   disabled={isActionLocked}
@@ -1334,7 +1335,7 @@ export function UserManagePreview({
           </div>
         </div>
       ) : null}
-      {member.status !== "Pending" && showDeleteActions ? (
+      {canDeleteMember && showDeleteActions ? (
         <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4">
           <div className="space-y-3">
             {requireDeleteRemark ? (

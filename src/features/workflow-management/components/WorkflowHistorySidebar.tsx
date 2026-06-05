@@ -256,7 +256,19 @@ export default function WorkflowHistorySidebar({
 
     try {
       const response = await fetchHistoryDetail({ id: sourceId, type: "workflow" });
-      onOpenHistoryDetail?.(normalizeHistoryDetail(response), sourceId);
+      const detail = normalizeHistoryDetail(response);
+      if (!detail) return;
+      onOpenHistoryDetail?.(
+        {
+          ...detail,
+          previewEvent: {
+            action: entry.action,
+            levelCount: entry.levelCount,
+            status: entry.status,
+          },
+        },
+        sourceId,
+      );
     } catch (error) {
       const message = getApiErrorMessage(error, "Failed to fetch history details.");
       toast({ title: "Unable to load history details", description: message, variant: "destructive" });

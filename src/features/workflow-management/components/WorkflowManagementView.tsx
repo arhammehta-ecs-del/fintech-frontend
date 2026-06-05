@@ -992,7 +992,7 @@ export default function WorkflowManagementView() {
                       >
                         <SlidersHorizontal className="h-4 w-4" />
                       </Button>
-                      {workflow.status !== "Pending" ? (
+                      {workflow.status !== "Pending" && workflow.status !== "Inactive" ? (
                         <Button
                           variant="ghost"
                           size="icon"
