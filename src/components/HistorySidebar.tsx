@@ -113,7 +113,7 @@ function StatusHeader({
       : tone === "rejected"
         ? "border-rose-200/50 bg-rose-50 text-rose-700"
         : tone === "inactive"
-          ? "border-slate-300/70 bg-slate-100 text-slate-700"
+          ? "border-rose-200/50 bg-rose-50 text-rose-700"
           : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
 
   return (
@@ -241,9 +241,11 @@ function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewM
                     ? "border-sky-300 text-sky-700 shadow-[0_0_10px_rgba(56,189,248,0.16)]"
                     : tone === "modified"
                       ? "border-orange-300 text-orange-700 shadow-[0_0_10px_rgba(249,115,22,0.18)]"
-                    : tone === "approved"
-                      ? "border-emerald-300 text-emerald-700 shadow-[0_0_10px_rgba(16,185,129,0.16)]"
-                      : "border-slate-200";
+                      : tone === "inactive"
+                        ? "border-rose-300 text-rose-700 shadow-[0_0_10px_rgba(244,63,94,0.16)]"
+                      : tone === "approved"
+                        ? "border-emerald-300 text-emerald-700 shadow-[0_0_10px_rgba(16,185,129,0.16)]"
+                        : "border-slate-200";
 
               return (
                 <div
@@ -277,9 +279,11 @@ function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewM
                       ? "border-sky-200/80 shadow-[0_2px_12px_rgba(56,189,248,0.08)]"
                       : tone === "modified"
                         ? "border-orange-200/80 shadow-[0_2px_12px_rgba(249,115,22,0.1)]"
-                      : tone === "approved"
-                        ? "border-emerald-200/80 shadow-[0_2px_12px_rgba(16,185,129,0.08)]"
-                        : "border-slate-200 hover:shadow-md";
+                        : tone === "inactive"
+                          ? "border-rose-200/80 shadow-[0_2px_12px_rgba(244,63,94,0.1)]"
+                        : tone === "approved"
+                          ? "border-emerald-200/80 shadow-[0_2px_12px_rgba(16,185,129,0.08)]"
+                          : "border-slate-200 hover:shadow-md";
                 })(),
               ].join(" ")}
             >
@@ -343,6 +347,8 @@ function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewM
                                 ? "border-sky-200 bg-sky-50/35"
                                 : tone === "modified"
                                   ? "border-orange-200 bg-orange-50/40"
+                                  : tone === "inactive"
+                                    ? "border-rose-200 bg-rose-50/40"
                                 : tone === "approved"
                                   ? "border-emerald-200 bg-emerald-50/35"
                                   : "border-slate-200 bg-slate-50/70";

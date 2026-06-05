@@ -469,8 +469,7 @@ export default function WorkflowManagementView() {
 
   const closeManageWorkflowDialog = async () => {
     const isPendingLike = !!manageWorkflow && (manageWorkflow.status === "Pending" || isWorkflowUpdateRequest(manageWorkflow));
-    const isInactive = manageWorkflow?.status === "Inactive";
-    const shouldReleaseLock = !isPendingLike && !isInactive && manageLockArmed;
+    const shouldReleaseLock = !isPendingLike && manageLockArmed;
     await workflowLockSession.stopSession(shouldReleaseLock);
     setManageLockArmed(false);
     setShowDeleteActions(false);

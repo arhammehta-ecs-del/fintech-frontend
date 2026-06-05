@@ -36,7 +36,6 @@ import {
   formatToIst,
   getNodeBadgeClass,
   getNodeEdgeBorderClass,
-  getUserStatusClass,
   getNodeHoverClass,
   groupByNode,
 } from "@/features/user-management/components/UserManagePreview.utils";
@@ -545,7 +544,6 @@ export function UserManagePreview({
     setRemarkTouched(false);
   };
 
-  const statusCls = getUserStatusClass(member.status);
   const normalizedRequestType = requestType;
   const normalizedRequestImpact = readString(member.basicDetails?.requestImpact).toUpperCase();
   const normalizedRequestStatus = readString(requestNewBasicDetails.status).toUpperCase();
@@ -573,11 +571,6 @@ export function UserManagePreview({
       ? `${pendingApprovalLabel} - ${formattedImpactLabel}`
       : pendingApprovalLabel
     : "";
-  const statusBadgeLabel = approvalImpactLabel || pendingApprovalLabel || (member.status || "Active");
-  const shouldShowStatusBadge = Boolean(approvalImpactLabel || pendingApprovalLabel) || statusBadgeLabel.trim().toUpperCase() !== "PENDING";
-  const statusBadgeClassName = pendingApprovalLabel
-    ? "border-amber-200 bg-amber-100 text-amber-700"
-    : statusCls;
   const impactBadgeMap: Record<string, string> = {
     ARCHIVE: "border-rose-200 bg-rose-100 text-rose-700",
     INACTIVE: "border-amber-200 bg-amber-100 text-amber-700",
@@ -638,7 +631,7 @@ export function UserManagePreview({
       : historyEventTone === "rejected"
         ? "border-rose-200/50 bg-rose-50 text-rose-700"
         : historyEventTone === "inactive"
-          ? "border-slate-300/70 bg-slate-100 text-slate-700"
+          ? "border-rose-200/50 bg-rose-50 text-rose-700"
           : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
   const HistoryEventIcon = historyEventTone === "pending"
     ? Clock
@@ -671,11 +664,6 @@ export function UserManagePreview({
                         {historyPreviewEvent.levelCount}
                       </span>
                     ) : null}
-                  </span>
-                ) : null}
-                {shouldShowStatusBadge ? (
-                  <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider", statusBadgeClassName)}>
-                    {statusBadgeLabel}
                   </span>
                 ) : null}
               </div>

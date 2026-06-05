@@ -367,13 +367,13 @@ export default function WorkflowManageDialog({
       ? "border-amber-200/50 bg-amber-50 text-amber-700"
       : historyEventTone === "initiation"
         ? "border-sky-200/60 bg-sky-50 text-sky-700"
-        : historyEventTone === "modified"
-          ? "border-orange-200/60 bg-orange-50 text-orange-700"
-          : historyEventTone === "rejected"
-            ? "border-rose-200/50 bg-rose-50 text-rose-700"
-            : historyEventTone === "inactive"
-              ? "border-slate-300/70 bg-slate-100 text-slate-700"
-              : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
+    : historyEventTone === "modified"
+      ? "border-orange-200/60 bg-orange-50 text-orange-700"
+      : historyEventTone === "rejected"
+        ? "border-rose-200/50 bg-rose-50 text-rose-700"
+        : historyEventTone === "inactive"
+          ? "border-rose-200/50 bg-rose-50 text-rose-700"
+          : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
   const HistoryEventIcon = historyEventTone === "pending"
     ? Calendar
     : historyEventTone === "initiation" || historyEventTone === "modified"
