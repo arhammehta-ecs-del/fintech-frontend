@@ -222,6 +222,7 @@ export function useWorkflowManagement() {
   const submitWorkflowArchiveRequest = async (input: {
     workflow: WorkflowRecord;
     remark: string;
+    levelsHash: string | null;
   }) => {
     const target = {
       module: (input.workflow.rawModule || input.workflow.module || "").trim(),
@@ -233,6 +234,7 @@ export function useWorkflowManagement() {
       await createWorkflow({
         type: "archive",
         target,
+        levelsHash: input.levelsHash?.trim() || null,
         remarks: input.remark.trim(),
       });
       await loadWorkflows();

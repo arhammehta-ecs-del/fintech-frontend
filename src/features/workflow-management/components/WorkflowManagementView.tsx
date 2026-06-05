@@ -225,6 +225,8 @@ export default function WorkflowManagementView() {
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [manageLockArmed, setManageLockArmed] = useState(false);
   const [showDeleteActions, setShowDeleteActions] = useState(false);
+  const [deleteWorkflow, setDeleteWorkflow] = useState("__none__");
+  const [deleteWorkflowOptions, setDeleteWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [manageActionRemark, setManageActionRemark] = useState("");
   const [manageActionRemarkError, setManageActionRemarkError] = useState("");
   const [manageDialogInitialAction, setManageDialogInitialAction] = useState<"delete" | null>(null);
@@ -472,6 +474,8 @@ export default function WorkflowManagementView() {
     await workflowLockSession.stopSession(shouldReleaseLock);
     setManageLockArmed(false);
     setShowDeleteActions(false);
+    setDeleteWorkflow("__none__");
+    setDeleteWorkflowOptions([]);
     setManageActionRemark("");
     setManageActionRemarkError("");
     setManageDialogInitialAction(null);
@@ -500,8 +504,11 @@ export default function WorkflowManagementView() {
         },
       );
       setManageLockArmed(true);
+      const workflowOptions = await requestStatusWorkflowOptions(workflow);
       if (openDialog) setManageWorkflow(workflow);
       setShowDeleteActions(true);
+      setDeleteWorkflow("__none__");
+      setDeleteWorkflowOptions(workflowOptions);
       setManageActionRemark("");
       setManageActionRemarkError("");
       setManageDialogInitialAction("delete");
@@ -526,6 +533,7 @@ export default function WorkflowManagementView() {
       await submitWorkflowArchiveRequest({
         workflow,
         remark: normalizedRemark,
+        levelsHash: deleteWorkflow === "__none__" ? null : deleteWorkflow,
       });
       await closeManageWorkflowDialog();
     } catch {
@@ -537,6 +545,8 @@ export default function WorkflowManagementView() {
     if (!manageWorkflow) {
       setManageLockArmed(false);
       setShowDeleteActions(false);
+      setDeleteWorkflow("__none__");
+      setDeleteWorkflowOptions([]);
       setManageActionRemark("");
       setManageActionRemarkError("");
       setManageDialogInitialAction(null);
@@ -971,6 +981,8 @@ export default function WorkflowManagementView() {
                         className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
                         onClick={() => {
                           setShowDeleteActions(false);
+                          setDeleteWorkflow("__none__");
+                          setDeleteWorkflowOptions([]);
                           setManageActionRemark("");
                           setManageActionRemarkError("");
                           setManageDialogInitialAction(null);
@@ -1143,9 +1155,12 @@ export default function WorkflowManagementView() {
         onSubmitStatusUpdate={submitWorkflowStatusUpdate}
         onDeleteRequestStart={(workflow) => openWorkflowDeleteActions(workflow, false)}
         showDeleteActions={showDeleteActions}
+        deleteWorkflow={deleteWorkflow}
+        deleteWorkflowOptions={deleteWorkflowOptions}
         deleteRemark={manageActionRemark}
         deleteRemarkError={manageActionRemarkError}
         deleteRemarkPlaceholder="Enter remark for delete workflow request"
+        onDeleteWorkflowChange={setDeleteWorkflow}
         onDeleteRemarkChange={(value) => {
           setManageActionRemark(value);
           if (manageActionRemarkError) setManageActionRemarkError("");
@@ -1158,6 +1173,8 @@ export default function WorkflowManagementView() {
             await workflowLockSession.stopSession(true);
             setManageLockArmed(false);
             setShowDeleteActions(false);
+            setDeleteWorkflow("__none__");
+            setDeleteWorkflowOptions([]);
             setManageActionRemark("");
             setManageActionRemarkError("");
             setManageDialogInitialAction(null);
@@ -1182,6 +1199,8 @@ export default function WorkflowManagementView() {
               setOnboardingMode("edit");
               setWorkflowSeedForEdit(workflow);
               setShowDeleteActions(false);
+              setDeleteWorkflow("__none__");
+              setDeleteWorkflowOptions([]);
               setManageActionRemark("");
               setManageActionRemarkError("");
               setManageDialogInitialAction(null);

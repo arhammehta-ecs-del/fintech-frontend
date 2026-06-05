@@ -127,6 +127,7 @@ const mapOrgHistoryEntry = (
   const eligibleApprovers = mapEligibleApprovers(record);
   const disableViewMore = isAutoEvent;
   const remarks = readString(record.remarks);
+  const levelCount = readString(record.levelCount);
   const details = eligibleApprovers.length > 0
     ? "Eligible approvers listed below."
     : nodeName
@@ -143,6 +144,7 @@ const mapOrgHistoryEntry = (
     month,
     day,
     action,
+    levelCount: levelCount || undefined,
     details,
     remarks: remarks || undefined,
     timestampMissing: !hasCreatedAt,

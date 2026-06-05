@@ -196,6 +196,7 @@ const mapUserHistoryEntry = (
   const eligibleApprovers = mapEligibleApprovers(record);
   const disableViewMore = isAutoEvent;
   const remarks = readString(record.remarks);
+  const levelCount = readString(record.levelCount);
   const defaultDetails =
     level !== null
       ? `Level ${level} ${eventPhrase} recorded for ${targetEmail}.`
@@ -221,6 +222,7 @@ const mapUserHistoryEntry = (
     month,
     day,
     action,
+    levelCount: levelCount || undefined,
     details: eligibleApproversDetail || defaultDetails,
     remarks: remarks || undefined,
     timestampMissing: !hasCreatedAt,

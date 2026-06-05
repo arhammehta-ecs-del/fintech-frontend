@@ -152,6 +152,7 @@ const mapWorkflowHistoryEntry = (
   const isAutoEvent = normalizedAction.includes("auto generate") || normalizedAction.includes("auto delete");
   const disableViewMore = isAutoEvent;
   const remarks = readString(record.remarks);
+  const levelCount = readString(record.levelCount);
   const timestampMissing = !createdAt;
   const pendingApproverCount = eligibleApprovers.length;
   const details =
@@ -171,6 +172,7 @@ const mapWorkflowHistoryEntry = (
     month,
     day,
     action,
+    levelCount: levelCount || undefined,
     details,
     remarks: remarks || undefined,
     timestampMissing,

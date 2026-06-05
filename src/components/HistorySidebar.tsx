@@ -14,6 +14,7 @@ export type HistoryEntry = {
   month: string;
   day: string;
   action: string;
+  levelCount?: string;
   details: string;
   remarks?: string;
   timestampMissing?: boolean;
@@ -130,6 +131,11 @@ function StatusHeader({
           <ShieldCheck className="h-3 w-3" />
         )}
         <span className="text-[10px] font-bold uppercase tracking-tight">{item.action}</span>
+        {item.levelCount ? (
+          <span className={`inline-flex h-4 min-w-4 items-center justify-center rounded-sm border px-1 text-[9px] font-bold leading-none ${badgeClassName}`}>
+            {item.levelCount}
+          </span>
+        ) : null}
       </div>
       {item.changeSummaryBadges && item.changeSummaryBadges.length > 0 ? (
         <div className="flex flex-wrap items-center justify-end gap-1.5">

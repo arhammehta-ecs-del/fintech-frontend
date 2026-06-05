@@ -31,6 +31,9 @@ type WorkflowManageDialogProps = {
   deleteRemark?: string;
   deleteRemarkPlaceholder?: string;
   deleteRemarkError?: string;
+  deleteWorkflow?: string;
+  deleteWorkflowOptions?: Array<{ id: string; label: string }>;
+  onDeleteWorkflowChange?: (value: string) => void;
   onDeleteRemarkChange?: (value: string) => void;
   onConfirmDelete?: (workflow: WorkflowRecord) => void;
   onCancelDeleteActions?: () => void;
@@ -130,6 +133,9 @@ export default function WorkflowManageDialog({
   deleteRemark = "",
   deleteRemarkPlaceholder = "Enter remark",
   deleteRemarkError = "",
+  deleteWorkflow = "__none__",
+  deleteWorkflowOptions = [],
+  onDeleteWorkflowChange,
   onDeleteRemarkChange,
   onConfirmDelete,
   onCancelDeleteActions,
@@ -680,9 +686,19 @@ export default function WorkflowManageDialog({
               </Button>
               {showDeleteActions ? (
                 <>
-                  <Button variant="outline" onClick={onCancelDeleteActions}>
-                    Close
-                  </Button>
+                  <Select value={deleteWorkflow} onValueChange={onDeleteWorkflowChange}>
+                    <SelectTrigger className="h-10 min-w-[16rem]">
+                      <SelectValue placeholder="Select workflow" />
+                    </SelectTrigger>
+                    <SelectContent side="top">
+                      <SelectItem value="__none__">No Workflow</SelectItem>
+                      {deleteWorkflowOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button
                     className="rounded-full border-rose-600 bg-rose-600 px-6 text-white hover:bg-rose-700"
                     onClick={() => onConfirmDelete?.(workflow)}

@@ -47,6 +47,7 @@ const mapCompanyHistoryEntry = (item: unknown, index: number): HistoryEntry => {
     "no-email@example.com";
   const showActor = Boolean(readString(user.name) || readString(user.email));
   const companyCode = readString(record.companyCode) || readString(record.code);
+  const levelCount = readString(record.levelCount);
 
   const normalizedAction = action.toLowerCase();
   const isPendingAction = normalizedAction.includes("initiate") || normalizedAction.includes("pending");
@@ -58,6 +59,7 @@ const mapCompanyHistoryEntry = (item: unknown, index: number): HistoryEntry => {
     month,
     day,
     action,
+    levelCount: levelCount || undefined,
     details: `event recorded for ${companyCode || "this company"}.`,
     initiator: {
       name: initiatorName,
