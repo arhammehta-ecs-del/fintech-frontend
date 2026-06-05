@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Calendar, ChevronDown, CircleX, Clock, History, ShieldCheck, X } from "lucide-react";
 import { getInitials } from "@/lib/userIdentity.utils";
 
@@ -7,6 +7,8 @@ export type HistoryStatus = "pending" | "approved";
 export type HistoryEntry = {
   id: string;
   sourceId?: string;
+  disableViewMore?: boolean;
+  collapseToHeader?: boolean;
   sortEpochMs?: number;
   year: string;
   month: string;
@@ -92,7 +94,13 @@ const getEventTone = (action: string, fallbackStatus: HistoryStatus): EventTone 
   return fallbackStatus === "pending" ? "pending" : "approved";
 };
 
-function StatusHeader({ item }: { item: HistoryEntry }) {
+function StatusHeader({
+  item,
+  headerAction,
+}: {
+  item: HistoryEntry;
+  headerAction?: ReactNode;
+}) {
   const tone = getEventTone(item.action, item.status);
   const badgeClassName =
     tone === "pending"
@@ -133,8 +141,9 @@ function StatusHeader({ item }: { item: HistoryEntry }) {
               {badge.label}
             </span>
           ))}
+          {headerAction}
         </div>
-      ) : null}
+      ) : headerAction ? <div className="flex items-center justify-end gap-1.5">{headerAction}</div> : null}
     </div>
   );
 }
@@ -192,11 +201,31 @@ function ActorFooter({ item }: { item: HistoryEntry }) {
 }
 
 function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewMore?: (item: HistoryEntry) => void }) {
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setExpandedItems((current) => {
+      const next = { ...current };
+      data.forEach((item) => {
+        if (!item.collapseToHeader && item.id in next) {
+          delete next[item.id];
+        }
+      });
+      return next;
+    });
+  }, [data]);
+
   return (
     <div className="relative py-1">
       <div className="space-y-6">
         {data.map((item, index) => (
           <div key={item.id} className="relative pl-14">
+            {(() => {
+              const isCollapsible = Boolean(item.collapseToHeader);
+              const isCollapsed = isCollapsible && !expandedItems[item.id];
+
+              return (
+                <>
             {(() => {
               const tone = getEventTone(item.action, item.status);
               const dateBadgeClassName =
@@ -233,7 +262,7 @@ function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewM
 
             <div
               className={[
-                "rounded-2xl border bg-white p-4 shadow-sm transition-all",
+                isCollapsed ? "rounded-2xl border bg-white px-4 py-3 shadow-sm transition-all" : "rounded-2xl border bg-white p-4 shadow-sm transition-all",
                 (() => {
                   const tone = getEventTone(item.action, item.status);
                   return tone === "pending"
@@ -248,69 +277,96 @@ function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewM
                 })(),
               ].join(" ")}
             >
-              <StatusHeader item={item} />
-              <div className="mb-2 flex items-start justify-between gap-3 px-1">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <h4 className="min-w-0 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {onViewMore ? (
-                        <button
-                          type="button"
-                          onClick={() => onViewMore(item)}
-                          className="shrink-0 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                        >
-                          View More
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="mb-2 px-1">
-                <p className="text-[11.5px] leading-relaxed text-slate-600">{item.details}</p>
-                {item.remarks ? (
-                  <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600">
-                    <span className="font-medium text-slate-700">Remarks:</span> {item.remarks}
-                  </p>
-                ) : null}
-                {item.eligibleApprovers && item.eligibleApprovers.length > 0 ? (
-                  <div
-                    className={[
-                      "mt-2 rounded-lg border p-2",
-                      (() => {
-                        const tone = getEventTone(item.action, item.status);
-                        return tone === "pending"
-                          ? "border-amber-200 bg-amber-50/40"
-                          : tone === "initiation"
-                            ? "border-sky-200 bg-sky-50/35"
-                            : tone === "modified"
-                              ? "border-orange-200 bg-orange-50/40"
-                            : tone === "approved"
-                              ? "border-emerald-200 bg-emerald-50/35"
-                              : "border-slate-200 bg-slate-50/70";
-                      })(),
-                    ].join(" ")}
-                  >
-                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                      Eligible Approvers
-                    </p>
-                    <div className="max-h-[116px] space-y-1 overflow-y-auto pr-1">
-                      {item.eligibleApprovers.map((approver, idx) => (
-                        <div key={`${approver.email}-${idx}`} className="flex items-start gap-1.5 text-[11px] leading-tight text-slate-700">
-                          <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-slate-400" />
-                          <div className="min-w-0">
-                            <span className="font-medium">{approver.name}</span>
-                            <span className="text-slate-500"> ({approver.email})</span>
-                          </div>
+              <StatusHeader
+                item={item}
+                headerAction={
+                  isCollapsible ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedItems((current) => ({
+                          ...current,
+                          [item.id]: !current[item.id],
+                        }))
+                      }
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                      aria-label={isCollapsed ? "Expand history card" : "Collapse history card"}
+                      aria-expanded={!isCollapsed}
+                    >
+                      <ChevronDown className={`h-4 w-4 transition-transform ${isCollapsed ? "" : "rotate-180"}`} />
+                    </button>
+                  ) : null
+                }
+              />
+              {!isCollapsed ? (
+                <>
+                  <div className="mb-2 flex items-start justify-between gap-3 px-1">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <h4 className="min-w-0 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {onViewMore && !item.disableViewMore ? (
+                            <button
+                              type="button"
+                              onClick={() => onViewMore(item)}
+                              className="shrink-0 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                            >
+                              View More
+                            </button>
+                          ) : null}
                         </div>
-                      ))}
+                      </div>
                     </div>
                   </div>
-                ) : null}
-              </div>
-              <ActorFooter item={item} />
+                  <div className="mb-2 px-1">
+                    <p className="text-[11.5px] leading-relaxed text-slate-600">{item.details}</p>
+                    {item.remarks ? (
+                      <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600">
+                        <span className="font-medium text-slate-700">Remarks:</span> {item.remarks}
+                      </p>
+                    ) : null}
+                    {item.eligibleApprovers && item.eligibleApprovers.length > 0 ? (
+                      <div
+                        className={[
+                          "mt-2 rounded-lg border p-2",
+                          (() => {
+                            const tone = getEventTone(item.action, item.status);
+                            return tone === "pending"
+                              ? "border-amber-200 bg-amber-50/40"
+                              : tone === "initiation"
+                                ? "border-sky-200 bg-sky-50/35"
+                                : tone === "modified"
+                                  ? "border-orange-200 bg-orange-50/40"
+                                : tone === "approved"
+                                  ? "border-emerald-200 bg-emerald-50/35"
+                                  : "border-slate-200 bg-slate-50/70";
+                          })(),
+                        ].join(" ")}
+                      >
+                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                          Eligible Approvers
+                        </p>
+                        <div className="max-h-[116px] space-y-1 overflow-y-auto pr-1">
+                          {item.eligibleApprovers.map((approver, idx) => (
+                            <div key={`${approver.email}-${idx}`} className="flex items-start gap-1.5 text-[11px] leading-tight text-slate-700">
+                              <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                              <div className="min-w-0">
+                                <span className="font-medium">{approver.name}</span>
+                                <span className="text-slate-500"> ({approver.email})</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <ActorFooter item={item} />
+                </>
+              ) : null}
             </div>
+                </>
+              );
+            })()}
           </div>
         ))}
       </div>

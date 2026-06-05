@@ -219,6 +219,37 @@ export function useWorkflowManagement() {
     }
   };
 
+  const submitWorkflowArchiveRequest = async (input: {
+    workflow: WorkflowRecord;
+    remark: string;
+  }) => {
+    const target = {
+      module: (input.workflow.rawModule || input.workflow.module || "").trim(),
+      subModule: (input.workflow.subModule || "").trim(),
+      nodePath: (input.workflow.nodePath || "").trim(),
+      levelsHash: (input.workflow.levelsHash || input.workflow.workflowId || input.workflow.id || "").trim(),
+    };
+    try {
+      await createWorkflow({
+        type: "archive",
+        target,
+        remarks: input.remark.trim(),
+      });
+      await loadWorkflows();
+      toast({
+        title: "Delete initiated",
+        description: "Delete workflow request has been submitted.",
+      });
+    } catch (error) {
+      toast({
+        title: "Unable to delete workflow",
+        description: getApiErrorMessage(error, "Failed to submit workflow delete request."),
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
   const handleOpenAddWorkflowDialog = async () => {
     try {
       await fetchCompanyNodesWithAccess("WORK_FLOW");
@@ -457,6 +488,7 @@ export function useWorkflowManagement() {
     handleWorkflowAction,
     requestStatusWorkflowOptions,
     submitWorkflowStatusUpdate,
+    submitWorkflowArchiveRequest,
     hasNewWorkflowEvent,
     setHasNewWorkflowEvent,
     hasLoadedWorkflowsOnce,

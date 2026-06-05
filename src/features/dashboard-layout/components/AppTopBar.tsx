@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell, Check, ChevronDown, LogOut, Menu, Settings, ShieldCheck, User } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Menu, Settings, ShieldCheck, User } from "lucide-react";
 import type { NavigateFunction } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -568,11 +568,8 @@ export function AppTopBar({
     const styles = statusStyles[notification.badgeTone];
     const isExpanded = expandedNotificationIds.includes(notification.id);
     const messageToShow = isExpanded ? notification.message : notification.previewMessage;
-    const normalizedRefType = String(notification.refType ?? "").trim().toUpperCase();
-    const normalizedRawType = notification.rawType.trim().toUpperCase();
-    const canShowViewDetails =
-      !(!notification.isPending && normalizedRawType === "MODIFICATION") &&
-      !(normalizedRefType === "ORG" && normalizedRawType === "REJECT");
+    const normalizedTitle = notification.title.trim().toUpperCase();
+    const canShowViewDetails = !notification.isPending && normalizedTitle !== "ORGANIZATION REMOVED";
 
     return (
       <div
@@ -695,10 +692,7 @@ export function AppTopBar({
                 onSelect={(event) => event.preventDefault()}
                 className="rounded-lg px-2 py-2.5 text-sm"
               >
-                <span className="flex items-center gap-2">
-                  <span>{option.label}</span>
-                  {notificationStatusFilters.includes(option.value) ? <Check className="h-4 w-4 text-blue-600" /> : null}
-                </span>
+                <span>{option.label}</span>
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
@@ -738,10 +732,7 @@ export function AppTopBar({
                 onSelect={(event) => event.preventDefault()}
                 className="rounded-lg px-2 py-2.5 text-sm"
               >
-                <span className="flex items-center gap-2">
-                  <span>{option.label}</span>
-                  {notificationModuleFilters.includes(option.value) ? <Check className="h-4 w-4 text-blue-600" /> : null}
-                </span>
+                <span>{option.label}</span>
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>

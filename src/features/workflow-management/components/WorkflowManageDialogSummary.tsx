@@ -326,7 +326,9 @@ export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
 
       {linkedOrgStructureNodes.length > 0 ? (
         <div className="mt-5">
-          <h4 className="mb-3 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Linked Org Structure</h4>
+          <h4 className="mb-3 px-1 text-[10px] font-black uppercase tracking-widest text-slate-600">
+            Linked Org Structure ({linkedOrgStructureNodes.length})
+          </h4>
           <div className="max-h-[240px] space-y-2 overflow-y-auto pr-1 pb-1">
             {linkedOrgStructureNodes.map((entry, index) => {
               const formattedType = formatSnakeCaseLabel(entry.nodeType || "");

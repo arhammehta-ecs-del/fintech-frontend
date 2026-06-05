@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Filter, Info, Plus, RefreshCw, Search, Settings, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, Filter, Info, Plus, RefreshCw, Search, Settings, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -195,6 +195,7 @@ export default function WorkflowManagementView() {
     handleWorkflowAction,
     requestStatusWorkflowOptions,
     submitWorkflowStatusUpdate,
+    submitWorkflowArchiveRequest,
     hasNewWorkflowEvent,
     setHasNewWorkflowEvent,
     hasLoadedWorkflowsOnce,
@@ -223,6 +224,10 @@ export default function WorkflowManagementView() {
   const [workflowSeedForEdit, setWorkflowSeedForEdit] = useState<(typeof manageWorkflow) | null>(null);
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [manageLockArmed, setManageLockArmed] = useState(false);
+  const [showDeleteActions, setShowDeleteActions] = useState(false);
+  const [manageActionRemark, setManageActionRemark] = useState("");
+  const [manageActionRemarkError, setManageActionRemarkError] = useState("");
+  const [manageDialogInitialAction, setManageDialogInitialAction] = useState<"delete" | null>(null);
   const [isRefreshTooltipOpen, setIsRefreshTooltipOpen] = useState(false);
   const isNotificationsPanelOpen = useNotificationsPanelOpen();
   const isAnyWorkflowDialogOpen = addDialogOpen || Boolean(manageWorkflow);
@@ -337,22 +342,23 @@ export default function WorkflowManagementView() {
         const targetModule = targetModuleRaw.toUpperCase();
         const targetSubModule = targetSubModuleRaw.toUpperCase();
 
-        const matchedWorkflow =
-          (referenceId
-            ? workflows.find((workflow) => {
-                const workflowId = (workflow.id || "").trim();
-                const workflowReferenceId = (workflow.referenceId || "").trim();
-                const workflowUuid = (workflow.workflowId || "").trim();
-                const workflowHash = (workflow.levelsHash || "").trim();
-                return (
-                  workflowId === referenceId ||
-                  workflowReferenceId === referenceId ||
-                  workflowUuid === referenceId ||
-                  workflowHash === referenceId
-                );
-              }) ?? null
-            : null) ??
-          (targetNodePath || targetLevelsHash || targetModule || targetSubModule
+        const matchedWorkflowByReference = referenceId
+          ? workflows.find((workflow) => {
+              const workflowId = (workflow.id || "").trim();
+              const workflowReferenceId = (workflow.referenceId || "").trim();
+              const workflowUuid = (workflow.workflowId || "").trim();
+              const workflowHash = (workflow.levelsHash || "").trim();
+              return (
+                workflowId === referenceId ||
+                workflowReferenceId === referenceId ||
+                workflowUuid === referenceId ||
+                workflowHash === referenceId
+              );
+            }) ?? null
+          : null;
+
+        const matchedWorkflowByTarget =
+          !matchedWorkflowByReference && (targetNodePath || targetLevelsHash || targetModule || targetSubModule)
             ? workflows.find((workflow) => {
                 const workflowNodePath = (workflow.nodePath || "").trim().toUpperCase();
                 const workflowLevelsHash = (workflow.levelsHash || "").trim().toUpperCase();
@@ -365,10 +371,14 @@ export default function WorkflowManagementView() {
                   (!targetSubModule || workflowSubModule === targetSubModule)
                 );
               }) ?? null
-            : null) ??
-          (Boolean(entityName)
+            : null;
+
+        const matchedWorkflowByName =
+          !matchedWorkflowByReference && !matchedWorkflowByTarget && entityName
             ? workflows.find((workflow) => (workflow.name || "").trim().toLowerCase() === entityName) ?? null
-            : null);
+            : null;
+
+        const matchedWorkflow = matchedWorkflowByReference ?? matchedWorkflowByTarget ?? matchedWorkflowByName;
 
         if (!isMounted) return;
 
@@ -461,14 +471,75 @@ export default function WorkflowManagementView() {
     const shouldReleaseLock = !isPendingLike && !isInactive && manageLockArmed;
     await workflowLockSession.stopSession(shouldReleaseLock);
     setManageLockArmed(false);
+    setShowDeleteActions(false);
+    setManageActionRemark("");
+    setManageActionRemarkError("");
+    setManageDialogInitialAction(null);
     setManageHistoryOpen(false);
     setWorkflowHistoryPreviewDetail(null);
     setManageWorkflow(null);
   };
 
+  const openWorkflowDeleteActions = async (workflow: NonNullable<typeof manageWorkflow>, openDialog = true) => {
+    try {
+      await workflowLockSession.startSession(
+        getWorkflowLockTarget(workflow),
+        () => {
+          setManageHistoryOpen(false);
+          setManageLockArmed(false);
+          setShowDeleteActions(false);
+          setManageActionRemark("");
+          setManageActionRemarkError("");
+          setManageDialogInitialAction(null);
+          setManageWorkflow(null);
+          toast({
+            title: "Edit lock expired",
+            description: "No activity detected. Workflow delete form was closed.",
+            variant: "destructive",
+          });
+        },
+      );
+      setManageLockArmed(true);
+      if (openDialog) setManageWorkflow(workflow);
+      setShowDeleteActions(true);
+      setManageActionRemark("");
+      setManageActionRemarkError("");
+      setManageDialogInitialAction("delete");
+      setManageHistoryOpen(false);
+      setWorkflowHistoryPreviewDetail(null);
+    } catch (error) {
+      toast({
+        title: "Delete unavailable",
+        description: error instanceof Error ? error.message : "Unable to lock workflow for delete.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleConfirmWorkflowDelete = async (workflow: NonNullable<typeof manageWorkflow>) => {
+    const normalizedRemark = manageActionRemark.trim();
+    if (!normalizedRemark) {
+      setManageActionRemarkError("Remark is required.");
+      return;
+    }
+    try {
+      await submitWorkflowArchiveRequest({
+        workflow,
+        remark: normalizedRemark,
+      });
+      await closeManageWorkflowDialog();
+    } catch {
+      // Request errors are surfaced in the workflow hook.
+    }
+  };
+
   useEffect(() => {
     if (!manageWorkflow) {
       setManageLockArmed(false);
+      setShowDeleteActions(false);
+      setManageActionRemark("");
+      setManageActionRemarkError("");
+      setManageDialogInitialAction(null);
       setManageHistoryOpen(false);
       setWorkflowHistoryPreviewDetail(null);
     }
@@ -898,11 +969,29 @@ export default function WorkflowManagementView() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
-                        onClick={() => setManageWorkflow(workflow)}
+                        onClick={() => {
+                          setShowDeleteActions(false);
+                          setManageActionRemark("");
+                          setManageActionRemarkError("");
+                          setManageDialogInitialAction(null);
+                          setManageWorkflow(workflow);
+                        }}
                         aria-label={`Manage ${workflow.name}`}
                       >
                         <SlidersHorizontal className="h-4 w-4" />
                       </Button>
+                      {workflow.status !== "Pending" ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700 disabled:text-slate-300 disabled:hover:bg-transparent"
+                          onClick={() => void openWorkflowDeleteActions(workflow)}
+                          disabled={Boolean(workflow.isPending) || isWorkflowUpdateRequest(workflow)}
+                          aria-label={`Delete ${workflow.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -1052,6 +1141,28 @@ export default function WorkflowManagementView() {
           return requestStatusWorkflowOptions(workflow);
         }}
         onSubmitStatusUpdate={submitWorkflowStatusUpdate}
+        onDeleteRequestStart={(workflow) => openWorkflowDeleteActions(workflow, false)}
+        showDeleteActions={showDeleteActions}
+        deleteRemark={manageActionRemark}
+        deleteRemarkError={manageActionRemarkError}
+        deleteRemarkPlaceholder="Enter remark for delete workflow request"
+        onDeleteRemarkChange={(value) => {
+          setManageActionRemark(value);
+          if (manageActionRemarkError) setManageActionRemarkError("");
+        }}
+        onConfirmDelete={(workflow) => {
+          void handleConfirmWorkflowDelete(workflow);
+        }}
+        onCancelDeleteActions={() => {
+          void (async () => {
+            await workflowLockSession.stopSession(true);
+            setManageLockArmed(false);
+            setShowDeleteActions(false);
+            setManageActionRemark("");
+            setManageActionRemarkError("");
+            setManageDialogInitialAction(null);
+          })();
+        }}
         onEdit={(workflow) => {
           void (async () => {
             try {
@@ -1070,6 +1181,10 @@ export default function WorkflowManagementView() {
               );
               setOnboardingMode("edit");
               setWorkflowSeedForEdit(workflow);
+              setShowDeleteActions(false);
+              setManageActionRemark("");
+              setManageActionRemarkError("");
+              setManageDialogInitialAction(null);
               setManageHistoryOpen(false);
               setManageWorkflow(null);
               setAddDialogOpen(true);
@@ -1108,6 +1223,7 @@ export default function WorkflowManagementView() {
             : undefined
         }
         preventOutsideClose={canUseSplitManageHistory}
+        initialAction={manageDialogInitialAction}
       />
       <EditLockWarningDialog
         open={workflowLockSession.warningOpen}

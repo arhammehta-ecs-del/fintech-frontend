@@ -123,7 +123,9 @@ const mapOrgHistoryEntry = (
   const normalizedAction = rawAction.toLowerCase();
   const isPendingAction = normalizedAction.includes("initiate") || normalizedAction.includes("pending");
   const isApprovedAction = normalizedAction.includes("approve");
+  const isAutoEvent = normalizedAction.includes("auto generate") || normalizedAction.includes("auto delete");
   const eligibleApprovers = mapEligibleApprovers(record);
+  const disableViewMore = isAutoEvent;
   const remarks = readString(record.remarks);
   const details = eligibleApprovers.length > 0
     ? "Eligible approvers listed below."
@@ -134,6 +136,8 @@ const mapOrgHistoryEntry = (
   return {
     id: readString(record.id) || readString(record.requestId) || `${createdAt || "history"}-${index}`,
     sourceId: readString(record.id) || readString(record.requestId),
+    disableViewMore,
+    collapseToHeader: isAutoEvent,
     sortEpochMs: Number.isFinite(sortEpochMs) ? sortEpochMs : undefined,
     year,
     month,

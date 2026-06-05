@@ -190,9 +190,11 @@ const mapUserHistoryEntry = (
   const normalizedAction = action.toLowerCase();
   const isPendingAction = normalizedAction.includes("initiate") || normalizedAction.includes("pending");
   const isApprovedAction = normalizedAction.includes("approve");
+  const isAutoEvent = normalizedAction.includes("auto generate") || normalizedAction.includes("auto delete");
   const showActor = Boolean(readString(initiator.name) || readString(initiator.email));
   const eligibleApproversDetail = formatEligibleApproversDetail(record);
   const eligibleApprovers = mapEligibleApprovers(record);
+  const disableViewMore = isAutoEvent;
   const remarks = readString(record.remarks);
   const defaultDetails =
     level !== null
@@ -212,6 +214,8 @@ const mapUserHistoryEntry = (
       readString(record.userId) ||
       readString(record.requestId) ||
       readString(record.email),
+    disableViewMore,
+    collapseToHeader: isAutoEvent,
     sortEpochMs: Number.isFinite(sortEpochMs) ? sortEpochMs : undefined,
     year,
     month,

@@ -208,6 +208,10 @@ export function UserManagePreview({
   const requestSecondaryAccess = mapRequestAccessEntries(selectedRequestData.secondary, "SECONDARY");
   const requestPermissionsAccess = mapRequestPermissionsEntries(selectedRequestData.permissions);
   const requestPermissionsAccessByType = splitAccessEntriesByType(requestPermissionsAccess);
+  const historyOldPermissionsAccess = mapRequestPermissionsEntries(historyOldData.permissions);
+  const historyOldPermissionsAccessByType = splitAccessEntriesByType(historyOldPermissionsAccess);
+  const historyNewPermissionsAccess = mapRequestPermissionsEntries(historyNewData.permissions);
+  const historyNewPermissionsAccessByType = splitAccessEntriesByType(historyNewPermissionsAccess);
   const oldRequestPrimaryAccess = mapRequestAccessEntries(requestOldData.primary, "PRIMARY");
   const oldRequestSecondaryAccess = mapRequestAccessEntries(requestOldData.secondary, "SECONDARY");
   const oldRequestPermissionsAccess = mapRequestPermissionsEntries(requestOldData.permissions);
@@ -228,13 +232,17 @@ export function UserManagePreview({
         ? [...oldRequestPrimaryAccess, ...oldRequestSecondaryAccess]
         : [];
   const previousPrimaryAccess: RequestAccessEntry[] =
-    oldRequestPrimaryAccess.length > 0
+    canShowHistoryComparison && historyOldPermissionsAccessByType.primary.length > 0
+      ? historyOldPermissionsAccessByType.primary
+      : oldRequestPrimaryAccess.length > 0
       ? oldRequestPrimaryAccess
       : oldRequestPermissionDiffEntriesByType.primary.length > 0
         ? oldRequestPermissionDiffEntriesByType.primary
         : currentPrimaryAccess;
   const previousSecondaryAccess: RequestAccessEntry[] =
-    previousAccessDetailsFromRequest.length > 0
+    canShowHistoryComparison && historyOldPermissionsAccessByType.secondary.length > 0
+      ? historyOldPermissionsAccessByType.secondary
+      : previousAccessDetailsFromRequest.length > 0
       ? previousAccessDetailsFromRequest.filter((permission) => permission.accessType !== "PRIMARY")
       : currentSecondaryAccess;
   const toPermissionKey = (permission: RequestAccessEntry) =>
@@ -254,13 +262,17 @@ export function UserManagePreview({
     Array.from(new Map(items.map((permission) => [toPermissionKey(permission), permission])).values());
   const hasPermissionDeltaEntries = requestPermissionsAccess.some((permission) => permission.remove);
   const effectivePrimaryAccess: RequestAccessEntry[] =
-    requestPrimaryAccess.length > 0
+    canShowHistoryComparison && historyNewPermissionsAccessByType.primary.length > 0
+      ? historyNewPermissionsAccessByType.primary
+      : requestPrimaryAccess.length > 0
       ? requestPrimaryAccess
       : requestPermissionsAccessByType.primary.length > 0
         ? requestPermissionsAccessByType.primary
         : currentPrimaryAccess;
   const effectiveSecondaryAccess: RequestAccessEntry[] =
-    requestType === "UPDATE" && hasPermissionDeltaEntries
+    canShowHistoryComparison && historyNewPermissionsAccessByType.secondary.length > 0
+      ? historyNewPermissionsAccessByType.secondary
+      : requestType === "UPDATE" && hasPermissionDeltaEntries
       ? mergePermissions([
           ...previousSecondaryAccess.filter((permission) => !removedPermissionKeys.has(toPermissionKey(permission))),
           ...addedRequestPermissions,
@@ -296,6 +308,10 @@ export function UserManagePreview({
   const formattedDepartment = cleanDisplayValue(userData.department);
   const previousDesignationRaw = readString(requestOldBasicDetails.designation).trim();
   const previousDesignationLabel = previousDesignationRaw ? formatDesignation(previousDesignationRaw) : "";
+  const previousReportingManager = readString(requestOldBasicDetails.reportingManagerName || requestOldBasicDetails.reportingManager).trim();
+  const previousReportingManagerEmail = readString(
+    requestOldBasicDetails.reportingManagerEmail || requestOldBasicDetails.reportingManager,
+  ).trim();
 
   const initiatorName = member.basicDetails?.initiatorName || "";
   const initiatorEmail = member.basicDetails?.initiatorEmail || "";
@@ -522,6 +538,11 @@ export function UserManagePreview({
                 {shouldShowStatusBadge ? (
                   <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider", statusBadgeClassName)}>
                     {statusBadgeLabel}
+                  </span>
+                ) : null}
+                {canShowHistoryComparison ? (
+                  <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-sky-700">
+                    History Comparison
                   </span>
                 ) : null}
               </div>
@@ -839,12 +860,24 @@ export function UserManagePreview({
                         <div className="flex min-w-0 items-center gap-1">
                           <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
                           <span className="shrink-0 text-slate-400">:</span>
-                          <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManager || "-"}</span>
+                          <span className="min-w-0 truncate">
+                            {canTogglePreviousUpdated
+                              ? renderDiffValue(userData.reportingManager || "-", previousReportingManager, hasOldBasicField("reportingManager") || hasOldBasicField("reportingManagerName"))
+                              : <span className="font-semibold text-slate-900">{userData.reportingManager || "-"}</span>}
+                          </span>
                         </div>
                         <div className="flex min-w-0 items-center gap-1">
                           <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
                           <span className="shrink-0 text-slate-400">:</span>
-                          <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>
+                          <span className="min-w-0 truncate">
+                            {canTogglePreviousUpdated
+                              ? renderDiffValue(
+                                  userData.reportingManagerEmail || "-",
+                                  previousReportingManagerEmail,
+                                  hasOldBasicField("reportingManagerEmail") || hasOldBasicField("reportingManager"),
+                                )
+                              : <span className="font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -949,12 +982,24 @@ export function UserManagePreview({
                         <div className="flex min-w-0 items-center gap-1">
                           <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
                           <span className="shrink-0 text-slate-400">:</span>
-                          <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManager || "-"}</span>
+                          <span className="min-w-0 truncate">
+                            {canTogglePreviousUpdated
+                              ? renderDiffValue(userData.reportingManager || "-", previousReportingManager, hasOldBasicField("reportingManager") || hasOldBasicField("reportingManagerName"))
+                              : <span className="font-semibold text-slate-900">{userData.reportingManager || "-"}</span>}
+                          </span>
                         </div>
                         <div className="flex min-w-0 items-center gap-1">
                           <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
                           <span className="shrink-0 text-slate-400">:</span>
-                          <span className="min-w-0 truncate font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>
+                          <span className="min-w-0 truncate">
+                            {canTogglePreviousUpdated
+                              ? renderDiffValue(
+                                  userData.reportingManagerEmail || "-",
+                                  previousReportingManagerEmail,
+                                  hasOldBasicField("reportingManagerEmail") || hasOldBasicField("reportingManager"),
+                                )
+                              : <span className="font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>}
+                          </span>
                         </div>
                       </div>
                     </div>

@@ -7,7 +7,7 @@ const WORKFLOW_ACTION_PATH = "/api/v1/company-settings/workflow/action";
 const WORKFLOW_HISTORY_PATH = "/api/v1/company-settings/workflow/fetch-history";
 
 export type CreateWorkflowPayload = {
-  type?: "initiate" | "update" | "active" | "inactive" | string;
+  type?: "initiate" | "update" | "active" | "inactive" | "archive" | string;
   companyCode?: string;
   name?: string;
   alias?: string;

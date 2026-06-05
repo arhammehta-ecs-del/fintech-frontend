@@ -113,11 +113,11 @@ export function useUserManagement() {
   const loadUsers = useCallback(
     async (showRefreshToast = false, overrideStatusTab?: MemberStatusTab) => {
       const companyCode = currentUser?.companyCode?.trim().toUpperCase();
-      if (!companyCode) return;
+      if (!companyCode) return null;
       const requestedTab = overrideStatusTab ?? statusTab;
       if (isLoadingRef.current) {
         queuedLoadRequestRef.current = { showRefreshToast, overrideStatusTab: requestedTab };
-        return;
+        return null;
       }
       isLoadingRef.current = true;
 
@@ -151,6 +151,7 @@ export function useUserManagement() {
             description: "The user list was updated from the latest company data.",
           });
         }
+        return response;
       } catch (error) {
         setUsers([]);
         toast({
@@ -158,6 +159,7 @@ export function useUserManagement() {
           description: getApiErrorMessage(error, "Live user API failed. Please try again once the backend is available."),
           variant: "destructive",
         });
+        return null;
       } finally {
         setIsLoading(false);
         isLoadingRef.current = false;

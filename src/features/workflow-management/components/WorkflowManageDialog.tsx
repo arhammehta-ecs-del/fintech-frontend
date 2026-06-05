@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { BadgeCheck, Calendar, CheckCircle2, GitBranch, History, Mail, Pencil, Settings2, UserCheck, X } from "lucide-react";
+import { BadgeCheck, Calendar, CheckCircle2, GitBranch, History, Mail, Pencil, Settings2, Trash2, UserCheck, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +26,14 @@ type WorkflowManageDialogProps = {
     remark: string;
     levelsHash: string | null;
   }) => Promise<void>;
+  onDeleteRequestStart?: (workflow: WorkflowRecord) => Promise<void> | void;
+  showDeleteActions?: boolean;
+  deleteRemark?: string;
+  deleteRemarkPlaceholder?: string;
+  deleteRemarkError?: string;
+  onDeleteRemarkChange?: (value: string) => void;
+  onConfirmDelete?: (workflow: WorkflowRecord) => void;
+  onCancelDeleteActions?: () => void;
   onToggleHistory?: () => void;
   onEdit?: (workflow: WorkflowRecord) => void;
   isHistoryOpen?: boolean;
@@ -34,6 +42,7 @@ type WorkflowManageDialogProps = {
   contentStyle?: CSSProperties;
   preventOutsideClose?: boolean;
   historyDetailOverride?: HistoryDetailViewModel | null;
+  initialAction?: "delete" | null;
 };
 
 const toRecord = (value: unknown): Record<string, unknown> =>
@@ -116,6 +125,14 @@ export default function WorkflowManageDialog({
   onSubmitAction,
   onRequestStatusWorkflowOptions,
   onSubmitStatusUpdate,
+  onDeleteRequestStart,
+  showDeleteActions = false,
+  deleteRemark = "",
+  deleteRemarkPlaceholder = "Enter remark",
+  deleteRemarkError = "",
+  onDeleteRemarkChange,
+  onConfirmDelete,
+  onCancelDeleteActions,
   onToggleHistory,
   onEdit,
   isHistoryOpen = false,
@@ -124,6 +141,7 @@ export default function WorkflowManageDialog({
   contentStyle,
   preventOutsideClose = false,
   historyDetailOverride = null,
+  initialAction = null,
 }: WorkflowManageDialogProps) {
   const { toast } = useToast();
 
@@ -164,6 +182,11 @@ export default function WorkflowManageDialog({
       remarkInputRef.current?.focus();
     });
   }, [pendingDecision]);
+
+  useEffect(() => {
+    if (!open || !workflow || initialAction !== "delete" || showDeleteActions) return;
+    void onDeleteRequestStart?.(workflow);
+  }, [initialAction, onDeleteRequestStart, open, showDeleteActions, workflow]);
 
   const isHistoryPreviewActive = Boolean(historyDetailOverride);
   const historyOldData = toHistoryWorkflowPreviousSource(historyDetailOverride);
@@ -431,6 +454,30 @@ export default function WorkflowManageDialog({
                   </Tooltip>
                 </TooltipProvider>
               ) : null}
+              {!isHistoryPreviewActive && workflow.status !== "Pending" && onConfirmDelete ? (
+                <TooltipProvider delayDuration={120}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={isManageActionLocked}
+                        onClick={() => {
+                          if (isManageActionLocked) return;
+                          void onDeleteRequestStart?.(workflow);
+                        }}
+                        className={cn(
+                          "inline-flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-500 transition hover:bg-rose-100",
+                          "disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-40",
+                        )}
+                        aria-label="Delete workflow"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Delete</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
               {!isHistoryPreviewActive && workflow.status !== "Pending" && onSubmitStatusUpdate ? (
                 <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
                   <button
@@ -544,6 +591,24 @@ export default function WorkflowManageDialog({
             </div>
           ) : null}
 
+          {!isPending && !isHistoryPreviewActive && showDeleteActions ? (
+            <div className="rounded-xl border border-rose-200 bg-white p-4">
+              <div className="mb-3 text-xs font-bold uppercase tracking-wider text-rose-600">
+                Submit Delete Request
+              </div>
+              <div className="space-y-3">
+                <Textarea
+                  value={deleteRemark}
+                  onChange={(event) => onDeleteRemarkChange?.(event.target.value)}
+                  placeholder={deleteRemarkPlaceholder}
+                  maxLength={250}
+                  className={cn("h-11 min-h-0 resize-none", deleteRemarkError ? "border-rose-500 focus-visible:ring-rose-500/30" : "")}
+                />
+                {deleteRemarkError ? <p className="text-xs text-rose-600">{deleteRemarkError}</p> : null}
+              </div>
+            </div>
+          ) : null}
+
           {canShowPendingActions && pendingDecision ? (
             <div ref={remarkCardRef} className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -613,7 +678,21 @@ export default function WorkflowManageDialog({
               <Button variant="outline" onClick={onClose} disabled={isSubmitting || statusSubmitting}>
                 Close
               </Button>
-              {pendingStatus && onSubmitStatusUpdate ? (
+              {showDeleteActions ? (
+                <>
+                  <Button variant="outline" onClick={onCancelDeleteActions}>
+                    Close
+                  </Button>
+                  <Button
+                    className="rounded-full border-rose-600 bg-rose-600 px-6 text-white hover:bg-rose-700"
+                    onClick={() => onConfirmDelete?.(workflow)}
+                    disabled={!deleteRemark.trim()}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Workflow
+                  </Button>
+                </>
+              ) : pendingStatus && onSubmitStatusUpdate ? (
                 <>
                   <Select
                     value={statusWorkflowHash || "__none__"}
