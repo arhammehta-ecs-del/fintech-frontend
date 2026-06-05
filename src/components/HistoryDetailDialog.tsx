@@ -1,16 +1,23 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export type HistoryDetailRecord = Record<string, unknown>;
+export type HistoryDetailPreviewEvent = {
+  action: string;
+  levelCount?: string;
+  status?: "pending" | "approved";
+};
 
 export type HistoryDetailViewModel =
   | {
       mode: "single";
       record: HistoryDetailRecord;
+      previewEvent?: HistoryDetailPreviewEvent;
     }
   | {
       mode: "comparison";
       oldData: HistoryDetailRecord;
       newData: HistoryDetailRecord;
+      previewEvent?: HistoryDetailPreviewEvent;
     };
 
 type HistoryDetailDialogProps = {

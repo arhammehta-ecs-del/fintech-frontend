@@ -3,11 +3,13 @@ import {
   Calendar,
   ArrowLeftRight,
   ChevronRight,
+  CircleX,
   IdCard,
   Mail,
   Maximize2,
   Minimize2,
   History,
+  Clock,
   Pencil,
   ShieldCheck,
   Trash2,
@@ -158,6 +160,60 @@ export function UserManagePreview({
       })
       .filter((row) => row.nodeName || row.nodePath);
   };
+  const toPermissionIdentityKey = (permission: RequestAccessEntry) =>
+    [
+      (permission.roleCategory || "").trim().toUpperCase(),
+      (permission.roleSubCategory || "").trim(),
+      (permission.roleName || "").trim(),
+      (permission.nodePath || "").trim(),
+      (permission.accessType || "").trim().toUpperCase(),
+    ].join("|");
+  const dedupePermissions = (items: RequestAccessEntry[]) =>
+    Array.from(new Map(items.map((permission) => [toPermissionIdentityKey(permission), permission])).values());
+  const filterOutPermissions = (items: RequestAccessEntry[], targets: RequestAccessEntry[]) => {
+    if (targets.length === 0) return items;
+    const targetKeys = new Set(targets.map((permission) => toPermissionIdentityKey(permission)));
+    return items.filter((permission) => !targetKeys.has(toPermissionIdentityKey(permission)));
+  };
+  const replacePermissions = (items: RequestAccessEntry[], replacements: RequestAccessEntry[]) => {
+    if (replacements.length === 0) return dedupePermissions(items);
+    return dedupePermissions([
+      ...filterOutPermissions(items, replacements),
+      ...replacements,
+    ]);
+  };
+  const mapPermissionDeltaEntries = (source: unknown) => {
+    const record = toRecord(source);
+    const added = mapRequestPermissionsEntries(record.added);
+    const removed = mapRequestPermissionsEntries(record.removed);
+    const updated = mapRequestPermissionsEntries(record.updated);
+    return {
+      added,
+      removed,
+      updated,
+      hasStructuredDelta: added.length > 0 || removed.length > 0 || updated.length > 0,
+    };
+  };
+  const applyPermissionDelta = (
+    base: RequestAccessEntry[],
+    delta: ReturnType<typeof mapPermissionDeltaEntries>,
+  ) => {
+    let next = dedupePermissions(base);
+    next = filterOutPermissions(next, delta.removed);
+    next = replacePermissions(next, delta.updated);
+    next = dedupePermissions([...next, ...delta.added]);
+    return next;
+  };
+  const reversePermissionDelta = (
+    current: RequestAccessEntry[],
+    delta: ReturnType<typeof mapPermissionDeltaEntries>,
+  ) => {
+    let previous = dedupePermissions(current);
+    previous = filterOutPermissions(previous, delta.added);
+    previous = replacePermissions(previous, delta.updated);
+    previous = dedupePermissions([...previous, ...delta.removed]);
+    return previous;
+  };
   const splitAccessEntriesByType = (entries: RequestAccessEntry[]) => ({
     primary: entries.filter((entry) => entry.accessType === "PRIMARY"),
     secondary: entries.filter((entry) => entry.accessType !== "PRIMARY"),
@@ -207,17 +263,19 @@ export function UserManagePreview({
   const requestPrimaryAccess = mapRequestAccessEntries(selectedRequestData.primary, "PRIMARY");
   const requestSecondaryAccess = mapRequestAccessEntries(selectedRequestData.secondary, "SECONDARY");
   const requestPermissionsAccess = mapRequestPermissionsEntries(selectedRequestData.permissions);
+  const requestPermissionsDelta = mapPermissionDeltaEntries(selectedRequestData.permissions);
   const requestPermissionsAccessByType = splitAccessEntriesByType(requestPermissionsAccess);
   const historyOldPermissionsAccess = mapRequestPermissionsEntries(historyOldData.permissions);
   const historyOldPermissionsAccessByType = splitAccessEntriesByType(historyOldPermissionsAccess);
   const historyNewPermissionsAccess = mapRequestPermissionsEntries(historyNewData.permissions);
+  const historyNewPermissionsDelta = mapPermissionDeltaEntries(historyNewData.permissions);
   const historyNewPermissionsAccessByType = splitAccessEntriesByType(historyNewPermissionsAccess);
   const oldRequestPrimaryAccess = mapRequestAccessEntries(requestOldData.primary, "PRIMARY");
   const oldRequestSecondaryAccess = mapRequestAccessEntries(requestOldData.secondary, "SECONDARY");
   const oldRequestPermissionsAccess = mapRequestPermissionsEntries(requestOldData.permissions);
-  const oldRequestPermissionsRecord = toRecord(requestOldData.permissions);
-  const oldRequestPermissionRemovedEntries = mapRequestPermissionsEntries(oldRequestPermissionsRecord.removed);
-  const oldRequestPermissionUpdatedEntries = mapRequestPermissionsEntries(oldRequestPermissionsRecord.updated);
+  const oldRequestPermissionsDelta = mapPermissionDeltaEntries(requestOldData.permissions);
+  const oldRequestPermissionRemovedEntries = oldRequestPermissionsDelta.removed;
+  const oldRequestPermissionUpdatedEntries = oldRequestPermissionsDelta.updated;
   const oldRequestPermissionDiffEntries =
     oldRequestPermissionsAccess.length > 0
       ? oldRequestPermissionsAccess
@@ -225,8 +283,19 @@ export function UserManagePreview({
   const oldRequestPermissionDiffEntriesByType = splitAccessEntriesByType(oldRequestPermissionDiffEntries);
   const currentPrimaryAccess = (member.accessDetails ?? []).filter((permission) => permission.accessType === "PRIMARY") as RequestAccessEntry[];
   const currentSecondaryAccess = (member.accessDetails ?? []).filter((permission) => permission.accessType !== "PRIMARY") as RequestAccessEntry[];
+  const currentAccessSnapshot = dedupePermissions((member.accessDetails as RequestAccessEntry[] | undefined) ?? []);
+  const previousPermissionsFromStructuredPending =
+    !canShowHistoryComparison && oldRequestPermissionsDelta.hasStructuredDelta
+      ? reversePermissionDelta(currentAccessSnapshot, oldRequestPermissionsDelta)
+      : [];
+  const currentPermissionsFromStructuredHistory =
+    canShowHistoryComparison && historyOldPermissionsAccess.length > 0 && historyNewPermissionsDelta.hasStructuredDelta
+      ? applyPermissionDelta(historyOldPermissionsAccess, historyNewPermissionsDelta)
+      : [];
   const previousAccessDetailsFromRequest: RequestAccessEntry[] =
-    oldRequestPermissionDiffEntries.length > 0
+    previousPermissionsFromStructuredPending.length > 0
+      ? previousPermissionsFromStructuredPending
+      : oldRequestPermissionDiffEntries.length > 0
       ? oldRequestPermissionDiffEntries
       : oldRequestPrimaryAccess.length > 0 || oldRequestSecondaryAccess.length > 0
         ? [...oldRequestPrimaryAccess, ...oldRequestSecondaryAccess]
@@ -234,6 +303,8 @@ export function UserManagePreview({
   const previousPrimaryAccess: RequestAccessEntry[] =
     canShowHistoryComparison && historyOldPermissionsAccessByType.primary.length > 0
       ? historyOldPermissionsAccessByType.primary
+      : !canShowHistoryComparison && previousPermissionsFromStructuredPending.length > 0
+        ? splitAccessEntriesByType(previousPermissionsFromStructuredPending).primary
       : oldRequestPrimaryAccess.length > 0
       ? oldRequestPrimaryAccess
       : oldRequestPermissionDiffEntriesByType.primary.length > 0
@@ -242,6 +313,8 @@ export function UserManagePreview({
   const previousSecondaryAccess: RequestAccessEntry[] =
     canShowHistoryComparison && historyOldPermissionsAccessByType.secondary.length > 0
       ? historyOldPermissionsAccessByType.secondary
+      : !canShowHistoryComparison && previousPermissionsFromStructuredPending.length > 0
+        ? splitAccessEntriesByType(previousPermissionsFromStructuredPending).secondary
       : previousAccessDetailsFromRequest.length > 0
       ? previousAccessDetailsFromRequest.filter((permission) => permission.accessType !== "PRIMARY")
       : currentSecondaryAccess;
@@ -260,10 +333,12 @@ export function UserManagePreview({
   const addedRequestPermissions = requestPermissionsAccess.filter((permission) => !permission.remove);
   const mergePermissions = (items: RequestAccessEntry[]) =>
     Array.from(new Map(items.map((permission) => [toPermissionKey(permission), permission])).values());
-  const hasPermissionDeltaEntries = requestPermissionsAccess.some((permission) => permission.remove);
+  const hasPermissionDeltaEntries = requestPermissionsAccess.some((permission) => permission.remove) || requestPermissionsDelta.hasStructuredDelta;
   const effectivePrimaryAccess: RequestAccessEntry[] =
     canShowHistoryComparison && historyNewPermissionsAccessByType.primary.length > 0
       ? historyNewPermissionsAccessByType.primary
+      : canShowHistoryComparison && currentPermissionsFromStructuredHistory.length > 0
+        ? splitAccessEntriesByType(currentPermissionsFromStructuredHistory).primary
       : requestPrimaryAccess.length > 0
       ? requestPrimaryAccess
       : requestPermissionsAccessByType.primary.length > 0
@@ -272,6 +347,10 @@ export function UserManagePreview({
   const effectiveSecondaryAccess: RequestAccessEntry[] =
     canShowHistoryComparison && historyNewPermissionsAccessByType.secondary.length > 0
       ? historyNewPermissionsAccessByType.secondary
+      : canShowHistoryComparison && currentPermissionsFromStructuredHistory.length > 0
+        ? splitAccessEntriesByType(currentPermissionsFromStructuredHistory).secondary
+      : !canShowHistoryComparison && oldRequestPermissionsDelta.hasStructuredDelta
+        ? currentSecondaryAccess
       : requestType === "UPDATE" && hasPermissionDeltaEntries
       ? mergePermissions([
           ...previousSecondaryAccess.filter((permission) => !removedPermissionKeys.has(toPermissionKey(permission))),
@@ -520,6 +599,46 @@ export function UserManagePreview({
       </span>
     );
   };
+  const historyPreviewEvent = historyDetailOverride?.previewEvent;
+  const getHistoryEventTone = (action: string, fallbackStatus?: "pending" | "approved") => {
+    const normalized = action.trim().toLowerCase();
+    if (normalized.includes("reject")) return "rejected" as const;
+    if (normalized.includes("inactive") || normalized.includes("deactivate")) return "inactive" as const;
+    if (
+      normalized.includes("modify") ||
+      normalized.includes("update") ||
+      normalized.includes("updated") ||
+      normalized.includes("rmupdated") ||
+      normalized.includes("profile update") ||
+      normalized.includes("workflow update")
+    ) {
+      return "modified" as const;
+    }
+    if (normalized.includes("initiate")) return "initiation" as const;
+    if (normalized.includes("pending")) return "pending" as const;
+    if (normalized.includes("approve") || normalized.includes("active")) return "approved" as const;
+    return fallbackStatus === "pending" ? "pending" : "approved";
+  };
+  const historyEventTone = historyPreviewEvent ? getHistoryEventTone(historyPreviewEvent.action, historyPreviewEvent.status) : null;
+  const historyEventStripClassName =
+    historyEventTone === "pending"
+      ? "border-amber-200/50 bg-amber-50 text-amber-700"
+      : historyEventTone === "initiation"
+        ? "border-sky-200/60 bg-sky-50 text-sky-700"
+      : historyEventTone === "modified"
+        ? "border-orange-200/60 bg-orange-50 text-orange-700"
+      : historyEventTone === "rejected"
+        ? "border-rose-200/50 bg-rose-50 text-rose-700"
+        : historyEventTone === "inactive"
+          ? "border-slate-300/70 bg-slate-100 text-slate-700"
+          : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
+  const HistoryEventIcon = historyEventTone === "pending"
+    ? Clock
+    : historyEventTone === "initiation" || historyEventTone === "modified"
+      ? History
+      : historyEventTone === "rejected"
+        ? CircleX
+        : ShieldCheck;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
@@ -535,6 +654,17 @@ export function UserManagePreview({
             <div>
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-xl font-bold tracking-tight text-slate-900">{userData.name}</h2>
+                {historyPreviewEvent ? (
+                  <span className={cn("inline-flex items-center gap-1.5 rounded border px-2 py-1", historyEventStripClassName)}>
+                    <HistoryEventIcon className="h-3 w-3" />
+                    <span className="text-[10px] font-bold uppercase tracking-tight">{historyPreviewEvent.action}</span>
+                    {historyPreviewEvent.levelCount ? (
+                      <span className={cn("inline-flex h-4 min-w-4 items-center justify-center rounded-sm border px-1 text-[9px] font-bold leading-none", historyEventStripClassName)}>
+                        {historyPreviewEvent.levelCount}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
                 {shouldShowStatusBadge ? (
                   <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider", statusBadgeClassName)}>
                     {statusBadgeLabel}

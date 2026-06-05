@@ -329,7 +329,17 @@ export default function UserHistorySidebar({
       const response = await fetchHistoryDetail({ id: sourceId, type: "user" });
       const detail = normalizeHistoryDetail(response);
       if (detail && onOpenHistoryDetail) {
-        onOpenHistoryDetail(detail, sourceId);
+        onOpenHistoryDetail(
+          {
+            ...detail,
+            previewEvent: {
+              action: entry.action,
+              levelCount: entry.levelCount,
+              status: entry.status,
+            },
+          },
+          sourceId,
+        );
       }
     } catch (error) {
       const message = getApiErrorMessage(error, "Failed to fetch history details.");

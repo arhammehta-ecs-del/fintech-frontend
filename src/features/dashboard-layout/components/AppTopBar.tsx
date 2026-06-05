@@ -569,7 +569,11 @@ export function AppTopBar({
     const isExpanded = expandedNotificationIds.includes(notification.id);
     const messageToShow = isExpanded ? notification.message : notification.previewMessage;
     const normalizedTitle = notification.title.trim().toUpperCase();
-    const canShowViewDetails = !notification.isPending && normalizedTitle !== "ORGANIZATION REMOVED";
+    const canShowViewDetails =
+      !notification.isPending &&
+      normalizedTitle !== "ORGANIZATION REMOVED" &&
+      normalizedTitle !== "WORKFLOW ARCHIVE APPROVED" &&
+      normalizedTitle !== "USER ARCHIVE APPROVED";
 
     return (
       <div
@@ -690,7 +694,7 @@ export function AppTopBar({
                   setNotificationStatusFilters((current) => toggleArrayValue(current, option.value));
                 }}
                 onSelect={(event) => event.preventDefault()}
-                className="rounded-lg px-2 py-2.5 text-sm"
+                className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
               >
                 <span>{option.label}</span>
               </DropdownMenuCheckboxItem>
@@ -730,7 +734,7 @@ export function AppTopBar({
                   setNotificationModuleFilters((current) => toggleArrayValue(current, option.value));
                 }}
                 onSelect={(event) => event.preventDefault()}
-                className="rounded-lg px-2 py-2.5 text-sm"
+                className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
               >
                 <span>{option.label}</span>
               </DropdownMenuCheckboxItem>
