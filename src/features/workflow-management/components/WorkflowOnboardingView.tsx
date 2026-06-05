@@ -65,89 +65,106 @@ export default function WorkflowOnboardingView({
     onStepChange?.(step);
   }, [onStepChange, step]);
 
-  return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="flex-1 p-5">
-        <WorkflowStepper step={step} />
+  const stepContent = (
+    <div
+      className={
+        step === 3
+          ? "mt-3 min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-[#fcfcfd]"
+          : "mt-3 h-full overflow-hidden rounded-2xl border border-slate-200 bg-[#fcfcfd]"
+      }
+    >
+      {step === 1 ? (
+        <WorkflowStepInputs
+          mode={resolvedMode}
+          wfName={wfName}
+          wfModule={wfModule}
+          wfNode={wfNode}
+          workflowType={workflowType}
+          moduleGroups={moduleGroups}
+          departmentOptions={departmentOptions}
+          showMetaErrors={showMetaErrors}
+          onSetWfName={setWfName}
+          onSetWfModule={setWfModule}
+          onSetWfNode={setWfNode}
+          onSetWorkflowType={setWorkflowType}
+        />
+      ) : null}
 
-        <div className="mt-3 h-[calc(100%-56px)] overflow-hidden rounded-2xl border border-slate-200 bg-[#fcfcfd]">
-          {step === 1 ? (
-            <WorkflowStepInputs
-              mode={resolvedMode}
-              wfName={wfName}
-              wfModule={wfModule}
-              wfNode={wfNode}
-              workflowType={workflowType}
-              moduleGroups={moduleGroups}
-              departmentOptions={departmentOptions}
-              showMetaErrors={showMetaErrors}
-              onSetWfName={setWfName}
-              onSetWfModule={setWfModule}
-              onSetWfNode={setWfNode}
-              onSetWorkflowType={setWorkflowType}
-            />
-          ) : null}
-
-          {step === 2 ? (
-            <WorkflowStepLevels
-              levels={levels}
-              visibleLevels={visibleLevels}
-              errorMsg={errorMsg}
-              isRMUsedGlobally={isRMUsedGlobally}
-              onUpdateApprover={updateLevelApprover}
-              onAddApprover={addApproverToLevel}
-              onRemoveApprover={removeApproverFromLevel}
-              onToggleLogic={toggleLogic}
-              onAddLevel={addNewLevel}
-              onRemoveLevel={removeLastLevel}
-              canAddLevel={currentLevelComplete && visibleLevels < 5}
-              canRemoveLevel={visibleLevels > 1}
-            />
-          ) : null}
-
-          {step === 3 ? (
-            <WorkflowStepSummary
-              wfName={wfName}
-              wfAlias={wfAlias}
-              moduleLabel={selectedModuleLabel}
-              workflowType={workflowType || "-"}
-              nodeNameLabel={selectedNodeNameLabel}
-              levels={levels}
-              visibleLevels={visibleLevels}
-              previous={resolvedMode === "edit" && seedSnapshot ? {
-                wfName: seedSnapshot.wfName,
-                wfAlias: seedSnapshot.wfAlias,
-                moduleLabel: seedSnapshot.selectedModuleLabel,
-                workflowType: workflowType || "-",
-                nodeNameLabel: seedSnapshot.selectedNodeNameLabel,
-                levels: seedSnapshot.levels,
-                visibleLevels: seedSnapshot.visibleLevels,
-              } : null}
-            />
-          ) : null}
-        </div>
-      </div>
+      {step === 2 ? (
+        <WorkflowStepLevels
+          levels={levels}
+          visibleLevels={visibleLevels}
+          errorMsg={errorMsg}
+          isRMUsedGlobally={isRMUsedGlobally}
+          onUpdateApprover={updateLevelApprover}
+          onAddApprover={addApproverToLevel}
+          onRemoveApprover={removeApproverFromLevel}
+          onToggleLogic={toggleLogic}
+          onAddLevel={addNewLevel}
+          onRemoveLevel={removeLastLevel}
+          canAddLevel={currentLevelComplete && visibleLevels < 5}
+          canRemoveLevel={visibleLevels > 1}
+        />
+      ) : null}
 
       {step === 3 ? (
-        <div className="border-t border-slate-200 bg-white px-6 pt-4">
-          <div className="flex items-end gap-2">
-            <div className="flex w-full flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-700">
-                Remark <span className="text-rose-500">*</span>
-              </label>
-              <Textarea
-                value={remarks}
-                onChange={(event) => setRemarks(event.target.value)}
-                placeholder="Enter remark for this edit request"
-                className="h-11 min-h-0 w-full resize-none text-sm"
-                maxLength={250}
-              />
+        <WorkflowStepSummary
+          wfName={wfName}
+          wfAlias={wfAlias}
+          moduleLabel={selectedModuleLabel}
+          workflowType={workflowType || "-"}
+          nodeNameLabel={selectedNodeNameLabel}
+          levels={levels}
+          visibleLevels={visibleLevels}
+          previous={resolvedMode === "edit" && seedSnapshot ? {
+            wfName: seedSnapshot.wfName,
+            wfAlias: seedSnapshot.wfAlias,
+            moduleLabel: seedSnapshot.selectedModuleLabel,
+            workflowType: workflowType || "-",
+            nodeNameLabel: seedSnapshot.selectedNodeNameLabel,
+            levels: seedSnapshot.levels,
+            visibleLevels: seedSnapshot.visibleLevels,
+          } : null}
+        />
+      ) : null}
+    </div>
+  );
+
+  return (
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      {step === 3 ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="flex min-h-full flex-col p-5">
+            <WorkflowStepper step={step} />
+            {stepContent}
+            <div className="mt-4 border-t border-slate-200 bg-white px-1 pt-4">
+              <div className="flex items-end gap-2">
+                <div className="flex w-full flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-slate-700">
+                    Remark <span className="text-rose-500">*</span>
+                  </label>
+                  <Textarea
+                    value={remarks}
+                    onChange={(event) => setRemarks(event.target.value)}
+                    placeholder="Enter remark for this edit request"
+                    className="h-11 min-h-0 w-full resize-none text-sm"
+                    maxLength={250}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="flex-1 p-5">
+          <WorkflowStepper step={step} />
+          <div className="h-[calc(100%-56px)]">
+            {stepContent}
+          </div>
+        </div>
+      )}
 
-      <div className="flex items-center justify-between bg-white px-6 py-4">
+      <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6 py-4">
         <button
           type="button"
           onClick={handleBack}

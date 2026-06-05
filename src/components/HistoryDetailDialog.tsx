@@ -15,8 +15,8 @@ export type HistoryDetailViewModel =
     }
   | {
       mode: "comparison";
-      oldData: HistoryDetailRecord;
-      newData: HistoryDetailRecord;
+      oldData: HistoryDetailRecord | null;
+      newData: HistoryDetailRecord | null;
       previewEvent?: HistoryDetailPreviewEvent;
     };
 
@@ -31,6 +31,7 @@ type HistoryDetailDialogProps = {
 
 const isPlainRecord = (value: unknown): value is HistoryDetailRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+const isNullableRecord = (value: unknown): value is HistoryDetailRecord | null => value === null || isPlainRecord(value);
 
 const toRecord = (value: unknown): HistoryDetailRecord => (isPlainRecord(value) ? value : {});
 
@@ -101,22 +102,28 @@ const flattenRecord = (value: unknown, prefix = ""): Array<{ key: string; label:
   return entries;
 };
 
-const isComparisonPayload = (value: unknown): value is { oldData: HistoryDetailRecord; newData: HistoryDetailRecord } => {
+const isComparisonPayload = (value: unknown): value is { oldData?: HistoryDetailRecord | null; newData?: HistoryDetailRecord | null } => {
   if (!isPlainRecord(value)) return false;
-  return isPlainRecord(value.oldData) && isPlainRecord(value.newData);
+  const hasOldData = "oldData" in value;
+  const hasNewData = "newData" in value;
+  if (!hasOldData && !hasNewData) return false;
+
+  const oldData = hasOldData ? value.oldData : undefined;
+  const newData = hasNewData ? value.newData : undefined;
+  return isNullableRecord(oldData) && isNullableRecord(newData) && (isPlainRecord(oldData) || isPlainRecord(newData));
 };
 
 export const normalizeHistoryDetail = (response: unknown): HistoryDetailViewModel | null => {
   if (!response) return null;
 
   if (isComparisonPayload(response)) {
-    return { mode: "comparison", oldData: response.oldData, newData: response.newData };
+    return { mode: "comparison", oldData: response.oldData ?? null, newData: response.newData ?? null };
   }
 
   const root = toRecord(response);
   const rootData = root.data;
   if (isComparisonPayload(rootData)) {
-    return { mode: "comparison", oldData: rootData.oldData, newData: rootData.newData };
+    return { mode: "comparison", oldData: rootData.oldData ?? null, newData: rootData.newData ?? null };
   }
 
   const oldDataCandidate = isPlainRecord(root.oldData)
@@ -180,10 +187,10 @@ function ComparisonRow({
   return (
     <div className="grid gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)] md:items-start">
       <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</div>
-      <div className={`rounded-lg border px-3 py-2 text-sm leading-6 ${isRemoved ? "border-rose-200 bg-rose-50 text-rose-700 line-through" : hasChanged ? "border-slate-200 bg-slate-50 text-slate-700" : "border-slate-200 bg-white text-slate-800"}`}>
+      <div className={`rounded-lg border px-3 py-2 text-sm leading-6 ${isRemoved ? "border-rose-200 bg-rose-50 text-rose-700 line-through" : hasChanged ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-white text-slate-800"}`}>
         {oldValue}
       </div>
-      <div className={`rounded-lg border px-3 py-2 text-sm leading-6 ${isAdded ? "border-emerald-200 bg-emerald-50 text-emerald-700" : hasChanged ? "border-slate-200 bg-slate-50 text-slate-800" : "border-slate-200 bg-white text-slate-800"}`}>
+      <div className={`rounded-lg border px-3 py-2 text-sm leading-6 ${isAdded ? "border-emerald-200 bg-emerald-50 text-emerald-700" : hasChanged ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-white text-slate-800"}`}>
         {newValue}
       </div>
     </div>

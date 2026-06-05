@@ -225,8 +225,10 @@ export function UserManagePreview({
         ? toRecord(historyDetailOverride.record)
         : {};
   const isHistoryPreviewActive = Boolean(historyDetailOverride);
+  const isHistoryUpdatePreview =
+    historyDetailOverride?.mode === "comparison" && Object.keys(historyOldData).length > 0;
   const requestType = isHistoryPreviewActive
-    ? historyDetailOverride?.mode === "comparison"
+    ? isHistoryUpdatePreview
       ? "UPDATE"
       : "INITIATE"
     : (member.basicDetails?.requestType || "").trim().toUpperCase();
@@ -242,8 +244,9 @@ export function UserManagePreview({
   const hasAnyBasicField = (field: string) => hasOldBasicField(field) || hasOwn(requestNewBasicDetails, field);
   const canShowHistoryComparison =
     isHistoryPreviewActive &&
-    historyDetailOverride?.mode === "comparison" &&
+    isHistoryUpdatePreview &&
     (Object.keys(requestOldData).length > 0 || Object.keys(requestNewData).length > 0);
+  const historyHasPermissionsField = isHistoryPreviewActive && hasOwn(historyNewData, "permissions");
   const canDeleteMember = member.status !== "Pending" && member.status !== "Inactive";
   const canTogglePreviousUpdated =
     requestType === "UPDATE" &&
@@ -287,9 +290,9 @@ export function UserManagePreview({
   const previousPermissionsFromStructuredHistory =
     canShowHistoryComparison && historyNewPermissionsDelta.hasStructuredDelta
       ? dedupePermissions([
-          ...historyOldPermissionsAccess,
-          ...historyNewPermissionsDelta.removed,
-        ])
+        ...historyOldPermissionsAccess,
+        ...historyNewPermissionsDelta.removed,
+      ])
       : [];
   const previousPermissionsFromStructuredPending =
     !canShowHistoryComparison && oldRequestPermissionsDelta.hasStructuredDelta
@@ -303,28 +306,32 @@ export function UserManagePreview({
     previousPermissionsFromStructuredPending.length > 0
       ? previousPermissionsFromStructuredPending
       : oldRequestPermissionDiffEntries.length > 0
-      ? oldRequestPermissionDiffEntries
-      : oldRequestPrimaryAccess.length > 0 || oldRequestSecondaryAccess.length > 0
-        ? [...oldRequestPrimaryAccess, ...oldRequestSecondaryAccess]
-        : [];
+        ? oldRequestPermissionDiffEntries
+        : oldRequestPrimaryAccess.length > 0 || oldRequestSecondaryAccess.length > 0
+          ? [...oldRequestPrimaryAccess, ...oldRequestSecondaryAccess]
+          : [];
   const previousPrimaryAccess: RequestAccessEntry[] =
     canShowHistoryComparison && previousPermissionsFromStructuredHistory.length > 0
       ? splitAccessEntriesByType(previousPermissionsFromStructuredHistory).primary
+      : isHistoryPreviewActive && !canShowHistoryComparison
+        ? []
       : !canShowHistoryComparison && previousPermissionsFromStructuredPending.length > 0
         ? splitAccessEntriesByType(previousPermissionsFromStructuredPending).primary
-      : oldRequestPrimaryAccess.length > 0
-      ? oldRequestPrimaryAccess
-      : oldRequestPermissionDiffEntriesByType.primary.length > 0
-        ? oldRequestPermissionDiffEntriesByType.primary
-        : currentPrimaryAccess;
+        : oldRequestPrimaryAccess.length > 0
+          ? oldRequestPrimaryAccess
+          : oldRequestPermissionDiffEntriesByType.primary.length > 0
+            ? oldRequestPermissionDiffEntriesByType.primary
+            : currentPrimaryAccess;
   const previousSecondaryAccess: RequestAccessEntry[] =
     canShowHistoryComparison && previousPermissionsFromStructuredHistory.length > 0
       ? splitAccessEntriesByType(previousPermissionsFromStructuredHistory).secondary
+      : isHistoryPreviewActive && !canShowHistoryComparison
+        ? []
       : !canShowHistoryComparison && previousPermissionsFromStructuredPending.length > 0
         ? splitAccessEntriesByType(previousPermissionsFromStructuredPending).secondary
-      : previousAccessDetailsFromRequest.length > 0
-      ? previousAccessDetailsFromRequest.filter((permission) => permission.accessType !== "PRIMARY")
-      : currentSecondaryAccess;
+        : previousAccessDetailsFromRequest.length > 0
+          ? previousAccessDetailsFromRequest.filter((permission) => permission.accessType !== "PRIMARY")
+          : currentSecondaryAccess;
   const toPermissionKey = (permission: RequestAccessEntry) =>
     [
       (permission.roleCategory || "").trim().toUpperCase(),
@@ -346,28 +353,42 @@ export function UserManagePreview({
       ? historyNewPermissionsAccessByType.primary
       : canShowHistoryComparison && currentPermissionsFromStructuredHistory.length > 0
         ? splitAccessEntriesByType(currentPermissionsFromStructuredHistory).primary
-      : requestPrimaryAccess.length > 0
-      ? requestPrimaryAccess
-      : requestPermissionsAccessByType.primary.length > 0
-        ? requestPermissionsAccessByType.primary
-        : currentPrimaryAccess;
+      : canShowHistoryComparison && !historyHasPermissionsField
+        ? previousPrimaryAccess
+      : isHistoryPreviewActive
+        ? requestPrimaryAccess.length > 0
+          ? requestPrimaryAccess
+          : requestPermissionsAccessByType.primary
+        : requestPrimaryAccess.length > 0
+          ? requestPrimaryAccess
+          : requestPermissionsAccessByType.primary.length > 0
+            ? requestPermissionsAccessByType.primary
+            : currentPrimaryAccess;
   const effectiveSecondaryAccess: RequestAccessEntry[] =
     canShowHistoryComparison && historyNewPermissionsAccessByType.secondary.length > 0
       ? historyNewPermissionsAccessByType.secondary
       : canShowHistoryComparison && currentPermissionsFromStructuredHistory.length > 0
         ? splitAccessEntriesByType(currentPermissionsFromStructuredHistory).secondary
-      : !canShowHistoryComparison && oldRequestPermissionsDelta.hasStructuredDelta
-        ? currentSecondaryAccess
-      : requestType === "UPDATE" && hasPermissionDeltaEntries
-      ? mergePermissions([
-          ...previousSecondaryAccess.filter((permission) => !removedPermissionKeys.has(toPermissionKey(permission))),
-          ...addedRequestPermissions,
-        ])
-      : requestPermissionsAccessByType.secondary.length > 0
-        ? requestPermissionsAccessByType.secondary
-        : requestPrimaryAccess.length > 0 || requestSecondaryAccess.length > 0
-          ? requestSecondaryAccess
-          : previousSecondaryAccess;
+      : canShowHistoryComparison && !historyHasPermissionsField
+        ? previousSecondaryAccess
+      : isHistoryPreviewActive
+        ? requestPermissionsAccessByType.secondary.length > 0
+          ? requestPermissionsAccessByType.secondary
+          : requestPrimaryAccess.length > 0 || requestSecondaryAccess.length > 0
+            ? requestSecondaryAccess
+            : []
+        : !canShowHistoryComparison && oldRequestPermissionsDelta.hasStructuredDelta
+          ? currentSecondaryAccess
+          : requestType === "UPDATE" && hasPermissionDeltaEntries
+            ? mergePermissions([
+              ...previousSecondaryAccess.filter((permission) => !removedPermissionKeys.has(toPermissionKey(permission))),
+              ...addedRequestPermissions,
+            ])
+            : requestPermissionsAccessByType.secondary.length > 0
+              ? requestPermissionsAccessByType.secondary
+              : requestPrimaryAccess.length > 0 || requestSecondaryAccess.length > 0
+                ? requestSecondaryAccess
+                : previousSecondaryAccess;
   const effectiveAccessDetails: RequestAccessEntry[] = [
     ...effectivePrimaryAccess,
     ...effectiveSecondaryAccess,
@@ -626,13 +647,13 @@ export function UserManagePreview({
       ? "border-amber-200/50 bg-amber-50 text-amber-700"
       : historyEventTone === "initiation"
         ? "border-sky-200/60 bg-sky-50 text-sky-700"
-      : historyEventTone === "modified"
-        ? "border-orange-200/60 bg-orange-50 text-orange-700"
-      : historyEventTone === "rejected"
-        ? "border-rose-200/50 bg-rose-50 text-rose-700"
-        : historyEventTone === "inactive"
-          ? "border-rose-200/50 bg-rose-50 text-rose-700"
-          : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
+        : historyEventTone === "modified"
+          ? "border-orange-200/60 bg-orange-50 text-orange-700"
+          : historyEventTone === "rejected"
+            ? "border-rose-200/50 bg-rose-50 text-rose-700"
+            : historyEventTone === "inactive"
+              ? "border-rose-200/50 bg-rose-50 text-rose-700"
+              : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
   const HistoryEventIcon = historyEventTone === "pending"
     ? Clock
     : historyEventTone === "initiation" || historyEventTone === "modified"
@@ -993,10 +1014,10 @@ export function UserManagePreview({
                           <span className="min-w-0 truncate">
                             {canTogglePreviousUpdated
                               ? renderDiffValue(
-                                  userData.reportingManagerEmail || "-",
-                                  previousReportingManagerEmail,
-                                  hasOldBasicField("reportingManagerEmail") || hasOldBasicField("reportingManager"),
-                                )
+                                userData.reportingManagerEmail || "-",
+                                previousReportingManagerEmail,
+                                hasOldBasicField("reportingManagerEmail") || hasOldBasicField("reportingManager"),
+                              )
                               : <span className="font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>}
                           </span>
                         </div>
@@ -1115,10 +1136,10 @@ export function UserManagePreview({
                           <span className="min-w-0 truncate">
                             {canTogglePreviousUpdated
                               ? renderDiffValue(
-                                  userData.reportingManagerEmail || "-",
-                                  previousReportingManagerEmail,
-                                  hasOldBasicField("reportingManagerEmail") || hasOldBasicField("reportingManager"),
-                                )
+                                userData.reportingManagerEmail || "-",
+                                previousReportingManagerEmail,
+                                hasOldBasicField("reportingManagerEmail") || hasOldBasicField("reportingManager"),
+                              )
                               : <span className="font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>}
                           </span>
                         </div>
@@ -1323,7 +1344,7 @@ export function UserManagePreview({
           </div>
         </div>
       ) : null}
-      {canDeleteMember && showDeleteActions ? (
+      {showDeleteActions ? (
         <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4">
           <div className="space-y-3">
             {requireDeleteRemark ? (
@@ -1341,32 +1362,37 @@ export function UserManagePreview({
               </div>
             ) : null}
             <div className="flex w-full flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={onCancelDeleteActions}>
-              Cancel
-            </Button>
-
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-              <Select value={deleteWorkflow} onValueChange={onDeleteWorkflowChange}>
-                <SelectTrigger className="h-11 w-full min-w-[240px] border-[rgb(53,83,233)]/30 text-[rgb(53,83,233)] sm:w-[280px]">
-                  <SelectValue placeholder="Select Workflow" />
-                </SelectTrigger>
-                <SelectContent side="top" align="end">
-                  <SelectItem value="__none__">No Workflow</SelectItem>
-                  {deleteWorkflowOptions.map((workflowOption) => (
-                    <SelectItem key={workflowOption.id} value={workflowOption.id}>
-                      {workflowOption.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                className="w-full bg-rose-600 text-white hover:bg-rose-700 sm:w-auto"
-                onClick={() => onConfirmDelete?.(member)}
-              >
-                {deleteActionLabel}
+              <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={onCancelDeleteActions}>
+                Cancel
               </Button>
-            </div>
+
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                <Select value={deleteWorkflow} onValueChange={onDeleteWorkflowChange}>
+                  <SelectTrigger className="h-11 w-full min-w-[240px] border-[rgb(53,83,233)]/30 text-[rgb(53,83,233)] sm:w-[280px]">
+                    <SelectValue placeholder="Select Workflow" />
+                  </SelectTrigger>
+                  <SelectContent side="top" align="end">
+                    <SelectItem value="__none__">No Workflow</SelectItem>
+                    {deleteWorkflowOptions.map((workflowOption) => (
+                      <SelectItem key={workflowOption.id} value={workflowOption.id}>
+                        {workflowOption.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  className={cn(
+                    "w-full text-white sm:w-auto",
+                    deleteActionLabel === "Set Active"
+                      ? "bg-[rgb(53,83,233)] hover:bg-[rgb(45,71,210)]"
+                      : "bg-rose-600 hover:bg-rose-700"
+                  )}
+                  onClick={() => onConfirmDelete?.(member)}
+                >
+                  {deleteActionLabel}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

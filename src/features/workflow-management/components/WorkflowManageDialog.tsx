@@ -84,6 +84,11 @@ const toHistoryWorkflowPreviousSource = (detail: HistoryDetailViewModel | null) 
   return {} as Record<string, unknown>;
 };
 
+const isHistoryComparisonUpdate = (detail: HistoryDetailViewModel | null) => {
+  if (!detail || detail.mode !== "comparison") return false;
+  return Object.keys(toRecord(detail.oldData)).length > 0;
+};
+
 const mergeWorkflowLevels = (baseLevels: unknown, incomingLevels: unknown) => {
   const baseRecord =
     typeof baseLevels === "object" && baseLevels !== null && !Array.isArray(baseLevels)
@@ -113,9 +118,109 @@ const mergeWorkflowLevels = (baseLevels: unknown, incomingLevels: unknown) => {
   }, { ...baseRecord });
 };
 
+const removeWorkflowLevelsFromDiff = (
+  mergedLevels: unknown,
+  previousLevels: unknown,
+  nextLevelsDelta: unknown,
+  expectedLevelCount: number | null,
+) => {
+  const mergedRecord =
+    typeof mergedLevels === "object" && mergedLevels !== null && !Array.isArray(mergedLevels)
+      ? { ...(mergedLevels as Record<string, unknown>) }
+      : {};
+  const previousRecord =
+    typeof previousLevels === "object" && previousLevels !== null && !Array.isArray(previousLevels)
+      ? (previousLevels as Record<string, unknown>)
+      : {};
+  const nextRecord =
+    typeof nextLevelsDelta === "object" && nextLevelsDelta !== null && !Array.isArray(nextLevelsDelta)
+      ? (nextLevelsDelta as Record<string, unknown>)
+      : {};
+
+  if (expectedLevelCount !== null) {
+    Object.keys(previousRecord)
+      .sort((left, right) => Number(left.replace(/[^\d]/g, "")) - Number(right.replace(/[^\d]/g, "")))
+      .slice(expectedLevelCount)
+      .forEach((levelKey) => {
+        delete mergedRecord[levelKey];
+      });
+    return mergedRecord;
+  }
+
+  Object.keys(previousRecord).forEach((levelKey) => {
+    if (!(levelKey in nextRecord)) return;
+    const mergedLevel = mergedRecord[levelKey];
+    if (mergedLevel === undefined) {
+      delete mergedRecord[levelKey];
+    }
+  });
+
+  return mergedRecord;
+};
+
+const parseWorkflowAliasLevelCount = (value: unknown) => {
+  const alias = readString(value).toUpperCase();
+  const match = alias.match(/(?:^|_)C_(\d+)(?:$|_)/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const countWorkflowLevels = (value: unknown) => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  return Object.keys(value as Record<string, unknown>).length;
+};
+
+const applyWorkflowDiffData = (
+  base: WorkflowRecord,
+  previousSource: Record<string, unknown>,
+  nextSource: Record<string, unknown>,
+  options?: {
+    previousWorkflowOverride?: WorkflowRecord;
+    expectedLevelCount?: number | null;
+  },
+) => {
+  const previousWorkflow =
+    options?.previousWorkflowOverride ??
+    (Object.keys(previousSource).length > 0 ? applyPendingDataView(base, previousSource, true) : base);
+  if (Object.keys(nextSource).length === 0) {
+    return { previousWorkflow, currentWorkflow: previousWorkflow };
+  }
+
+  const currentWorkflow = applyPendingDataView(previousWorkflow, nextSource);
+  const currentWorkflowLevels = removeWorkflowLevelsFromDiff(
+    currentWorkflow.levels,
+    previousWorkflow.levels,
+    nextSource.levels,
+    options?.expectedLevelCount ?? null,
+  );
+
+  return {
+    previousWorkflow,
+    currentWorkflow: {
+      ...currentWorkflow,
+      levels: currentWorkflowLevels,
+    },
+  };
+};
+
+const createHistoryPreviewBase = (workflow: WorkflowRecord): WorkflowRecord => ({
+  ...workflow,
+  name: "",
+  alias: "",
+  module: "",
+  rawModule: "",
+  workflowType: undefined,
+  subModule: "",
+  nodePath: "",
+  levels: {},
+  levelsHash: "",
+});
+
 const applyPendingDataView = (
   base: WorkflowRecord,
   source: Record<string, unknown>,
+  overwriteLevels = false,
 ): WorkflowRecord => {
   const next = { ...base };
   const target = toRecord(source.target);
@@ -130,7 +235,7 @@ const applyPendingDataView = (
   if ("subModule" in source) next.subModule = readString(source.subModule) || next.subModule;
   if ("workflowType" in source) next.workflowType = workflowTypeRaw || next.workflowType;
   if ("nodePath" in source) next.nodePath = nodePathRaw || next.nodePath;
-  if ("levels" in source) next.levels = mergeWorkflowLevels(next.levels, source.levels);
+  if ("levels" in source) next.levels = overwriteLevels ? (source.levels ?? next.levels) : mergeWorkflowLevels(next.levels, source.levels);
   if ("levelsHash" in source) next.levelsHash = levelsHashRaw || next.levelsHash;
   if (statusRaw === "ACTIVE") next.status = "Active";
   if (statusRaw === "INACTIVE") next.status = "Inactive";
@@ -146,6 +251,28 @@ const applyPendingDataView = (
   }
 
   return next;
+};
+
+const deriveWorkflowAliasFromLevels = (levels: unknown) => {
+  const levelEntries =
+    typeof levels === "object" && levels !== null && !Array.isArray(levels)
+      ? Object.entries(levels as Record<string, unknown>)
+      : [];
+
+  const normalizedLevels = levelEntries
+    .sort(([left], [right]) => Number(left.replace(/[^\d]/g, "")) - Number(right.replace(/[^\d]/g, "")))
+    .map(([, value]) => toRecord(value))
+    .filter((level) => Boolean(readString(level.approver1) || readString(level.approver2)));
+
+  if (normalizedLevels.length === 0) return "";
+
+  const conditionCount = normalizedLevels.reduce((total, level) => {
+    const approverCount = [readString(level.approver1), readString(level.approver2)].filter(Boolean).length;
+    if (approverCount === 0) return total;
+    return total + (readString(level.type).toUpperCase() === "AND" ? approverCount : 1);
+  }, 0);
+
+  return `1M_${conditionCount}C_${normalizedLevels.length}`;
 };
 
 
@@ -226,53 +353,50 @@ export default function WorkflowManageDialog({
   const isHistoryPreviewActive = Boolean(historyDetailOverride);
   const historyOldData = toHistoryWorkflowPreviousSource(historyDetailOverride);
   const historyNewData = toHistoryWorkflowSource(historyDetailOverride);
-  const displayWorkflow = useMemo(() => {
+  const isHistoryUpdatePreview = isHistoryComparisonUpdate(historyDetailOverride);
+  const comparisonWorkflows = useMemo(() => {
     if (!workflow) return null;
     const pendingOldData = isHistoryPreviewActive ? historyOldData : toRecord(workflow.pendingOldData);
     const pendingNewData = isHistoryPreviewActive ? historyNewData : toRecord(workflow.pendingNewData);
     const hasPendingDataDiff = Object.keys(pendingOldData).length > 0 || Object.keys(pendingNewData).length > 0;
     const isUpdateRequest = isHistoryPreviewActive
-      ? historyDetailOverride?.mode === "comparison"
+      ? isHistoryUpdatePreview
       : isWorkflowUpdateRequest(workflow) || hasPendingDataDiff;
     if (!isUpdateRequest) {
       if (isHistoryPreviewActive && Object.keys(pendingNewData).length > 0) {
-        return applyPendingDataView(workflow, pendingNewData);
+        const previewBase =
+          Object.keys(pendingOldData).length > 0 ? applyPendingDataView(workflow, pendingOldData, true) : createHistoryPreviewBase(workflow);
+        return {
+          previousWorkflow: null,
+          currentWorkflow: applyPendingDataView(previewBase, pendingNewData, true),
+        };
       }
-      return workflow;
+      return {
+        previousWorkflow: Object.keys(pendingOldData).length > 0 ? applyPendingDataView(workflow, pendingOldData, true) : null,
+        currentWorkflow: workflow,
+      };
     }
-    if (isHistoryPreviewActive && Object.keys(pendingOldData).length > 0) {
-      const historyBase = applyPendingDataView(workflow, pendingOldData);
-      if (Object.keys(pendingNewData).length > 0) {
-        return applyPendingDataView(historyBase, pendingNewData);
-      }
-      return historyBase;
-    }
-    const source = pendingNewData;
-    if (!Object.keys(source).length) {
-      if (isHistoryPreviewActive && Object.keys(pendingOldData).length > 0) {
-        return applyPendingDataView(workflow, pendingOldData);
-      }
-      return workflow;
-    }
-    return applyPendingDataView(workflow, source);
-  }, [workflow, isHistoryPreviewActive, historyOldData, historyNewData, historyDetailOverride?.mode]);
-  const previousWorkflow = useMemo(() => {
-    if (!workflow) return null;
-    const pendingOldData = isHistoryPreviewActive ? historyOldData : toRecord(workflow.pendingOldData);
-    if (!Object.keys(pendingOldData).length) return null;
-    return applyPendingDataView(workflow, pendingOldData);
-  }, [workflow, isHistoryPreviewActive, historyOldData]);
+    const expectedLevelCount = isHistoryPreviewActive
+      ? parseWorkflowAliasLevelCount(pendingNewData.alias)
+      : countWorkflowLevels(pendingNewData.levels);
+    return applyWorkflowDiffData(workflow, pendingOldData, pendingNewData, {
+      previousWorkflowOverride: isHistoryPreviewActive ? undefined : workflow,
+      expectedLevelCount,
+    });
+  }, [workflow, isHistoryPreviewActive, historyOldData, historyNewData, isHistoryUpdatePreview]);
+  const displayWorkflow = comparisonWorkflows?.currentWorkflow ?? null;
+  const previousWorkflow = comparisonWorkflows?.previousWorkflow ?? null;
   if (!workflow || !displayWorkflow) return null;
   const pendingOldData = isHistoryPreviewActive ? historyOldData : toRecord(workflow.pendingOldData);
   const pendingNewData = isHistoryPreviewActive ? historyNewData : toRecord(workflow.pendingNewData);
   const hasPendingDataDiff = Object.keys(pendingOldData).length > 0 || Object.keys(pendingNewData).length > 0;
   const isUpdateRequest = isHistoryPreviewActive
-    ? historyDetailOverride?.mode === "comparison"
+    ? isHistoryUpdatePreview
     : isWorkflowUpdateRequest(workflow) || hasPendingDataDiff;
   const isPending = workflow.status === "Pending" || isUpdateRequest || Boolean(workflow.isPending);
   const normalizedRequestImpact = (workflow.pendingRequestImpact || "").trim().toUpperCase();
   const normalizedRequestType = isHistoryPreviewActive
-    ? historyDetailOverride?.mode === "comparison"
+    ? isHistoryUpdatePreview
       ? "UPDATE"
       : "INITIATE"
     : (workflow.pendingRequestType || "").trim().toUpperCase();
@@ -337,7 +461,12 @@ export default function WorkflowManageDialog({
   const initiatorEmail = workflow.initiatorEmail?.trim() || "";
   const initiatedOn = formatToIst(workflow.initiatedDate);
   const pendingWorkflowName = workflow.workflowName?.trim() || "";
-  const pendingWorkflowAlias = workflow.workflowAlias?.trim() || "";
+  const previousWorkflowAlias = previousWorkflow?.alias?.trim() || "";
+  const derivedDisplayWorkflowAlias = deriveWorkflowAliasFromLevels(displayWorkflow.levels);
+  const pendingWorkflowAlias =
+    isUpdateRequest && derivedDisplayWorkflowAlias && derivedDisplayWorkflowAlias !== previousWorkflowAlias
+      ? derivedDisplayWorkflowAlias
+      : workflow.workflowAlias?.trim() || displayWorkflow.alias?.trim() || derivedDisplayWorkflowAlias || "";
   const historyPreviewEvent = historyDetailOverride?.previewEvent;
   const displayTitle =
     (
@@ -367,13 +496,13 @@ export default function WorkflowManageDialog({
       ? "border-amber-200/50 bg-amber-50 text-amber-700"
       : historyEventTone === "initiation"
         ? "border-sky-200/60 bg-sky-50 text-sky-700"
-    : historyEventTone === "modified"
-      ? "border-orange-200/60 bg-orange-50 text-orange-700"
-      : historyEventTone === "rejected"
-        ? "border-rose-200/50 bg-rose-50 text-rose-700"
-        : historyEventTone === "inactive"
-          ? "border-rose-200/50 bg-rose-50 text-rose-700"
-          : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
+        : historyEventTone === "modified"
+          ? "border-orange-200/60 bg-orange-50 text-orange-700"
+          : historyEventTone === "rejected"
+            ? "border-rose-200/50 bg-rose-50 text-rose-700"
+            : historyEventTone === "inactive"
+              ? "border-rose-200/50 bg-rose-50 text-rose-700"
+              : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
   const HistoryEventIcon = historyEventTone === "pending"
     ? Calendar
     : historyEventTone === "initiation" || historyEventTone === "modified"

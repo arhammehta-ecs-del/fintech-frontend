@@ -109,6 +109,61 @@ const renderInlineDiff = (currentValue: string, previousValue?: string) => {
   );
 };
 
+const getWorkflowConditionCount = (levels: WorkflowLevel[]) =>
+  levels.reduce((total, level) => {
+    const approvalCount = level.approvals.filter((approval) => Boolean(approval.option?.trim())).length;
+    if (approvalCount === 0) return total;
+    return total + (level.type === "AND" ? approvalCount : 1);
+  }, 0);
+
+const buildWorkflowAliasFromLevels = (levels: WorkflowLevel[]) => {
+  if (levels.length === 0) return "";
+  return `1M_${getWorkflowConditionCount(levels)}C_${levels.length}`;
+};
+
+const renderConnectorDiff = ({
+  currentType,
+  previousType,
+  isAdded,
+  isRemoved,
+}: {
+  currentType: string;
+  previousType: string;
+  isAdded: boolean;
+  isRemoved: boolean;
+}) => {
+  const next = currentType.trim().toUpperCase();
+  const prev = previousType.trim().toUpperCase();
+
+  if (isRemoved) {
+    return (
+      <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-[10px] font-black uppercase text-rose-600 line-through">
+        {prev || "-"}
+      </span>
+    );
+  }
+
+  if (isAdded) {
+    return (
+      <span className="rounded border border-emerald-100 bg-emerald-50 px-1 py-0.5 text-[10px] font-black uppercase text-emerald-700">
+        {next || "-"}
+      </span>
+    );
+  }
+
+  if (prev && next && prev !== next) {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-black uppercase">
+        <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-rose-600 line-through">{prev}</span>
+        <span className="text-slate-400">→</span>
+        <span className="rounded border border-emerald-100 bg-emerald-50 px-1 py-0.5 text-emerald-700">{next}</span>
+      </span>
+    );
+  }
+
+  return <span className="text-[10px] font-black uppercase text-slate-300">{next || prev || "-"}</span>;
+};
+
 export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
   const summaryLevels = toSummaryLevels(workflow.levels);
   const previousWorkflow = (workflow as WorkflowRecord & { previousWorkflow?: WorkflowRecord | null }).previousWorkflow ?? null;
@@ -167,6 +222,16 @@ export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
     ? formatSnakeCaseLabel(previousWorkflow.workflowType || previousWorkflow.nodeType || "")
     : "";
   const previousTopNodeName = previousWorkflow?.orgStructure?.nodeName?.trim() || previousWorkflow?.nodeName || "";
+  const derivedCurrentAlias = buildWorkflowAliasFromLevels(summaryLevels);
+  const derivedPreviousAlias = buildWorkflowAliasFromLevels(previousSummaryLevels);
+  const displayPreviousAlias = previousWorkflowAlias || derivedPreviousAlias;
+  const displayCurrentAlias = hasComparisonData
+    ? (() => {
+        const explicitCurrentAlias = workflow.alias?.trim() || "";
+        if (explicitCurrentAlias && explicitCurrentAlias !== displayPreviousAlias) return explicitCurrentAlias;
+        return derivedCurrentAlias || explicitCurrentAlias || "-";
+      })()
+    : workflow.alias?.trim() || derivedCurrentAlias || "-";
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -184,7 +249,7 @@ export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
               <Layers className="h-3.5 w-3.5 text-purple-500" />
               Process Alias
             </div>
-            {renderInlineDiff(workflow.alias || "-", previousWorkflowAlias)}
+            {renderInlineDiff(displayCurrentAlias, displayPreviousAlias)}
           </div>
           <div className="grid min-h-[112px] content-between gap-4 px-4 py-4">
             <div className="flex min-h-[32px] items-start gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
@@ -273,9 +338,18 @@ export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
                       const previousLabel = previousOption
                         ? APPROVAL_OPTIONS.find((option) => option.id === previousOption)?.label || previousOption || "Not Assigned"
                         : "";
+                      const currentConnector = current?.type || "";
+                      const previousConnector = previous?.type || "";
                       return (
                         <div key={`${level.id}-${approvalIdx}`} className="flex items-center gap-4">
-                          {approvalIdx > 0 ? <span className="text-[10px] font-black uppercase text-slate-300">{current?.type || previous?.type || "-"}</span> : null}
+                          {approvalIdx > 0 ? (
+                            renderConnectorDiff({
+                              currentType: currentConnector,
+                              previousType: previousConnector,
+                              isAdded: isAdded && !previous,
+                              isRemoved: isRemoved && !current,
+                            })
+                          ) : null}
                           <div className="flex flex-col">
                             <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400">Approver {approvalIdx + 1}</span>
                             <span className="text-xs font-semibold text-slate-800">
