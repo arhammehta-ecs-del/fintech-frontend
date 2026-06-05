@@ -81,6 +81,9 @@ const MODULE_FILTER_OPTIONS: Array<{ value: NotificationModuleFilterValue; label
 const toggleArrayValue = <T extends string>(values: T[], value: T) =>
   values.includes(value) ? values.filter((current) => current !== value) : [...values, value];
 
+const toggleSingleSelectValue = <T extends string>(values: T[], value: T) =>
+  values.includes(value) ? [] : [value];
+
 const formatMultiFilterLabel = (values: string[], allLabel: string) => {
   if (values.length === 0) return allLabel;
   if (values.length === 1) return values[0];
@@ -318,13 +321,13 @@ export function AppTopBar({
     (limit: number, offset: number) => ({
       limit,
       offset,
-      status: "ALL" as NotificationFetchStatus,
-      refType: null as NotificationFetchRefType,
+      status: notificationStatusFilters[0] ?? ("ALL" as NotificationFetchStatus),
+      refType: notificationModuleFilters[0] ?? (null as NotificationFetchRefType),
       dateRange: activeDateRange,
       fromDate: activeDateRange === "CUSTOM" ? toUtcDayStart(customFromDate) : null,
       toDate: activeDateRange === "CUSTOM" ? toUtcDayEnd(customToDate) : null,
     }),
-    [activeDateRange, customFromDate, customToDate],
+    [activeDateRange, customFromDate, customToDate, notificationModuleFilters, notificationStatusFilters],
   );
 
   const handleCustomFromDateChange = useCallback((value: string) => {
@@ -372,9 +375,10 @@ export function AppTopBar({
         .filter((item, index, array) => array.findIndex((candidate) => candidate.id === item.id) === index)
         .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
       setDialogNotifications(combined);
-      setAllNotificationCount(response.count || combined.length);
+      const resolvedAllCount = response.allCount || response.count || combined.length;
+      setAllNotificationCount(resolvedAllCount);
       setDialogOffset(COMPACT_NOTIFICATIONS_LIMIT + response.data.length);
-      setDialogHasNextPage(COMPACT_NOTIFICATIONS_LIMIT + response.data.length < (response.count || combined.length));
+      setDialogHasNextPage(COMPACT_NOTIFICATIONS_LIMIT + response.data.length < resolvedAllCount);
     } catch {
       setDialogNotifications([...notifications]);
       setDialogHasNextPage(false);
@@ -438,6 +442,7 @@ export function AppTopBar({
       : String(allNotificationCount || notifications.length);
   const unreadCountLabel = unreadTotalCount === 1 ? "1 unread" : `${unreadTotalCount} unread`;
   const remainingNotificationCount = Math.max(0, allNotificationCount - notifications.length);
+  const dialogRemainingNotificationCount = Math.max(0, allNotificationCount - dialogNotifications.length);
   const shouldShowSeeAll = allNotificationCount > notifications.length;
 
   const toggleNotificationExpansion = (id: string) => {
@@ -560,8 +565,9 @@ export function AppTopBar({
       );
       const nextOffset = dialogOffset + response.data.length;
       setDialogOffset(nextOffset);
-      setAllNotificationCount((current) => Math.max(current, response.count || current));
-      setDialogHasNextPage(nextOffset < (response.count || allNotificationCount));
+      const resolvedAllCount = response.allCount || response.count || allNotificationCount;
+      setAllNotificationCount((current) => Math.max(current, resolvedAllCount));
+      setDialogHasNextPage(nextOffset < resolvedAllCount);
     } finally {
       setDialogLoadingMore(false);
     }
@@ -689,12 +695,22 @@ export function AppTopBar({
             <div className="px-2 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
               Status
             </div>
+            <DropdownMenuCheckboxItem
+              checked={notificationStatusFilters.length === 0}
+              onCheckedChange={() => {
+                setNotificationStatusFilters([]);
+              }}
+              onSelect={(event) => event.preventDefault()}
+              className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
+            >
+              <span>All</span>
+            </DropdownMenuCheckboxItem>
             {STATUS_FILTER_OPTIONS.map((option) => (
               <DropdownMenuCheckboxItem
                 key={option.value}
                 checked={notificationStatusFilters.includes(option.value)}
                 onCheckedChange={() => {
-                  setNotificationStatusFilters((current) => toggleArrayValue(current, option.value));
+                  setNotificationStatusFilters((current) => toggleSingleSelectValue(current, option.value));
                 }}
                 onSelect={(event) => event.preventDefault()}
                 className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
@@ -729,12 +745,22 @@ export function AppTopBar({
             <div className="px-2 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
               Module
             </div>
+            <DropdownMenuCheckboxItem
+              checked={notificationModuleFilters.length === 0}
+              onCheckedChange={() => {
+                setNotificationModuleFilters([]);
+              }}
+              onSelect={(event) => event.preventDefault()}
+              className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
+            >
+              <span>All</span>
+            </DropdownMenuCheckboxItem>
             {MODULE_FILTER_OPTIONS.map((option) => (
               <DropdownMenuCheckboxItem
                 key={option.value}
                 checked={notificationModuleFilters.includes(option.value)}
                 onCheckedChange={() => {
-                  setNotificationModuleFilters((current) => toggleArrayValue(current, option.value));
+                  setNotificationModuleFilters((current) => toggleSingleSelectValue(current, option.value));
                 }}
                 onSelect={(event) => event.preventDefault()}
                 className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
@@ -966,7 +992,9 @@ export function AppTopBar({
                   disabled={dialogLoadingMore}
                   className="w-full rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {dialogLoadingMore ? "Loading..." : "See more"}
+                  {dialogLoadingMore
+                    ? "Loading..."
+                    : `See more notifications${dialogRemainingNotificationCount > 0 ? ` +${dialogRemainingNotificationCount}` : ""}`}
                 </button>
               </div>
             ) : null}

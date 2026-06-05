@@ -176,8 +176,14 @@ export function UserManagePreview({
   };
   const replacePermissions = (items: RequestAccessEntry[], replacements: RequestAccessEntry[]) => {
     if (replacements.length === 0) return dedupePermissions(items);
+    const hasPrimaryReplacement = replacements.some(
+      (permission) => (permission.accessType || "").trim().toUpperCase() === "PRIMARY",
+    );
+    const baseItems = hasPrimaryReplacement
+      ? items.filter((permission) => (permission.accessType || "").trim().toUpperCase() !== "PRIMARY")
+      : items;
     return dedupePermissions([
-      ...filterOutPermissions(items, replacements),
+      ...filterOutPermissions(baseItems, replacements),
       ...replacements,
     ]);
   };
@@ -567,6 +573,12 @@ export function UserManagePreview({
 
   const normalizedRequestType = requestType;
   const normalizedRequestImpact = readString(member.basicDetails?.requestImpact).toUpperCase();
+  const previousStatusLabel = readString(requestOldBasicDetails.status)
+    .trim()
+    .toUpperCase();
+  const nextStatusLabel = readString(requestNewBasicDetails.status)
+    .trim()
+    .toUpperCase();
   const normalizedRequestStatus = readString(requestNewBasicDetails.status).toUpperCase();
   const isPendingUpdateRequest = canShowPendingActions && normalizedRequestType === "UPDATE";
   const isPendingInactiveRequest =
@@ -602,6 +614,23 @@ export function UserManagePreview({
     PROFILE_UPDATE: "border-sky-200 bg-sky-100 text-sky-700",
   };
   const impactBadgeCls = impactBadgeMap[normalizedRequestImpact] || "";
+  const statusBadgeMap: Record<string, string> = {
+    ACTIVE: "border-emerald-200 bg-emerald-100 text-emerald-700",
+    INACTIVE: "border-rose-200 bg-rose-100 text-rose-700",
+    PENDING: "border-amber-200 bg-amber-100 text-amber-700",
+  };
+  const statusTransitionBadgeCls = "inline-flex items-center rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-wide";
+  const shouldShowStatusTransition =
+    Boolean(previousStatusLabel) &&
+    Boolean(nextStatusLabel) &&
+    previousStatusLabel !== nextStatusLabel;
+  const formatStatusLabel = (value: string) =>
+    value
+      .toLowerCase()
+      .split("_")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
   const renderDiffValue = (nextValue: string, prevValue: string, highlightAdded = false) => {
     const next = (nextValue || "-").trim() || "-";
     const prev = (prevValue || "").trim();
@@ -744,7 +773,7 @@ export function UserManagePreview({
                   <Trash2 className="h-4 w-4" />
                 </button>
               ) : null}
-              {impactBadgeCls && !pendingApprovalLabel ? (
+              {impactBadgeCls && !pendingApprovalLabel && !shouldShowStatusTransition ? (
                 <span
                   className={cn(
                     "inline-flex h-10 items-center rounded-xl border px-3 text-xs font-bold uppercase tracking-wide",
@@ -752,6 +781,17 @@ export function UserManagePreview({
                   )}
                 >
                   {formattedImpactLabel || normalizedRequestImpact}
+                </span>
+              ) : null}
+              {shouldShowStatusTransition ? (
+                <span className="inline-flex h-10 items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-700">
+                  <span className={cn(statusTransitionBadgeCls, statusBadgeMap[previousStatusLabel] || "border-slate-200 bg-slate-100 text-slate-700")}>
+                    {formatStatusLabel(previousStatusLabel)}
+                  </span>
+                  <span className="text-slate-400">→</span>
+                  <span className={cn(statusTransitionBadgeCls, statusBadgeMap[nextStatusLabel] || "border-slate-200 bg-slate-100 text-slate-700")}>
+                    {formatStatusLabel(nextStatusLabel)}
+                  </span>
                 </span>
               ) : null}
               {onToggleHistory ? (
