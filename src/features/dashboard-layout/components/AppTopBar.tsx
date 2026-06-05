@@ -122,6 +122,9 @@ const truncateMessage = (value: string, limit = MESSAGE_PREVIEW_LIMIT) => {
   return `${value.slice(0, Math.max(0, limit - 3)).trimEnd()}...`;
 };
 
+const toUtcDayStart = (value: string) => (value ? `${value}T00:00:00.000Z` : null);
+const toUtcDayEnd = (value: string) => (value ? `${value}T23:59:59.999Z` : null);
+
 const buildNotificationPreview = (message: string) => {
   const normalizedMessage = message.replace(/\s+/g, " ").trim();
   if (!normalizedMessage) return "";
@@ -318,8 +321,8 @@ export function AppTopBar({
       status: "ALL" as NotificationFetchStatus,
       refType: null as NotificationFetchRefType,
       dateRange: activeDateRange,
-      fromDate: activeDateRange === "CUSTOM" ? customFromDate || null : null,
-      toDate: activeDateRange === "CUSTOM" ? customToDate || null : null,
+      fromDate: activeDateRange === "CUSTOM" ? toUtcDayStart(customFromDate) : null,
+      toDate: activeDateRange === "CUSTOM" ? toUtcDayEnd(customToDate) : null,
     }),
     [activeDateRange, customFromDate, customToDate],
   );

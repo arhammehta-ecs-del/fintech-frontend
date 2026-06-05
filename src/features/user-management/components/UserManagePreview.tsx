@@ -284,13 +284,20 @@ export function UserManagePreview({
   const currentPrimaryAccess = (member.accessDetails ?? []).filter((permission) => permission.accessType === "PRIMARY") as RequestAccessEntry[];
   const currentSecondaryAccess = (member.accessDetails ?? []).filter((permission) => permission.accessType !== "PRIMARY") as RequestAccessEntry[];
   const currentAccessSnapshot = dedupePermissions((member.accessDetails as RequestAccessEntry[] | undefined) ?? []);
+  const previousPermissionsFromStructuredHistory =
+    canShowHistoryComparison && historyNewPermissionsDelta.hasStructuredDelta
+      ? dedupePermissions([
+          ...historyOldPermissionsAccess,
+          ...historyNewPermissionsDelta.removed,
+        ])
+      : [];
   const previousPermissionsFromStructuredPending =
     !canShowHistoryComparison && oldRequestPermissionsDelta.hasStructuredDelta
       ? reversePermissionDelta(currentAccessSnapshot, oldRequestPermissionsDelta)
       : [];
   const currentPermissionsFromStructuredHistory =
-    canShowHistoryComparison && historyOldPermissionsAccess.length > 0 && historyNewPermissionsDelta.hasStructuredDelta
-      ? applyPermissionDelta(historyOldPermissionsAccess, historyNewPermissionsDelta)
+    canShowHistoryComparison && previousPermissionsFromStructuredHistory.length > 0 && historyNewPermissionsDelta.hasStructuredDelta
+      ? applyPermissionDelta(previousPermissionsFromStructuredHistory, historyNewPermissionsDelta)
       : [];
   const previousAccessDetailsFromRequest: RequestAccessEntry[] =
     previousPermissionsFromStructuredPending.length > 0
@@ -301,8 +308,8 @@ export function UserManagePreview({
         ? [...oldRequestPrimaryAccess, ...oldRequestSecondaryAccess]
         : [];
   const previousPrimaryAccess: RequestAccessEntry[] =
-    canShowHistoryComparison && historyOldPermissionsAccessByType.primary.length > 0
-      ? historyOldPermissionsAccessByType.primary
+    canShowHistoryComparison && previousPermissionsFromStructuredHistory.length > 0
+      ? splitAccessEntriesByType(previousPermissionsFromStructuredHistory).primary
       : !canShowHistoryComparison && previousPermissionsFromStructuredPending.length > 0
         ? splitAccessEntriesByType(previousPermissionsFromStructuredPending).primary
       : oldRequestPrimaryAccess.length > 0
@@ -311,8 +318,8 @@ export function UserManagePreview({
         ? oldRequestPermissionDiffEntriesByType.primary
         : currentPrimaryAccess;
   const previousSecondaryAccess: RequestAccessEntry[] =
-    canShowHistoryComparison && historyOldPermissionsAccessByType.secondary.length > 0
-      ? historyOldPermissionsAccessByType.secondary
+    canShowHistoryComparison && previousPermissionsFromStructuredHistory.length > 0
+      ? splitAccessEntriesByType(previousPermissionsFromStructuredHistory).secondary
       : !canShowHistoryComparison && previousPermissionsFromStructuredPending.length > 0
         ? splitAccessEntriesByType(previousPermissionsFromStructuredPending).secondary
       : previousAccessDetailsFromRequest.length > 0
@@ -668,11 +675,6 @@ export function UserManagePreview({
                 {shouldShowStatusBadge ? (
                   <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider", statusBadgeClassName)}>
                     {statusBadgeLabel}
-                  </span>
-                ) : null}
-                {canShowHistoryComparison ? (
-                  <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-sky-700">
-                    History Comparison
                   </span>
                 ) : null}
               </div>
