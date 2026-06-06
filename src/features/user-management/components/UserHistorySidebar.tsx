@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import type { AppUser } from "@/contexts/AppContext";
 import HistorySidebar, { type HistoryEntry } from "@/components/HistorySidebar";
-import { normalizeHistoryDetail, type HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
+import { normalizeHistoryDetail, type HistoryDetailPreviewEvent, type HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 import { formatDateParts } from "@/lib/historyDate.utils";
 import { getInitials } from "@/lib/userIdentity.utils";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +14,7 @@ type UserHistorySidebarProps = {
   onClose: () => void;
   user: AppUser | null;
   onOpenHistoryDetail?: (detail: HistoryDetailViewModel, sourceId: string) => void;
+  onLatestHistoryEventChange?: (event: HistoryDetailPreviewEvent | null) => void;
   dockOffset?: {
     top: number;
     left: number;
@@ -253,6 +254,7 @@ export default function UserHistorySidebar({
   onClose,
   user,
   onOpenHistoryDetail,
+  onLatestHistoryEventChange,
   dockOffset,
   splitView = Boolean(dockOffset),
   panelWidth,
@@ -272,6 +274,7 @@ export default function UserHistorySidebar({
     if (!isOpen || !effectiveUserEmail) {
       setHistoryData([]);
       setIsLoading(false);
+      onLatestHistoryEventChange?.(null);
       return;
     }
 
@@ -306,10 +309,20 @@ export default function UserHistorySidebar({
             })()
             : [];
           setHistoryData(mappedHistory);
+          onLatestHistoryEventChange?.(
+            mappedHistory[0]
+              ? {
+                  action: mappedHistory[0].action,
+                  levelCount: mappedHistory[0].levelCount,
+                  status: mappedHistory[0].status,
+                }
+              : null,
+          );
         }
       } catch (error) {
         const message = getApiErrorMessage(error, "Failed to fetch user history.");
         toast({ title: "Unable to load user history", description: message, variant: "destructive" });
+        onLatestHistoryEventChange?.(null);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -319,7 +332,7 @@ export default function UserHistorySidebar({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, effectiveUserEmail, toast]);
+  }, [isOpen, effectiveUserEmail, onLatestHistoryEventChange, toast]);
 
   const handleViewMore = async (entry: HistoryEntry) => {
     const sourceId = (entry.sourceId || entry.id).trim();

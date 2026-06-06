@@ -13,6 +13,7 @@ type FetchAllItem = {
   createdAt: string;
   method?: string;
   apiUrl: string;
+  responseSize?: string | number | null;
   statusCode: number | null;
   ip: string | null;
   spanCount: number;
@@ -57,6 +58,7 @@ type DetailMainRequest = {
   type?: string;
   method: string;
   apiUrl: string;
+  responseSize?: string | number | null;
   statusCode: number | null;
   latency?: number | null;
   ip?: string | null;
@@ -76,6 +78,7 @@ type DetailChildSpan = {
   type?: string;
   method: string;
   apiUrl: string;
+  responseSize?: string | number | null;
   statusCode?: number | null;
   latency?: number | null;
   ip?: string | null;
@@ -108,6 +111,16 @@ const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : [
 const toHeaderValue = (value: unknown): string => {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+};
+
+const formatResponseSize = (value: unknown): string => {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1).replace(/\.0$/, "")} KB`;
+    return `${(value / (1024 * 1024)).toFixed(1).replace(/\.0$/, "")} MB`;
+  }
   return "";
 };
 
@@ -175,6 +188,7 @@ const mapListItem = (item: FetchAllItem): ApiMonitoringLog => {
     subApis: [],
     method: asString(item.method) || "-",
     path: asString(item.apiUrl) || "-",
+    responseSize: formatResponseSize(item.responseSize) || "-",
     status: statusValue,
     clientIp: asString(item.ip) || undefined,
     timeString,
@@ -219,6 +233,7 @@ const mapDetailStep = (value: unknown, fallbackTrackId: string, index: number): 
     spanType: type || "SPAN",
     method: asString(row.method) || "-",
     path: asString(row.apiUrl) || "-",
+    responseSize: formatResponseSize(row.responseSize) || "-",
     status,
     latency,
     clientIp: clientIp || undefined,
@@ -253,6 +268,7 @@ const mapMainRequest = (value: unknown, fallbackId: string): ApiMonitoringStep =
     spanType: type || "MAIN",
     method: asString(row.method) || "-",
     path: asString(row.apiUrl) || "-",
+    responseSize: formatResponseSize(row.responseSize) || "-",
     status: typeof statusRaw === "number" ? statusRaw : null,
     latency,
     clientIp: clientIp || undefined,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Filter, Info, Plus, RefreshCw, Search, Settings, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { ChevronDown, Filter, Info, Plus, RefreshCw, Search, Settings, SlidersHorizontal, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -28,6 +28,7 @@ import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 import PaginationFooter from "@/components/PaginationFooter";
 import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
+import { getApiErrorMessage } from "@/services/client";
 import { fetchWorkflowsPaginated } from "@/services/workflow.service";
 
 const tabClassName =
@@ -192,10 +193,10 @@ export default function WorkflowManagementView() {
     loadWorkflows,
     handlePrevPage,
     handleNextPage,
+    handleJumpToPage,
     handleWorkflowAction,
     requestStatusWorkflowOptions,
     submitWorkflowStatusUpdate,
-    submitWorkflowArchiveRequest,
     hasNewWorkflowEvent,
     setHasNewWorkflowEvent,
     hasLoadedWorkflowsOnce,
@@ -224,12 +225,6 @@ export default function WorkflowManagementView() {
   const [workflowSeedForEdit, setWorkflowSeedForEdit] = useState<(typeof manageWorkflow) | null>(null);
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [manageLockArmed, setManageLockArmed] = useState(false);
-  const [showDeleteActions, setShowDeleteActions] = useState(false);
-  const [deleteWorkflow, setDeleteWorkflow] = useState("__none__");
-  const [deleteWorkflowOptions, setDeleteWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
-  const [manageActionRemark, setManageActionRemark] = useState("");
-  const [manageActionRemarkError, setManageActionRemarkError] = useState("");
-  const [manageDialogInitialAction, setManageDialogInitialAction] = useState<"delete" | null>(null);
   const [isRefreshTooltipOpen, setIsRefreshTooltipOpen] = useState(false);
   const isNotificationsPanelOpen = useNotificationsPanelOpen();
   const isAnyWorkflowDialogOpen = addDialogOpen || Boolean(manageWorkflow);
@@ -296,24 +291,6 @@ export default function WorkflowManagementView() {
             : notificationType.includes("INACTIV") || notificationType.includes("ARCHIVE")
               ? "Inactive"
               : "Active";
-    const targetStatusCount =
-      targetStatus === "Pending"
-        ? statusCounts.pending
-        : targetStatus === "Inactive"
-          ? statusCounts.inactive
-          : statusCounts.active;
-
-    if (hasLoadedWorkflowsOnce && targetStatusCount === 0) {
-      toast({
-        title: "Request not found",
-        description: "The workflow request is no longer available.",
-        variant: "destructive",
-      });
-      setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
-      lastNotificationKeyRef.current = notificationKey;
-      notificationFetchKeyRef.current = null;
-      return;
-    }
 
     if (activeStatus !== targetStatus) {
       notificationFetchKeyRef.current = null;
@@ -344,41 +321,45 @@ export default function WorkflowManagementView() {
         const targetModule = targetModuleRaw.toUpperCase();
         const targetSubModule = targetSubModuleRaw.toUpperCase();
 
-        const matchedWorkflowByReference = referenceId
-          ? workflows.find((workflow) => {
-              const workflowId = (workflow.id || "").trim();
-              const workflowReferenceId = (workflow.referenceId || "").trim();
-              const workflowUuid = (workflow.workflowId || "").trim();
-              const workflowHash = (workflow.levelsHash || "").trim();
-              return (
-                workflowId === referenceId ||
-                workflowReferenceId === referenceId ||
-                workflowUuid === referenceId ||
-                workflowHash === referenceId
-              );
-            }) ?? null
-          : null;
+        const findWorkflowByReference = () =>
+          workflows.find((workflow) => {
+            const workflowId = (workflow.id || "").trim();
+            const workflowReferenceId = (workflow.referenceId || "").trim();
+            const workflowUuid = (workflow.workflowId || "").trim();
+            const workflowHash = (workflow.levelsHash || "").trim();
 
+            return (
+              workflowId === referenceId ||
+              workflowReferenceId === referenceId ||
+              workflowUuid === referenceId ||
+              workflowHash === referenceId
+            );
+          }) ?? null;
+
+        const findWorkflowByTarget = () =>
+          workflows.find((workflow) => {
+            const workflowNodePath = (workflow.nodePath || "").trim().toUpperCase();
+            const workflowLevelsHash = (workflow.levelsHash || "").trim().toUpperCase();
+            const workflowModule = (workflow.rawModule || workflow.module || "").trim().toUpperCase();
+            const workflowSubModule = (workflow.subModule || "").trim().toUpperCase();
+
+            return (
+              (!targetNodePath || workflowNodePath === targetNodePath) &&
+              (!targetLevelsHash || workflowLevelsHash === targetLevelsHash) &&
+              (!targetModule || workflowModule === targetModule) &&
+              (!targetSubModule || workflowSubModule === targetSubModule)
+            );
+          }) ?? null;
+
+        const findWorkflowByName = () =>
+          workflows.find((workflow) => (workflow.name || "").trim().toLowerCase() === entityName) ?? null;
+
+        const matchedWorkflowByReference = referenceId ? findWorkflowByReference() : null;
         const matchedWorkflowByTarget =
           !matchedWorkflowByReference && (targetNodePath || targetLevelsHash || targetModule || targetSubModule)
-            ? workflows.find((workflow) => {
-                const workflowNodePath = (workflow.nodePath || "").trim().toUpperCase();
-                const workflowLevelsHash = (workflow.levelsHash || "").trim().toUpperCase();
-                const workflowModule = (workflow.rawModule || workflow.module || "").trim().toUpperCase();
-                const workflowSubModule = (workflow.subModule || "").trim().toUpperCase();
-                return (
-                  (!targetNodePath || workflowNodePath === targetNodePath) &&
-                  (!targetLevelsHash || workflowLevelsHash === targetLevelsHash) &&
-                  (!targetModule || workflowModule === targetModule) &&
-                  (!targetSubModule || workflowSubModule === targetSubModule)
-                );
-              }) ?? null
+            ? findWorkflowByTarget()
             : null;
-
-        const matchedWorkflowByName =
-          !matchedWorkflowByReference && !matchedWorkflowByTarget && entityName
-            ? workflows.find((workflow) => (workflow.name || "").trim().toLowerCase() === entityName) ?? null
-            : null;
+        const matchedWorkflowByName = !matchedWorkflowByReference && !matchedWorkflowByTarget && entityName ? findWorkflowByName() : null;
 
         const matchedWorkflow = matchedWorkflowByReference ?? matchedWorkflowByTarget ?? matchedWorkflowByName;
 
@@ -408,8 +389,6 @@ export default function WorkflowManagementView() {
           variant: "destructive",
         });
         setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
-        lastNotificationKeyRef.current = notificationKey;
-        notificationFetchKeyRef.current = null;
       }
     };
 
@@ -420,14 +399,10 @@ export default function WorkflowManagementView() {
     };
   }, [
     activeStatus,
-    hasLoadedWorkflowsOnce,
     searchParams,
     setActiveStatus,
     setManageWorkflow,
     setSearchParams,
-    statusCounts.active,
-    statusCounts.inactive,
-    statusCounts.pending,
     toast,
   ]);
 
@@ -469,86 +444,18 @@ export default function WorkflowManagementView() {
 
   const closeManageWorkflowDialog = async () => {
     const isPendingLike = !!manageWorkflow && (manageWorkflow.status === "Pending" || isWorkflowUpdateRequest(manageWorkflow));
-    const shouldReleaseLock = !isPendingLike && manageLockArmed;
+    const isInactive = manageWorkflow?.status === "Inactive";
+    const shouldReleaseLock = !isPendingLike && !isInactive && manageLockArmed;
     await workflowLockSession.stopSession(shouldReleaseLock);
     setManageLockArmed(false);
-    setShowDeleteActions(false);
-    setDeleteWorkflow("__none__");
-    setDeleteWorkflowOptions([]);
-    setManageActionRemark("");
-    setManageActionRemarkError("");
-    setManageDialogInitialAction(null);
     setManageHistoryOpen(false);
     setWorkflowHistoryPreviewDetail(null);
     setManageWorkflow(null);
   };
 
-  const openWorkflowDeleteActions = async (workflow: NonNullable<typeof manageWorkflow>, openDialog = true) => {
-    try {
-      await workflowLockSession.startSession(
-        getWorkflowLockTarget(workflow),
-        () => {
-          setManageHistoryOpen(false);
-          setManageLockArmed(false);
-          setShowDeleteActions(false);
-          setManageActionRemark("");
-          setManageActionRemarkError("");
-          setManageDialogInitialAction(null);
-          setManageWorkflow(null);
-          toast({
-            title: "Edit lock expired",
-            description: "No activity detected. Workflow delete form was closed.",
-            variant: "destructive",
-          });
-        },
-      );
-      setManageLockArmed(true);
-      const workflowOptions = await requestStatusWorkflowOptions(workflow);
-      if (openDialog) setManageWorkflow(workflow);
-      setShowDeleteActions(true);
-      setDeleteWorkflow("__none__");
-      setDeleteWorkflowOptions(workflowOptions);
-      setManageActionRemark("");
-      setManageActionRemarkError("");
-      setManageDialogInitialAction("delete");
-      setManageHistoryOpen(false);
-      setWorkflowHistoryPreviewDetail(null);
-    } catch (error) {
-      toast({
-        title: "Delete unavailable",
-        description: error instanceof Error ? error.message : "Unable to lock workflow for delete.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleConfirmWorkflowDelete = async (workflow: NonNullable<typeof manageWorkflow>) => {
-    const normalizedRemark = manageActionRemark.trim();
-    if (!normalizedRemark) {
-      setManageActionRemarkError("Remark is required.");
-      return;
-    }
-    try {
-      await submitWorkflowArchiveRequest({
-        workflow,
-        remark: normalizedRemark,
-        levelsHash: deleteWorkflow === "__none__" ? null : deleteWorkflow,
-      });
-      await closeManageWorkflowDialog();
-    } catch {
-      // Request errors are surfaced in the workflow hook.
-    }
-  };
-
   useEffect(() => {
     if (!manageWorkflow) {
       setManageLockArmed(false);
-      setShowDeleteActions(false);
-      setDeleteWorkflow("__none__");
-      setDeleteWorkflowOptions([]);
-      setManageActionRemark("");
-      setManageActionRemarkError("");
-      setManageDialogInitialAction(null);
       setManageHistoryOpen(false);
       setWorkflowHistoryPreviewDetail(null);
     }
@@ -978,31 +885,11 @@ export default function WorkflowManagementView() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
-                        onClick={() => {
-                          setShowDeleteActions(false);
-                          setDeleteWorkflow("__none__");
-                          setDeleteWorkflowOptions([]);
-                          setManageActionRemark("");
-                          setManageActionRemarkError("");
-                          setManageDialogInitialAction(null);
-                          setManageWorkflow(workflow);
-                        }}
+                        onClick={() => setManageWorkflow(workflow)}
                         aria-label={`Manage ${workflow.name}`}
                       >
                         <SlidersHorizontal className="h-4 w-4" />
                       </Button>
-                      {workflow.status !== "Pending" && workflow.status !== "Inactive" ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700 disabled:text-slate-300 disabled:hover:bg-transparent"
-                          onClick={() => void openWorkflowDeleteActions(workflow)}
-                          disabled={Boolean(workflow.isPending) || isWorkflowUpdateRequest(workflow)}
-                          aria-label={`Delete ${workflow.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -1152,33 +1039,6 @@ export default function WorkflowManagementView() {
           return requestStatusWorkflowOptions(workflow);
         }}
         onSubmitStatusUpdate={submitWorkflowStatusUpdate}
-        onDeleteRequestStart={(workflow) => openWorkflowDeleteActions(workflow, false)}
-        showDeleteActions={showDeleteActions}
-        deleteWorkflow={deleteWorkflow}
-        deleteWorkflowOptions={deleteWorkflowOptions}
-        deleteRemark={manageActionRemark}
-        deleteRemarkError={manageActionRemarkError}
-        deleteRemarkPlaceholder="Enter remark for delete workflow request"
-        onDeleteWorkflowChange={setDeleteWorkflow}
-        onDeleteRemarkChange={(value) => {
-          setManageActionRemark(value);
-          if (manageActionRemarkError) setManageActionRemarkError("");
-        }}
-        onConfirmDelete={(workflow) => {
-          void handleConfirmWorkflowDelete(workflow);
-        }}
-        onCancelDeleteActions={() => {
-          void (async () => {
-            await workflowLockSession.stopSession(true);
-            setManageLockArmed(false);
-            setShowDeleteActions(false);
-            setDeleteWorkflow("__none__");
-            setDeleteWorkflowOptions([]);
-            setManageActionRemark("");
-            setManageActionRemarkError("");
-            setManageDialogInitialAction(null);
-          })();
-        }}
         onEdit={(workflow) => {
           void (async () => {
             try {
@@ -1197,12 +1057,6 @@ export default function WorkflowManagementView() {
               );
               setOnboardingMode("edit");
               setWorkflowSeedForEdit(workflow);
-              setShowDeleteActions(false);
-              setDeleteWorkflow("__none__");
-              setDeleteWorkflowOptions([]);
-              setManageActionRemark("");
-              setManageActionRemarkError("");
-              setManageDialogInitialAction(null);
               setManageHistoryOpen(false);
               setManageWorkflow(null);
               setAddDialogOpen(true);
@@ -1241,7 +1095,6 @@ export default function WorkflowManagementView() {
             : undefined
         }
         preventOutsideClose={canUseSplitManageHistory}
-        initialAction={manageDialogInitialAction}
       />
       <EditLockWarningDialog
         open={workflowLockSession.warningOpen}

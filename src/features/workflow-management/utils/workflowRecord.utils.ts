@@ -114,6 +114,8 @@ export const getWorkflowParentPathPreview = (nodePath: string) => {
 export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): WorkflowRecord => {
   const record = toRecord(item);
   const payload = toRecord(record.data);
+  const associateAlias = toRecord(record.associateAlias);
+  const payloadAssociateAlias = toRecord(payload.associateAlias);
   const pendingRequest = toRecord(record.pendingRequest);
   const pendingOldDataFromPending = toRecord(pendingRequest.oldData);
   const pendingNewDataFromPending = toRecord(pendingRequest.newData);
@@ -215,8 +217,18 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
       readString(payload.initiatedDate) ||
       readString(payload.initiatedAt) ||
       readString(payload.initiatorTimestamp),
-    workflowName: readString(record.workflowName) || readString(payload.workflowName),
-    workflowAlias: readString(record.alias) || readString(payload.alias),
+    workflowName:
+      readString(associateAlias.workflowName) ||
+      readString(payloadAssociateAlias.workflowName) ||
+      readString(record.workflowName) ||
+      readString(payload.workflowName),
+    workflowAlias:
+      readString(associateAlias.workflowAlias) ||
+      readString(payloadAssociateAlias.workflowAlias) ||
+      readString(record.workflowAlias) ||
+      readString(payload.workflowAlias) ||
+      readString(record.alias) ||
+      readString(payload.alias),
     pendingRequestType: readString(pendingRequest.type) || readString(record.type) || readString(payload.type),
     pendingRequestImpact: readString(pendingRequest.impact) || readString(record.impact) || readString(payload.impact),
     pendingOldData,

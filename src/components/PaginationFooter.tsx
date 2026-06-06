@@ -9,6 +9,7 @@ type PaginationFooterProps = {
   recordCurrentCount?: number;
   recordTotalCount?: number;
   recordLabel?: string;
+  summaryTextOverride?: string;
   pageSize: number;
   pageSizeOptions: readonly number[];
   onPageSizeChange: (value: number) => void;
@@ -25,6 +26,7 @@ export default function PaginationFooter({
   recordCurrentCount,
   recordTotalCount,
   recordLabel = "Records",
+  summaryTextOverride,
   pageSize,
   pageSizeOptions,
   onPageSizeChange,
@@ -48,9 +50,11 @@ export default function PaginationFooter({
     Number.isFinite(recordTotalCount) &&
     recordTotalCount >= 0 &&
     summaryCurrent <= recordTotalCount;
-  const summaryText = showBoundedSummary
-    ? `${recordLabel}: ${summaryCurrent} of ${recordTotalCount}`
-    : `${recordLabel}: ${summaryCurrent}`;
+  const summaryText = summaryTextOverride ?? (
+    showBoundedSummary
+      ? `${recordLabel}: ${summaryCurrent} of ${recordTotalCount}`
+      : `${recordLabel}: ${summaryCurrent}`
+  );
 
   const commitPageInput = () => {
     const parsed = Number(pageInput);

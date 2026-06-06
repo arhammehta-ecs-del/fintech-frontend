@@ -10,6 +10,10 @@ import {
 } from "@/features/workflow-management/utils/workflowRecord.utils";
 import { cn } from "@/lib/utils";
 
+type SummaryPreviewWorkflow = WorkflowRecord & {
+  previousWorkflow?: WorkflowRecord | null;
+};
+
 export const formatToIst = (value?: string) => {
   if (!value) return "";
   const parsed = new Date(value);
@@ -164,9 +168,9 @@ const renderConnectorDiff = ({
   return <span className="text-[10px] font-black uppercase text-slate-300">{next || prev || "-"}</span>;
 };
 
-export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
+export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow }) {
   const summaryLevels = toSummaryLevels(workflow.levels);
-  const previousWorkflow = (workflow as WorkflowRecord & { previousWorkflow?: WorkflowRecord | null }).previousWorkflow ?? null;
+  const previousWorkflow = workflow.previousWorkflow ?? null;
   const hasComparisonData = Boolean(previousWorkflow);
   const previousSummaryLevels = useMemo(
     () => (previousWorkflow ? toSummaryLevels(previousWorkflow.levels) : []),
@@ -282,7 +286,7 @@ export function SummaryPreview({ workflow }: { workflow: WorkflowRecord }) {
 
       <div className="mt-5">
         <h4 className="mb-3 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Levels</h4>
-        <div className="max-h-[220px] space-y-2 overflow-y-auto pr-1 pb-1">
+        <div className="space-y-2 pr-1 pb-1">
           {mergedLevels.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">No level details available.</div>
           ) : (

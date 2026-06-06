@@ -21,7 +21,7 @@ import { fetchCompanyNodesWithAccess } from "@/services/user.service";
 import { useEditLockSession } from "@/hooks/useEditLockSession";
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
-import type { HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
+import type { HistoryDetailPreviewEvent, HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 // import { acquireEditLock } from "@/services/edit-lock.service";
 
 export function UserManagementView() {
@@ -105,6 +105,7 @@ export function UserManagementView() {
   const [refreshInitializedAt, setRefreshInitializedAt] = useState<number | null>(null);
   const [historyOpenForMember, setHistoryOpenForMember] = useState(false);
   const [historyPreviewDetail, setHistoryPreviewDetail] = useState<HistoryDetailViewModel | null>(null);
+  const [historyPreviewEvent, setHistoryPreviewEvent] = useState<HistoryDetailPreviewEvent | null>(null);
   const [onboardingSeedMember, setOnboardingSeedMember] = useState<AppUser | null>(null);
   const [showDeleteActions, setShowDeleteActions] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState("__none__");
@@ -137,8 +138,15 @@ export function UserManagementView() {
   useEffect(() => {
     if (!viewingMember) {
       setHistoryPreviewDetail(null);
+      setHistoryPreviewEvent(null);
     }
   }, [viewingMember]);
+
+  useEffect(() => {
+    if (!historyOpenForMember) {
+      setHistoryPreviewEvent(null);
+    }
+  }, [historyOpenForMember]);
 
   useEffect(() => {
     if ((searchParams.get("tab") || "").trim() !== "users") return;
@@ -573,6 +581,7 @@ export function UserManagementView() {
                 setViewingMember(member);
                 setHistoryOpenForMember(true);
                 setHistoryPreviewDetail(detail);
+                setHistoryPreviewEvent(null);
               }}
               onDelete={(member) => {
                 void openDeleteActions(member);
@@ -789,11 +798,15 @@ export function UserManagementView() {
               }}
               onToggleHistory={() => setHistoryOpenForMember((current) => {
                 const next = !current;
-                if (!next) setHistoryPreviewDetail(null);
+                if (!next) {
+                  setHistoryPreviewDetail(null);
+                  setHistoryPreviewEvent(null);
+                }
                 return next;
               })}
               isHistoryOpen={historyOpenForMember}
               historyDetailOverride={historyPreviewDetail}
+              historyPreviewEvent={statusTab === "pending" ? historyPreviewEvent : null}
             />
           ) : null}
         </DialogContent>
@@ -805,11 +818,13 @@ export function UserManagementView() {
           onClose={() => {
             setHistoryOpenForMember(false);
             setHistoryPreviewDetail(null);
+            setHistoryPreviewEvent(null);
           }}
           user={viewingMember}
           onOpenHistoryDetail={(detail) => {
             setHistoryPreviewDetail(detail);
           }}
+          onLatestHistoryEventChange={setHistoryPreviewEvent}
           dockOffset={splitDockOffset}
           splitView={canSplitHistoryLayout}
           panelWidth={computedHistoryPanelWidth}

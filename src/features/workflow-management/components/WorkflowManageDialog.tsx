@@ -471,7 +471,6 @@ export default function WorkflowManageDialog({
   const displayTitle =
     (
       (previousWorkflow?.name && isUpdateRequest ? previousWorkflow.name : "") ||
-      pendingWorkflowName ||
       displayWorkflow.name
     ).trim();
   const getHistoryEventTone = (action: string, fallbackStatus?: "pending" | "approved") => {

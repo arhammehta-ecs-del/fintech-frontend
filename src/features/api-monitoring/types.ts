@@ -18,6 +18,7 @@ export type ApiMonitoringStep = {
   spanType?: string;
   method: string;
   path: string;
+  responseSize?: string;
   status: number | null;
   latency?: number | null;
   clientIp?: string;

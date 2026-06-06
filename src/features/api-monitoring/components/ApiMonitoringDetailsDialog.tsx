@@ -96,6 +96,13 @@ function PayloadCard({ title, headers, body, bodyTone = "text-emerald-300" }: {
   );
 }
 
+const formatPayloadTitle = (title: string, responseSize?: string) => {
+  const normalizedSize = (responseSize || "").trim();
+  return normalizedSize && normalizedSize !== "-"
+    ? `${title} (${normalizedSize})`
+    : title;
+};
+
 export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: ApiMonitoringDetailsDialogProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -266,7 +273,12 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
 
           <div className="grid h-[380px] grid-cols-1 gap-4 lg:grid-cols-2">
             <PayloadCard title="Request Payload" headers={activeStep.reqHeaders} body={activeStep.reqBody} bodyTone="text-indigo-300" />
-            <PayloadCard title="Response Payload" headers={activeStep.resHeaders} body={activeStep.resBody} bodyTone="text-green-300" />
+            <PayloadCard
+              title={formatPayloadTitle("Response Payload", activeStep.responseSize)}
+              headers={activeStep.resHeaders}
+              body={activeStep.resBody}
+              bodyTone="text-green-300"
+            />
           </div>
         </div>
       </DialogContent>

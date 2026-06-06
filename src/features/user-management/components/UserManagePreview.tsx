@@ -41,7 +41,7 @@ import {
 } from "@/features/user-management/components/UserManagePreview.utils";
 import type { GroupedByNode } from "@/features/user-management/components/UserManagePreview.utils";
 import { NodeAccessCard } from "@/features/user-management/components/UserManagePreview.NodeAccessCard";
-import type { HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
+import type { HistoryDetailPreviewEvent, HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -70,6 +70,7 @@ export function UserManagePreview({
   onRequestStatusToggle,
   isHistoryOpen = false,
   historyDetailOverride = null,
+  historyPreviewEvent = null,
 }: {
   member: AppUser;
   currentTab?: "active" | "pending" | "inactive";
@@ -95,6 +96,7 @@ export function UserManagePreview({
   onRequestStatusToggle?: (member: AppUser, isActive: boolean) => void;
   isHistoryOpen?: boolean;
   historyDetailOverride?: HistoryDetailViewModel | null;
+  historyPreviewEvent?: HistoryDetailPreviewEvent | null;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isEditTooltipOpen, setIsEditTooltipOpen] = useState(false);
@@ -619,7 +621,6 @@ export function UserManagePreview({
     INACTIVE: "border-rose-200 bg-rose-100 text-rose-700",
     PENDING: "border-amber-200 bg-amber-100 text-amber-700",
   };
-  const statusTransitionBadgeCls = "inline-flex items-center rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-wide";
   const shouldShowStatusTransition =
     Boolean(previousStatusLabel) &&
     Boolean(nextStatusLabel) &&
@@ -650,7 +651,8 @@ export function UserManagePreview({
       </span>
     );
   };
-  const historyPreviewEvent = historyDetailOverride?.previewEvent;
+  const effectiveHistoryPreviewEvent =
+    historyDetailOverride?.previewEvent ?? (currentTab === "pending" && isHistoryOpen ? historyPreviewEvent : null);
   const getHistoryEventTone = (action: string, fallbackStatus?: "pending" | "approved") => {
     const normalized = action.trim().toLowerCase();
     if (normalized.includes("reject")) return "rejected" as const;
@@ -670,9 +672,14 @@ export function UserManagePreview({
     if (normalized.includes("approve") || normalized.includes("active")) return "approved" as const;
     return fallbackStatus === "pending" ? "pending" : "approved";
   };
-  const historyEventTone = historyPreviewEvent ? getHistoryEventTone(historyPreviewEvent.action, historyPreviewEvent.status) : null;
+  const historyEventTone = effectiveHistoryPreviewEvent
+    ? getHistoryEventTone(effectiveHistoryPreviewEvent.action, effectiveHistoryPreviewEvent.status)
+    : null;
+  const isInactiveMember = (member.status || "").trim().toLowerCase() === "inactive";
   const historyEventStripClassName =
-    historyEventTone === "pending"
+    effectiveHistoryPreviewEvent && isInactiveMember
+      ? "border-rose-200/50 bg-rose-50 text-rose-700"
+      : historyEventTone === "pending"
       ? "border-amber-200/50 bg-amber-50 text-amber-700"
       : historyEventTone === "initiation"
         ? "border-sky-200/60 bg-sky-50 text-sky-700"
@@ -690,32 +697,83 @@ export function UserManagePreview({
       : historyEventTone === "rejected"
         ? CircleX
         : ShieldCheck;
+  const viewContextTitle = effectiveHistoryPreviewEvent
+    ? effectiveHistoryPreviewEvent.action
+    : showDeleteActions
+      ? deleteActionLabel
+      : pendingDecision
+        ? pendingDecision === "approve"
+          ? "Approval Remark"
+          : "Rejection Remark"
+        : canShowPendingActions && approvalImpactLabel
+          ? approvalImpactLabel
+          : shouldShowStatusTransition
+            ? `${formatStatusLabel(previousStatusLabel)} to ${formatStatusLabel(nextStatusLabel)}`
+            : "Live User View";
+  const viewContextClassName = effectiveHistoryPreviewEvent
+    ? historyEventStripClassName
+    : showDeleteActions
+      ? "border-rose-200/60 bg-rose-50 text-rose-700"
+      : pendingDecision
+        ? pendingDecision === "approve"
+          ? "border-emerald-200/60 bg-emerald-50 text-emerald-700"
+          : "border-rose-200/60 bg-rose-50 text-rose-700"
+        : canShowPendingActions && approvalImpactLabel
+          ? impactBadgeCls || "border-amber-200/60 bg-amber-50 text-amber-700"
+          : shouldShowStatusTransition
+            ? "border-sky-200/60 bg-sky-50 text-sky-700"
+            : "border-slate-200 bg-slate-50 text-slate-700";
+  const ViewContextIcon = effectiveHistoryPreviewEvent
+    ? HistoryEventIcon
+    : showDeleteActions
+      ? Trash2
+      : pendingDecision
+        ? pendingDecision === "approve"
+          ? ShieldCheck
+          : CircleX
+        : canShowPendingActions && approvalImpactLabel
+          ? Clock
+          : shouldShowStatusTransition
+            ? ArrowLeftRight
+            : IdCard;
+  const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="shrink-0 border-b border-slate-200 px-6 pt-6 pb-0">
-        {/* Name + avatar row — no EDIT here so it doesn't clash with dialog X */}
-        <div className="flex items-start justify-between gap-4 pr-8">
-          <div className="flex items-center gap-4">
+      <div className="shrink-0 border-b border-slate-200">
+        {effectiveHistoryPreviewEvent ? (
+          <div className={cn("flex items-center justify-center gap-3 px-6 py-1.5 text-center", viewContextClassName)}>
+            <div className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/70 ring-1 ring-black/5">
+              <ViewContextIcon className="h-3.5 w-3.5" />
+            </div>
+            <div className="flex min-w-0 flex-nowrap items-center justify-center gap-2 whitespace-nowrap">
+              <p className="whitespace-nowrap text-[13px] font-extrabold uppercase tracking-[0.18em] leading-none">{viewContextTitle}</p>
+              {viewContextLevelCount ? (
+                <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded border border-current/20 bg-white/60 px-1.5 text-[9px] font-bold leading-none">
+                  {viewContextLevelCount}
+                </span>
+              ) : null}
+              {shouldShowStatusTransition ? (
+                <span className="inline-flex h-4 shrink-0 items-center justify-center rounded border border-sky-200/70 bg-white/60 px-1.5 text-[9px] font-bold uppercase leading-none text-sky-700">
+                  {formatStatusLabel(previousStatusLabel)} <span className="px-0.5 text-sky-400">→</span> {formatStatusLabel(nextStatusLabel)}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="px-6 pt-6 pb-0">
+          {/* Name + avatar row — no EDIT here so it doesn't clash with dialog X */}
+          <div className="flex items-start justify-between gap-4 pr-8">
+            <div className="flex items-center gap-4">
             <div className={cn("flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-bold ring-1 ring-slate-200/80 shadow-sm", avatar.bg, avatar.text)}>
               {getInitials(userData.name)}
             </div>
             <div>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <h2 className="text-xl font-bold tracking-tight text-slate-900">{userData.name}</h2>
-                {historyPreviewEvent ? (
-                  <span className={cn("inline-flex items-center gap-1.5 rounded border px-2 py-1", historyEventStripClassName)}>
-                    <HistoryEventIcon className="h-3 w-3" />
-                    <span className="text-[10px] font-bold uppercase tracking-tight">{historyPreviewEvent.action}</span>
-                    {historyPreviewEvent.levelCount ? (
-                      <span className={cn("inline-flex h-4 min-w-4 items-center justify-center rounded-sm border px-1 text-[9px] font-bold leading-none", historyEventStripClassName)}>
-                        {historyPreviewEvent.levelCount}
-                      </span>
-                    ) : null}
-                  </span>
-                ) : null}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium text-slate-500">{formattedDesignation}</span>
@@ -769,9 +827,9 @@ export function UserManagePreview({
                     "disabled:cursor-not-allowed disabled:border-rose-200 disabled:bg-rose-50 disabled:text-rose-300 disabled:opacity-40",
                   )}
                   aria-label="Delete user"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
               ) : null}
               {impactBadgeCls && !pendingApprovalLabel && !shouldShowStatusTransition ? (
                 <span
@@ -781,17 +839,6 @@ export function UserManagePreview({
                   )}
                 >
                   {formattedImpactLabel || normalizedRequestImpact}
-                </span>
-              ) : null}
-              {shouldShowStatusTransition ? (
-                <span className="inline-flex h-10 items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-700">
-                  <span className={cn(statusTransitionBadgeCls, statusBadgeMap[previousStatusLabel] || "border-slate-200 bg-slate-100 text-slate-700")}>
-                    {formatStatusLabel(previousStatusLabel)}
-                  </span>
-                  <span className="text-slate-400">→</span>
-                  <span className={cn(statusTransitionBadgeCls, statusBadgeMap[nextStatusLabel] || "border-slate-200 bg-slate-100 text-slate-700")}>
-                    {formatStatusLabel(nextStatusLabel)}
-                  </span>
                 </span>
               ) : null}
               {onToggleHistory ? (
@@ -870,6 +917,7 @@ export function UserManagePreview({
                 </button>
               </div>
             ) : null}
+            </div>
           </div>
         </div>
 

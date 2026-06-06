@@ -111,10 +111,12 @@ export default function ApiMonitoringView() {
     if (searchText.trim()) return "No logs found for this search.";
     return "No API monitoring logs available.";
   }, [loading, error, searchText]);
-  const cumulativeRecordCount = useMemo(
-    () => Math.min(totalCount, Math.max(0, (safePage - 1) * pageSize) + paginatedLogs.length),
-    [pageSize, paginatedLogs.length, safePage, totalCount],
-  );
+  const currentRangeSummary = useMemo(() => {
+    if (totalCount <= 0 || paginatedLogs.length === 0) return "Range: 0-0/0";
+    const start = Math.max(1, (safePage - 1) * pageSize + 1);
+    const end = Math.min(totalCount, start + paginatedLogs.length - 1);
+    return `Range: ${start}-${end}/${totalCount}`;
+  }, [pageSize, paginatedLogs.length, safePage, totalCount]);
 
   useEffect(() => {
     if (!tableScrollRef.current) return;
@@ -284,6 +286,7 @@ export default function ApiMonitoringView() {
                 <th className="sticky top-0 z-20 border-b border-border bg-muted px-4 py-4 font-semibold">User</th>
                 <th className="sticky top-0 z-20 border-b border-border bg-muted px-4 py-4 font-semibold">Date & Time</th>
                 <th className="sticky top-0 z-20 border-b border-border bg-muted px-4 py-4 font-semibold">API Endpoint</th>
+                <th className="sticky top-0 z-20 border-b border-border bg-muted px-4 py-4 font-semibold">Response Size</th>
                 <th className="sticky top-0 z-20 border-b border-border bg-muted px-4 py-4 font-semibold">Status</th>
               </tr>
             </thead>
@@ -347,6 +350,9 @@ export default function ApiMonitoringView() {
                       {log.spanCount} sub-tracks
                     </p>
                   </td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground">
+                    <span className="font-medium text-slate-700">{log.responseSize || "-"}</span>
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-start">
                       {getStatusIcon(log.status)}
@@ -356,7 +362,7 @@ export default function ApiMonitoringView() {
               ))}
               {!filteredLogs.length && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -366,9 +372,10 @@ export default function ApiMonitoringView() {
         </div>
         <PaginationFooter
           currentCount={Math.max(totalCount, filteredLogs.length)}
-          recordCurrentCount={cumulativeRecordCount}
+          recordCurrentCount={paginatedLogs.length}
           recordTotalCount={totalCount}
           recordLabel="Records"
+          summaryTextOverride={currentRangeSummary}
           pageSize={pageSize}
           pageSizeOptions={pageSizeOptions}
           onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}
