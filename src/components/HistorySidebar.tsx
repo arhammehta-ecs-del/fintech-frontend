@@ -28,6 +28,7 @@ export type HistoryEntry = {
     tone?: "warning" | "success" | "danger";
     items: Array<{
       label?: string;
+      levelCount?: string | null;
       rule?: string | null;
       status?: string | null;
       people: Array<{
@@ -195,7 +196,6 @@ function ActorFooter({ item }: { item: HistoryEntry }) {
     };
   const normalizedActorEmail = (actor.email || "").trim().toLowerCase();
   const isActorDuplicatedInApprovalSection = Boolean(
-    item.status === "approved" &&
     normalizedActorEmail &&
     item.approvalSections?.some((section) =>
       section.title.trim().toLowerCase() === "approved by" &&
@@ -204,14 +204,18 @@ function ActorFooter({ item }: { item: HistoryEntry }) {
       ),
     ),
   );
-  const shouldHideFooterActor = item.showActor && isActorDuplicatedInApprovalSection;
+  const shouldHideFooterActor = !item.showActor || isActorDuplicatedInApprovalSection;
   const shouldHideFooterTimestamp = Boolean(
     item.approvalSections?.some((section) => section.title.trim().toLowerCase() === "approved by")
   );
 
+  if (shouldHideFooterActor && (item.timestampMissing || shouldHideFooterTimestamp)) {
+    return null;
+  }
+
   return (
     <div className="-mx-4 -mb-4 mt-4 flex items-center justify-between rounded-b-[14px] border-t border-slate-100 bg-slate-50/50 px-4 pb-4 pt-3">
-      {!shouldHideFooterActor && item.showActor ? (
+      {!shouldHideFooterActor ? (
         <div className="flex items-center gap-2.5">
           <div className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-[9px] font-bold text-slate-600 shadow-sm">
             {actor.initials}
@@ -285,14 +289,25 @@ function ApprovalSections({ item }: { item: HistoryEntry }) {
               return (
               <div key={`${section.title}-${group.label || "group"}-${groupIndex}`} className="rounded-md border border-white/70 bg-white/70 p-2">
                 <div className="mb-1.5 flex items-center justify-between gap-4">
-                  {group.label || group.rule || group.status ? (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {group.label ? <span className="text-[10px] font-semibold text-slate-700">{group.label}</span> : null}
+                  {(group.levelCount || group.label || group.rule) ? (
+                    <div className="flex min-w-0 items-center gap-2">
+                      {group.levelCount ? (
+                        <span className="inline-flex items-center rounded-sm border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none text-slate-600">
+                          {group.levelCount}
+                        </span>
+                      ) : null}
+                      {group.label ? (
+                        <span className="text-[10px] font-semibold text-slate-700">{group.label}</span>
+                      ) : null}
                       {group.rule ? (
                         <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500">
                           {group.rule}
                         </span>
                       ) : null}
+                    </div>
+                  ) : <div />}
+                  {(group.status || firstPerson?.date) ? (
+                    <div className="flex shrink-0 items-center gap-2">
                       {group.status ? (
                         <span
                           className={[
@@ -307,12 +322,12 @@ function ApprovalSections({ item }: { item: HistoryEntry }) {
                           {group.status}
                         </span>
                       ) : null}
+                      {firstPerson?.date ? (
+                        <span className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 ml-1">
+                          <Calendar className="h-3 w-3 text-slate-400" /> {firstPerson.date}
+                        </span>
+                      ) : null}
                     </div>
-                  ) : <div />}
-                  {firstPerson?.date ? (
-                    <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-medium text-slate-500">
-                      <Calendar className="h-3 w-3 text-slate-400" /> {firstPerson.date}
-                    </span>
                   ) : null}
                 </div>
                 <div className="space-y-2">

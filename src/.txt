@@ -1,0 +1,1482 @@
+{
+    "message": "User history fetched successfully!",
+    "code": 200,
+    "data": [
+        {
+            "id": "e5502c19-2551-4674-b5d6-fe49ba08f6a6",
+            "email": "u4@nexora.com",
+            "event": "APPROVED",
+            "levelCount": "A3",
+            "createdAt": null,
+            "remarks": null,
+            "user": {
+                "name": "utwentyfthre",
+                "email": "u23@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            },
+            "approvalSummary": {
+                "currentStatus": "APPROVED",
+                "totalLevels": 3,
+                "completedLevels": 3
+            },
+            "approvedBy": [
+                {
+                    "level": 3,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A3",
+                            "name": "utwentyfthre",
+                            "email": "u23@nexora.com",
+                            "approvedAt": "2026-06-08T10:17:22.547Z"
+                        }
+                    ]
+                },
+                {
+                    "level": 2,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A2",
+                            "name": "Test",
+                            "email": "test@nexora.com",
+                            "approvedAt": "2026-06-08T10:16:40.837Z"
+                        }
+                    ]
+                },
+                {
+                    "level": 1,
+                    "rule": "AND",
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name1": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-08T10:16:08.967Z"
+                        },
+                        {
+                            "levelCount": "A1",
+                            "name2": "Primary Signatory",
+                            "email": "s1@nexora.com",
+                            "approvedAt": "2026-06-08T10:15:53.161Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "c6aed44b-1c95-4647-b864-b31abd95b05e",
+            "email": "u4@nexora.com",
+            "event": "APPROVED",
+            "levelCount": "A3",
+            "createdAt": null,
+            "remarks": null,
+            "user": {
+                "name": "utwentyfthre",
+                "email": "u23@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 1
+            },
+            "approvalSummary": {
+                "currentStatus": "APPROVED",
+                "totalLevels": 3,
+                "completedLevels": 3
+            },
+            "approvedBy": [
+                {
+                    "level": 3,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A3",
+                            "name": "utwentyfthre",
+                            "email": "u23@nexora.com",
+                            "approvedAt": "2026-06-08T09:06:41.576Z"
+                        }
+                    ]
+                },
+                {
+                    "level": 2,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A2",
+                            "name": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-08T08:28:46.734Z"
+                        }
+                    ]
+                },
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Test",
+                            "email": "test@nexora.com",
+                            "approvedAt": "2026-06-08T08:28:21.754Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "969aaac2-9fe3-4f70-b8e2-9e888b884d6b",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M19",
+            "createdAt": "2026-06-08T10:15:30.972Z",
+            "remarks": "kk",
+            "user": {
+                "name": "uthirtyonw",
+                "email": "u31@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "8cefe8cc-593f-46d2-9bbe-8351bb70b281",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R3",
+            "createdAt": "2026-06-08T10:13:00.682Z",
+            "remarks": "kk",
+            "user": {
+                "name": "uthirtyonw",
+                "email": "u31@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 3
+        },
+        {
+            "id": "8cefe8cc-593f-46d2-9bbe-8351bb70b281",
+            "email": "u4@nexora.com",
+            "event": "APPROVAL_PROGRESS",
+            "levelCount": null,
+            "createdAt": "2026-06-08T10:12:59.682Z",
+            "remarks": null,
+            "user": {
+                "name": "uthirtyonw",
+                "email": "u31@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            },
+            "approvalSummary": {
+                "currentStatus": "REJECTED",
+                "totalLevels": 3,
+                "completedLevels": 2,
+                "rejectedAtLevel": 3
+            },
+            "approvedBy": [
+                {
+                    "level": 2,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A2",
+                            "name": "Test",
+                            "email": "test@nexora.com",
+                            "approvedAt": "2026-06-08T10:12:23.854Z"
+                        }
+                    ]
+                },
+                {
+                    "level": 1,
+                    "rule": "AND",
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name1": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-08T10:11:02.561Z"
+                        },
+                        {
+                            "levelCount": "A1",
+                            "name2": "uthirty",
+                            "email": "u30@nexora.com",
+                            "approvedAt": "2026-06-08T10:10:33.485Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "3c7984e3-f249-4e4e-b5f9-eeeb48a6fe2b",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M18",
+            "createdAt": "2026-06-08T10:10:17.230Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "5a17d3ae-4a4a-4a14-b783-c26fa7644e00",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R3",
+            "createdAt": "2026-06-08T10:01:29.251Z",
+            "remarks": "kk",
+            "user": {
+                "name": "uthirty",
+                "email": "u30@nexora.com"
+            },
+            "changeCount": {
+                "added": 1,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 3
+        },
+        {
+            "id": "5a17d3ae-4a4a-4a14-b783-c26fa7644e00",
+            "email": "u4@nexora.com",
+            "event": "APPROVAL_PROGRESS",
+            "levelCount": null,
+            "createdAt": "2026-06-08T10:01:28.251Z",
+            "remarks": null,
+            "user": {
+                "name": "uthirty",
+                "email": "u30@nexora.com"
+            },
+            "changeCount": {
+                "added": 1,
+                "modify": 0,
+                "remove": 0
+            },
+            "approvalSummary": {
+                "currentStatus": "REJECTED",
+                "totalLevels": 3,
+                "completedLevels": 2,
+                "rejectedAtLevel": 3
+            },
+            "approvedBy": [
+                {
+                    "level": 2,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A2",
+                            "name": "Test",
+                            "email": "test@nexora.com",
+                            "approvedAt": "2026-06-08T09:57:27.306Z"
+                        }
+                    ]
+                },
+                {
+                    "level": 1,
+                    "rule": "AND",
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name1": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-08T09:55:48.597Z"
+                        },
+                        {
+                            "levelCount": "A1",
+                            "name2": "utwentyfthre",
+                            "email": "u23@nexora.com",
+                            "approvedAt": "2026-06-08T09:52:54.316Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "3bee24d2-c012-49b0-9abe-6c8e53da710f",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M17",
+            "createdAt": "2026-06-08T09:52:47.251Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 1,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "bf1f454e-41cf-4491-8451-d9e8db440b60",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R3",
+            "createdAt": "2026-06-08T09:50:48.925Z",
+            "remarks": "kk",
+            "user": {
+                "name": "utwentyfthre",
+                "email": "u23@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 3
+        },
+        {
+            "id": "bf1f454e-41cf-4491-8451-d9e8db440b60",
+            "email": "u4@nexora.com",
+            "event": "APPROVAL_PROGRESS",
+            "levelCount": null,
+            "createdAt": "2026-06-08T09:50:47.925Z",
+            "remarks": null,
+            "user": {
+                "name": "utwentyfthre",
+                "email": "u23@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            },
+            "approvalSummary": {
+                "currentStatus": "REJECTED",
+                "totalLevels": 3,
+                "completedLevels": 2,
+                "rejectedAtLevel": 3
+            },
+            "approvedBy": [
+                {
+                    "level": 2,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A2",
+                            "name": "Test",
+                            "email": "test@nexora.com",
+                            "approvedAt": "2026-06-08T09:50:17.391Z"
+                        }
+                    ]
+                },
+                {
+                    "level": 1,
+                    "rule": "AND",
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name1": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-08T09:49:48.804Z"
+                        },
+                        {
+                            "levelCount": "A1",
+                            "name2": "uthirty",
+                            "email": "u30@nexora.com",
+                            "approvedAt": "2026-06-08T09:49:03.517Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "5cc712cf-7671-43df-8ae3-655abcff6d00",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M16",
+            "createdAt": "2026-06-08T09:48:48.596Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "19207397-39d3-4073-a624-e196bb3d1355",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R2",
+            "createdAt": "2026-06-08T09:31:23.612Z",
+            "remarks": "kk",
+            "user": {
+                "name": "uthirty",
+                "email": "u30@nexora.com"
+            },
+            "changeCount": {
+                "added": 1,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 2
+        },
+        {
+            "id": "19207397-39d3-4073-a624-e196bb3d1355",
+            "email": "u4@nexora.com",
+            "event": "APPROVAL_PROGRESS",
+            "levelCount": null,
+            "createdAt": "2026-06-08T09:31:22.612Z",
+            "remarks": null,
+            "user": {
+                "name": "uthirty",
+                "email": "u30@nexora.com"
+            },
+            "changeCount": {
+                "added": 1,
+                "modify": 0,
+                "remove": 0
+            },
+            "approvalSummary": {
+                "currentStatus": "REJECTED",
+                "totalLevels": 3,
+                "completedLevels": 1,
+                "rejectedAtLevel": 2
+            },
+            "approvedBy": [
+                {
+                    "level": 2,
+                    "rule": "AND",
+                    "approvedBy": [
+                        {
+                            "levelCount": "A2",
+                            "name1": "utwentyfthre",
+                            "email": "u23@nexora.com",
+                            "approvedAt": "2026-06-08T09:30:19.144Z"
+                        }
+                    ]
+                },
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-08T09:27:51.009Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "f459722e-df6c-4aa9-9eba-41f90dc615e2",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M15",
+            "createdAt": "2026-06-08T09:27:34.292Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 1,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "75368aab-b88c-4d74-b450-d7c3d63e2b83",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M14",
+            "createdAt": "2026-06-08T08:28:11.064Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 1
+            }
+        },
+        {
+            "id": "5712bd2b-a2c1-476e-b508-27b792be5488",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R1",
+            "createdAt": "2026-06-08T08:27:44.964Z",
+            "remarks": "jkk",
+            "user": {
+                "name": "Test",
+                "email": "test@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 1
+        },
+        {
+            "id": "4fdf99d6-35c0-47d8-8b32-cbc5f0998294",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M13",
+            "createdAt": "2026-06-08T08:27:34.990Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "2253dead-8f6b-467f-bc13-f43085c47c5a",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R2",
+            "createdAt": "2026-06-08T08:27:07.076Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Test",
+                "email": "test@nexora.com"
+            },
+            "changeCount": {
+                "added": 4,
+                "modify": 0,
+                "remove": 1
+            },
+            "level": 2
+        },
+        {
+            "id": "2253dead-8f6b-467f-bc13-f43085c47c5a",
+            "email": "u4@nexora.com",
+            "event": "APPROVAL_PROGRESS",
+            "levelCount": null,
+            "createdAt": "2026-06-08T08:27:06.076Z",
+            "remarks": null,
+            "user": {
+                "name": "Test",
+                "email": "test@nexora.com"
+            },
+            "changeCount": {
+                "added": 4,
+                "modify": 0,
+                "remove": 1
+            },
+            "approvalSummary": {
+                "currentStatus": "REJECTED",
+                "totalLevels": 3,
+                "completedLevels": 1,
+                "rejectedAtLevel": 2
+            },
+            "approvedBy": [
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-08T06:27:07.408Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "bc749ff6-04d6-4ca0-96f3-110755e9a7d8",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M12",
+            "createdAt": "2026-06-08T06:23:32.274Z",
+            "remarks": "lkk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 4,
+                "modify": 0,
+                "remove": 1
+            }
+        },
+        {
+            "id": "c4c57586-f5ac-4504-bb89-31c6f68068a4",
+            "email": "u4@nexora.com",
+            "event": "APPROVED",
+            "levelCount": "A1",
+            "createdAt": "2026-06-08T06:22:55.748Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 1,
+            "approvalSummary": {
+                "currentStatus": "APPROVED",
+                "totalLevels": 1,
+                "completedLevels": 1
+            },
+            "approvedBy": [
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-08T06:22:55.748Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "f2a579bf-a77d-4352-ab06-a71ae4aa5646",
+            "email": "u4@nexora.com",
+            "event": "ACTIVE",
+            "levelCount": "AC",
+            "createdAt": "2026-06-06T07:02:11.523Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "a9c8b299-1121-4933-8014-5367215b9d6b",
+            "email": "u4@nexora.com",
+            "event": "APPROVED",
+            "levelCount": "A1",
+            "createdAt": "2026-06-06T07:02:05.202Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 1,
+            "approvalSummary": {
+                "currentStatus": "APPROVED",
+                "totalLevels": 1,
+                "completedLevels": 1
+            },
+            "approvedBy": [
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Primary Signatory",
+                            "email": "s1@nexora.com",
+                            "approvedAt": "2026-06-06T07:02:05.202Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "30288546-e4fc-489f-b732-db53f4091d61",
+            "email": "u4@nexora.com",
+            "event": "INACTIVE",
+            "levelCount": "IN",
+            "createdAt": "2026-06-06T06:19:34.079Z",
+            "remarks": "kk",
+            "user": {
+                "name": "uthirty",
+                "email": "u30@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "60ace200-4837-47cc-940e-27de697b1060",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R1",
+            "createdAt": "2026-06-05T07:09:26.840Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 1
+        },
+        {
+            "id": "68a7e8b6-b5ce-4a71-8037-2d02598d8879",
+            "email": "u4@nexora.com",
+            "event": "INACTIVE",
+            "levelCount": "IN",
+            "createdAt": "2026-06-05T07:09:06.047Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "e179cb2b-97f8-4a2d-aeb6-a55417f77ff6",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R1",
+            "createdAt": "2026-06-05T05:53:04.029Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 3,
+                "modify": 0,
+                "remove": 1
+            },
+            "level": 1
+        },
+        {
+            "id": "93954aa8-5977-4bb8-a84e-1d37cadbb378",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M11",
+            "createdAt": "2026-06-05T05:37:45.826Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 3,
+                "modify": 0,
+                "remove": 1
+            }
+        },
+        {
+            "id": "108b5a4f-1aea-4a32-b1ff-dceb1971789c",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R1",
+            "createdAt": "2026-06-05T05:36:50.966Z",
+            "remarks": "jjkk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 1
+            },
+            "level": 1
+        },
+        {
+            "id": "afbd9839-5481-4235-942d-586ca26e8feb",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M10",
+            "createdAt": "2026-06-05T05:09:50.833Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 1
+            }
+        },
+        {
+            "id": "60d4ac73-93d1-4aac-84d5-d283c893d752",
+            "email": "u4@nexora.com",
+            "event": "APPROVED",
+            "levelCount": "A1",
+            "createdAt": "2026-06-05T05:01:27.640Z",
+            "remarks": ",,",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 1,
+            "approvalSummary": {
+                "currentStatus": "APPROVED",
+                "totalLevels": 1,
+                "completedLevels": 1
+            },
+            "approvedBy": [
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-05T05:01:27.640Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "38b31dba-9e4d-46da-8b80-3bbb426dd87d",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M9",
+            "createdAt": "2026-06-05T05:00:52.324Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "ba42a638-0fce-47d3-81be-8f4e083adae0",
+            "email": "u4@nexora.com",
+            "event": "APPROVED",
+            "levelCount": "A1",
+            "createdAt": "2026-06-04T11:45:46.434Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 1,
+            "approvalSummary": {
+                "currentStatus": "APPROVED",
+                "totalLevels": 1,
+                "completedLevels": 1
+            },
+            "approvedBy": [
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-04T11:45:46.434Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "c80cd545-5f39-4424-b805-c78272abe85e",
+            "email": "u4@nexora.com",
+            "event": "ACTIVE",
+            "levelCount": "AC",
+            "createdAt": "2026-06-04T11:45:34.403Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "668557c7-0520-4813-b1d3-97774a355a28",
+            "email": "u4@nexora.com",
+            "event": "APPROVED",
+            "levelCount": "A1",
+            "createdAt": "2026-06-04T11:45:21.071Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 1,
+            "approvalSummary": {
+                "currentStatus": "APPROVED",
+                "totalLevels": 1,
+                "completedLevels": 1
+            },
+            "approvedBy": [
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-04T11:45:21.071Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "c6fd4488-cb51-4621-8377-7159883a5453",
+            "email": "u4@nexora.com",
+            "event": "INACTIVE",
+            "levelCount": "IN",
+            "createdAt": "2026-06-04T11:44:46.492Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "bd5c885f-b205-46b1-ba14-d9380a4a6f7c",
+            "email": "u4@nexora.com",
+            "event": "APPROVED",
+            "levelCount": "A1",
+            "createdAt": "2026-06-04T11:41:41.902Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 1,
+            "approvalSummary": {
+                "currentStatus": "APPROVED",
+                "totalLevels": 1,
+                "completedLevels": 1
+            },
+            "approvedBy": [
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Primary Signatory",
+                            "email": "s1@nexora.com",
+                            "approvedAt": "2026-06-04T11:41:41.902Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "d9086a6d-c9e0-4dab-b169-ed7f6a17fd50",
+            "email": "u4@nexora.com",
+            "event": "ACTIVE",
+            "levelCount": "AC",
+            "createdAt": "2026-06-04T11:41:26.315Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "aaa74d1a-a590-4134-8d6a-36f39f9e33b9",
+            "email": "u4@nexora.com",
+            "event": "APPROVED",
+            "levelCount": "A1",
+            "createdAt": "2026-06-04T11:40:05.106Z",
+            "remarks": "kkk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 1,
+            "approvalSummary": {
+                "currentStatus": "APPROVED",
+                "totalLevels": 1,
+                "completedLevels": 1
+            },
+            "approvedBy": [
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Primary Signatory",
+                            "email": "s1@nexora.com",
+                            "approvedAt": "2026-06-04T11:40:05.106Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "99ae9a55-d416-4225-9276-b6f2d44deb63",
+            "email": "u4@nexora.com",
+            "event": "INACTIVE",
+            "levelCount": "IN",
+            "createdAt": "2026-06-04T11:39:34.890Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "f940dcdd-d464-4393-b469-ac4048909006",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R1",
+            "createdAt": "2026-06-04T10:53:46.976Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 1
+        },
+        {
+            "id": "51c64b46-f36b-4bdb-bd27-f16d7552a247",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M8",
+            "createdAt": "2026-06-04T05:59:44.043Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "2d632863-9bb3-412c-ad4d-1ee5df4467c3",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R1",
+            "createdAt": "2026-06-04T05:59:17.371Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 10,
+                "modify": 1,
+                "remove": 1
+            },
+            "level": 1
+        },
+        {
+            "id": "0ed8e085-7310-4d73-8292-447de2ea4027",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M7",
+            "createdAt": "2026-06-04T05:12:32.687Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 10,
+                "modify": 1,
+                "remove": 1
+            }
+        },
+        {
+            "id": "0cf5339e-e430-48c5-8ce9-3ccd1a0b1c82",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R1",
+            "createdAt": "2026-06-04T05:10:38.662Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 5,
+                "modify": 0,
+                "remove": 2
+            },
+            "level": 1
+        },
+        {
+            "id": "e41ac811-ef75-4bd7-9f9c-2156077325dd",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M6",
+            "createdAt": "2026-06-03T13:10:24.667Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 5,
+                "modify": 0,
+                "remove": 2
+            }
+        },
+        {
+            "id": "501a2e9d-74f6-4d4d-8546-5293dbc3a313",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R1",
+            "createdAt": "2026-06-03T13:09:52.668Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 3,
+                "modify": 0,
+                "remove": 2
+            },
+            "level": 1
+        },
+        {
+            "id": "974c75ae-3f90-452c-94fc-187f993d4fff",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M5",
+            "createdAt": "2026-06-03T13:08:55.385Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 3,
+                "modify": 0,
+                "remove": 2
+            }
+        },
+        {
+            "id": "f791d1d7-2398-4d36-b12f-e27b1316065d",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R1",
+            "createdAt": "2026-06-03T13:08:13.456Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 6,
+                "modify": 1,
+                "remove": 3
+            },
+            "level": 1
+        },
+        {
+            "id": "41e38328-26bd-49ce-8fd5-efd3231f5253",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M4",
+            "createdAt": "2026-06-03T13:04:56.845Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 6,
+                "modify": 1,
+                "remove": 3
+            }
+        },
+        {
+            "id": "9b011490-875f-4fb2-af27-fd012e27e64a",
+            "email": "u4@nexora.com",
+            "event": "REJECTED",
+            "levelCount": "R1",
+            "createdAt": "2026-06-03T13:01:51.677Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 6,
+                "modify": 0,
+                "remove": 3
+            },
+            "level": 1
+        },
+        {
+            "id": "1a73c831-ea5b-426a-85ae-1083c947101b",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M3",
+            "createdAt": "2026-06-03T11:46:01.494Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 6,
+                "modify": 0,
+                "remove": 3
+            }
+        },
+        {
+            "id": "88f78288-e59b-4c4f-a07f-a49004a7f609",
+            "email": "u4@nexora.com",
+            "event": "APPROVED",
+            "levelCount": "A1",
+            "createdAt": "2026-06-03T06:26:48.570Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 1,
+                "modify": 2,
+                "remove": 0
+            },
+            "level": 1,
+            "approvalSummary": {
+                "currentStatus": "APPROVED",
+                "totalLevels": 1,
+                "completedLevels": 1
+            },
+            "approvedBy": [
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Primary Signatory",
+                            "email": "s1@nexora.com",
+                            "approvedAt": "2026-06-03T06:26:48.570Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "325e3f90-0d83-468f-96b0-19671da236cc",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M2",
+            "createdAt": "2026-06-03T06:15:55.131Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 1,
+                "modify": 2,
+                "remove": 0
+            }
+        },
+        {
+            "id": "2b4e6a2a-badb-49fa-96ed-ab37edc0afac",
+            "email": "u4@nexora.com",
+            "event": "APPROVED",
+            "levelCount": "A1",
+            "createdAt": "2026-06-03T06:10:27.536Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 1,
+            "approvalSummary": {
+                "currentStatus": "APPROVED",
+                "totalLevels": 1,
+                "completedLevels": 1
+            },
+            "approvedBy": [
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-03T06:10:27.536Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "10c8522f-42d0-415c-9208-1ae7a9b31df9",
+            "email": "u4@nexora.com",
+            "event": "MODIFY",
+            "levelCount": "M1",
+            "createdAt": "2026-06-03T05:57:22.985Z",
+            "remarks": "kk",
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 0,
+                "modify": 0,
+                "remove": 0
+            }
+        },
+        {
+            "id": "bf8b6c2f-d6f7-46d5-8aa3-b92ce8b3441a",
+            "email": "u4@nexora.com",
+            "event": "APPROVED",
+            "levelCount": "A1",
+            "createdAt": "2026-06-03T05:56:59.694Z",
+            "remarks": "Bulk pending approval from dashboard",
+            "user": {
+                "name": "Secondary Signatory",
+                "email": "s2@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            },
+            "level": 1,
+            "approvalSummary": {
+                "currentStatus": "APPROVED",
+                "totalLevels": 1,
+                "completedLevels": 1
+            },
+            "approvedBy": [
+                {
+                    "level": 1,
+                    "rule": null,
+                    "approvedBy": [
+                        {
+                            "levelCount": "A1",
+                            "name": "Secondary Signatory",
+                            "email": "s2@nexora.com",
+                            "approvedAt": "2026-06-03T05:56:59.694Z"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "4f9a91a0-8daf-4c44-a7f0-c5d8d646a183",
+            "email": "u4@nexora.com",
+            "event": "INITIATE",
+            "levelCount": "I",
+            "createdAt": "2026-06-03T05:56:51.802Z",
+            "remarks": null,
+            "user": {
+                "name": "Primary Signatory",
+                "email": "s1@nexora.com"
+            },
+            "changeCount": {
+                "added": 2,
+                "modify": 0,
+                "remove": 0
+            }
+        }
+    ]
+}

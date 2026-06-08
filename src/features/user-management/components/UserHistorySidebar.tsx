@@ -31,6 +31,7 @@ type ApprovalPerson = {
 
 type ApprovalSectionItem = {
   label?: string;
+  levelCount?: string | null;
   rule?: string | null;
   status?: string | null;
   people: ApprovalPerson[];
@@ -67,11 +68,20 @@ const normalizeRule = (value: unknown) => {
   const rule = readString(value).toUpperCase();
   return rule === "AND" || rule === "OR" ? rule : null;
 };
+const readPersonName = (record: RawHistoryRecord) => {
+  const directName = readString(record.name);
+  if (directName) return directName;
+
+  const fallbackNameEntry = Object.entries(record).find(([key, value]) => key.toLowerCase().startsWith("name") && readString(value));
+  return fallbackNameEntry ? readString(fallbackNameEntry[1]) : "";
+};
+const sortByTimestampDesc = <T extends { approvedAtEpochMs: number }>(items: T[]) =>
+  [...items].sort((left, right) => right.approvedAtEpochMs - left.approvedAtEpochMs);
 const mapApprovalPeople = (value: unknown): ApprovalPerson[] => {
   const records = Array.isArray(value) ? value.map((item) => toRecord(item)) : [toRecord(value)];
   return records
     .map((person) => ({
-      name: readString(person.name) || "Unknown",
+      name: readPersonName(person) || "Unknown",
       email: readString(person.email) || "no-email@example.com",
     }))
     .filter((person) => Boolean(person.name || person.email));
@@ -81,7 +91,7 @@ const mapApprovalPeopleStrict = (value: unknown): ApprovalPerson[] => {
   return value
     .map((item) => toRecord(item))
     .map((person) => ({
-      name: readString(person.name) || "Unknown",
+      name: readPersonName(person) || "Unknown",
       email: readString(person.email) || "no-email@example.com",
     }))
     .filter((person) => Boolean(person.name || person.email));
@@ -160,26 +170,30 @@ const mapApprovalSectionItemsFromApprovedBy = (record: RawHistoryRecord): Approv
   toRecordArray(record.approvedBy)
     .map((group) => {
       const level = readLevel(group.level);
+      const rule = normalizeRule(group.rule);
       const approvers = toRecordArray(group.approvedBy)
         .map((approver) => {
           const approvedAt = readString(approver.approvedAt);
           const { date, time } = formatDateParts(approvedAt);
           return {
-            name: readString(approver.name) || "Unknown",
+            name: readPersonName(approver) || "Unknown",
             email: readString(approver.email) || "no-email@example.com",
             levelCount: readString(approver.levelCount),
             date: date || undefined,
             time: time || undefined,
+            approvedAtEpochMs: toEpochMs(approvedAt),
           };
         })
         .filter((person) => Boolean(person.name || person.email));
 
       if (approvers.length === 0) return null;
+      const sortedApprovers = rule === "AND" ? sortByTimestampDesc(approvers) : approvers;
 
       return {
         label: level !== null ? `Level ${level}` : undefined,
-        rule: normalizeRule(group.rule) || approvers[0]?.levelCount || null,
-        people: approvers.map((a) => ({ name: a.name, email: a.email, date: a.date, time: a.time })),
+        levelCount: sortedApprovers[0]?.levelCount || null,
+        rule,
+        people: sortedApprovers.map((a) => ({ name: a.name, email: a.email, date: a.date, time: a.time })),
       };
     })
     .filter((item): item is ApprovalSectionItem => item !== null);

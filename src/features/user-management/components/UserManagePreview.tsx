@@ -646,12 +646,12 @@ export function UserManagePreview({
     Boolean(previousStatusLabel) &&
     Boolean(nextStatusLabel) &&
     previousStatusLabel !== nextStatusLabel;
-  const shouldAutoExpandAllCards =
-    currentTab === "active" || currentTab === "inactive" || shouldShowStatusTransition;
+  const shouldAutoExpandAllCards = currentTab === "active" || currentTab === "inactive" || shouldShowStatusTransition;
   const shouldPinChangedCardsInCollapsedPendingView = currentTab === "pending" && !isExpanded;
   useEffect(() => {
     setIsExpanded(shouldAutoExpandAllCards);
     setCollapsedFocusedKey(null);
+    setCollapsedDismissedKey(null);
   }, [historyDetailOverride, member.id, shouldAutoExpandAllCards]);
   const formatStatusLabel = (value: string) =>
     value
@@ -1261,7 +1261,7 @@ export function UserManagePreview({
                           const isRemovedNode = changeState === "removed";
                           const shouldKeepExpanded = shouldPinChangedCardsInCollapsedPendingView && changeState !== "unchanged";
                           const shouldShowExpandedCard =
-                            shouldKeepExpanded || (!dismissed && (shouldAutoExpandAllCards || focused || changeState !== "unchanged"));
+                            shouldKeepExpanded || (!dismissed && (focused || changeState !== "unchanged"));
                           return (
                             <div key={key}>
                               {shouldShowExpandedCard ? (
@@ -1331,7 +1331,7 @@ export function UserManagePreview({
                           const isRemovedNode = changeState === "removed";
                           const shouldKeepExpanded = shouldPinChangedCardsInCollapsedPendingView && changeState !== "unchanged";
                           const shouldShowExpandedCard =
-                            shouldKeepExpanded || (!dismissed && (shouldAutoExpandAllCards || focused || changeState !== "unchanged"));
+                            shouldKeepExpanded || (!dismissed && (focused || changeState !== "unchanged"));
                           return (
                             <div key={key}>
                               {shouldShowExpandedCard ? (

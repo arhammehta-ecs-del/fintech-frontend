@@ -265,7 +265,18 @@ export default function WorkflowHistorySidebar({
 }: WorkflowHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [activeViewMoreSourceId, setActiveViewMoreSourceId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveViewMoreSourceId(null);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    setActiveViewMoreSourceId(null);
+  }, [workflow?.id, workflow?.workflowId, workflow?.referenceId]);
 
   useEffect(() => {
     if (!isOpen || !workflow) {
@@ -325,6 +336,7 @@ export default function WorkflowHistorySidebar({
       const response = await fetchHistoryDetail({ id: sourceId, type: "workflow" });
       const detail = normalizeHistoryDetail(response);
       if (!detail) return;
+      setActiveViewMoreSourceId(sourceId);
       onOpenHistoryDetail?.(
         {
           ...detail,
@@ -355,6 +367,7 @@ export default function WorkflowHistorySidebar({
       splitView={splitView}
       panelWidth={panelWidth}
       onViewMore={handleViewMore}
+      activeViewMoreSourceId={activeViewMoreSourceId}
     />
   );
 }
