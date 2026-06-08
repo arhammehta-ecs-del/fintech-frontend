@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { BadgeCheck, Calendar, CheckCircle2, GitBranch, History, Mail, Pencil, Settings2, Trash2, UserCheck, X } from "lucide-react";
+import { ArrowLeftRight, BadgeCheck, Calendar, CheckCircle2, CircleX, Clock, GitBranch, History, Mail, Pencil, Settings2, ShieldCheck, Trash2, UserCheck, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,7 +11,7 @@ import { formatSnakeCaseLabel, isWorkflowUpdateRequest } from "@/features/workfl
 import { cn } from "@/lib/utils";
 import { formatToIst, SummaryPreview } from "@/features/workflow-management/components/WorkflowManageDialogSummary";
 import { useToast } from "@/hooks/use-toast";
-import type { HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
+import type { HistoryDetailPreviewEvent, HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 
 type WorkflowManageDialogProps = {
   open: boolean;
@@ -45,6 +45,7 @@ type WorkflowManageDialogProps = {
   contentStyle?: CSSProperties;
   preventOutsideClose?: boolean;
   historyDetailOverride?: HistoryDetailViewModel | null;
+  historyPreviewEvent?: HistoryDetailPreviewEvent | null;
   initialAction?: "delete" | null;
 };
 
@@ -303,6 +304,7 @@ export default function WorkflowManageDialog({
   contentStyle,
   preventOutsideClose = false,
   historyDetailOverride = null,
+  historyPreviewEvent = null,
   initialAction = null,
 }: WorkflowManageDialogProps) {
   const { toast } = useToast();
@@ -418,7 +420,15 @@ export default function WorkflowManageDialog({
     PROFILE_UPDATE: "border-sky-200 bg-sky-100 text-sky-700",
   };
   const hiddenImpactTokens = new Set(["", "NO_ISSUES", "NO ISSUES", "NONE", "NA", "N/A"]);
-  const canShowPendingActions = isPending && currentTab === "Pending" && !isHistoryPreviewActive;
+  const previewEventAction = readString(historyDetailOverride?.previewEvent?.action).toUpperCase();
+  const isPendingApprovalHistoryPreview =
+    previewEventAction.includes("PENDING APPROVAL") &&
+    /^L\d+\s+PENDING APPROVAL$/.test(previewEventAction);
+  const isModifyHistoryPreview = previewEventAction === "MODIFY";
+  const canShowPendingActionsInHistoryPreview =
+    isHistoryPreviewActive && (isPendingApprovalHistoryPreview || isModifyHistoryPreview);
+  const canShowPendingActions =
+    isPending && currentTab === "Pending" && (!isHistoryPreviewActive || canShowPendingActionsInHistoryPreview);
   const isManageActionLocked = !canShowPendingActions && (Boolean(workflow.isPending) || isUpdateRequest);
   const isPendingInactiveRequest =
     canShowPendingActions && (
@@ -467,7 +477,26 @@ export default function WorkflowManageDialog({
     isUpdateRequest && derivedDisplayWorkflowAlias && derivedDisplayWorkflowAlias !== previousWorkflowAlias
       ? derivedDisplayWorkflowAlias
       : workflow.workflowAlias?.trim() || displayWorkflow.alias?.trim() || derivedDisplayWorkflowAlias || "";
-  const historyPreviewEvent = historyDetailOverride?.previewEvent;
+  const previousStatusLabel = (() => {
+    if (isPending && !isHistoryPreviewActive) {
+      const pendingOldBasicDetails = toRecord(pendingOldData.basicDetails);
+      const oldStatus = (
+        readString(pendingOldBasicDetails.status) ||
+        readString(pendingOldData.status)
+      ).toUpperCase();
+      if (oldStatus) return oldStatus;
+      // Infer from request direction when old data has no explicit status
+      if (isPendingInactiveRequest) return "ACTIVE";
+      if (isPendingActiveRequest) return "INACTIVE";
+    }
+    return (previousWorkflow?.status || "").trim().toUpperCase();
+  })();
+  const nextStatusLabel = (() => {
+    if (isPending && !isHistoryPreviewActive) {
+      return (workflow.status || "").trim().toUpperCase();
+    }
+    return (displayWorkflow.status || "").trim().toUpperCase();
+  })();
   const displayTitle =
     (
       (previousWorkflow?.name && isUpdateRequest ? previousWorkflow.name : "") ||
@@ -489,7 +518,13 @@ export default function WorkflowManageDialog({
     if (normalized.includes("approve") || normalized.includes("active")) return "approved" as const;
     return fallbackStatus === "pending" ? "pending" : "approved";
   };
-  const historyEventTone = historyPreviewEvent ? getHistoryEventTone(historyPreviewEvent.action, historyPreviewEvent.status) : null;
+  const shouldShowStatusTransition =
+    Boolean(previousStatusLabel) &&
+    Boolean(nextStatusLabel) &&
+    previousStatusLabel !== nextStatusLabel;
+  const effectiveHistoryPreviewEvent =
+    historyDetailOverride?.previewEvent ?? (currentTab === "Pending" && isHistoryOpen ? historyPreviewEvent : null);
+  const historyEventTone = effectiveHistoryPreviewEvent ? getHistoryEventTone(effectiveHistoryPreviewEvent.action, effectiveHistoryPreviewEvent.status) : null;
   const historyEventStripClassName =
     historyEventTone === "pending"
       ? "border-amber-200/50 bg-amber-50 text-amber-700"
@@ -503,12 +538,59 @@ export default function WorkflowManageDialog({
               ? "border-rose-200/50 bg-rose-50 text-rose-700"
               : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
   const HistoryEventIcon = historyEventTone === "pending"
-    ? Calendar
+    ? Clock
     : historyEventTone === "initiation" || historyEventTone === "modified"
       ? History
       : historyEventTone === "rejected"
-        ? X
-        : BadgeCheck;
+        ? CircleX
+        : ShieldCheck;
+  const formatStatusLabel = (value: string) =>
+    value
+      .toLowerCase()
+      .split("_")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  const viewContextTitle = effectiveHistoryPreviewEvent
+    ? effectiveHistoryPreviewEvent.action
+    : showDeleteActions
+      ? "Delete Workflow"
+      : pendingDecision
+        ? pendingDecision === "approve"
+          ? "Approval Remark"
+          : "Rejection Remark"
+        : canShowPendingActions && impactBadgeLabel
+          ? impactBadgeLabel
+          : shouldShowStatusTransition
+            ? `${formatStatusLabel(previousStatusLabel)} to ${formatStatusLabel(nextStatusLabel)}`
+            : "";
+  const viewContextClassName = effectiveHistoryPreviewEvent
+    ? historyEventStripClassName
+    : showDeleteActions
+      ? "border-rose-200/60 bg-rose-50 text-rose-700"
+      : pendingDecision
+        ? pendingDecision === "approve"
+          ? "border-emerald-200/60 bg-emerald-50 text-emerald-700"
+          : "border-rose-200/60 bg-rose-50 text-rose-700"
+        : canShowPendingActions && impactBadgeLabel
+          ? impactBadgeCls || "border-amber-200/60 bg-amber-50 text-amber-700"
+          : shouldShowStatusTransition
+            ? "border-sky-200/60 bg-sky-50 text-sky-700"
+            : "border-slate-200 bg-slate-50 text-slate-700";
+  const ViewContextIcon = effectiveHistoryPreviewEvent
+    ? HistoryEventIcon
+    : showDeleteActions
+      ? Trash2
+      : pendingDecision
+        ? pendingDecision === "approve"
+          ? ShieldCheck
+          : CircleX
+        : canShowPendingActions && impactBadgeLabel
+          ? Clock
+          : shouldShowStatusTransition
+            ? ArrowLeftRight
+            : Settings2;
+  const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
 
   const handleStartPendingAction = (action: "approve" | "reject") => {
     setPendingDecision(action);
@@ -589,21 +671,30 @@ export default function WorkflowManageDialog({
           Review workflow details, approval chain, history, and submit approve or reject actions.
         </DialogDescription>
         <DialogHeader className="border-b border-slate-200 bg-slate-50/40 px-6 py-4">
+          {viewContextTitle ? (
+            <div className={cn("-mx-6 -mt-4 mb-4 flex items-center justify-center gap-3 px-6 py-1.5 text-center", viewContextClassName)}>
+              <div className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/70 ring-1 ring-black/5">
+                <ViewContextIcon className="h-3.5 w-3.5" />
+              </div>
+              <div className="flex min-w-0 flex-nowrap items-center justify-center gap-2 whitespace-nowrap">
+                <p className="whitespace-nowrap text-[13px] font-extrabold uppercase tracking-[0.18em] leading-none">{viewContextTitle}</p>
+                {viewContextLevelCount ? (
+                  <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded border border-current/20 bg-white/60 px-1.5 text-[9px] font-bold leading-none">
+                    {viewContextLevelCount}
+                  </span>
+                ) : null}
+                {shouldShowStatusTransition ? (
+                  <span className="inline-flex h-4 shrink-0 items-center justify-center rounded border border-sky-200/70 bg-white/60 px-1.5 text-[9px] font-bold uppercase leading-none text-sky-700">
+                    {formatStatusLabel(previousStatusLabel)} <span className="px-0.5 text-sky-400">→</span> {formatStatusLabel(nextStatusLabel)}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2.5">
                 <DialogTitle className="text-xl text-slate-900">{displayTitle}</DialogTitle>
-                {historyPreviewEvent ? (
-                  <span className={cn("inline-flex items-center gap-1.5 rounded border px-2 py-1", historyEventStripClassName)}>
-                    <HistoryEventIcon className="h-3 w-3" />
-                    <span className="text-[10px] font-bold uppercase tracking-tight">{historyPreviewEvent.action}</span>
-                    {historyPreviewEvent.levelCount ? (
-                      <span className={cn("inline-flex h-4 min-w-4 items-center justify-center rounded-sm border px-1 text-[9px] font-bold leading-none", historyEventStripClassName)}>
-                        {historyPreviewEvent.levelCount}
-                      </span>
-                    ) : null}
-                  </span>
-                ) : null}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">

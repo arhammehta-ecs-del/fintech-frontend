@@ -136,12 +136,14 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
     Object.keys(pendingNewDataFromPending).length > 0 ? pendingNewDataFromPending : pendingNewDataFromRecord;
   const orgStructure = toRecord(record.orgStructure);
   const initiator = toRecord(record.initiator);
-  const associatedWorkflowName =
-    readString(associateAlias.workflowName) ||
-    readString(payloadAssociateAlias.workflowName) ||
+  const topLevelWorkflowName =
     readString(record.workflowName) ||
     readString(payload.workflowName);
-  const inferredModule = deriveModuleFromWorkflowName(associatedWorkflowName);
+  const associatedWorkflowName =
+    readString(associateAlias.workflowName) ||
+    readString(payloadAssociateAlias.workflowName);
+  const resolvedWorkflowName = topLevelWorkflowName || associatedWorkflowName;
+  const inferredModule = deriveModuleFromWorkflowName(associatedWorkflowName || resolvedWorkflowName);
   const rawModule = readString(record.module) || readString(payload.module) || inferredModule;
   const subModule = readString(record.subModule) || readString(payload.subModule) || inferredModule;
   const nodePath =
@@ -190,7 +192,7 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
     readString(record.nodeName) ||
     readString(orgStructure.nodeName) ||
     readString(record.department) ||
-    (nodePath ? getNodeLabelFromPath(nodePath) : subModule || "Unknown");
+    (nodePath ? getNodeLabelFromPath(nodePath) : subModule || "-");
   const levels = record.levels ?? payload.levels ?? [];
   const normalizedOrgStructure =
     normalizeOrgStructure(record.orgStructure) ||
@@ -238,7 +240,7 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
       readString(payload.initiatedAt) ||
       readString(payload.initiatorTimestamp),
     workflowName:
-      associatedWorkflowName,
+      resolvedWorkflowName,
     workflowAlias:
       readString(associateAlias.workflowAlias) ||
       readString(payloadAssociateAlias.workflowAlias) ||

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import HistorySidebar, { type HistoryEntry } from "@/components/HistorySidebar";
-import { normalizeHistoryDetail, type HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
+import { normalizeHistoryDetail, type HistoryDetailPreviewEvent, type HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 import { formatDateParts } from "@/lib/historyDate.utils";
 import { getInitials } from "@/lib/userIdentity.utils";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +14,7 @@ export type WorkflowHistorySidebarProps = {
   onClose: () => void;
   workflow: WorkflowRecord | null;
   onOpenHistoryDetail?: (detail: HistoryDetailViewModel, sourceId: string) => void;
+  onLatestHistoryEventChange?: (event: HistoryDetailPreviewEvent | null) => void;
   dockOffset?: {
     top: number;
     left: number;
@@ -136,8 +137,40 @@ const mapWorkflowHistoryEntry = (
     }))
     .filter((approver) => approver.name || approver.email);
 
+  // Parse multi-level approval data (approvedBy levels + approvalSummary)
+  const approvedByLevels = toRecordArray(record.approvedBy)
+    .map((levelEntry) => ({
+      level: readLevel(levelEntry.level),
+      rule: readString(levelEntry.rule) || null,
+      approvers: toRecordArray(levelEntry.approvedBy)
+        .map((approver) => ({
+          levelCount: readString(approver.levelCount),
+          name: readString(approver.name),
+          email: readString(approver.email),
+          approvedAt: readString(approver.approvedAt),
+        }))
+        .filter((approver) => approver.name || approver.email),
+    }))
+    .filter((entry) => entry.level !== null && entry.approvers.length > 0)
+    .sort((a, b) => (a.level ?? 0) - (b.level ?? 0));
+
+  const approvalSummaryData = toRecord(record.approvalSummary);
+  const approvalTotalLevels = readCount(approvalSummaryData.totalLevels);
+  const approvalCompletedLevels = readCount(approvalSummaryData.completedLevels);
+  const isFullyApproved = approvalTotalLevels > 0 && approvalCompletedLevels >= approvalTotalLevels;
+
+  // Derive timestamp from latest approvedAt when createdAt is missing
+  const latestApprovedAt = approvedByLevels.reduce<string>((latest, entry) => {
+    for (const approver of entry.approvers) {
+      if (approver.approvedAt && (!latest || new Date(approver.approvedAt) > new Date(latest))) {
+        return approver.approvedAt;
+      }
+    }
+    return latest;
+  }, "");
+
   const createdAtRaw = readString(record.createdAt) || readString(record.initiatedAt) || readString(record.initiatedDate);
-  const createdAt = createdAtRaw || (eligibleApprovers.length > 0 ? findNearestTimestamp(records, index) : "");
+  const createdAt = createdAtRaw || latestApprovedAt || (eligibleApprovers.length > 0 ? findNearestTimestamp(records, index) : "");
   const sortEpochMs = toEpochMs(createdAt);
   const eventRaw = readString(record.event) || readString(record.action) || readString(record.status);
   const action = eventRaw ? eventRaw.replace(/_/g, " ").toUpperCase() : "UPDATE";
@@ -158,9 +191,11 @@ const mapWorkflowHistoryEntry = (
   const details =
     level !== null
       ? `Level ${level} ${action.toLowerCase()} for ${subjectName}.`
-      : pendingApproverCount > 0
-        ? `${pendingApproverCount} eligible approver${pendingApproverCount === 1 ? "" : "s"} for ${subjectName}.`
-        : `Event recorded for ${subjectName}.`;
+      : isFullyApproved && approvalTotalLevels > 1
+        ? `All ${approvalTotalLevels} levels approved for ${subjectName}.`
+        : pendingApproverCount > 0
+          ? `${pendingApproverCount} eligible approver${pendingApproverCount === 1 ? "" : "s"} for ${subjectName}.`
+          : `Event recorded for ${subjectName}.`;
 
   return {
     id: readString(record.id) || readString(record.workflowId) || `${createdAt || "history"}-${index}`,
@@ -177,6 +212,26 @@ const mapWorkflowHistoryEntry = (
     remarks: remarks || undefined,
     timestampMissing,
     eligibleApprovers: eligibleApprovers.length > 0 ? eligibleApprovers : undefined,
+    approvalSections: approvedByLevels.length > 0
+      ? [{
+          title: "Approved By",
+          tone: "success" as const,
+          items: approvedByLevels.map((entry) => ({
+            label: `Level ${entry.level}`,
+            rule: entry.approvers[0]?.levelCount || null,
+            status: null,
+            people: entry.approvers.map((approver) => {
+              const { date, time } = formatDateParts(approver.approvedAt || "");
+              return {
+                name: approver.name,
+                email: approver.email,
+                date: date || undefined,
+                time: time || undefined,
+              };
+            }),
+          })),
+        }]
+      : undefined,
     initiator: {
       name: initiatorName,
       email: initiatorEmail,
@@ -203,6 +258,7 @@ export default function WorkflowHistorySidebar({
   onClose,
   workflow,
   onOpenHistoryDetail,
+  onLatestHistoryEventChange,
   dockOffset,
   splitView = Boolean(dockOffset),
   panelWidth,
@@ -215,6 +271,7 @@ export default function WorkflowHistorySidebar({
     if (!isOpen || !workflow) {
       setHistoryData([]);
       setIsLoading(false);
+      onLatestHistoryEventChange?.(null);
       return;
     }
 
@@ -235,10 +292,20 @@ export default function WorkflowHistorySidebar({
               .map((record, index, records) => mapWorkflowHistoryEntry(record, workflow.name, index, records))
             : [];
           setHistoryData(mappedHistory);
+          onLatestHistoryEventChange?.(
+            mappedHistory[0]
+              ? {
+                  action: mappedHistory[0].action,
+                  levelCount: mappedHistory[0].levelCount,
+                  status: mappedHistory[0].status,
+                }
+              : null,
+          );
         }
       } catch (error) {
         const message = getApiErrorMessage(error, "Failed to fetch workflow history.");
         toast({ title: "Unable to load workflow history", description: message, variant: "destructive" });
+        onLatestHistoryEventChange?.(null);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -248,7 +315,7 @@ export default function WorkflowHistorySidebar({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, workflow, toast]);
+  }, [isOpen, workflow, onLatestHistoryEventChange, toast]);
 
   const handleViewMore = async (entry: HistoryEntry) => {
     const sourceId = (entry.sourceId || entry.id).trim();
@@ -280,7 +347,7 @@ export default function WorkflowHistorySidebar({
       isOpen={isOpen}
       onClose={onClose}
       title="Workflow history"
-      subtitle={workflow?.name || "Unknown Workflow"}
+      subtitle={workflow?.workflowName || workflow?.name || workflow?.alias || "Workflow"}
       showSystemGenerated={false}
       data={historyData}
       isLoading={isLoading}

@@ -33,6 +33,8 @@ export type HistoryEntry = {
       people: Array<{
         name: string;
         email: string;
+        date?: string;
+        time?: string;
       }>;
     }>;
   }>;
@@ -73,6 +75,7 @@ export type HistorySidebarProps = {
   panelWidth?: number;
   closeOnOutsideClick?: boolean;
   onViewMore?: (item: HistoryEntry) => void;
+  activeViewMoreSourceId?: string | null;
 };
 
 const MONTHS = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
@@ -190,10 +193,25 @@ function ActorFooter({ item }: { item: HistoryEntry }) {
       date: item.initiator.date,
       time: item.initiator.time,
     };
+  const normalizedActorEmail = (actor.email || "").trim().toLowerCase();
+  const isActorDuplicatedInApprovalSection = Boolean(
+    item.status === "approved" &&
+    normalizedActorEmail &&
+    item.approvalSections?.some((section) =>
+      section.title.trim().toLowerCase() === "approved by" &&
+      section.items.some((group) =>
+        group.people.some((person) => (person.email || "").trim().toLowerCase() === normalizedActorEmail),
+      ),
+    ),
+  );
+  const shouldHideFooterActor = item.showActor && isActorDuplicatedInApprovalSection;
+  const shouldHideFooterTimestamp = Boolean(
+    item.approvalSections?.some((section) => section.title.trim().toLowerCase() === "approved by")
+  );
 
   return (
     <div className="-mx-4 -mb-4 mt-4 flex items-center justify-between rounded-b-[14px] border-t border-slate-100 bg-slate-50/50 px-4 pb-4 pt-3">
-      {item.showActor ? (
+      {!shouldHideFooterActor && item.showActor ? (
         <div className="flex items-center gap-2.5">
           <div className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-[9px] font-bold text-slate-600 shadow-sm">
             {actor.initials}
@@ -207,7 +225,7 @@ function ActorFooter({ item }: { item: HistoryEntry }) {
         <div />
       )}
 
-      {item.timestampMissing ? null : (
+      {item.timestampMissing || shouldHideFooterTimestamp ? null : (
         <div className="flex flex-col items-end">
           <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600">
             <span className="flex items-center gap-1"><Calendar className="h-3 w-3 text-slate-400" /> {actor.date || "—"}</span>
@@ -262,45 +280,62 @@ function ApprovalSections({ item }: { item: HistoryEntry }) {
         <div key={`${section.title}-${sectionIndex}`} className={["rounded-lg border p-2", getSectionClassName(section.tone)].join(" ")}>
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{section.title}</p>
           <div className="max-h-[180px] space-y-2 overflow-y-auto pr-1">
-            {section.items.map((group, groupIndex) => (
+            {section.items.map((group, groupIndex) => {
+              const firstPerson = group.people[0];
+              return (
               <div key={`${section.title}-${group.label || "group"}-${groupIndex}`} className="rounded-md border border-white/70 bg-white/70 p-2">
-                {group.label || group.rule || group.status ? (
-                  <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                    {group.label ? <span className="text-[10px] font-semibold text-slate-700">{group.label}</span> : null}
-                    {group.rule ? (
-                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500">
-                        {group.rule}
-                      </span>
-                    ) : null}
-                    {group.status ? (
-                      <span
-                        className={[
-                          "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
-                          group.status === "APPROVED"
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : group.status === "REJECTED"
-                              ? "border-rose-200 bg-rose-50 text-rose-700"
-                              : "border-slate-200 bg-white text-slate-500",
-                        ].join(" ")}
-                      >
-                        {group.status}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-                <div className="space-y-1">
+                <div className="mb-1.5 flex items-center justify-between gap-4">
+                  {group.label || group.rule || group.status ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {group.label ? <span className="text-[10px] font-semibold text-slate-700">{group.label}</span> : null}
+                      {group.rule ? (
+                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                          {group.rule}
+                        </span>
+                      ) : null}
+                      {group.status ? (
+                        <span
+                          className={[
+                            "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                            group.status === "APPROVED"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : group.status === "REJECTED"
+                                ? "border-rose-200 bg-rose-50 text-rose-700"
+                                : "border-slate-200 bg-white text-slate-500",
+                          ].join(" ")}
+                        >
+                          {group.status}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : <div />}
+                  {firstPerson?.date ? (
+                    <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-medium text-slate-500">
+                      <Calendar className="h-3 w-3 text-slate-400" /> {firstPerson.date}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="space-y-2">
                   {group.people.map((person, personIndex) => (
-                    <div key={`${person.email}-${personIndex}`} className="flex items-start gap-1.5 text-[11px] leading-tight text-slate-700">
-                      <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-slate-400" />
-                      <div className="min-w-0">
-                        <span className="font-medium">{person.name}</span>
-                        <span className="text-slate-500"> ({person.email})</span>
+                    <div key={`${person.email}-${personIndex}`} className="flex items-start justify-between gap-4 text-[11px] leading-tight">
+                      <div className="flex items-start gap-1.5 text-slate-700">
+                        <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                        <div className="min-w-0">
+                          <span className="font-medium">{person.name}</span>
+                          <span className="text-slate-500"> ({person.email})</span>
+                        </div>
                       </div>
+                      {person.time ? (
+                        <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-medium text-slate-500">
+                          <Clock className="h-3 w-3 text-slate-400" /> {person.time}
+                        </span>
+                      ) : null}
                     </div>
                   ))}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}
@@ -308,8 +343,17 @@ function ApprovalSections({ item }: { item: HistoryEntry }) {
   );
 }
 
-function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewMore?: (item: HistoryEntry) => void }) {
+function MilestoneTimeline({
+  data,
+  onViewMore,
+  activeViewMoreSourceId,
+}: {
+  data: HistoryEntry[];
+  onViewMore?: (item: HistoryEntry) => void;
+  activeViewMoreSourceId?: string | null;
+}) {
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+  const getViewMoreSourceId = (item: HistoryEntry) => (item.sourceId || item.id).trim();
 
   useEffect(() => {
     setExpandedItems((current) => {
@@ -421,7 +465,12 @@ function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewM
                             <button
                               type="button"
                               onClick={() => onViewMore(item)}
-                              className="shrink-0 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                              className={[
+                                "shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                                activeViewMoreSourceId && getViewMoreSourceId(item) === activeViewMoreSourceId
+                                  ? "border border-blue-600 bg-blue-50 text-blue-700 shadow-[0_0_0_1px_rgba(37,99,235,0.08)]"
+                                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                              ].join(" ")}
                             >
                               View More
                             </button>
@@ -466,6 +515,7 @@ export function HistorySidebar({
   panelWidth = 560,
   closeOnOutsideClick = false,
   onViewMore,
+  activeViewMoreSourceId,
 }: HistorySidebarProps) {
   const [expandedYears, setExpandedYears] = useState(new Set<string>([(new Date().getFullYear()).toString()]));
   const [expandedMonths, setExpandedMonths] = useState(new Set<string>());
@@ -744,7 +794,7 @@ export function HistorySidebar({
 
                           {isExpanded ? (
                             <div className="animate-in slide-in-from-top-1 fade-in py-2 duration-200">
-                          <MilestoneTimeline data={logs} onViewMore={onViewMore} />
+                          <MilestoneTimeline data={logs} onViewMore={onViewMore} activeViewMoreSourceId={activeViewMoreSourceId} />
                             </div>
                           ) : null}
                         </div>

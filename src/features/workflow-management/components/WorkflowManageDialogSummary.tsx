@@ -407,17 +407,17 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
           <h4 className="mb-3 px-1 text-[10px] font-black uppercase tracking-widest text-slate-600">
             Linked Org Structure ({linkedOrgStructureNodes.length})
           </h4>
-          <div className="max-h-[240px] space-y-2 overflow-y-auto pr-1 pb-1">
+          <div className="space-y-2 pb-1">
             {linkedOrgStructureNodes.map((entry, index) => {
               const formattedType = formatSnakeCaseLabel(entry.nodeType || "");
-              const pathPreview = getWorkflowPathPreview(entry.nodePath, 3) || entry.nodePath;
+              const fullNodePath = entry.nodePath || getWorkflowPathPreview(entry.nodePath, 3);
               return (
                 <div key={`${entry.nodePath}-${index}`} className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-sm">
                   <p className="truncate text-sm font-semibold text-slate-900">
                     {entry.nodeName}
                     {formattedType ? <span className="ml-1 text-slate-500">({formattedType})</span> : null}
                   </p>
-                  <p className="mt-1 truncate font-mono text-[11px] text-sky-700">{pathPreview}</p>
+                  <p className="mt-1 break-words font-mono text-[11px] leading-5 text-sky-700">{fullNodePath}</p>
                 </div>
               );
             })}

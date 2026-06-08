@@ -160,13 +160,26 @@ const mapApprovalSectionItemsFromApprovedBy = (record: RawHistoryRecord): Approv
   toRecordArray(record.approvedBy)
     .map((group) => {
       const level = readLevel(group.level);
-      const people = mapApprovalPeopleStrict(group.approvedBy);
-      if (people.length === 0) return null;
+      const approvers = toRecordArray(group.approvedBy)
+        .map((approver) => {
+          const approvedAt = readString(approver.approvedAt);
+          const { date, time } = formatDateParts(approvedAt);
+          return {
+            name: readString(approver.name) || "Unknown",
+            email: readString(approver.email) || "no-email@example.com",
+            levelCount: readString(approver.levelCount),
+            date: date || undefined,
+            time: time || undefined,
+          };
+        })
+        .filter((person) => Boolean(person.name || person.email));
+
+      if (approvers.length === 0) return null;
 
       return {
         label: level !== null ? `Level ${level}` : undefined,
-        rule: normalizeRule(group.rule),
-        people,
+        rule: normalizeRule(group.rule) || approvers[0]?.levelCount || null,
+        people: approvers.map((a) => ({ name: a.name, email: a.email, date: a.date, time: a.time })),
       };
     })
     .filter((item): item is ApprovalSectionItem => item !== null);
@@ -182,18 +195,11 @@ const buildApprovedSection = (items: ApprovalSectionItem[]): ApprovalSection | n
 
 const buildRejectedSection = (record: RawHistoryRecord): ApprovalSection | null => {
   const rejectedPeople = mapApprovalPeopleStrict(record.rejectedBy);
+  const action = (readString(record.event) || readString(record.action) || readString(record.status)).toUpperCase();
+  const isRejectedEvent = action.includes("REJECT");
   const rejectedLevel = readLevel(record.level);
-  if (rejectedPeople.length === 0 && rejectedLevel === null) return null;
-
-  const fallbackPeople =
-    rejectedPeople.length > 0
-      ? rejectedPeople
-      : [
-          {
-            name: readString(toRecord(record.user).name) || "Rejected By",
-            email: readString(toRecord(record.user).email) || "no-email@example.com",
-          },
-        ];
+  if (rejectedPeople.length === 0 && (!isRejectedEvent || rejectedLevel === null)) return null;
+  if (rejectedPeople.length === 0) return null;
 
   return {
     title: "Rejected By",
@@ -202,7 +208,7 @@ const buildRejectedSection = (record: RawHistoryRecord): ApprovalSection | null 
       {
         label: rejectedLevel !== null ? `Level ${rejectedLevel}` : undefined,
         status: "REJECTED",
-        people: fallbackPeople,
+        people: rejectedPeople,
       },
     ],
   };
@@ -240,13 +246,18 @@ const mapApprovalSections = (record: RawHistoryRecord): HistoryEntry["approvalSe
   return sections.length > 0 ? sections : undefined;
 };
 
-const formatApprovalSummaryDetail = (record: RawHistoryRecord) => {
+const formatApprovalSummaryDetail = (record: RawHistoryRecord, targetEmail: string) => {
   const approvalSummary = toRecord(record.approvalSummary);
   const totalLevels = readCount(approvalSummary.totalLevels);
   const completedLevels = readCount(approvalSummary.completedLevels);
   const currentStatus = readString(approvalSummary.currentStatus).toUpperCase();
 
   if (!totalLevels) return "";
+
+  if (currentStatus === "APPROVED" && totalLevels > 1 && completedLevels >= totalLevels) {
+    return `All ${totalLevels} levels approved for ${targetEmail}.`;
+  }
+
   const statusLabel =
     currentStatus === "APPROVED"
       ? "Approval completed."
@@ -287,6 +298,20 @@ const getEffectiveCreatedAt = (record: RawHistoryRecord, index: number, records:
     readString(record.initiatedDate) ||
     readString(record.requestedAt);
   if (createdAtRaw) return createdAtRaw;
+
+  // Derive timestamp from latest approvedAt when createdAt is missing
+  const latestApprovedAt = toRecordArray(record.approvedBy).reduce<string>((latest, group) => {
+    return toRecordArray(group.approvedBy).reduce<string>((groupLatest, approver) => {
+      const approvedAt = readString(approver.approvedAt);
+      if (approvedAt && (!groupLatest || new Date(approvedAt) > new Date(groupLatest))) {
+        return approvedAt;
+      }
+      return groupLatest;
+    }, latest);
+  }, "");
+
+  if (latestApprovedAt) return latestApprovedAt;
+
   const eligibleApprovers = mapEligibleApprovers(record);
   if (eligibleApprovers.length > 0) {
     return findNearestTimestamp(records, index);
@@ -337,7 +362,7 @@ const mapUserHistoryEntry = (
   const disableViewMore = isAutoEvent;
   const remarks = readString(record.remarks);
   const levelCount = readString(record.levelCount);
-  const approvalSummaryDetail = formatApprovalSummaryDetail(record);
+  const approvalSummaryDetail = formatApprovalSummaryDetail(record, targetEmail);
   const defaultDetails =
     level !== null
       ? `Level ${level} ${eventPhrase} recorded for ${targetEmail}.`
@@ -402,6 +427,7 @@ export default function UserHistorySidebar({
 }: UserHistorySidebarProps) {
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [activeViewMoreSourceId, setActiveViewMoreSourceId] = useState<string | null>(null);
   const { toast } = useToast();
   const requestNewData = toRecord(user?.basicDetails?.requestNewData);
   const requestOldData = toRecord(user?.basicDetails?.requestOldData);
@@ -410,6 +436,16 @@ export default function UserHistorySidebar({
     readString(user?.basicDetails?.email) ||
     readString(requestNewData.targetUserEmail) ||
     readString(requestOldData.targetUserEmail);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveViewMoreSourceId(null);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    setActiveViewMoreSourceId(null);
+  }, [effectiveUserEmail]);
 
   useEffect(() => {
     if (!isOpen || !effectiveUserEmail) {
@@ -483,6 +519,7 @@ export default function UserHistorySidebar({
       const response = await fetchHistoryDetail({ id: sourceId, type: "user" });
       const detail = normalizeHistoryDetail(response);
       if (detail && onOpenHistoryDetail) {
+        setActiveViewMoreSourceId(sourceId);
         onOpenHistoryDetail(
           {
             ...detail,
@@ -514,6 +551,7 @@ export default function UserHistorySidebar({
       splitView={splitView}
       panelWidth={panelWidth}
       onViewMore={handleViewMore}
+      activeViewMoreSourceId={activeViewMoreSourceId}
     />
   );
 }

@@ -3,7 +3,7 @@ import type { HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ArrowUpDown, SlidersHorizontal, Users, History, Trash2 } from "lucide-react";
+import { ArrowUpDown, SlidersHorizontal, Users, History, Trash2, Info } from "lucide-react";
 import { maskContactNumber, getInitials, getAvatarColor, formatCollapsedNodePath } from "@/features/user-management/utils";
 import UserHistorySidebar from "./UserHistorySidebar";
 import { useEffect, useRef, useState } from "react";
@@ -13,13 +13,18 @@ type UserTableProps = {
   currentMembers: AppUser[];
   paginatedMembers: AppUser[];
   onView: (member: AppUser) => void;
-  onOpenHistoryDetail?: (member: AppUser, detail: HistoryDetailViewModel) => void;
+  onOpenHistoryDetail?: (member: AppUser, detail: HistoryDetailViewModel, sourceId: string) => void;
   onDelete?: (member: AppUser) => void;
 };
 
 const getPrimaryNodeMeta = (member: AppUser) => {
-  const primaryAccess = (member.accessDetails ?? []).find((entry) => entry.accessType === "PRIMARY");
-  if (!primaryAccess) {
+  const accessEntries = member.accessDetails ?? [];
+  const preferredAccess =
+    accessEntries.find((entry) => entry.accessType === "PRIMARY" && (entry.nodePath || "").trim()) ??
+    accessEntries.find((entry) => (entry.nodePath || "").trim());
+  const fallbackNodePath = (member.nodePath || "").trim();
+
+  if (!preferredAccess && !fallbackNodePath) {
     return {
       departmentLabel: member.department || "",
       primaryNodePath: "",
@@ -27,9 +32,9 @@ const getPrimaryNodeMeta = (member: AppUser) => {
     };
   }
 
-  const nodeType = (primaryAccess.nodeType || "").trim().toUpperCase();
-  const nodePath = (primaryAccess.nodePath || "").trim();
-  const nodeName = (primaryAccess.nodeName || "").trim();
+  const nodeType = (preferredAccess?.nodeType || "").trim().toUpperCase();
+  const nodePath = (preferredAccess?.nodePath || fallbackNodePath).trim();
+  const nodeName = (preferredAccess?.nodeName || "").trim();
   const nodeDepth = nodePath.split(".").map((part) => part.trim()).filter(Boolean).length;
   const isRootByType = nodeType === "ROOT";
   const isRootByPath = nodeDepth <= 1;
@@ -43,17 +48,22 @@ const getPrimaryNodeMeta = (member: AppUser) => {
 };
 
 function NodePathMarquee({ text }: { text: string }) {
+  const MARQUEE_DURATION_SECONDS = 6;
+  const MARQUEE_GAP_PX = 24;
   const viewportRef = useRef<HTMLSpanElement | null>(null);
   const textRef = useRef<HTMLSpanElement | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [overflowPx, setOverflowPx] = useState(0);
+  const [textWidthPx, setTextWidthPx] = useState(0);
 
   useEffect(() => {
     const measure = () => {
       const viewport = viewportRef.current;
       const label = textRef.current;
       if (!viewport || !label) return;
-      const nextOverflow = Math.max(0, Math.ceil(label.scrollWidth - viewport.clientWidth));
+      const fullTextWidth = Math.ceil(label.scrollWidth);
+      const nextOverflow = Math.max(0, Math.ceil(fullTextWidth - viewport.clientWidth));
+      setTextWidthPx(fullTextWidth);
       setOverflowPx(nextOverflow);
     };
 
@@ -75,28 +85,45 @@ function NodePathMarquee({ text }: { text: string }) {
   }, [text]);
 
   const shouldAnimate = isHovered && overflowPx > 0;
-  const durationSeconds = Math.min(12, Math.max(2, overflowPx / 34));
+  const marqueeTravelPx = textWidthPx + MARQUEE_GAP_PX;
 
   return (
-    <span
-      className="mt-1 inline-flex max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <span ref={viewportRef} className="block max-w-full overflow-hidden whitespace-nowrap">
+    <span className="mt-1 inline-flex max-w-full items-center gap-1.5">
+      {overflowPx > 0 ? (
         <span
-          ref={textRef}
-          className="inline-block whitespace-nowrap will-change-transform"
-          style={
-            shouldAnimate
-              ? {
-                  animation: `user-node-path-marquee ${durationSeconds}s linear infinite alternate`,
-                  ["--node-path-shift" as string]: `${overflowPx}px`,
-                }
-              : undefined
-          }
+          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-600 transition hover:border-sky-300 hover:bg-sky-100"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          aria-label="Preview full node path"
+          role="img"
         >
-          {text}
+          <Info className="h-3 w-3" />
+        </span>
+      ) : null}
+      <span className="inline-flex min-w-0 max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700">
+        <span ref={viewportRef} className="block max-w-full overflow-hidden whitespace-nowrap">
+          <span
+            className="inline-flex items-center whitespace-nowrap will-change-transform"
+            style={
+              shouldAnimate
+                ? {
+                  animation: `user-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
+                  ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
+                  transform: "translate3d(0,0,0)",
+                }
+                : undefined
+            }
+          >
+            <span ref={textRef} className="inline-block whitespace-nowrap">
+              {text}
+            </span>
+            {overflowPx > 0 ? (
+              <span aria-hidden className="inline-flex items-center whitespace-nowrap">
+                <span className="inline-block" style={{ width: `${MARQUEE_GAP_PX}px` }} />
+                <span className="inline-block whitespace-nowrap">{text}</span>
+              </span>
+            ) : null}
+          </span>
         </span>
       </span>
     </span>
@@ -290,10 +317,10 @@ export default function UserTable({
       isOpen={!!historyOpenForUser}
       onClose={() => setHistoryOpenForUser(null)}
       user={historyOpenForUser}
-      onOpenHistoryDetail={(detail) => {
+      onOpenHistoryDetail={(detail, sourceId) => {
         if (!historyOpenForUser) return;
         setHistoryOpenForUser(null);
-        onOpenHistoryDetail?.(historyOpenForUser, detail);
+        onOpenHistoryDetail?.(historyOpenForUser, detail, sourceId);
       }}
     />
     <style

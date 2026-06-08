@@ -239,6 +239,27 @@ const getDepartmentFromAccessDetails = (record: RawUserRecord) => {
   return readString(basicDetails.nodeName).trim() || "";
 };
 
+const getNodePathFromAccessDetails = (record: RawUserRecord) => {
+  const basicDetails = toRecord(record.basicDetails);
+  const primaryArr = Array.isArray(record.primary) ? record.primary : [];
+  const secondaryArr = Array.isArray(record.secondary) ? record.secondary : [];
+  const firstPrimaryPath = primaryArr
+    .filter((item): item is RawUserRecord => typeof item === "object" && item !== null)
+    .map((item) => readString(item.nodePath).trim())
+    .find(Boolean);
+
+  if (firstPrimaryPath) return firstPrimaryPath;
+
+  const firstSecondaryPath = secondaryArr
+    .filter((item): item is RawUserRecord => typeof item === "object" && item !== null)
+    .map((item) => readString(item.nodePath).trim())
+    .find(Boolean);
+
+  if (firstSecondaryPath) return firstSecondaryPath;
+
+  return readString((basicDetails as Record<string, unknown>).nodePath).trim() || readString(record.nodePath).trim() || "";
+};
+
 const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUser => {
   const basicDetails = toRecord(record.basicDetails);
   const pendingRequest = toRecord(record.pendingRequest);
@@ -277,6 +298,7 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   const uuid = readString(record.uuid).trim() || readString(basicDetails.uuid).trim();
   const companyId = readString(record.companyId).trim();
   const isPending = Boolean(record.isPending) || pendingRequestStatus === "PENDING";
+  const nodePath = getNodePathFromAccessDetails(record);
 
   return {
     id: backendId || undefined,
@@ -288,6 +310,7 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
     role: designation,
     designation,
     department: getDepartmentFromAccessDetails(record),
+    nodePath: nodePath || undefined,
     phone,
     companyId: companyId || undefined,
     onboardingDate: onboardingDate || undefined,

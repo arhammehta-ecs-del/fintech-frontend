@@ -264,11 +264,19 @@ export function UserManagePreview({
     isHistoryPreviewActive &&
     isHistoryUpdatePreview &&
     (Object.keys(requestOldData).length > 0 || Object.keys(requestNewData).length > 0);
-  const historyHasPermissionsField = isHistoryPreviewActive && hasOwn(historyNewData, "permissions");
+  const canShowPendingRequestComparison =
+    !isHistoryPreviewActive &&
+    currentTab === "pending" &&
+    requestType === "UPDATE" &&
+    (Object.keys(requestOldData).length > 0 || Object.keys(requestNewData).length > 0);
+  const canShowAccessComparison = canShowHistoryComparison || canShowPendingRequestComparison;
+  const comparisonOldData = canShowHistoryComparison ? historyOldData : canShowPendingRequestComparison ? requestOldData : {};
+  const comparisonNewData = canShowHistoryComparison ? historyNewData : canShowPendingRequestComparison ? requestNewData : {};
+  const comparisonHasPermissionsField = canShowAccessComparison && hasOwn(comparisonNewData, "permissions");
   const canDeleteMember = member.status !== "Pending" && member.status !== "Inactive";
   const canTogglePreviousUpdated =
     requestType === "UPDATE" &&
-    (canShowPendingActions || canShowHistoryComparison) &&
+    (canShowPendingActions || canShowAccessComparison) &&
     (Object.keys(requestOldData).length > 0 || Object.keys(requestNewData).length > 0);
   const selectedRequestData = showPreviousData ? requestOldData : requestNewData;
   const selectedRequestBasicDetails = showPreviousData ? requestOldBasicDetails : requestNewBasicDetails;
@@ -286,11 +294,11 @@ export function UserManagePreview({
   const requestPermissionsAccess = mapRequestPermissionsEntries(selectedRequestData.permissions);
   const requestPermissionsDelta = mapPermissionDeltaEntries(selectedRequestData.permissions);
   const requestPermissionsAccessByType = splitAccessEntriesByType(requestPermissionsAccess);
-  const historyOldPermissionsAccess = mapRequestPermissionsEntries(historyOldData.permissions);
-  const historyOldPermissionsAccessByType = splitAccessEntriesByType(historyOldPermissionsAccess);
-  const historyNewPermissionsAccess = mapRequestPermissionsEntries(historyNewData.permissions);
-  const historyNewPermissionsDelta = mapPermissionDeltaEntries(historyNewData.permissions);
-  const historyNewPermissionsAccessByType = splitAccessEntriesByType(historyNewPermissionsAccess);
+  const comparisonOldPermissionsAccess = mapRequestPermissionsEntries(comparisonOldData.permissions);
+  const comparisonOldPermissionsAccessByType = splitAccessEntriesByType(comparisonOldPermissionsAccess);
+  const comparisonNewPermissionsAccess = mapRequestPermissionsEntries(comparisonNewData.permissions);
+  const comparisonNewPermissionsDelta = mapPermissionDeltaEntries(comparisonNewData.permissions);
+  const comparisonNewPermissionsAccessByType = splitAccessEntriesByType(comparisonNewPermissionsAccess);
   const oldRequestPrimaryAccess = mapRequestAccessEntries(requestOldData.primary, "PRIMARY");
   const oldRequestSecondaryAccess = mapRequestAccessEntries(requestOldData.secondary, "SECONDARY");
   const oldRequestPermissionsAccess = mapRequestPermissionsEntries(requestOldData.permissions);
@@ -305,20 +313,20 @@ export function UserManagePreview({
   const currentPrimaryAccess = (member.accessDetails ?? []).filter((permission) => permission.accessType === "PRIMARY") as RequestAccessEntry[];
   const currentSecondaryAccess = (member.accessDetails ?? []).filter((permission) => permission.accessType !== "PRIMARY") as RequestAccessEntry[];
   const currentAccessSnapshot = dedupePermissions((member.accessDetails as RequestAccessEntry[] | undefined) ?? []);
-  const previousPermissionsFromStructuredHistory =
-    canShowHistoryComparison && historyNewPermissionsDelta.hasStructuredDelta
+  const previousPermissionsFromStructuredComparison =
+    canShowAccessComparison && comparisonNewPermissionsDelta.hasStructuredDelta
       ? dedupePermissions([
-        ...historyOldPermissionsAccess,
-        ...historyNewPermissionsDelta.removed,
+        ...comparisonOldPermissionsAccess,
+        ...comparisonNewPermissionsDelta.removed,
       ])
       : [];
   const previousPermissionsFromStructuredPending =
-    !canShowHistoryComparison && oldRequestPermissionsDelta.hasStructuredDelta
+    !canShowAccessComparison && oldRequestPermissionsDelta.hasStructuredDelta
       ? reversePermissionDelta(currentAccessSnapshot, oldRequestPermissionsDelta)
       : [];
-  const currentPermissionsFromStructuredHistory =
-    canShowHistoryComparison && previousPermissionsFromStructuredHistory.length > 0 && historyNewPermissionsDelta.hasStructuredDelta
-      ? applyPermissionDelta(previousPermissionsFromStructuredHistory, historyNewPermissionsDelta)
+  const currentPermissionsFromStructuredComparison =
+    canShowAccessComparison && previousPermissionsFromStructuredComparison.length > 0 && comparisonNewPermissionsDelta.hasStructuredDelta
+      ? applyPermissionDelta(previousPermissionsFromStructuredComparison, comparisonNewPermissionsDelta)
       : [];
   const previousAccessDetailsFromRequest: RequestAccessEntry[] =
     previousPermissionsFromStructuredPending.length > 0
@@ -329,11 +337,11 @@ export function UserManagePreview({
           ? [...oldRequestPrimaryAccess, ...oldRequestSecondaryAccess]
           : [];
   const previousPrimaryAccess: RequestAccessEntry[] =
-    canShowHistoryComparison && previousPermissionsFromStructuredHistory.length > 0
-      ? splitAccessEntriesByType(previousPermissionsFromStructuredHistory).primary
-      : isHistoryPreviewActive && !canShowHistoryComparison
+    canShowAccessComparison && previousPermissionsFromStructuredComparison.length > 0
+      ? splitAccessEntriesByType(previousPermissionsFromStructuredComparison).primary
+      : isHistoryPreviewActive && !canShowAccessComparison
         ? []
-      : !canShowHistoryComparison && previousPermissionsFromStructuredPending.length > 0
+      : !canShowAccessComparison && previousPermissionsFromStructuredPending.length > 0
         ? splitAccessEntriesByType(previousPermissionsFromStructuredPending).primary
         : oldRequestPrimaryAccess.length > 0
           ? oldRequestPrimaryAccess
@@ -341,11 +349,11 @@ export function UserManagePreview({
             ? oldRequestPermissionDiffEntriesByType.primary
             : currentPrimaryAccess;
   const previousSecondaryAccess: RequestAccessEntry[] =
-    canShowHistoryComparison && previousPermissionsFromStructuredHistory.length > 0
-      ? splitAccessEntriesByType(previousPermissionsFromStructuredHistory).secondary
-      : isHistoryPreviewActive && !canShowHistoryComparison
+    canShowAccessComparison && previousPermissionsFromStructuredComparison.length > 0
+      ? splitAccessEntriesByType(previousPermissionsFromStructuredComparison).secondary
+      : isHistoryPreviewActive && !canShowAccessComparison
         ? []
-      : !canShowHistoryComparison && previousPermissionsFromStructuredPending.length > 0
+      : !canShowAccessComparison && previousPermissionsFromStructuredPending.length > 0
         ? splitAccessEntriesByType(previousPermissionsFromStructuredPending).secondary
         : previousAccessDetailsFromRequest.length > 0
           ? previousAccessDetailsFromRequest.filter((permission) => permission.accessType !== "PRIMARY")
@@ -367,11 +375,11 @@ export function UserManagePreview({
     Array.from(new Map(items.map((permission) => [toPermissionKey(permission), permission])).values());
   const hasPermissionDeltaEntries = requestPermissionsAccess.some((permission) => permission.remove) || requestPermissionsDelta.hasStructuredDelta;
   const effectivePrimaryAccess: RequestAccessEntry[] =
-    canShowHistoryComparison && historyNewPermissionsAccessByType.primary.length > 0
-      ? historyNewPermissionsAccessByType.primary
-      : canShowHistoryComparison && currentPermissionsFromStructuredHistory.length > 0
-        ? splitAccessEntriesByType(currentPermissionsFromStructuredHistory).primary
-      : canShowHistoryComparison && !historyHasPermissionsField
+    canShowAccessComparison && comparisonNewPermissionsAccessByType.primary.length > 0
+      ? comparisonNewPermissionsAccessByType.primary
+      : canShowAccessComparison && currentPermissionsFromStructuredComparison.length > 0
+        ? splitAccessEntriesByType(currentPermissionsFromStructuredComparison).primary
+      : canShowAccessComparison && !comparisonHasPermissionsField
         ? previousPrimaryAccess
       : isHistoryPreviewActive
         ? requestPrimaryAccess.length > 0
@@ -383,11 +391,11 @@ export function UserManagePreview({
             ? requestPermissionsAccessByType.primary
             : currentPrimaryAccess;
   const effectiveSecondaryAccess: RequestAccessEntry[] =
-    canShowHistoryComparison && historyNewPermissionsAccessByType.secondary.length > 0
-      ? historyNewPermissionsAccessByType.secondary
-      : canShowHistoryComparison && currentPermissionsFromStructuredHistory.length > 0
-        ? splitAccessEntriesByType(currentPermissionsFromStructuredHistory).secondary
-      : canShowHistoryComparison && !historyHasPermissionsField
+    canShowAccessComparison && comparisonNewPermissionsAccessByType.secondary.length > 0
+      ? comparisonNewPermissionsAccessByType.secondary
+      : canShowAccessComparison && currentPermissionsFromStructuredComparison.length > 0
+        ? splitAccessEntriesByType(currentPermissionsFromStructuredComparison).secondary
+      : canShowAccessComparison && !comparisonHasPermissionsField
         ? previousSecondaryAccess
       : isHistoryPreviewActive
         ? requestPermissionsAccessByType.secondary.length > 0
@@ -395,7 +403,7 @@ export function UserManagePreview({
           : requestPrimaryAccess.length > 0 || requestSecondaryAccess.length > 0
             ? requestSecondaryAccess
             : []
-        : !canShowHistoryComparison && oldRequestPermissionsDelta.hasStructuredDelta
+        : !canShowAccessComparison && oldRequestPermissionsDelta.hasStructuredDelta
           ? currentSecondaryAccess
           : requestType === "UPDATE" && hasPermissionDeltaEntries
             ? mergePermissions([
@@ -640,6 +648,7 @@ export function UserManagePreview({
     previousStatusLabel !== nextStatusLabel;
   const shouldAutoExpandAllCards =
     currentTab === "active" || currentTab === "inactive" || shouldShowStatusTransition;
+  const shouldPinChangedCardsInCollapsedPendingView = currentTab === "pending" && !isExpanded;
   useEffect(() => {
     setIsExpanded(shouldAutoExpandAllCards);
     setCollapsedFocusedKey(null);
@@ -1186,7 +1195,7 @@ export function UserManagePreview({
                       <button
                         type="button"
                         onClick={() => setIsBasicDetailsExpanded((value) => !value)}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 shadow-sm transition hover:border-[rgb(53,83,233)] hover:text-[rgb(53,83,233)]"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-400 transition hover:text-[rgb(53,83,233)]"
                         aria-label={isBasicDetailsExpanded ? "Collapse Basic Details" : "Expand Basic Details"}
                         aria-expanded={isBasicDetailsExpanded}
                       >
@@ -1250,8 +1259,9 @@ export function UserManagePreview({
                           const dismissed = collapsedDismissedKey === `p:${key}`;
                           const changeState = getNodeChangeState(primaryByNode[key], previousPrimaryByNode[key]);
                           const isRemovedNode = changeState === "removed";
+                          const shouldKeepExpanded = shouldPinChangedCardsInCollapsedPendingView && changeState !== "unchanged";
                           const shouldShowExpandedCard =
-                            !dismissed && (shouldAutoExpandAllCards || focused || changeState !== "unchanged");
+                            shouldKeepExpanded || (!dismissed && (shouldAutoExpandAllCards || focused || changeState !== "unchanged"));
                           return (
                             <div key={key}>
                               {shouldShowExpandedCard ? (
@@ -1263,10 +1273,12 @@ export function UserManagePreview({
                                   previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
                                   changeState={changeState}
                                   isPrimary
-                                  onClose={() => {
-                                    setCollapsedFocusedKey(null);
-                                    setCollapsedDismissedKey(`p:${key}`);
-                                  }}
+                                  onClose={shouldKeepExpanded
+                                    ? undefined
+                                    : () => {
+                                      setCollapsedFocusedKey(null);
+                                      setCollapsedDismissedKey(`p:${key}`);
+                                    }}
                                 />
                               ) : (
                                 <button
@@ -1317,8 +1329,9 @@ export function UserManagePreview({
                           const dismissed = collapsedDismissedKey === `s:${key}`;
                           const changeState = getNodeChangeState(secondaryByNode[key], previousSecondaryByNode[key]);
                           const isRemovedNode = changeState === "removed";
+                          const shouldKeepExpanded = shouldPinChangedCardsInCollapsedPendingView && changeState !== "unchanged";
                           const shouldShowExpandedCard =
-                            !dismissed && (shouldAutoExpandAllCards || focused || changeState !== "unchanged");
+                            shouldKeepExpanded || (!dismissed && (shouldAutoExpandAllCards || focused || changeState !== "unchanged"));
                           return (
                             <div key={key}>
                               {shouldShowExpandedCard ? (
@@ -1330,10 +1343,12 @@ export function UserManagePreview({
                                   previousCategories={previousSecondaryByNode[key]?.categories ?? {}}
                                   changeState={changeState}
                                   isPrimary={false}
-                                  onClose={() => {
-                                    setCollapsedFocusedKey(null);
-                                    setCollapsedDismissedKey(`s:${key}`);
-                                  }}
+                                  onClose={shouldKeepExpanded
+                                    ? undefined
+                                    : () => {
+                                      setCollapsedFocusedKey(null);
+                                      setCollapsedDismissedKey(`s:${key}`);
+                                    }}
                                 />
                               ) : (
                                 <button

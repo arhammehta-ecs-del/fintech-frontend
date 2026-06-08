@@ -70,6 +70,7 @@ export interface AppUser {
   role: string;
   designation: string;
   department: string;
+  nodePath?: string;
   phone?: string;
   companyId?: string;
   onboardingDate?: string;
