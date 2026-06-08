@@ -84,6 +84,12 @@ type UserPaginatedResponse = {
   pageInfo?: Partial<UserPageInfo>;
 };
 
+type UserDetailsResponse = {
+  message?: string;
+  code?: number;
+  data?: RawUserRecord;
+};
+
 export type UserListStatusTab = "active" | "pending" | "inactive";
 
 export type UserPaginatedRequest = {
@@ -104,6 +110,11 @@ export type UserPaginatedResult = {
     inactive: number;
   };
   pageInfo: UserPageInfo;
+};
+
+export type FetchUserDetailsInput = {
+  id?: string | null;
+  email?: string | null;
 };
 
 type CompanyNodeWorkflow = {
@@ -158,6 +169,7 @@ const NEW_USER_ONBOARD_PATH = "/api/v1/company-settings/user/initiate";
 const NEW_GLOBAL_SIGNATORY_ONBOARD_PATH = "/api/v1/company-settings/user/initiate-global-signatory";
 const USER_STATUS_UPDATE_PATH = "/api/v1/company-settings/user/action";
 const USER_HISTORY_PATH = "/api/v1/company-settings/user/fetch-history";
+const USER_DETAILS_PATH = "/api/v1/company-settings/user/details";
 const COMPANY_NODES_CACHE_TTL_MS = 5000;
 const companyNodesInFlight = new Map<string, Promise<CompanyNodesFetchResult>>();
 const companyNodesCache = new Map<string, { expiresAt: number; value: CompanyNodesFetchResult }>();
@@ -207,6 +219,7 @@ const mapAccessDetails = (record: RawUserRecord): NonNullable<AppUser["accessDet
 };
 
 const getDepartmentFromAccessDetails = (record: RawUserRecord) => {
+  const basicDetails = toRecord(record.basicDetails);
   const primaryArr = Array.isArray(record.primary) ? record.primary : [];
   const secondaryArr = Array.isArray(record.secondary) ? record.secondary : [];
   const firstPrimaryNode = primaryArr
@@ -221,7 +234,9 @@ const getDepartmentFromAccessDetails = (record: RawUserRecord) => {
     .map((item) => readString(item.nodeName).trim())
     .find(Boolean);
 
-  return firstSecondaryNode || "";
+  if (firstSecondaryNode) return firstSecondaryNode;
+
+  return readString(basicDetails.nodeName).trim() || "";
 };
 
 const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUser => {
@@ -500,7 +515,7 @@ export async function fetchCompanyUsersPaginated(
   payload: UserPaginatedRequest,
 ): Promise<UserPaginatedResult> {
   const requestBody: Record<string, unknown> = {
-    type: statusTab,
+    statusType: statusTab,
     limit: payload.limit,
     cursor: payload.cursor ?? null,
     topCursor: payload.topCursor ?? null,
@@ -527,4 +542,44 @@ export async function fetchCompanyUsersPaginated(
     },
     pageInfo: mapUserPageInfo(response.pageInfo),
   };
+}
+
+export async function fetchUserDetails(
+  statusTab: UserListStatusTab,
+  payload: FetchUserDetailsInput,
+): Promise<AppUser> {
+  const id = readString(payload.id).trim();
+  const email = readString(payload.email).trim();
+  const requestBody =
+    statusTab === "pending"
+      ? { id }
+      : { email };
+
+  const response = await apiFetch<UserDetailsResponse>(USER_DETAILS_PATH, {
+    method: "POST",
+    body: JSON.stringify(requestBody),
+  });
+
+  const record = toRecord(response.data);
+  if (Object.keys(record).length === 0) {
+    throw new Error("Invalid user details response: missing data object");
+  }
+
+  const normalizedRecord: RawUserRecord = {
+    ...record,
+    id: readString(record.id).trim() || id || undefined,
+    isPending: statusTab === "pending" ? true : Boolean(record.isPending),
+    type: readString(record.type).trim() || undefined,
+    impact: readString(record.impact).trim() || undefined,
+    basicDetails: toRecord(record.basicDetails),
+    primary: Array.isArray(record.primary) ? record.primary : [],
+    secondary: Array.isArray(record.secondary) ? record.secondary : [],
+    oldData: toRecord(record.oldData),
+    newData: toRecord(record.newData),
+  };
+
+  return mapCompanyUser(
+    normalizedRecord,
+    statusTab === "pending" ? "Pending" : statusTab === "inactive" ? "Inactive" : "Active",
+  );
 }

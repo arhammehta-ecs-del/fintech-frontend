@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { EyeOff, Users, UserPlus } from "lucide-react";
 import type { AppUser } from "@/contexts/AppContext";
@@ -17,7 +17,7 @@ import UserHistorySidebar from "./UserHistorySidebar";
 import { RemarkDialog } from "@/components/RemarkDialog";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
-import { fetchCompanyNodesWithAccess } from "@/services/user.service";
+import { fetchCompanyNodesWithAccess, fetchUserDetails } from "@/services/user.service";
 import { useEditLockSession } from "@/hooks/useEditLockSession";
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
@@ -106,6 +106,7 @@ export function UserManagementView() {
   const [historyOpenForMember, setHistoryOpenForMember] = useState(false);
   const [historyPreviewDetail, setHistoryPreviewDetail] = useState<HistoryDetailViewModel | null>(null);
   const [historyPreviewEvent, setHistoryPreviewEvent] = useState<HistoryDetailPreviewEvent | null>(null);
+  const [isOpeningMemberPreview, setIsOpeningMemberPreview] = useState(false);
   const [onboardingSeedMember, setOnboardingSeedMember] = useState<AppUser | null>(null);
   const [showDeleteActions, setShowDeleteActions] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState("__none__");
@@ -134,6 +135,31 @@ export function UserManagementView() {
     ].forEach((key) => nextParams.delete(key));
     return nextParams;
   };
+
+  const openMemberPreview = useCallback(async (
+    member: AppUser,
+    tabOverride?: "active" | "pending" | "inactive",
+  ) => {
+    const effectiveTab = tabOverride ?? statusTab;
+    try {
+      setIsOpeningMemberPreview(true);
+      const detailedMember = await fetchUserDetails(effectiveTab, {
+        id: member.id || member.requestId || member.uuid || null,
+        email: member.email || member.basicDetails?.email || null,
+      });
+      setHistoryPreviewDetail(null);
+      setHistoryPreviewEvent(null);
+      setViewingMember(detailedMember);
+    } catch (error) {
+      toast({
+        title: "Unable to load user details",
+        description: getApiErrorMessage(error, "Failed to fetch the selected user details."),
+        variant: "destructive",
+      });
+    } finally {
+      setIsOpeningMemberPreview(false);
+    }
+  }, [statusTab, toast]);
 
   useEffect(() => {
     if (!viewingMember) {
@@ -262,8 +288,7 @@ export function UserManagementView() {
       return;
     }
 
-    setHistoryPreviewDetail(null);
-    setViewingMember(matchedMember);
+    void openMemberPreview(matchedMember, targetTab);
     setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
     lastNotificationKeyRef.current = notificationKey;
     notificationFetchKeyRef.current = null;
@@ -282,6 +307,7 @@ export function UserManagementView() {
     statusCounts.inactive,
     statusCounts.pending,
     statusTab,
+    openMemberPreview,
   ]);
   const startUserLockSession = async (member: AppUser) => {
     const targetMail = (member.email || "").trim();
@@ -576,12 +602,31 @@ export function UserManagementView() {
               isLoading={isLoading}
               currentMembers={currentMembers}
               paginatedMembers={paginatedMembers}
-              onView={setViewingMember}
+              onView={(member) => {
+                void openMemberPreview(member);
+              }}
               onOpenHistoryDetail={(member, detail) => {
-                setViewingMember(member);
-                setHistoryOpenForMember(true);
-                setHistoryPreviewDetail(detail);
-                setHistoryPreviewEvent(null);
+                void (async () => {
+                  try {
+                    setIsOpeningMemberPreview(true);
+                    const detailedMember = await fetchUserDetails(statusTab, {
+                      id: member.id || member.requestId || member.uuid || null,
+                      email: member.email || member.basicDetails?.email || null,
+                    });
+                    setViewingMember(detailedMember);
+                    setHistoryOpenForMember(true);
+                    setHistoryPreviewDetail(detail);
+                    setHistoryPreviewEvent(null);
+                  } catch (error) {
+                    toast({
+                      title: "Unable to load user details",
+                      description: getApiErrorMessage(error, "Failed to fetch the selected user details."),
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setIsOpeningMemberPreview(false);
+                  }
+                })();
               }}
               onDelete={(member) => {
                 void openDeleteActions(member);
@@ -623,7 +668,7 @@ export function UserManagementView() {
         seedMember={onboardingSeedMember}
       />
 
-      {viewingMember && typeof document !== "undefined"
+      {(viewingMember || isOpeningMemberPreview) && typeof document !== "undefined"
         ? createPortal(
             <div
               className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm transition-[top,left,width,height,opacity] duration-300"
@@ -651,7 +696,7 @@ export function UserManagementView() {
 
       <Dialog
         modal={false}
-        open={Boolean(viewingMember)}
+        open={Boolean(viewingMember) || isOpeningMemberPreview}
         onOpenChange={(open) => {
           if (!open) {
             void (async () => {
@@ -808,6 +853,10 @@ export function UserManagementView() {
               historyDetailOverride={historyPreviewDetail}
               historyPreviewEvent={statusTab === "pending" ? historyPreviewEvent : null}
             />
+          ) : isOpeningMemberPreview ? (
+            <div className="flex h-full min-h-[280px] items-center justify-center text-sm font-medium text-slate-500">
+              Loading user details...
+            </div>
           ) : null}
         </DialogContent>
       </Dialog>

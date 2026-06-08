@@ -23,6 +23,19 @@ export type HistoryEntry = {
     name: string;
     email: string;
   }>;
+  approvalSections?: Array<{
+    title: string;
+    tone?: "warning" | "success" | "danger";
+    items: Array<{
+      label?: string;
+      rule?: string | null;
+      status?: string | null;
+      people: Array<{
+        name: string;
+        email: string;
+      }>;
+    }>;
+  }>;
   initiator: {
     name: string;
     email: string;
@@ -206,6 +219,95 @@ function ActorFooter({ item }: { item: HistoryEntry }) {
   );
 }
 
+function ApprovalSections({ item }: { item: HistoryEntry }) {
+  const eligibleApproverSection =
+    item.eligibleApprovers && item.eligibleApprovers.length > 0
+      ? {
+          title: "Eligible Approvers",
+          tone: "warning" as const,
+          items: [
+            {
+              people: item.eligibleApprovers,
+            },
+          ],
+        }
+      : null;
+
+  const sections = [
+    ...(eligibleApproverSection ? [eligibleApproverSection] : []),
+    ...(item.approvalSections ?? []),
+  ];
+
+  if (sections.length === 0) return null;
+
+  const tone = getEventTone(item.action, item.status);
+  const getSectionClassName = (sectionTone?: "warning" | "success" | "danger") => {
+    if (sectionTone === "warning") return "border-amber-200 bg-amber-50/40";
+    if (sectionTone === "danger") return "border-rose-200 bg-rose-50/40";
+    if (sectionTone === "success") return "border-emerald-200 bg-emerald-50/35";
+    return tone === "pending"
+      ? "border-amber-200 bg-amber-50/40"
+      : tone === "initiation"
+        ? "border-sky-200 bg-sky-50/35"
+        : tone === "modified"
+          ? "border-orange-200 bg-orange-50/40"
+          : tone === "inactive" || tone === "rejected"
+            ? "border-rose-200 bg-rose-50/40"
+            : "border-emerald-200 bg-emerald-50/35";
+  };
+
+  return (
+    <div className="mt-2 space-y-2">
+      {sections.map((section, sectionIndex) => (
+        <div key={`${section.title}-${sectionIndex}`} className={["rounded-lg border p-2", getSectionClassName(section.tone)].join(" ")}>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{section.title}</p>
+          <div className="max-h-[180px] space-y-2 overflow-y-auto pr-1">
+            {section.items.map((group, groupIndex) => (
+              <div key={`${section.title}-${group.label || "group"}-${groupIndex}`} className="rounded-md border border-white/70 bg-white/70 p-2">
+                {group.label || group.rule || group.status ? (
+                  <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                    {group.label ? <span className="text-[10px] font-semibold text-slate-700">{group.label}</span> : null}
+                    {group.rule ? (
+                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                        {group.rule}
+                      </span>
+                    ) : null}
+                    {group.status ? (
+                      <span
+                        className={[
+                          "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                          group.status === "APPROVED"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : group.status === "REJECTED"
+                              ? "border-rose-200 bg-rose-50 text-rose-700"
+                              : "border-slate-200 bg-white text-slate-500",
+                        ].join(" ")}
+                      >
+                        {group.status}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="space-y-1">
+                  {group.people.map((person, personIndex) => (
+                    <div key={`${person.email}-${personIndex}`} className="flex items-start gap-1.5 text-[11px] leading-tight text-slate-700">
+                      <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                      <div className="min-w-0">
+                        <span className="font-medium">{person.name}</span>
+                        <span className="text-slate-500"> ({person.email})</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewMore?: (item: HistoryEntry) => void }) {
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
 
@@ -335,42 +437,7 @@ function MilestoneTimeline({ data, onViewMore }: { data: HistoryEntry[]; onViewM
                         <span className="font-medium text-slate-700">Remarks:</span> {item.remarks}
                       </p>
                     ) : null}
-                    {item.eligibleApprovers && item.eligibleApprovers.length > 0 ? (
-                      <div
-                        className={[
-                          "mt-2 rounded-lg border p-2",
-                          (() => {
-                            const tone = getEventTone(item.action, item.status);
-                            return tone === "pending"
-                              ? "border-amber-200 bg-amber-50/40"
-                              : tone === "initiation"
-                                ? "border-sky-200 bg-sky-50/35"
-                                : tone === "modified"
-                                  ? "border-orange-200 bg-orange-50/40"
-                                  : tone === "inactive"
-                                    ? "border-rose-200 bg-rose-50/40"
-                                : tone === "approved"
-                                  ? "border-emerald-200 bg-emerald-50/35"
-                                  : "border-slate-200 bg-slate-50/70";
-                          })(),
-                        ].join(" ")}
-                      >
-                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                          Eligible Approvers
-                        </p>
-                        <div className="max-h-[116px] space-y-1 overflow-y-auto pr-1">
-                          {item.eligibleApprovers.map((approver, idx) => (
-                            <div key={`${approver.email}-${idx}`} className="flex items-start gap-1.5 text-[11px] leading-tight text-slate-700">
-                              <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-slate-400" />
-                              <div className="min-w-0">
-                                <span className="font-medium">{approver.name}</span>
-                                <span className="text-slate-500"> ({approver.email})</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
+                    <ApprovalSections item={item} />
                   </div>
                   <ActorFooter item={item} />
                 </>

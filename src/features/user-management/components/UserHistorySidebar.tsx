@@ -24,10 +24,23 @@ type UserHistorySidebarProps = {
 };
 
 type RawHistoryRecord = Record<string, unknown>;
+type ApprovalPerson = {
+  name: string;
+  email: string;
+};
+
+type ApprovalSectionItem = {
+  label?: string;
+  rule?: string | null;
+  status?: string | null;
+  people: ApprovalPerson[];
+};
+type ApprovalSection = NonNullable<HistoryEntry["approvalSections"]>[number];
 
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 const toRecord = (value: unknown): RawHistoryRecord =>
   typeof value === "object" && value !== null ? (value as RawHistoryRecord) : {};
+const toRecordArray = (value: unknown) => (Array.isArray(value) ? value.map((item) => toRecord(item)) : []);
 const readLevel = (value: unknown) => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
@@ -49,6 +62,29 @@ const readCount = (value: unknown) => {
     if (Number.isFinite(parsed)) return parsed;
   }
   return 0;
+};
+const normalizeRule = (value: unknown) => {
+  const rule = readString(value).toUpperCase();
+  return rule === "AND" || rule === "OR" ? rule : null;
+};
+const mapApprovalPeople = (value: unknown): ApprovalPerson[] => {
+  const records = Array.isArray(value) ? value.map((item) => toRecord(item)) : [toRecord(value)];
+  return records
+    .map((person) => ({
+      name: readString(person.name) || "Unknown",
+      email: readString(person.email) || "no-email@example.com",
+    }))
+    .filter((person) => Boolean(person.name || person.email));
+};
+const mapApprovalPeopleStrict = (value: unknown): ApprovalPerson[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => toRecord(item))
+    .map((person) => ({
+      name: readString(person.name) || "Unknown",
+      email: readString(person.email) || "no-email@example.com",
+    }))
+    .filter((person) => Boolean(person.name || person.email));
 };
 const formatAccessRightsCountLabel = (count: number, action: "added" | "modified" | "removed") =>
   `${count} access-right${count === 1 ? "" : "s"} ${action}`;
@@ -92,30 +128,132 @@ const toEventPhrase = (action: string) => {
 };
 
 const formatEligibleApproversDetail = (record: RawHistoryRecord) => {
-  const eligibleApproversRaw = Array.isArray(record.eligibleapprovers) ? record.eligibleapprovers : [];
-  const eligibleApprovers = eligibleApproversRaw
-    .map((item) => toRecord(item))
-    .map((approver) => {
-      const name = readString(approver.name);
-      const email = readString(approver.email);
-      if (name && email) return `${name} (${email})`;
-      return name || email;
-    })
-    .filter(Boolean);
+  const eligibleApprovers = mapEligibleApprovers(record);
 
   if (eligibleApprovers.length === 0) return "";
   return "Eligible approvers listed below.";
 };
 
 const mapEligibleApprovers = (record: RawHistoryRecord) => {
-  const eligibleApproversRaw = Array.isArray(record.eligibleapprovers) ? record.eligibleapprovers : [];
-  return eligibleApproversRaw
-    .map((item) => toRecord(item))
-    .map((approver) => ({
-      name: readString(approver.name) || "Unknown",
-      email: readString(approver.email) || "no-email@example.com",
-    }))
-    .filter((approver) => approver.name || approver.email);
+  return mapApprovalPeopleStrict(record.eligibleapprovers);
+};
+
+const mapApprovalSectionItemsFromFlow = (record: RawHistoryRecord): ApprovalSectionItem[] => {
+  const approvalFlow = toRecordArray(record.approvalFlow);
+  return approvalFlow
+    .map((flow) => {
+      const level = readLevel(flow.level);
+      const people = mapApprovalPeople(flow.approvedBy);
+      if (people.length === 0) return null;
+
+      return {
+        label: level !== null ? `Level ${level}` : undefined,
+        rule: normalizeRule(flow.rule),
+        status: readString(flow.status) || null,
+        people,
+      };
+    })
+    .filter((item): item is ApprovalSectionItem => item !== null);
+};
+
+const mapApprovalSectionItemsFromApprovedBy = (record: RawHistoryRecord): ApprovalSectionItem[] =>
+  toRecordArray(record.approvedBy)
+    .map((group) => {
+      const level = readLevel(group.level);
+      const people = mapApprovalPeopleStrict(group.approvedBy);
+      if (people.length === 0) return null;
+
+      return {
+        label: level !== null ? `Level ${level}` : undefined,
+        rule: normalizeRule(group.rule),
+        people,
+      };
+    })
+    .filter((item): item is ApprovalSectionItem => item !== null);
+
+const buildApprovedSection = (items: ApprovalSectionItem[]): ApprovalSection | null =>
+  items.length > 0
+    ? {
+        title: "Approved By",
+        tone: "success",
+        items,
+      }
+    : null;
+
+const buildRejectedSection = (record: RawHistoryRecord): ApprovalSection | null => {
+  const rejectedPeople = mapApprovalPeopleStrict(record.rejectedBy);
+  const rejectedLevel = readLevel(record.level);
+  if (rejectedPeople.length === 0 && rejectedLevel === null) return null;
+
+  const fallbackPeople =
+    rejectedPeople.length > 0
+      ? rejectedPeople
+      : [
+          {
+            name: readString(toRecord(record.user).name) || "Rejected By",
+            email: readString(toRecord(record.user).email) || "no-email@example.com",
+          },
+        ];
+
+  return {
+    title: "Rejected By",
+    tone: "danger",
+    items: [
+      {
+        label: rejectedLevel !== null ? `Level ${rejectedLevel}` : undefined,
+        status: "REJECTED",
+        people: fallbackPeople,
+      },
+    ],
+  };
+};
+
+const mapApprovalSections = (record: RawHistoryRecord): HistoryEntry["approvalSections"] => {
+  const flowItems = mapApprovalSectionItemsFromFlow(record);
+  if (flowItems.length > 0) {
+    const approvedItems = flowItems.filter((item) => (item.status || "").toUpperCase() !== "REJECTED");
+    const rejectedItems = flowItems.filter((item) => (item.status || "").toUpperCase() === "REJECTED");
+    const sections: ApprovalSection[] = [];
+    const approvedSection = buildApprovedSection(approvedItems);
+    if (approvedSection) sections.push(approvedSection);
+    if (rejectedItems.length > 0) {
+      sections.push({
+        title: "Rejected By",
+        tone: "danger",
+        items: rejectedItems.map((item) => ({
+          ...item,
+          status: item.status || "REJECTED",
+        })),
+      });
+    }
+    return sections.length > 0 ? sections : undefined;
+  }
+
+  const approvedByItems = mapApprovalSectionItemsFromApprovedBy(record);
+  const approvedSection = buildApprovedSection(approvedByItems);
+  const rejectedSection = buildRejectedSection(record);
+
+  const sections: ApprovalSection[] = [];
+  if (approvedSection) sections.push(approvedSection);
+  if (rejectedSection) sections.push(rejectedSection);
+
+  return sections.length > 0 ? sections : undefined;
+};
+
+const formatApprovalSummaryDetail = (record: RawHistoryRecord) => {
+  const approvalSummary = toRecord(record.approvalSummary);
+  const totalLevels = readCount(approvalSummary.totalLevels);
+  const completedLevels = readCount(approvalSummary.completedLevels);
+  const currentStatus = readString(approvalSummary.currentStatus).toUpperCase();
+
+  if (!totalLevels) return "";
+  const statusLabel =
+    currentStatus === "APPROVED"
+      ? "Approval completed."
+      : currentStatus === "REJECTED"
+        ? "Approval stopped at the rejection stage."
+        : "Approval progress recorded.";
+  return `${statusLabel} ${completedLevels} of ${totalLevels} levels completed.`;
 };
 
 const findNearestTimestamp = (records: RawHistoryRecord[], index: number) => {
@@ -195,9 +333,11 @@ const mapUserHistoryEntry = (
   const showActor = Boolean(readString(initiator.name) || readString(initiator.email));
   const eligibleApproversDetail = formatEligibleApproversDetail(record);
   const eligibleApprovers = mapEligibleApprovers(record);
+  const approvalSections = mapApprovalSections(record);
   const disableViewMore = isAutoEvent;
   const remarks = readString(record.remarks);
   const levelCount = readString(record.levelCount);
+  const approvalSummaryDetail = formatApprovalSummaryDetail(record);
   const defaultDetails =
     level !== null
       ? `Level ${level} ${eventPhrase} recorded for ${targetEmail}.`
@@ -224,11 +364,12 @@ const mapUserHistoryEntry = (
     day,
     action,
     levelCount: levelCount || undefined,
-    details: eligibleApproversDetail || defaultDetails,
+    details: approvalSummaryDetail || eligibleApproversDetail || defaultDetails,
     remarks: remarks || undefined,
     timestampMissing: !hasCreatedAt,
     showActor,
     eligibleApprovers,
+    approvalSections,
     initiator: {
       name: initiatorName,
       email: initiatorEmail,
@@ -282,11 +423,11 @@ export default function UserHistorySidebar({
     const loadHistory = async () => {
       setIsLoading(true);
       try {
-        const response = await fetchUserHistory(effectiveUserEmail);
-        if (isMounted && response?.data) {
-          const mappedHistory = Array.isArray(response.data)
+        const rawHistoryData = (await fetchUserHistory(effectiveUserEmail))?.data;
+        if (isMounted && rawHistoryData) {
+          const mappedHistory = Array.isArray(rawHistoryData)
             ? (() => {
-              const rawRecords = response.data.map((item) => toRecord(item));
+              const rawRecords = rawHistoryData.map((item) => toRecord(item));
               const sortedRecords = rawRecords
                 .map((record, index) => ({
                   record,

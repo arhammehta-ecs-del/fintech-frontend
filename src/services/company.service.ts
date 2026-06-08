@@ -321,7 +321,7 @@ export async function fetchCompaniesPaginated(request: CompanyPaginatedRequest):
   const payload = await apiFetch<CompanyListApiResponse>(COMPANY_LIST_PATH, {
     method: "POST",
     body: JSON.stringify({
-      type: request.type ?? "active",
+      statusType: request.type ?? "active",
       limit: request.limit,
       cursor: request.cursor ?? null,
       topCursor: request.topCursor ?? null,
@@ -357,6 +357,7 @@ export async function getAllCompanies(): Promise<GroupCompany[]> {
   while (hasNext && safetyCounter < 200) {
     safetyCounter += 1;
     const response = await fetchCompaniesPaginated({
+      type: "active",
       limit: DEFAULT_COMPANY_PAGE_LIMIT,
       cursor,
       topCursor,

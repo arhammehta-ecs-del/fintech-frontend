@@ -1,8 +1,11 @@
 import { apiFetch } from "@/services/client";
+import type { WorkflowRecord, WorkflowStatus } from "@/features/workflow-management/types/workflow.types";
+import { mapWorkflowRecord } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 
 const WORKFLOW_INITIATE_PATH = "/api/v1/company-settings/workflow/initiate";
 const WORKFLOW_FETCH_PATH = "/api/v1/company-settings/workflow/fetch";
+const WORKFLOW_DETAILS_PATH = "/api/v1/company-settings/workflow/details";
 const WORKFLOW_ACTION_PATH = "/api/v1/company-settings/workflow/action";
 const WORKFLOW_HISTORY_PATH = "/api/v1/company-settings/workflow/fetch-history";
 
@@ -51,6 +54,10 @@ type WorkflowPaginatedApiResponse = WorkflowApiResponse & {
   pageInfo?: Partial<WorkflowPageInfo>;
 };
 
+type WorkflowDetailsApiResponse = WorkflowApiResponse & {
+  data?: unknown;
+};
+
 export type WorkflowFetchType = "active" | "pending" | "inactive";
 
 export type WorkflowPaginatedRequest = {
@@ -70,6 +77,11 @@ export type WorkflowPaginatedResult = {
     inactive: number;
   };
   pageInfo: WorkflowPageInfo;
+};
+
+export type FetchWorkflowDetailsInput = {
+  id: string;
+  status?: WorkflowStatus;
 };
 
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
@@ -109,7 +121,7 @@ export async function fetchWorkflowsPaginated(
   const response = await apiFetch<WorkflowPaginatedApiResponse>(WORKFLOW_FETCH_PATH, {
     method: "POST",
     body: JSON.stringify({
-      type,
+      statusType: type,
       limit: payload.limit,
       cursor: payload.cursor ?? null,
       topCursor: payload.topCursor ?? null,
@@ -160,4 +172,20 @@ export async function fetchWorkflowHistory(payload: FetchWorkflowHistoryPayload)
     method: "POST",
     body: JSON.stringify({ id: payload.id.trim() }),
   });
+}
+
+export async function fetchWorkflowDetails(payload: FetchWorkflowDetailsInput): Promise<WorkflowRecord> {
+  const response = await apiFetch<WorkflowDetailsApiResponse>(WORKFLOW_DETAILS_PATH, {
+    method: "POST",
+    body: JSON.stringify({ id: payload.id.trim() }),
+  });
+
+  const derivedStatusRaw =
+    readString((response.data as Record<string, unknown> | null | undefined)?.status).toUpperCase() ||
+    readString((response.data as Record<string, unknown> | null | undefined)?.isPending ? "PENDING" : "");
+  const derivedStatus: WorkflowStatus =
+    payload.status ||
+    (derivedStatusRaw === "PENDING" ? "Pending" : derivedStatusRaw === "INACTIVE" ? "Inactive" : "Active");
+
+  return mapWorkflowRecord(response.data, derivedStatus);
 }

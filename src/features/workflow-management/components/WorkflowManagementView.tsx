@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Filter, Info, Plus, RefreshCw, Search, Settings, SlidersHorizontal, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
@@ -29,7 +29,7 @@ import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 import PaginationFooter from "@/components/PaginationFooter";
 import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
 import { getApiErrorMessage } from "@/services/client";
-import { fetchWorkflowsPaginated } from "@/services/workflow.service";
+import { fetchWorkflowDetails, fetchWorkflowsPaginated } from "@/services/workflow.service";
 
 const tabClassName =
   "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:shadow-sm";
@@ -225,6 +225,7 @@ export default function WorkflowManagementView() {
   const [workflowSeedForEdit, setWorkflowSeedForEdit] = useState<(typeof manageWorkflow) | null>(null);
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [manageLockArmed, setManageLockArmed] = useState(false);
+  const [isOpeningWorkflowPreview, setIsOpeningWorkflowPreview] = useState(false);
   const [isRefreshTooltipOpen, setIsRefreshTooltipOpen] = useState(false);
   const isNotificationsPanelOpen = useNotificationsPanelOpen();
   const isAnyWorkflowDialogOpen = addDialogOpen || Boolean(manageWorkflow);
@@ -262,6 +263,30 @@ export default function WorkflowManagementView() {
     ].forEach((key) => nextParams.delete(key));
     return nextParams;
   };
+
+  const openManageWorkflowPreview = useCallback(
+    async (workflow: NonNullable<typeof manageWorkflow>, statusOverride?: "Active" | "Pending" | "Inactive") => {
+      try {
+        setIsOpeningWorkflowPreview(true);
+        const detailedWorkflow = await fetchWorkflowDetails({
+          id: (workflow.id || workflow.referenceId || workflow.workflowId || workflow.levelsHash || "").trim(),
+          status: statusOverride ?? activeStatus,
+        });
+        setWorkflowHistoryPreviewDetail(null);
+        setManageHistoryOpen(false);
+        setManageWorkflow(detailedWorkflow);
+      } catch (error) {
+        toast({
+          title: "Unable to load workflow details",
+          description: getApiErrorMessage(error, "Failed to fetch the selected workflow details."),
+          variant: "destructive",
+        });
+      } finally {
+        setIsOpeningWorkflowPreview(false);
+      }
+    },
+    [activeStatus, toast, setManageWorkflow],
+  );
 
   useEffect(() => {
     if ((searchParams.get("tab") || "").trim() !== "workflows") return;
@@ -376,9 +401,7 @@ export default function WorkflowManagementView() {
           return;
         }
 
-        setManageHistoryOpen(false);
-        setWorkflowHistoryPreviewDetail(null);
-        setManageWorkflow(matchedWorkflow);
+        void openManageWorkflowPreview(matchedWorkflow, targetStatus as "Active" | "Pending" | "Inactive");
         setSearchParams(clearNotificationIntentParams(searchParams), { replace: true });
         lastNotificationKeyRef.current = notificationKey;
       } catch (error) {
@@ -404,6 +427,7 @@ export default function WorkflowManagementView() {
     setManageWorkflow,
     setSearchParams,
     toast,
+    openManageWorkflowPreview,
   ]);
 
   const toggleValue = (current: string[], value: string) =>
@@ -885,7 +909,9 @@ export default function WorkflowManagementView() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
-                        onClick={() => setManageWorkflow(workflow)}
+                        onClick={() => {
+                          void openManageWorkflowPreview(workflow);
+                        }}
                         aria-label={`Manage ${workflow.name}`}
                       >
                         <SlidersHorizontal className="h-4 w-4" />
@@ -1005,7 +1031,7 @@ export default function WorkflowManagementView() {
         onOpenHistoryDetail={(detail) => {
           setWorkflowHistoryPreviewDetail(detail);
           if (!manageWorkflow && historyWorkflow) {
-            setManageWorkflow(historyWorkflow);
+            void openManageWorkflowPreview(historyWorkflow, activeStatus);
           }
           setManageHistoryOpen(true);
         }}

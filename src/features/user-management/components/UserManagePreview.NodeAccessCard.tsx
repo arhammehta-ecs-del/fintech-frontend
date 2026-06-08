@@ -151,21 +151,23 @@ export function NodeAccessCard({
           <X className="h-3.5 w-3.5" />
         </button>
       ) : null}
-      <div className="mb-3 flex items-center gap-3 pl-1">
-        <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", badgeCls)}>
+      <div className="mb-3 flex items-start gap-3 pl-1 pr-9">
+        <div className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", badgeCls)}>
           {badgeLabel}
         </div>
-        <div className="min-w-0">
-          <div className={cn("truncate text-[18px] font-semibold leading-tight text-slate-800", isRemovedNode && "text-slate-500 line-through")}>
-            {nodeName}
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div className={cn("truncate text-[18px] font-semibold leading-tight text-slate-800", isRemovedNode && "text-slate-500 line-through")}>
+              {nodeName}
+            </div>
+            {isRemovedNode ? (
+              <span className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-rose-600">
+                Removed
+              </span>
+            ) : null}
           </div>
           {parentSubtitle ? <div className="mt-0.5 truncate text-[11px] font-medium text-slate-500">{parentSubtitle}</div> : null}
         </div>
-        {isRemovedNode ? (
-          <span className="ml-auto shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-rose-600">
-            Removed
-          </span>
-        ) : null}
       </div>
 
       <div className="space-y-3 rounded-xl bg-slate-50/30 p-3 pl-4">

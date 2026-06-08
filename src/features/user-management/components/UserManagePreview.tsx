@@ -98,11 +98,13 @@ export function UserManagePreview({
   historyDetailOverride?: HistoryDetailViewModel | null;
   historyPreviewEvent?: HistoryDetailPreviewEvent | null;
 }) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isBasicDetailsExpanded, setIsBasicDetailsExpanded] = useState(false);
   const [isEditTooltipOpen, setIsEditTooltipOpen] = useState(false);
   const [isHistoryTooltipOpen, setIsHistoryTooltipOpen] = useState(false);
   const [showPreviousData, setShowPreviousData] = useState(false);
   const [collapsedFocusedKey, setCollapsedFocusedKey] = useState<string | null>(null);
+  const [collapsedDismissedKey, setCollapsedDismissedKey] = useState<string | null>(null);
   const [pendingDecision, setPendingDecision] = useState<"approve" | "reject" | null>(null);
   const [pendingRemark, setPendingRemark] = useState("");
   const [remarkTouched, setRemarkTouched] = useState(false);
@@ -246,7 +248,15 @@ export function UserManagePreview({
   const requestNewBasicDetails = toRecord(requestNewData.basicDetails);
   const isPendingMember = member.status === "Pending" || Boolean(member.isPending);
   const historyFallbackBasicDetails = isHistoryPreviewActive ? requestOldBasicDetails : {};
-  const canShowPendingActions = isPendingMember && currentTab === "pending" && !isHistoryPreviewActive;
+  const previewEventAction = readString(historyDetailOverride?.previewEvent?.action).toUpperCase();
+  const isPendingApprovalHistoryPreview =
+    previewEventAction.includes("PENDING APPROVAL") &&
+    /^L\d+\s+PENDING APPROVAL$/.test(previewEventAction);
+  const isModifyHistoryPreview = previewEventAction === "MODIFY";
+  const canShowPendingActionsInHistoryPreview =
+    isHistoryPreviewActive && (isPendingApprovalHistoryPreview || isModifyHistoryPreview);
+  const canShowPendingActions =
+    isPendingMember && currentTab === "pending" && (!isHistoryPreviewActive || canShowPendingActionsInHistoryPreview);
   const hasOwn = (record: Record<string, unknown>, key: string) => Object.prototype.hasOwnProperty.call(record, key);
   const hasOldBasicField = (field: string) => hasOwn(requestOldBasicDetails, field);
   const hasAnyBasicField = (field: string) => hasOldBasicField(field) || hasOwn(requestNewBasicDetails, field);
@@ -517,7 +527,7 @@ export function UserManagePreview({
   const showRemarkError = remarkTouched && !isRemarkValid;
   const isActive = member.status !== "Inactive";
   const showActiveToggle = member.status === "Active" || member.status === "Inactive";
-  const isActionLocked = Boolean(member.isPending);
+  const isActionLocked = currentTab === "pending" && Boolean(member.isPending);
   const handleInactiveToggleClick = () => {
     if (isActionLocked) return;
     const targetActiveState = member.status === "Inactive";
@@ -550,6 +560,9 @@ export function UserManagePreview({
       setShowPreviousData(false);
     }
   }, [canTogglePreviousUpdated]);
+  useEffect(() => {
+    setCollapsedDismissedKey(null);
+  }, [member.id, historyDetailOverride, currentTab]);
 
   const handleStartPendingAction = (action: "approve" | "reject") => {
     setPendingDecision(action);
@@ -625,6 +638,12 @@ export function UserManagePreview({
     Boolean(previousStatusLabel) &&
     Boolean(nextStatusLabel) &&
     previousStatusLabel !== nextStatusLabel;
+  const shouldAutoExpandAllCards =
+    currentTab === "active" || currentTab === "inactive" || shouldShowStatusTransition;
+  useEffect(() => {
+    setIsExpanded(shouldAutoExpandAllCards);
+    setCollapsedFocusedKey(null);
+  }, [historyDetailOverride, member.id, shouldAutoExpandAllCards]);
   const formatStatusLabel = (value: string) =>
     value
       .toLowerCase()
@@ -733,7 +752,7 @@ export function UserManagePreview({
           : CircleX
         : canShowPendingActions && approvalImpactLabel
           ? Clock
-          : shouldShowStatusTransition
+        : shouldShowStatusTransition
             ? ArrowLeftRight
             : IdCard;
   const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
@@ -774,6 +793,11 @@ export function UserManagePreview({
             <div>
               <div className="flex flex-wrap items-center gap-2.5">
                 <h2 className="text-xl font-bold tracking-tight text-slate-900">{userData.name}</h2>
+                {isInactiveMember ? (
+                  <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-rose-700">
+                    Inactive
+                  </span>
+                ) : null}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium text-slate-500">{formattedDesignation}</span>
@@ -831,7 +855,7 @@ export function UserManagePreview({
                     <Trash2 className="h-4 w-4" />
                   </button>
               ) : null}
-              {impactBadgeCls && !pendingApprovalLabel && !shouldShowStatusTransition ? (
+              {impactBadgeCls && !shouldShowStatusTransition ? (
                 <span
                   className={cn(
                     "inline-flex h-10 items-center rounded-xl border px-3 text-xs font-bold uppercase tracking-wide",
@@ -955,11 +979,10 @@ export function UserManagePreview({
           </div>
         ) : null}
 
-        <div className="mt-2" />
       </div>
 
       {/* ── Content ────────────────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-6">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-0">
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
             <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
@@ -986,42 +1009,49 @@ export function UserManagePreview({
                     )}
                   >
                     <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm ring-1 ring-slate-100/70">
-                      <div className="mb-3 border-b border-slate-200 pb-2">
+                      <div className="mb-3 flex items-center justify-between border-b border-slate-200 pb-2">
                         <span className="text-[12px] font-black uppercase tracking-widest text-slate-600">Basic Details</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsBasicDetailsExpanded((value) => !value)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 shadow-sm transition hover:border-[rgb(53,83,233)] hover:text-[rgb(53,83,233)]"
+                          aria-label={isBasicDetailsExpanded ? "Collapse Basic Details" : "Expand Basic Details"}
+                          aria-expanded={isBasicDetailsExpanded}
+                        >
+                          {isBasicDetailsExpanded ? <X className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </button>
                       </div>
-                      <div className="space-y-2 text-sm">
-                        <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
-                          <span className="text-slate-500">Name</span>
+                      <div className="space-y-2.5 text-sm">
+                        <div className="flex items-start gap-3">
+                          <span className="min-w-[132px] shrink-0 text-slate-500">Name</span>
                           <span className="text-slate-400">:</span>
-                          {renderDiffValue(userData.name || "-", readString(requestOldBasicDetails.name), hasOldBasicField("name"))}
+                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.name || "-"}</span>
                         </div>
-                        <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
-                          <span className="text-slate-500">Email</span>
+                        <div className="flex items-start gap-3">
+                          <span className="min-w-[132px] shrink-0 text-slate-500">Email</span>
                           <span className="text-slate-400">:</span>
-                          <span className="break-all font-semibold text-slate-900">{userData.email || "-"}</span>
+                          <span className="min-w-0 flex-1 break-all font-semibold text-slate-900">{userData.email || "-"}</span>
                         </div>
-                        <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
-                          <span className="text-slate-500">Phone</span>
+                        <div className="flex items-start gap-3">
+                          <span className="min-w-[132px] shrink-0 text-slate-500">Phone</span>
                           <span className="text-slate-400">:</span>
-                          <span className="font-semibold text-slate-900">{userData.phone || "-"}</span>
+                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.phone || "-"}</span>
                         </div>
-                        <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
-                          <span className="text-slate-500">Onboarding Date</span>
+                        <div className="flex items-start gap-3">
+                          <span className="min-w-[132px] shrink-0 text-slate-500">Onboarding Date</span>
                           <span className="text-slate-400">:</span>
-                          <span className="font-semibold text-slate-900">{userData.joiningDate || "-"}</span>
+                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.joiningDate || "-"}</span>
                         </div>
-                        <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
-                          <span className="text-slate-500">Designation</span>
+                        <div className="flex items-start gap-3">
+                          <span className="min-w-[132px] shrink-0 text-slate-500">Designation</span>
                           <span className="text-slate-400">:</span>
-                          {renderDiffValue(formattedDesignation || "-", previousDesignationLabel, hasOldBasicField("designation"))}
+                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{formattedDesignation || "-"}</span>
                         </div>
                         {shouldShowEmployeeId ? (
-                          <div className="grid grid-cols-[136px_10px_1fr] items-center gap-x-2">
-                            <span className="text-slate-500">Employee ID</span>
+                          <div className="flex items-start gap-3">
+                            <span className="min-w-[132px] shrink-0 text-slate-500">Employee ID</span>
                             <span className="text-slate-400">:</span>
-                            {canTogglePreviousUpdated
-                              ? renderDiffValue(userData.employeeId || "-", readString(requestOldBasicDetails.employeeId), hasOldBasicField("employeeId"))
-                              : <span className="font-semibold text-slate-900">{userData.employeeId || "-"}</span>}
+                            <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.employeeId || "-"}</span>
                           </div>
                         ) : null}
                       </div>
@@ -1148,92 +1178,64 @@ export function UserManagePreview({
               </div>
             ) : (
               /* COLLAPSED — matches StepReviewSubmit collapsed style */
-              <div className="space-y-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-3.5">
+                  <div className="space-y-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-3.5">
                 <div className="rounded-2xl border border-indigo-200 bg-[#DDE6FF] px-3 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
                   <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm ring-1 ring-slate-100/70">
                     <div className="mb-2 flex items-center justify-between border-b border-slate-200 pb-1.5">
                       <span className="text-[11px] font-black uppercase tracking-widest text-slate-600">Basic Details</span>
-                      {hasGlobalAccess ? (
-                        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700">
-                          {globalAccessTitle}
-                        </span>
-                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setIsBasicDetailsExpanded((value) => !value)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 shadow-sm transition hover:border-[rgb(53,83,233)] hover:text-[rgb(53,83,233)]"
+                        aria-label={isBasicDetailsExpanded ? "Collapse Basic Details" : "Expand Basic Details"}
+                        aria-expanded={isBasicDetailsExpanded}
+                      >
+                        {isBasicDetailsExpanded ? <X className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </button>
                     </div>
-                    <div className="space-y-1.5 text-sm">
-                      <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
-                        <span className="text-slate-500">Name</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900">{userData.name || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
-                        <span className="text-slate-500">Email</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="truncate font-semibold text-slate-900">{userData.email || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
-                        <span className="text-slate-500">Phone</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900">{userData.phone || "-"}</span>
-                      </div>
-                      <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
-                        <span className="text-slate-500">Designation</span>
-                        <span className="text-slate-400">:</span>
-                        <span className="font-semibold text-slate-900">{formattedDesignation || "-"}</span>
-                      </div>
-                      {shouldShowEmployeeId ? (
-                        <div className="grid grid-cols-[96px_10px_1fr] items-center gap-x-2">
-                          <span className="text-slate-500">Employee ID</span>
+                    {isBasicDetailsExpanded ? (
+                      <div className="space-y-1.5 text-sm">
+                        <div className="flex items-start gap-2.5">
+                          <span className="min-w-[92px] shrink-0 text-slate-500">Name</span>
                           <span className="text-slate-400">:</span>
-                          <span className="font-semibold text-slate-900">{userData.employeeId || "-"}</span>
+                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.name || "-"}</span>
                         </div>
-                      ) : null}
-                    </div>
-                    {hasGlobalAccess && globalAccessNode ? (
-                      <div className="mt-2.5 rounded-lg border border-emerald-200 bg-emerald-50/30 p-2.5 text-xs">
-                        <div className="grid grid-cols-[92px_10px_1fr] items-center gap-x-2">
-                          <span className="text-slate-500">Node Name</span>
+                        <div className="flex items-start gap-2.5">
+                          <span className="min-w-[92px] shrink-0 text-slate-500">Email</span>
                           <span className="text-slate-400">:</span>
-                          <span className="font-semibold text-slate-900">{globalAccessNode.nodeName || "-"}</span>
+                          <span className="min-w-0 flex-1 truncate font-semibold text-slate-900">{userData.email || "-"}</span>
                         </div>
-                        <div className="mt-1.5 grid grid-cols-[92px_10px_1fr] items-center gap-x-2">
-                          <span className="text-slate-500">Access Category</span>
+                        <div className="flex items-start gap-2.5">
+                          <span className="min-w-[92px] shrink-0 text-slate-500">Phone</span>
                           <span className="text-slate-400">:</span>
-                          <span className="flex flex-wrap items-center gap-1.5">
-                            <span className="font-semibold text-emerald-700">{globalAccessScopeLabel}</span>
-                          </span>
+                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.phone || "-"}</span>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <span className="min-w-[92px] shrink-0 text-slate-500">Onboarding Date</span>
+                          <span className="text-slate-400">:</span>
+                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.joiningDate || "-"}</span>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <span className="min-w-[92px] shrink-0 text-slate-500">Designation</span>
+                          <span className="text-slate-400">:</span>
+                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{formattedDesignation || "-"}</span>
                         </div>
                       </div>
-                    ) : null}
+                    ) : (
+                      <div className="rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2">
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="min-w-0">
+                            <div className="text-slate-500">Name</div>
+                            <div className="truncate font-semibold text-slate-900">{userData.name || "-"}</div>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-slate-500">Email</div>
+                            <div className="truncate font-semibold text-slate-900">{userData.email || "-"}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-
-                  {!shouldShowGlobalManagerBadge ? (
-                    <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100/70">
-                      <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-2 lg:gap-4 lg:whitespace-nowrap">
-                        <div className="flex min-w-0 items-center gap-1">
-                          <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
-                          <span className="shrink-0 text-slate-400">:</span>
-                          <span className="min-w-0 truncate">
-                            {canTogglePreviousUpdated
-                              ? renderDiffValue(userData.reportingManager || "-", previousReportingManager, hasOldBasicField("reportingManager") || hasOldBasicField("reportingManagerName"))
-                              : <span className="font-semibold text-slate-900">{userData.reportingManager || "-"}</span>}
-                          </span>
-                        </div>
-                        <div className="flex min-w-0 items-center gap-1">
-                          <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
-                          <span className="shrink-0 text-slate-400">:</span>
-                          <span className="min-w-0 truncate">
-                            {canTogglePreviousUpdated
-                              ? renderDiffValue(
-                                userData.reportingManagerEmail || "-",
-                                previousReportingManagerEmail,
-                                hasOldBasicField("reportingManagerEmail") || hasOldBasicField("reportingManager"),
-                              )
-                              : <span className="font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
                   {!hasGlobalAccess ? (
                     <div className="mt-3 space-y-1.5">
                       <div className="flex items-center gap-2">
@@ -1245,13 +1247,14 @@ export function UserManagePreview({
                       ) : (
                         primaryEntries.map(([key, group], idx) => {
                           const focused = collapsedFocusedKey === `p:${key}`;
+                          const dismissed = collapsedDismissedKey === `p:${key}`;
                           const changeState = getNodeChangeState(primaryByNode[key], previousPrimaryByNode[key]);
                           const isRemovedNode = changeState === "removed";
-                          const isAddedNode = changeState === "added";
-                          const isChangedNode = changeState === "changed";
+                          const shouldShowExpandedCard =
+                            !dismissed && (shouldAutoExpandAllCards || focused || changeState !== "unchanged");
                           return (
                             <div key={key}>
-                              {focused ? (
+                              {shouldShowExpandedCard ? (
                                 <NodeAccessCard
                                   nodeName={group.nodeName}
                                   parentSubtitle={group.parentSubtitle}
@@ -1260,12 +1263,18 @@ export function UserManagePreview({
                                   previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
                                   changeState={changeState}
                                   isPrimary
-                                  onClose={() => setCollapsedFocusedKey(null)}
+                                  onClose={() => {
+                                    setCollapsedFocusedKey(null);
+                                    setCollapsedDismissedKey(`p:${key}`);
+                                  }}
                                 />
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => setCollapsedFocusedKey(`p:${key}`)}
+                                  onClick={() => {
+                                    setCollapsedDismissedKey(null);
+                                    setCollapsedFocusedKey(`p:${key}`);
+                                  }}
                                   className={cn(
                                     "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
                                     isRemovedNode
@@ -1305,13 +1314,14 @@ export function UserManagePreview({
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                         {secondaryEntries.map(([key, group], idx) => {
                           const focused = collapsedFocusedKey === `s:${key}`;
+                          const dismissed = collapsedDismissedKey === `s:${key}`;
                           const changeState = getNodeChangeState(secondaryByNode[key], previousSecondaryByNode[key]);
                           const isRemovedNode = changeState === "removed";
-                          const isAddedNode = changeState === "added";
-                          const isChangedNode = changeState === "changed";
+                          const shouldShowExpandedCard =
+                            !dismissed && (shouldAutoExpandAllCards || focused || changeState !== "unchanged");
                           return (
                             <div key={key}>
-                              {focused ? (
+                              {shouldShowExpandedCard ? (
                                 <NodeAccessCard
                                   nodeName={group.nodeName}
                                   parentSubtitle={group.parentSubtitle}
@@ -1320,12 +1330,18 @@ export function UserManagePreview({
                                   previousCategories={previousSecondaryByNode[key]?.categories ?? {}}
                                   changeState={changeState}
                                   isPrimary={false}
-                                  onClose={() => setCollapsedFocusedKey(null)}
+                                  onClose={() => {
+                                    setCollapsedFocusedKey(null);
+                                    setCollapsedDismissedKey(`s:${key}`);
+                                  }}
                                 />
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => setCollapsedFocusedKey(`s:${key}`)}
+                                  onClick={() => {
+                                    setCollapsedDismissedKey(null);
+                                    setCollapsedFocusedKey(`s:${key}`);
+                                  }}
                                   className={cn(
                                     "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
                                     isRemovedNode
