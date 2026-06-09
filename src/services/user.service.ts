@@ -283,6 +283,9 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
     readString(record.createdAt).trim();
   const workflowName = readString(basicDetails.workflowName).trim();
   const alias = readString(basicDetails.alias).trim();
+  const nodeTypeRaw = readString(basicDetails.nodeType).trim();
+  const nodeNameRaw = readString(basicDetails.nodeName).trim();
+  const nodePathRaw = readString(basicDetails.nodePath).trim();
   const requestType = readString(pendingRequest.type).trim() || readString(record.type).trim();
   const requestImpact = readString(pendingRequest.impact).trim() || readString(record.impact).trim();
   const pendingRequestStatus = readString(pendingRequest.status).trim().toUpperCase();
@@ -335,6 +338,9 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
       initiatedDate: initiatedAt || "",
       workflowName: workflowName || "",
       alias: alias || "",
+      nodeType: nodeTypeRaw || "",
+      nodeName: nodeNameRaw || "",
+      nodePath: nodePathRaw || "",
       requestType: requestType || "",
       requestImpact: requestImpact || "",
       requestOldData: oldData,

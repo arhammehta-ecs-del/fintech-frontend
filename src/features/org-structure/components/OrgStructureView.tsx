@@ -572,6 +572,18 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
           setHistoryViewContext("pending");
           setIsOrgHistoryOpen(true);
         }}
+        onToggleHistory={() => {
+          if (isOrgHistoryOpen) {
+            setIsOrgHistoryOpen(false);
+          } else if (pendingNodeForReview) {
+            const historyContext = getPendingHistoryContext(pendingNodeForReview);
+            setHistoryNodeName(historyContext.nodeName);
+            setHistoryNodePath(historyContext.nodePath);
+            setHistoryParentNodePath(historyContext.parentNodePath);
+            setHistoryViewContext("pending");
+            setIsOrgHistoryOpen(true);
+          }
+        }}
       />
 
       <OrgHistorySidebar

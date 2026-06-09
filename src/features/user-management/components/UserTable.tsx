@@ -22,27 +22,37 @@ const getPrimaryNodeMeta = (member: AppUser) => {
   const preferredAccess =
     accessEntries.find((entry) => entry.accessType === "PRIMARY" && (entry.nodePath || "").trim()) ??
     accessEntries.find((entry) => (entry.nodePath || "").trim());
-  const fallbackNodePath = (member.nodePath || "").trim();
+  const fallbackNodePath = (member.nodePath || member.basicDetails?.nodePath || "").trim();
 
   if (!preferredAccess && !fallbackNodePath) {
     return {
-      departmentLabel: member.department || "",
+      departmentLabel: member.department || member.basicDetails?.nodeName || member.nodeName || "",
       primaryNodePath: "",
+      nodeType: (member.nodeType || member.basicDetails?.nodeType || "").trim(),
       showPath: false,
     };
   }
 
-  const nodeType = (preferredAccess?.nodeType || "").trim().toUpperCase();
+  const nodeType = (preferredAccess?.nodeType || member.nodeType || member.basicDetails?.nodeType || "").trim().toUpperCase();
   const nodePath = (preferredAccess?.nodePath || fallbackNodePath).trim();
-  const nodeName = (preferredAccess?.nodeName || "").trim();
+  const nodeName = (preferredAccess?.nodeName || member.nodeName || member.basicDetails?.nodeName || "").trim();
   const nodeDepth = nodePath.split(".").map((part) => part.trim()).filter(Boolean).length;
   const isRootByType = nodeType === "ROOT";
   const isRootByPath = nodeDepth <= 1;
   const showPath = Boolean(nodePath) && !isRootByType && !isRootByPath;
 
+  console.log("DEBUG_NODE_TYPE", {
+    extractedNodeType: nodeType,
+    preferredAccessType: preferredAccess?.nodeType,
+    memberNodeType: member.nodeType,
+    basicDetailsNodeType: member.basicDetails?.nodeType,
+    member
+  });
+
   return {
     departmentLabel: nodeName || member.department || "",
     primaryNodePath: nodePath,
+    nodeType,
     showPath,
   };
 };
@@ -210,11 +220,18 @@ export default function UserTable({
             <td className="px-4 py-4 text-sm text-slate-700">{member.designation || "—"}</td>
             <td className="px-4 py-4 text-sm text-slate-600">
               {(() => {
-                const { departmentLabel, primaryNodePath, showPath } = getPrimaryNodeMeta(member);
+                const { departmentLabel, primaryNodePath, showPath, nodeType } = getPrimaryNodeMeta(member);
                 const formattedPath = showPath ? formatCollapsedNodePath(primaryNodePath) : "";
+                const displayNodeType = nodeType ? nodeType.charAt(0).toUpperCase() + nodeType.slice(1).toLowerCase() : "";
+                
                 return (
                   <div className="min-w-0">
-                    <p className="truncate text-sm text-slate-700">{departmentLabel || "—"}</p>
+                    <p className="truncate text-sm text-slate-700">
+                      {departmentLabel || "—"}
+                      {displayNodeType ? (
+                        <span className="ml-1 text-[13px] text-slate-500">({displayNodeType})</span>
+                      ) : null}
+                    </p>
                     {formattedPath ? (
                       <NodePathMarquee text={formattedPath} />
                     ) : null}

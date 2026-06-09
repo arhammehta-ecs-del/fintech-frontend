@@ -422,3 +422,38 @@ export async function fetchCompanyHistory(companyCode: string) {
     body: JSON.stringify({ companyCode })
   });
 }
+
+const COMPANY_DETAILS_PATH = "/api/v1/admin/company-details";
+
+export async function fetchCompanyDetails(companyCode: string) {
+  return apiFetch<{
+    message?: string;
+    data?: {
+      groupDetails?: { groupCode?: string; groupName?: string };
+      companyDetails?: Array<{
+        companyCode?: string;
+        name?: string;
+        gst?: string;
+        brand?: string;
+        ieCode?: string;
+        registration?: string;
+        address?: string;
+        initiator?: {
+          name?: string;
+          email?: string;
+        };
+        initiatedDate?: string;
+        signatories?: Array<{
+          name?: string;
+          email?: string;
+          phone?: string;
+          designation?: string;
+          employeeId?: string;
+        }>;
+      }>;
+    };
+  }>(COMPANY_DETAILS_PATH, {
+    method: "POST",
+    body: JSON.stringify({ companyCode }),
+  });
+}

@@ -57,6 +57,8 @@ export interface OrgNode {
   pendingRequestType?: string;
   pendingOldData?: Record<string, unknown>;
   pendingNewData?: Record<string, unknown>;
+  affectedUserAccessCount?: number;
+  affectedWorkflowCount?: number;
   children: OrgNode[];
 }
 
@@ -96,6 +98,9 @@ export interface AppUser {
     initiatedDate?: string;
     workflowName?: string;
     alias?: string;
+    nodeType?: string;
+    nodeName?: string;
+    nodePath?: string;
     requestType?: string;
     requestImpact?: string;
     requestOldData?: Record<string, unknown>;

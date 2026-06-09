@@ -146,6 +146,18 @@ const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"):
       ? "ACTIVE"
       : null;
 
+  const getNumber = (source: unknown, keys: string[]) => {
+    if (typeof source !== "object" || source === null) return undefined;
+    const s = source as Record<string, unknown>;
+    for (const key of keys) {
+      if (typeof s[key] === "number") return s[key] as number;
+    }
+    return undefined;
+  };
+
+  const affectedUserAccessCount = getNumber(record, ["affectedUserAccessCount"]) ?? getNumber(pendingRequest, ["affectedUserAccessCount"]);
+  const affectedWorkflowCount = getNumber(record, ["affectedWorkflowCount"]) ?? getNumber(pendingRequest, ["affectedWorkflowCount"]);
+
   return {
     id: nodeId,
     uuid: nodeUuid || undefined,
@@ -185,6 +197,8 @@ const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"):
     pendingRequestType: pendingRequestType || undefined,
     pendingOldData: pendingRequestOldData,
     pendingNewData: pendingRequestNewData,
+    affectedUserAccessCount,
+    affectedWorkflowCount,
     children: [],
   };
 };
@@ -228,6 +242,18 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
       ? "ACTIVE"
       : null;
 
+  const getNumber = (source: unknown, keys: string[]) => {
+    if (typeof source !== "object" || source === null) return undefined;
+    const s = source as Record<string, unknown>;
+    for (const key of keys) {
+      if (typeof s[key] === "number") return s[key] as number;
+    }
+    return undefined;
+  };
+
+  const affectedUserAccessCount = getNumber(record, ["affectedUserAccessCount"]) ?? getNumber(requestData, ["affectedUserAccessCount"]);
+  const affectedWorkflowCount = getNumber(record, ["affectedWorkflowCount"]) ?? getNumber(requestData, ["affectedWorkflowCount"]);
+
   if (!newNodeName || !nodeType) return null;
 
   const derivedNodePath =
@@ -252,6 +278,8 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
     alias: alias || undefined,
     status: "Pending",
     requestedStatus,
+    affectedUserAccessCount,
+    affectedWorkflowCount,
     children: [],
   };
 };
@@ -281,6 +309,18 @@ const mergePendingUpdatesIntoActiveNodes = (activeNodes: OrgNode[], pendingRecor
         ? (requestData.oldData as Record<string, unknown>)
         : undefined;
 
+    const getNumber = (source: unknown, keys: string[]) => {
+      if (typeof source !== "object" || source === null) return undefined;
+      const s = source as Record<string, unknown>;
+      for (const key of keys) {
+        if (typeof s[key] === "number") return s[key] as number;
+      }
+      return undefined;
+    };
+
+    const affectedUserAccessCount = getNumber(record, ["affectedUserAccessCount"]) ?? getNumber(requestData, ["affectedUserAccessCount"]);
+    const affectedWorkflowCount = getNumber(record, ["affectedWorkflowCount"]) ?? getNumber(requestData, ["affectedWorkflowCount"]);
+
     const targetNodePath = getString(
       requestData,
       ["targetNodePath", "newNodeName", "nodePath"],
@@ -306,6 +346,8 @@ const mergePendingUpdatesIntoActiveNodes = (activeNodes: OrgNode[], pendingRecor
         : requestedStatusRaw === "ACTIVE"
           ? "ACTIVE"
           : matchedNode.requestedStatus ?? null;
+    matchedNode.affectedUserAccessCount = affectedUserAccessCount ?? matchedNode.affectedUserAccessCount;
+    matchedNode.affectedWorkflowCount = affectedWorkflowCount ?? matchedNode.affectedWorkflowCount;
     matchedNode.requestedByName =
       getString(record, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"], "") ||
       getString(requestData, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"], "") ||

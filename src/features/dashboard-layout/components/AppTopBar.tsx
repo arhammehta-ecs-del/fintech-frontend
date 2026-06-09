@@ -66,6 +66,7 @@ type NotificationItem = {
 const COMPACT_NOTIFICATIONS_LIMIT = 10;
 const DIALOG_PAGE_SIZE = 50;
 const MESSAGE_PREVIEW_LIMIT = 150;
+const MAX_VISIBLE_TRACKS = 8;
 const DEFAULT_DATE_RANGE: NotificationFetchDateRange = "7DAYS";
 const DATE_RANGE_OPTIONS: NotificationFetchDateRange[] = ["7DAYS", "15DAYS", "1MONTH"];
 const STATUS_FILTER_OPTIONS: Array<{ value: NotificationStatusFilterValue; label: string }> = [
@@ -583,6 +584,7 @@ export function AppTopBar({
       normalizedTitle !== "ORGANIZATION REMOVED" &&
       normalizedTitle !== "WORKFLOW ARCHIVE APPROVED" &&
       normalizedTitle !== "USER ARCHIVE APPROVED";
+    const expandedTrackListMaxHeight = `${MAX_VISIBLE_TRACKS * 28}px`;
 
     return (
       <div
@@ -604,25 +606,31 @@ export function AppTopBar({
                 {notification.affectedHeading}
               </p>
             ) : null}
-            {notification.affectedSegments.length > 1 && isExpanded ? (
-              <div className="space-y-1">
-                {notification.affectedSegments.map((segment, index) => (
-                  <p key={`${notification.id}-segment-${index}`} className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
-                    {segment}
-                  </p>
-                ))}
-              </div>
-            ) : (
-              <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">{messageToShow}</p>
-            )}
-            <p className="mt-1 text-xs leading-[1.35] text-slate-500">Initiated by {notification.initiatedByName}</p>
-            <p className="mt-0.5 text-xs leading-[1.35] text-slate-500">({notification.initiatedByEmail})</p>
           </div>
           <div className="shrink-0">
             <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}>
               {notification.badgeLabel}
             </span>
           </div>
+        </div>
+        <div className="mt-2 w-full">
+          {notification.affectedSegments.length > 1 && isExpanded ? (
+            <div
+              className="w-full space-y-1 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300"
+              style={{ maxHeight: expandedTrackListMaxHeight }}
+            >
+              {notification.affectedSegments.map((segment, index) => (
+                <p key={`${notification.id}-segment-${index}`} className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
+                  {segment}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">{messageToShow}</p>
+          )}
+          <p className="mt-1 text-xs leading-[1.35] text-slate-500">
+            Initiated by {notification.initiatedByName} ({notification.initiatedByEmail})
+          </p>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -631,7 +639,7 @@ export function AppTopBar({
                 type="button"
                 onClick={() => toggleNotificationExpansion(notification.id)}
                 className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                >
+              >
                 {isExpanded ? "See less" : "See more"}
               </button>
             ) : null}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import type { Company, CompanyStatus, GroupCompany } from "@/contexts/AppContext";
-import { fetchCompaniesPaginated, updateCompanyOnboardingAction } from "@/services/company.service";
+import { fetchCompaniesPaginated, updateCompanyOnboardingAction, fetchCompanyDetails } from "@/services/company.service";
 import { getApiErrorMessage } from "@/services/client";
 import { useToast } from "@/hooks/use-toast";
 import { connectNotificationStream } from "@/services/notification.service";
@@ -360,8 +360,40 @@ export function useCompanyList() {
     });
   };
 
-  const openModal = (company: Company) => {
-    setSelectedCompany(company);
+  const openModal = async (company: Company) => {
+    try {
+      const response = await fetchCompanyDetails(company.companyCode);
+      const data = response.data;
+      if (data?.companyDetails && data.companyDetails.length > 0) {
+        const detail = data.companyDetails[0];
+        const enrichedCompany: Company = {
+          ...company,
+          legalName: detail.name || company.legalName,
+          companyName: detail.brand || company.companyName,
+          companyCode: detail.companyCode || company.companyCode,
+          gstin: detail.gst || company.gstin,
+          ieCode: detail.ieCode || company.ieCode,
+          incorporationDate: detail.registration || company.incorporationDate,
+          address: detail.address || company.address,
+          requesterName: detail.initiator?.name || company.requesterName,
+          requesterEmail: detail.initiator?.email || company.requesterEmail,
+          requestInitiatedAt: detail.initiatedDate || company.requestInitiatedAt,
+          signatories: detail.signatories?.map((sig) => ({
+            fullName: sig.name || "",
+            email: sig.email || "",
+            phone: sig.phone || "",
+            designation: sig.designation || "",
+            employeeId: sig.employeeId || "",
+          })) || company.signatories,
+        };
+        setSelectedCompany(enrichedCompany);
+      } else {
+        setSelectedCompany(company);
+      }
+    } catch (err) {
+      console.error(err);
+      setSelectedCompany(company);
+    }
     setIsPreviewOpen(true);
   };
 

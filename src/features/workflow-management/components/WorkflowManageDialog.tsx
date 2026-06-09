@@ -670,7 +670,7 @@ export default function WorkflowManageDialog({
         <DialogDescription className="sr-only">
           Review workflow details, approval chain, history, and submit approve or reject actions.
         </DialogDescription>
-        <DialogHeader className="border-b border-slate-200 bg-slate-50/40 px-6 py-4">
+        <DialogHeader className="border-b border-slate-200 bg-slate-50/40 px-6 pb-0 pt-4">
           {viewContextTitle ? (
             <div className={cn("-mx-6 -mt-4 mb-4 flex items-center justify-center gap-3 px-6 py-1.5 text-center", viewContextClassName)}>
               <div className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/70 ring-1 ring-black/5">
@@ -694,7 +694,7 @@ export default function WorkflowManageDialog({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2.5">
-                <DialogTitle className="text-xl text-slate-900">{displayTitle}</DialogTitle>
+                <DialogTitle className="text-xl font-bold text-slate-900 capitalize">{displayTitle}</DialogTitle>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -836,7 +836,7 @@ export default function WorkflowManageDialog({
             </div>
           </div>
           {canShowPendingActions ? (
-            <div className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
+            <div className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-1.5">
               <div className="space-y-2 text-[12px]">
                 <div className="flex w-full flex-wrap items-center gap-2">
                   {initiatorName ? (
@@ -880,7 +880,7 @@ export default function WorkflowManageDialog({
           ) : null}
         </DialogHeader>
 
-        <div className="space-y-4 overflow-y-auto px-5 py-4">
+        <div className="space-y-4 overflow-y-auto px-5 pb-4 pt-0">
           <SummaryPreview workflow={{ ...displayWorkflow, previousWorkflow }} />
 
           {!isPending && !isHistoryPreviewActive && pendingStatus && onSubmitStatusUpdate ? (

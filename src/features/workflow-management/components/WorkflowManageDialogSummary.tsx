@@ -120,6 +120,23 @@ const getWorkflowConditionCount = (levels: WorkflowLevel[]) =>
     return total + (level.type === "AND" ? approvalCount : 1);
   }, 0);
 
+const renderOrgPathBadge = (pathStr: string) => {
+  if (!pathStr) return null;
+  const segments = pathStr.split('.').filter(Boolean);
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center">
+      <span className="inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-sky-50 px-2 py-1 text-[11px] font-semibold tracking-wide text-sky-700 border border-sky-200/80 shadow-sm">
+        {segments.map((segment, i) => (
+          <span key={i} className="flex items-center gap-1.5">
+            <span>{segment}</span>
+            {i < segments.length - 1 && <span className="text-sky-300">›</span>}
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+};
+
 const buildWorkflowAliasFromLevels = (levels: WorkflowLevel[]) => {
   if (levels.length === 0) return "";
   return `1M_${getWorkflowConditionCount(levels)}C_${levels.length}`;
@@ -165,7 +182,17 @@ const renderConnectorDiff = ({
     );
   }
 
-  return <span className="text-[10px] font-black uppercase text-slate-300">{next || prev || "-"}</span>;
+  const label = next || prev || "-";
+  const colorClass = 
+    label === "AND" ? "bg-indigo-50 text-indigo-600 border-indigo-200/60" :
+    label === "OR"  ? "bg-amber-50 text-amber-600 border-amber-200/60" :
+    "bg-slate-100 text-slate-500 border-slate-200";
+
+  return (
+    <span className={cn("rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm", colorClass)}>
+      {label}
+    </span>
+  );
 };
 
 export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow }) {
@@ -238,59 +265,91 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
     : workflow.alias?.trim() || derivedCurrentAlias || "-";
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/30">
-        <div className="grid grid-cols-1 divide-y divide-slate-200 md:grid-cols-5 md:divide-x md:divide-y-0">
-          <div className="grid min-h-[112px] content-between gap-4 px-4 py-4">
-            <div className="flex min-h-[32px] items-start gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
-              <Zap className="h-3.5 w-3.5 text-blue-500" />
-              Workflow Name
+    <div className="px-2 py-0 md:px-4">
+      <div className="mb-5 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 shadow-sm">
+        <div className="grid grid-cols-1 gap-x-12 gap-y-5 md:grid-cols-2">
+          {/* Workflow Name */}
+          <div className="grid grid-cols-[140px_1fr] items-start gap-4">
+            <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
+              <div className="flex items-center gap-2">
+                <Zap className="h-3.5 w-3.5 text-blue-500" />
+                Workflow Name
+              </div>
+              <span className="text-slate-400">:</span>
             </div>
-            {renderInlineDiff(workflow.name || "-", previousWorkflowName)}
+            <div className="min-w-0">
+              {renderInlineDiff(workflow.name || "-", previousWorkflowName)}
+            </div>
           </div>
-          <div className="grid min-h-[112px] content-between gap-4 px-4 py-4">
-            <div className="flex min-h-[32px] items-start gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
-              <Layers className="h-3.5 w-3.5 text-purple-500" />
-              Process Alias
+          
+          {/* Process Alias */}
+          <div className="grid grid-cols-[140px_1fr] items-start gap-4">
+            <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
+              <div className="flex items-center gap-2">
+                <Layers className="h-3.5 w-3.5 text-purple-500" />
+                Process Alias
+              </div>
+              <span className="text-slate-400">:</span>
             </div>
-            {renderInlineDiff(displayCurrentAlias, displayPreviousAlias)}
+            <div className="min-w-0">
+              {renderInlineDiff(displayCurrentAlias, displayPreviousAlias)}
+            </div>
           </div>
-          <div className="grid min-h-[112px] content-between gap-4 px-4 py-4">
-            <div className="flex min-h-[32px] items-start gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
-              <Briefcase className="h-3.5 w-3.5 text-indigo-500" />
-              Module
+
+          {/* Module */}
+          <div className="grid grid-cols-[140px_1fr] items-start gap-4">
+            <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
+              <div className="flex items-center gap-2">
+                <Briefcase className="h-3.5 w-3.5 text-indigo-500" />
+                Module
+              </div>
+              <span className="text-slate-400">:</span>
             </div>
-            {renderInlineDiff(moduleLabel || "-", previousModuleLabel)}
+            <div className="min-w-0">
+              {renderInlineDiff(moduleLabel || "-", previousModuleLabel)}
+            </div>
           </div>
-          <div className="grid min-h-[112px] content-between gap-4 px-4 py-4">
-            <div className="flex min-h-[32px] items-start gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
-              <Settings2 className="h-3.5 w-3.5 text-cyan-500" />
-              Workflow Type
+
+          {/* Workflow Type */}
+          <div className="grid grid-cols-[140px_1fr] items-start gap-4">
+            <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
+              <div className="flex items-center gap-2">
+                <Settings2 className="h-3.5 w-3.5 text-cyan-500" />
+                Workflow Type
+              </div>
+              <span className="text-slate-400">:</span>
             </div>
-            {renderInlineDiff(workflowTypeLabel || "-", previousWorkflowTypeLabel)}
+            <div className="min-w-0">
+              {renderInlineDiff(workflowTypeLabel || "-", previousWorkflowTypeLabel)}
+            </div>
           </div>
-          <div className="grid min-h-[112px] content-between gap-4 px-4 py-4">
-            <div className="flex min-h-[32px] items-start gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
-              <Building2 className="h-3.5 w-3.5 text-emerald-500" />
-              Node Name
+
+          {/* Node Name (Takes full width in md) */}
+          <div className="col-span-1 grid grid-cols-[140px_1fr] items-start gap-4 md:col-span-2 md:grid-cols-[140px_1fr]">
+            <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-3.5 w-3.5 text-emerald-500" />
+                Node Name
+              </div>
+              <span className="text-slate-400">:</span>
             </div>
-            <div className="space-y-1 self-end">
+            <div className="min-w-0 space-y-1">
               {renderInlineDiff(topNodeName, previousTopNodeName)}
               {topNodePath && !isRootWorkflowNode(topNodePath, workflow.orgStructure?.nodeType || workflow.nodeType) ? (
-                <p className="truncate font-mono text-[10px] text-sky-700">{getWorkflowPathPreview(topNodePath, 3)}</p>
+                renderOrgPathBadge(getWorkflowPathPreview(topNodePath, 3))
               ) : null}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="mt-5">
-        <h4 className="mb-3 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Levels</h4>
+      <div>
+        <h4 className="mb-4 px-1 text-sm font-bold tracking-tight text-slate-800">Levels</h4>
         <div className="space-y-2 pr-1 pb-1">
           {mergedLevels.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">No level details available.</div>
           ) : (
-            mergedLevels.map(({ id, current, previous }) => {
+            mergedLevels.map(({ id, current, previous }, index) => {
               const level = current ?? previous;
               if (!level) return null;
               const isAdded = hasComparisonData && Boolean(current && !previous);
@@ -299,6 +358,25 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
               const currentApprovals = current?.approvals ?? [];
               const previousApprovals = previous?.approvals ?? [];
               const slotCount = Math.max(currentApprovals.length, previousApprovals.length);
+              
+              const borderColors = [
+                "border-l-sky-400",
+                "border-l-emerald-400",
+                "border-l-amber-400",
+                "border-l-purple-400",
+                "border-l-rose-400",
+                "border-l-cyan-400",
+              ];
+              const badgeColors = [
+                "bg-sky-100 text-sky-700",
+                "bg-emerald-100 text-emerald-700",
+                "bg-amber-100 text-amber-700",
+                "bg-purple-100 text-purple-700",
+                "bg-rose-100 text-rose-700",
+                "bg-cyan-100 text-cyan-700",
+              ];
+              const levelBorderClass = borderColors[index % borderColors.length];
+              const levelBadgeClass = badgeColors[index % badgeColors.length];
               return (
                 <div
                   key={id}
@@ -310,7 +388,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
                         ? "border-emerald-300 border-l-emerald-500 bg-emerald-50 shadow-[0_10px_26px_rgba(16,185,129,0.18)] ring-1 ring-emerald-200/80"
                         : isChanged
                           ? "border-amber-300 border-l-amber-500 bg-amber-50/80 shadow-[0_8px_24px_rgba(245,158,11,0.12)]"
-                          : "border-slate-100 border-l-slate-200 bg-white",
+                          : `border-slate-100 bg-white ${levelBorderClass}`,
                   )}
                 >
                   <div
@@ -322,7 +400,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
                           ? "bg-emerald-100 text-emerald-700"
                           : isChanged
                             ? "bg-amber-100 text-amber-700"
-                            : "bg-slate-100 text-slate-600",
+                            : levelBadgeClass,
                     )}
                   >
                     L{id}
@@ -333,9 +411,9 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
                       const prevApproval = previousApprovals[approvalIdx];
                       const currentOption = currentApproval?.option?.trim() || "";
                       const previousOption = prevApproval?.option?.trim() || "";
-                      const approvalChanged = Boolean(currentOption || previousOption) && currentOption !== previousOption;
-                      const approvalAdded = Boolean(currentOption) && !previousOption;
-                      const approvalRemoved = Boolean(previousOption) && !currentOption;
+                      const approvalChanged = hasComparisonData && Boolean(currentOption || previousOption) && currentOption !== previousOption;
+                      const approvalAdded = hasComparisonData && Boolean(currentOption) && !previousOption;
+                      const approvalRemoved = hasComparisonData && Boolean(previousOption) && !currentOption;
                       const nextLabel = currentOption
                         ? APPROVAL_OPTIONS.find((option) => option.id === currentOption)?.label || currentOption || "Not Assigned"
                         : "-";
@@ -355,7 +433,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
                             })
                           ) : null}
                           <div className="flex flex-col">
-                            <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400">Approver {approvalIdx + 1}</span>
+                            <span className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">Approver {approvalIdx + 1}</span>
                             <span className="text-xs font-semibold text-slate-800">
                               {isRemoved || approvalRemoved ? (
                                 <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-rose-600 line-through">
@@ -392,9 +470,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
                     <CheckCircle2 className="mr-2 h-5 w-5 text-emerald-600" />
                   ) : isChanged ? (
                     <CheckCircle2 className="mr-2 h-5 w-5 text-amber-600" />
-                  ) : (
-                    <span className="mr-2 h-2.5 w-2.5 rounded-full bg-slate-400" aria-hidden="true" />
-                  )}
+                  ) : null}
                 </div>
               );
             })
@@ -404,8 +480,8 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
 
       {linkedOrgStructureNodes.length > 0 ? (
         <div className="mt-5">
-          <h4 className="mb-3 px-1 text-[10px] font-black uppercase tracking-widest text-slate-600">
-            Linked Org Structure ({linkedOrgStructureNodes.length})
+          <h4 className="mb-4 px-1 text-sm font-bold tracking-tight text-slate-800">
+            Linked Org Structure <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">{linkedOrgStructureNodes.length}</span>
           </h4>
           <div className="space-y-2 pb-1">
             {linkedOrgStructureNodes.map((entry, index) => {
@@ -413,11 +489,11 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
               const fullNodePath = entry.nodePath || getWorkflowPathPreview(entry.nodePath, 3);
               return (
                 <div key={`${entry.nodePath}-${index}`} className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-sm">
-                  <p className="truncate text-sm font-semibold text-slate-900">
+                  <p className="truncate text-[15px] font-semibold text-slate-900">
                     {entry.nodeName}
-                    {formattedType ? <span className="ml-1 text-slate-500">({formattedType})</span> : null}
+                    {formattedType ? <span className="ml-2 text-[13px] font-medium text-slate-500">({formattedType})</span> : null}
                   </p>
-                  <p className="mt-1 break-words font-mono text-[11px] leading-5 text-sky-700">{fullNodePath}</p>
+                  {renderOrgPathBadge(fullNodePath)}
                 </div>
               );
             })}

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { X, CheckCircle2, XCircle, Building2, MapPin, Layers3, Briefcase, Boxes, Info, User, Mail, Clock3, History } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { X, CheckCircle2, XCircle, Building2, MapPin, Layers3, Briefcase, Boxes, Info, User, Mail, Clock3, History, Users, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrgNode } from "@/contexts/AppContext";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,7 @@ type PendingNodePopupProps = {
   onApprove: (node: OrgNode, remark: string) => void;
   onReject: (node: OrgNode, remark: string) => void;
   onOpenHistory?: (node: OrgNode) => void;
+  onToggleHistory?: () => void;
   isHistoryOpen?: boolean;
   dockOffset?: {
     top: number;
@@ -152,12 +153,14 @@ export function PendingNodePopup({
   onApprove,
   onReject,
   onOpenHistory,
+  onToggleHistory,
   isHistoryOpen = false,
   dockOffset,
   historyPanelWidth = 560,
 }: PendingNodePopupProps) {
   const [remark, setRemark] = useState("");
   const [remarkError, setRemarkError] = useState("");
+  const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -165,11 +168,6 @@ export function PendingNodePopup({
       setRemarkError("");
     }
   }, [open, node?.id]);
-
-  useEffect(() => {
-    if (!open || !node || isHistoryOpen || !onOpenHistory) return;
-    onOpenHistory(node);
-  }, [open, node, isHistoryOpen, onOpenHistory]);
 
   if (!open || !node) return null;
 
@@ -201,6 +199,10 @@ export function PendingNodePopup({
     const cleanedRemark = remark.trim();
     if (!cleanedRemark) {
       setRemarkError("Remark is required before submitting this action.");
+      if (remarkInputRef.current) {
+        remarkInputRef.current.focus();
+        remarkInputRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
       return;
     }
 
@@ -217,37 +219,38 @@ export function PendingNodePopup({
 
   return (
     <div
-      className={cn("fixed inset-0 z-[100] flex p-4 sm:p-6", isHistoryOpen ? "items-stretch justify-start" : "items-center justify-center")}
+      className={cn("fixed z-[100] flex", isHistoryOpen ? "items-stretch justify-start p-0" : "inset-0 items-center justify-center p-4 sm:p-6")}
       style={
         isHistoryOpen
           ? {
-              top: `${topOffset}px`,
-              left: `${leftOffset}px`,
-              width: `calc(100vw - ${leftOffset}px - ${historyPanelWidth}px)`,
-              height: `calc(100vh - ${topOffset}px)`,
-            }
+            top: `${topOffset}px`,
+            left: `${leftOffset}px`,
+            width: `calc(100vw - ${leftOffset}px - ${historyPanelWidth}px)`,
+            height: `calc(100vh - ${topOffset}px)`,
+          }
           : undefined
       }
     >
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" 
-        onClick={onClose} 
+      <div
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
+        onClick={onClose}
       />
 
       <div
         className={cn(
-          "relative w-full overflow-hidden rounded-[28px] bg-white shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-in zoom-in-95 fade-in duration-300",
+          "relative flex flex-col bg-white animate-in zoom-in-95 fade-in duration-300 overflow-hidden",
           useUpdateTheme && "ring-1 ring-amber-200/80",
           isHistoryOpen
-            ? cn("mx-auto my-auto max-h-full", hasLongWorkflowLabel ? "max-w-[620px]" : "max-w-[480px]")
-            : hasLongWorkflowLabel
-              ? "max-w-[620px]"
-              : "max-w-[480px]",
+            ? "h-full w-full max-w-none rounded-none border-r border-slate-200 transition-[width] duration-300 will-change-[width]"
+            : cn(
+                "w-full rounded-[28px] max-h-full shadow-[0_20px_50px_rgba(0,0,0,0.2)]",
+                hasLongWorkflowLabel ? "max-w-[620px]" : "max-w-[480px]",
+              ),
         )}
       >
         {/* Header Section */}
-        <div className={cn("relative px-6 pb-5 pt-5", useUpdateTheme ? "bg-gradient-to-b from-amber-100/80 to-orange-50" : "bg-amber-50/50")}>
+        <div className={cn("relative shrink-0 px-6 pb-5 pt-5", useUpdateTheme ? "bg-gradient-to-b from-amber-100/80 to-orange-50" : "bg-amber-50/50")}>
           <div className="absolute right-4 top-4 flex items-center gap-2">
             <TooltipProvider delayDuration={120}>
               <Tooltip>
@@ -255,10 +258,19 @@ export function PendingNodePopup({
                   <button
                     type="button"
                     onClick={() => {
-                      if (onOpenHistory) onOpenHistory(node);
+                      if (onToggleHistory) {
+                        onToggleHistory();
+                      } else if (onOpenHistory) {
+                        onOpenHistory(node);
+                      }
                     }}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 transition hover:bg-white hover:text-slate-700 shadow-sm"
-                    aria-label="View node history"
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-full transition shadow-sm",
+                      isHistoryOpen
+                        ? "bg-blue-600 text-white hover:bg-blue-700 shadow-md border border-blue-600"
+                        : "bg-white/80 text-slate-500 hover:bg-white hover:text-slate-700 border border-transparent"
+                    )}
+                    aria-label={isHistoryOpen ? "Close node history" : "View node history"}
                   >
                     <History size={16} />
                   </button>
@@ -298,18 +310,11 @@ export function PendingNodePopup({
         </div>
 
         {/* Details Section */}
-        <div className="space-y-4 px-6 py-6">
+        <div className="flex-1 min-h-0 space-y-4 px-6 py-6 overflow-y-auto">
           <div className={cn("rounded-2xl border bg-white p-4 shadow-sm", useUpdateTheme ? "border-orange-200/80" : "border-slate-200")}>
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className={cn("h-1.5 w-1.5 rounded-full", useUpdateTheme ? "bg-orange-500" : "bg-amber-500")} />
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-700">Node Details</p>
-              </div>
-              {!isStatusUpdateRequest ? (
-                <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
-                  {requestedOn}
-                </span>
-              ) : null}
+            <div className="mb-3 flex items-center gap-2">
+              <div className={cn("h-1.5 w-1.5 rounded-full", useUpdateTheme ? "bg-orange-500" : "bg-amber-500")} />
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-700">Node Details</p>
             </div>
             <div className="space-y-2.5">
               <div className="grid grid-cols-[18px_96px_1fr] items-start gap-2 text-sm">
@@ -405,6 +410,39 @@ export function PendingNodePopup({
             </div>
           ) : null}
 
+          {(node.affectedUserAccessCount !== undefined || node.affectedWorkflowCount !== undefined) ? (
+            <div className={cn("rounded-2xl border bg-white p-4 shadow-sm", useUpdateTheme ? "border-orange-200/80" : "border-slate-200")}>
+              <div className="mb-4 flex items-center gap-2">
+                <div className={cn("h-1.5 w-1.5 rounded-full", useUpdateTheme ? "bg-orange-500" : "bg-indigo-500")} />
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-700">Impact Analysis</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {node.affectedUserAccessCount !== undefined && (
+                  <div className="flex items-start gap-3">
+                    <div className={cn("flex h-8 w-8 mt-0.5 shrink-0 items-center justify-center rounded-xl", useUpdateTheme ? "bg-orange-50 text-orange-600" : "bg-indigo-50 text-indigo-600")}>
+                      <Users size={16} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Affected Users</p>
+                      <p className="text-base font-bold text-slate-800">{node.affectedUserAccessCount ?? 0}</p>
+                    </div>
+                  </div>
+                )}
+                {node.affectedWorkflowCount !== undefined && (
+                  <div className="flex items-start gap-3">
+                    <div className={cn("flex h-8 w-8 mt-0.5 shrink-0 items-center justify-center rounded-xl", useUpdateTheme ? "bg-orange-50 text-orange-600" : "bg-purple-50 text-purple-600")}>
+                      <Workflow size={16} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Affected Workflows</p>
+                      <p className="text-base font-bold text-slate-800">{node.affectedWorkflowCount ?? 0}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+
           <div
             className={cn(
               "flex items-center gap-2.5 rounded-xl px-3.5 py-2 text-[11px]",
@@ -417,7 +455,7 @@ export function PendingNodePopup({
                 ? "Approving this node will delete it from the Organization Structure."
                 : isActiveUpdateRequest
                   ? "Approving this node will activate it in the Organization Structure."
-                : "Approving this node will add it to the Organization Structure."}
+                  : "Approving this node will add it to the Organization Structure."}
             </p>
           </div>
 
@@ -429,6 +467,7 @@ export function PendingNodePopup({
               </span>
             </div>
             <Textarea
+              ref={remarkInputRef}
               value={remark}
               onChange={(event) => {
                 setRemark(event.target.value);
@@ -445,7 +484,7 @@ export function PendingNodePopup({
         </div>
 
         {/* Actions Section */}
-        <div className="grid grid-cols-2 gap-3 border-t border-slate-100 bg-slate-50/30 px-6 py-5">
+        <div className="shrink-0 grid grid-cols-2 gap-3 border-t border-slate-100 bg-slate-50/30 px-6 py-5">
           <button
             onClick={() => validateAndRun("reject")}
             className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-rose-600 hover:border-rose-200 shadow-sm"
