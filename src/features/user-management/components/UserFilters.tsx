@@ -1,14 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { ArrowUpDown, ChevronDown, Filter, RefreshCw, Search, X } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, Filter, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -59,6 +56,9 @@ const STATUS_BADGE_CLASS: Record<MemberStatusTab, string> = {
   inactive: "bg-rose-100 text-rose-700",
 };
 
+const toggleFilterValue = (current: string[], value: string) =>
+  current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+
 type UserFiltersProps = {
   statusTab: MemberStatusTab;
   onStatusTabChange: (value: MemberStatusTab) => void;
@@ -79,7 +79,7 @@ type UserFiltersProps = {
   onboardingDateFrom: string;
   onboardingDateTo: string;
   onClearAdvancedFilters: () => void;
-  onApplyAdvancedFilters: (filters: AppliedUserFiltersDraft) => void;
+  onApplyAdvancedFilters: (filters: AppliedUserFiltersDraft) => void | Promise<void>;
   onOpenFilters: () => void | Promise<void>;
   sortOrder: SortOrder;
   onSortOrderChange: (value: SortOrder) => void;
@@ -98,14 +98,14 @@ type UserFiltersProps = {
 };
 
 const buildDraftFromProps = (props: UserFiltersProps): AppliedUserFiltersDraft => ({
-  designationFilters: props.designationFilters,
-  nodeNameFilters: props.nodeNameFilters,
-  nodeTypeFilters: props.nodeTypeFilters,
-  accessCategoryFilters: props.accessCategoryFilters,
-  accessSubcategoryFilters: props.accessSubcategoryFilters,
-  reportingManagerFilters: props.reportingManagerFilters,
-  statusFilters: props.statusFilters,
-  roleFilters: props.roleFilters,
+  designationFilters: [...props.designationFilters],
+  nodeNameFilters: [...props.nodeNameFilters],
+  nodeTypeFilters: [...props.nodeTypeFilters],
+  accessCategoryFilters: [...props.accessCategoryFilters],
+  accessSubcategoryFilters: [...props.accessSubcategoryFilters],
+  reportingManagerFilters: [...props.reportingManagerFilters],
+  statusFilters: [...props.statusFilters],
+  roleFilters: [...props.roleFilters],
   nodeAccessType: props.nodeAccessType,
   pendingActionFilter: props.pendingActionFilter,
   onboardingDateRange: props.onboardingDateRange,
@@ -296,7 +296,7 @@ export default function UserFilters(props: UserFiltersProps) {
             </PopoverTrigger>
             <PopoverContent
               align="end"
-              className="w-[560px] rounded-2xl border border-slate-200 bg-white p-0 shadow-[0_26px_60px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80"
+              className="w-[560px] overflow-visible rounded-2xl border border-slate-200 bg-white p-0 shadow-[0_26px_60px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80"
             >
               <div className="border-b border-slate-200 bg-white px-5 py-3.5">
                 <div className="flex items-center justify-between">
@@ -317,7 +317,7 @@ export default function UserFilters(props: UserFiltersProps) {
                 </div>
               </div>
 
-              <div className="max-h-[70vh] space-y-4 overflow-y-auto bg-white px-5 py-3.5">
+              <div className="space-y-4 overflow-visible bg-white px-5 py-3.5">
                 <FilterSection title="Identity">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <MultiSelectDropdown
@@ -326,17 +326,30 @@ export default function UserFilters(props: UserFiltersProps) {
                       options={roles.map((role) => role.value)}
                       counts={Object.fromEntries(roles.map((role) => [role.value, role.count ?? 0]))}
                       selected={draft.designationFilters}
-                      onToggle={(value) => updateDraft("designationFilters", toggleFilterValue(draft.designationFilters, value))}
+                      onToggle={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          designationFilters: toggleFilterValue(current.designationFilters, value),
+                        }))
+                      }
                       onClear={() => clearDraftField("designationFilters")}
                     />
                     <NodeNameDropdown
                       options={filterNodeOptions}
                       selected={draft.nodeNameFilters}
                       nodeAccessType={draft.nodeAccessType}
-                      onToggle={(value) => updateDraft("nodeNameFilters", toggleFilterValue(draft.nodeNameFilters, value))}
+                      onToggle={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          nodeNameFilters: toggleFilterValue(current.nodeNameFilters, value),
+                        }))
+                      }
                       onNodeAccessChange={(value) => updateDraft("nodeAccessType", value)}
                       onSelectAllChildren={(values) =>
-                        updateDraft("nodeNameFilters", Array.from(new Set([...draft.nodeNameFilters, ...values])))
+                        setDraft((current) => ({
+                          ...current,
+                          nodeNameFilters: Array.from(new Set([...current.nodeNameFilters, ...values])),
+                        }))
                       }
                       onClearSelection={() => {
                         clearDraftField("nodeNameFilters");
@@ -348,7 +361,12 @@ export default function UserFilters(props: UserFiltersProps) {
                       placeholder="All node types"
                       options={nodeTypeOptions}
                       selected={draft.nodeTypeFilters}
-                      onToggle={(value) => updateDraft("nodeTypeFilters", toggleFilterValue(draft.nodeTypeFilters, value))}
+                      onToggle={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          nodeTypeFilters: toggleFilterValue(current.nodeTypeFilters, value),
+                        }))
+                      }
                       onClear={() => clearDraftField("nodeTypeFilters")}
                     />
                     <MultiSelectDropdown
@@ -356,7 +374,12 @@ export default function UserFilters(props: UserFiltersProps) {
                       placeholder="All reporting managers"
                       options={reportingManagerOptions}
                       selected={draft.reportingManagerFilters}
-                      onToggle={(value) => updateDraft("reportingManagerFilters", toggleFilterValue(draft.reportingManagerFilters, value))}
+                      onToggle={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          reportingManagerFilters: toggleFilterValue(current.reportingManagerFilters, value),
+                        }))
+                      }
                       onClear={() => clearDraftField("reportingManagerFilters")}
                     />
                     <MultiSelectDropdown
@@ -364,15 +387,19 @@ export default function UserFilters(props: UserFiltersProps) {
                       placeholder="All categories"
                       options={accessCategories}
                       selected={draft.accessCategoryFilters}
-                      onToggle={(value) => {
-                        const nextCategories = toggleFilterValue(draft.accessCategoryFilters, value);
-                        const allowedSubcategories = new Set(nextCategories.flatMap((category) => accessSubcategories[category] ?? []));
-                        updateDraft("accessCategoryFilters", nextCategories);
-                        updateDraft(
-                          "accessSubcategoryFilters",
-                          draft.accessSubcategoryFilters.filter((subCategory) => allowedSubcategories.size === 0 || allowedSubcategories.has(subCategory)),
-                        );
-                      }}
+                      onToggle={(value) =>
+                        setDraft((current) => {
+                          const nextCategories = toggleFilterValue(current.accessCategoryFilters, value);
+                          const allowedSubcategories = new Set(nextCategories.flatMap((category) => accessSubcategories[category] ?? []));
+                          return {
+                            ...current,
+                            accessCategoryFilters: nextCategories,
+                            accessSubcategoryFilters: current.accessSubcategoryFilters.filter(
+                              (subCategory) => allowedSubcategories.size === 0 || allowedSubcategories.has(subCategory),
+                            ),
+                          };
+                        })
+                      }
                       onClear={() => {
                         clearDraftField("accessCategoryFilters");
                         clearDraftField("accessSubcategoryFilters");
@@ -383,7 +410,12 @@ export default function UserFilters(props: UserFiltersProps) {
                       placeholder="All subcategories"
                       options={subCategoryOptions}
                       selected={draft.accessSubcategoryFilters}
-                      onToggle={(value) => updateDraft("accessSubcategoryFilters", toggleFilterValue(draft.accessSubcategoryFilters, value))}
+                      onToggle={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          accessSubcategoryFilters: toggleFilterValue(current.accessSubcategoryFilters, value),
+                        }))
+                      }
                       onClear={() => clearDraftField("accessSubcategoryFilters")}
                     />
                   </div>
@@ -396,7 +428,12 @@ export default function UserFilters(props: UserFiltersProps) {
                       placeholder="All statuses"
                       options={FILTER_STATUS_OPTIONS}
                       selected={draft.statusFilters}
-                      onToggle={(value) => updateDraft("statusFilters", toggleFilterValue(draft.statusFilters, value as FilterStatusValue) as FilterStatusValue[])}
+                      onToggle={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          statusFilters: toggleFilterValue(current.statusFilters, value as FilterStatusValue) as FilterStatusValue[],
+                        }))
+                      }
                       onClear={() => clearDraftField("statusFilters")}
                     />
                     <SingleSelectDropdown
@@ -412,7 +449,12 @@ export default function UserFilters(props: UserFiltersProps) {
                       placeholder="All roles"
                       options={FILTER_ROLE_OPTIONS}
                       selected={draft.roleFilters}
-                      onToggle={(value) => updateDraft("roleFilters", toggleFilterValue(draft.roleFilters, value as FilterRoleValue) as FilterRoleValue[])}
+                      onToggle={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          roleFilters: toggleFilterValue(current.roleFilters, value as FilterRoleValue) as FilterRoleValue[],
+                        }))
+                      }
                       onClear={() => clearDraftField("roleFilters")}
                     />
                     <DateRangeDropdown
@@ -584,35 +626,73 @@ function MultiSelectDropdown({
   counts?: Record<string, number>;
 }) {
   const [search, setSearch] = useState("");
-  const filteredOptions = options.filter((option) => option.toLowerCase().includes(search.toLowerCase()));
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const normalizedOptions = useMemo(
+    () =>
+      options
+        .filter((option): option is string => typeof option === "string")
+        .map((option) => option.trim())
+        .filter(Boolean),
+    [options],
+  );
+  const filteredOptions = normalizedOptions.filter((option) => option.toLowerCase().includes(search.toLowerCase()));
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
   return (
-    <div>
+    <div ref={containerRef} className="relative">
       <FieldHeader title={title} onClear={onClear} canClear={selected.length > 0} />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", selected.length > 0 && "border-blue-200 bg-blue-50/40 text-blue-800")}>
-            <span className="truncate">{selected.length === 0 ? placeholder : selected.length === 1 ? selected[0] : `${selected.length} selected`}</span>
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[260px] border border-slate-200 bg-white p-2">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setOpen((current) => !current)}
+        className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", selected.length > 0 && "border-blue-200 bg-blue-50/40 text-blue-800")}
+      >
+        <span className="truncate">{selected.length === 0 ? placeholder : selected.length === 1 ? selected[0] : `${selected.length} selected`}</span>
+        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", open && "rotate-180")} />
+      </Button>
+      {open ? (
+        <div
+          className="absolute left-0 top-full z-30 mt-2 w-full min-w-[260px] rounded-lg border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
+        >
           <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${title.toLowerCase()}`} className="mb-2 h-9" />
-          {filteredOptions.map((option) => (
-            <DropdownMenuCheckboxItem
-              key={option}
-              checked={selected.includes(option)}
-              onCheckedChange={() => onToggle(option)}
-              onSelect={(event) => event.preventDefault()}
-              className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
-            >
-              <div className="flex w-full items-center justify-between gap-2">
-                <span>{option}</span>
-                {counts && counts[option] ? <span className="text-[11px] text-slate-400">{counts[option]}</span> : null}
-              </div>
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+          <div className="max-h-64 space-y-1 overflow-auto">
+            {filteredOptions.map((option) => {
+              const isSelected = selected.includes(option);
+              return (
+                <label
+                  key={option}
+                  className={cn(
+                    "flex w-full cursor-pointer items-center justify-between rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-slate-50",
+                    isSelected && "bg-blue-50 text-blue-800",
+                  )}
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggle(option)}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span>{option}</span>
+                  </span>
+                  {counts && counts[option] ? <span className="text-[11px] text-slate-400">{counts[option]}</span> : null}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -632,30 +712,55 @@ function SingleSelectDropdown({
   onSelect: (value: string | null) => void;
   onClear: () => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
   return (
-    <div>
+    <div ref={containerRef} className="relative">
       <FieldHeader title={title} onClear={onClear} canClear={Boolean(value)} />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", value && "border-blue-200 bg-blue-50/40 text-blue-800")}>
-            <span className="truncate">{value || placeholder}</span>
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[220px] border border-slate-200 bg-white p-2">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setOpen((current) => !current)}
+        className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", value && "border-blue-200 bg-blue-50/40 text-blue-800")}
+      >
+        <span className="truncate">{value || placeholder}</span>
+        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", open && "rotate-180")} />
+      </Button>
+      {open ? (
+        <div className="absolute left-0 top-full z-30 mt-2 w-full min-w-[220px] rounded-lg border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]">
           {options.map((option) => (
-            <DropdownMenuCheckboxItem
+            <button
               key={option}
-              checked={value === option}
-              onCheckedChange={() => onSelect(value === option ? null : option)}
-              onSelect={(event) => event.preventDefault()}
-              className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
+              type="button"
+              onClick={() => {
+                onSelect(value === option ? null : option);
+                setOpen(false);
+              }}
+              className={cn(
+                "flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-slate-50",
+                value === option && "bg-blue-50 text-blue-800",
+              )}
             >
               <span>{option}</span>
-            </DropdownMenuCheckboxItem>
+              <span className={cn("inline-flex h-4 w-4 items-center justify-center", value === option ? "text-blue-700" : "text-transparent")}>
+                <Check className="h-4 w-4" />
+              </span>
+            </button>
           ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -695,7 +800,7 @@ function DateRangeDropdown({
   return (
     <div>
       <FieldHeader title={title} onClear={onClear} canClear={Boolean(range || fromDate || toDate)} />
-      <Popover>
+      <Popover modal={false}>
         <PopoverTrigger asChild>
           <Button variant="outline" className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", (range || fromDate || toDate) && "border-blue-200 bg-blue-50/40 text-blue-800")}>
             <span className="truncate">{summary}</span>
@@ -753,19 +858,47 @@ function NodeNameDropdown({
   onClearSelection: () => void;
 }) {
   const [search, setSearch] = useState("");
-  const filteredOptions = options.filter((option) => option.value.toLowerCase().includes(search.toLowerCase()));
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const normalizedOptions = useMemo(
+    () =>
+      options.filter(
+        (option): option is UserFilterNodeOption =>
+          Boolean(option) &&
+          typeof option.value === "string" &&
+          typeof option.path === "string" &&
+          option.value.trim().length > 0 &&
+          option.path.trim().length > 0,
+      ),
+    [options],
+  );
+  const filteredOptions = normalizedOptions.filter((option) => option.value.toLowerCase().includes(search.toLowerCase()));
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
 
   return (
-    <div>
+    <div ref={containerRef} className="relative">
       <FieldHeader title="Node Name" onClear={onClearSelection} canClear={selected.length > 0 || Boolean(nodeAccessType)} />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", (selected.length > 0 || nodeAccessType) && "border-blue-200 bg-blue-50/40 text-blue-800")}>
-            <span className="truncate">{selected.length === 0 ? "All node names" : selected.length === 1 ? selected[0] : `${selected.length} selected`}</span>
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[340px] border border-slate-200 bg-white p-3">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setOpen((current) => !current)}
+        className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", (selected.length > 0 || nodeAccessType) && "border-blue-200 bg-blue-50/40 text-blue-800")}
+      >
+        <span className="truncate">{selected.length === 0 ? "All node names" : selected.length === 1 ? selected[0] : `${selected.length} selected`}</span>
+        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", open && "rotate-180")} />
+      </Button>
+      {open ? (
+        <div className="absolute left-0 top-full z-30 mt-2 w-[340px] rounded-lg border border-slate-200 bg-white p-3 shadow-[0_16px_34px_rgba(15,23,42,0.12)]">
           <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search node name" className="mb-3 h-9" />
           <div className="mb-3 rounded-lg border border-slate-100 bg-slate-50 p-2">
             <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -798,14 +931,20 @@ function NodeNameDropdown({
           </div>
           <div className="max-h-64 space-y-2 overflow-auto">
             {filteredOptions.map((option) => {
-              const childValues = options
+              const isSelected = selected.includes(option.value);
+              const childValues = normalizedOptions
                 .filter((candidate) => candidate.path === option.path || candidate.path.startsWith(`${option.path}/`))
                 .map((candidate) => candidate.value);
               return (
-                <div key={`${option.path}-${option.value}`} className="rounded-lg border border-slate-100 p-2">
+                <div key={`${option.path}-${option.value}`} className={cn("rounded-lg border p-2", isSelected ? "border-blue-200 bg-blue-50/40" : "border-slate-100")}>
                   <div className="flex items-start justify-between gap-2">
-                    <label className="flex items-start gap-2">
-                      <Checkbox checked={selected.includes(option.value)} onCheckedChange={() => onToggle(option.value)} />
+                    <label className="flex cursor-pointer items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggle(option.value)}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                      />
                       <div>
                         <p className="text-sm font-medium text-slate-800">{option.value}</p>
                         <p className="text-[11px] text-slate-500">{option.path}</p>
@@ -819,8 +958,8 @@ function NodeNameDropdown({
               );
             })}
           </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </div>
+      ) : null}
     </div>
   );
 }

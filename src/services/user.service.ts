@@ -111,7 +111,7 @@ export type UserAppliedFilters = {
   } | null;
   status: string[] | null;
   role: string[] | null;
-  isPendingActions: "Yes" | "No" | null;
+  isPending: "Yes" | "No" | null;
 };
 
 export type UserPaginatedRequest = {

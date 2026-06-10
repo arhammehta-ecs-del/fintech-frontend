@@ -72,6 +72,7 @@ export function UserManagementView() {
     nodeTypeOptions,
     reportingManagerOptions,
     clearAdvancedFilters,
+    applyAdvancedFilters,
     loadFilterOptions,
     isLoading,
     isFilterLoading,
@@ -545,25 +546,7 @@ export function UserManagementView() {
         onboardingDateTo={onboardingDateTo}
         onClearAdvancedFilters={clearAdvancedFilters}
         onOpenFilters={loadFilterOptions}
-        onApplyAdvancedFilters={(filters) => {
-          setDesignationFilters(filters.designationFilters);
-          setDepartmentFilters(filters.nodeNameFilters);
-          setNodeTypeFilters(filters.nodeTypeFilters);
-          setAccessCategoryFilters(filters.accessCategoryFilters);
-          setAccessSubcategoryFilters(filters.accessSubcategoryFilters);
-          setReportingManagerFilters(filters.reportingManagerFilters);
-          setStatusFilters(filters.statusFilters);
-          setRoleFilters(filters.roleFilters);
-          setNodeAccessType(filters.nodeAccessType);
-          setPendingActionFilter(filters.pendingActionFilter);
-          setOnboardingDateRange(filters.onboardingDateRange);
-          setOnboardingDateFrom(filters.onboardingDateFrom);
-          setOnboardingDateTo(filters.onboardingDateTo);
-          const selectedStatus = filters.statusFilters[0];
-          if (selectedStatus === "Pending") setStatusTab("pending");
-          else if (selectedStatus === "Inactive") setStatusTab("inactive");
-          else setStatusTab("active");
-        }}
+        onApplyAdvancedFilters={applyAdvancedFilters}
         sortOrder={sortOrder}
         onSortOrderChange={setSortOrder}
         hasNewUserEvent={hasNewUserEvent}

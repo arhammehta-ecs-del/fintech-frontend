@@ -19,6 +19,21 @@ type FilterRoleValue = "Maker" | "Checker" | "User";
 type NodeAccessValue = "Primary" | "Secondary" | null;
 type PendingActionValue = "Yes" | "No" | null;
 type OnboardingDateRange = "7DAYS" | "15DAYS" | "1MONTH" | "1YEAR" | "CUSTOM" | null;
+type AppliedUserFiltersDraft = {
+  designationFilters: string[];
+  nodeNameFilters: string[];
+  nodeTypeFilters: string[];
+  accessCategoryFilters: string[];
+  accessSubcategoryFilters: string[];
+  reportingManagerFilters: string[];
+  statusFilters: FilterStatusValue[];
+  roleFilters: FilterRoleValue[];
+  nodeAccessType: NodeAccessValue;
+  pendingActionFilter: PendingActionValue;
+  onboardingDateRange: OnboardingDateRange;
+  onboardingDateFrom: string;
+  onboardingDateTo: string;
+};
 
 const DEFAULT_FILTER_DROPDOWNS: UserFilterDropdowns = {
   designation: [],
@@ -54,20 +69,31 @@ const toggleFilterValue = (current: string[], value: string) =>
 
 const normalizeAppliedArray = (values: string[]) => (values.length > 0 ? values : null);
 
-const hasAppliedUserRefinement = (input: UserAppliedFilters | null) => {
-  if (!input) return false;
-  return Object.values(input).some((value) => {
-    if (!value) return false;
-    if (Array.isArray(value)) return value.length > 0;
-    if (typeof value === "object") {
-      return Object.values(value).some((nested) => {
-        if (!nested) return false;
-        if (Array.isArray(nested)) return nested.length > 0;
-        return Boolean(nested);
-      });
-    }
-    return Boolean(value);
-  });
+const buildAppliedFilters = (input: AppliedUserFiltersDraft): UserAppliedFilters => {
+  const dateFilter =
+    input.onboardingDateRange || input.onboardingDateFrom || input.onboardingDateTo
+      ? {
+          dateRange: input.onboardingDateRange && input.onboardingDateRange !== "CUSTOM" ? input.onboardingDateRange : null,
+          fromDate: input.onboardingDateFrom || null,
+          toDate: input.onboardingDateTo || null,
+        }
+      : null;
+
+  return {
+    designation: normalizeAppliedArray(input.designationFilters),
+    nodeName: {
+      values: normalizeAppliedArray(input.nodeNameFilters),
+      nodeAccess: input.nodeAccessType ? (input.nodeAccessType === "Primary" ? "Primary" : "Secondary") : null,
+    },
+    nodeType: normalizeAppliedArray(input.nodeTypeFilters),
+    category: normalizeAppliedArray(input.accessCategoryFilters),
+    subCategory: normalizeAppliedArray(input.accessSubcategoryFilters),
+    reportingManager: normalizeAppliedArray(input.reportingManagerFilters),
+    onboardingDate: dateFilter,
+    status: normalizeAppliedArray(input.statusFilters),
+    role: input.roleFilters.length > 0 ? input.roleFilters : null,
+    isPending: input.pendingActionFilter,
+  };
 };
 
 export function useUserManagement() {
@@ -115,55 +141,44 @@ export function useUserManagement() {
   const [pendingAction, setPendingAction] = useState<{ member: AppUser; action: "activate" | "deactivate" } | null>(null);
   const [hasNewUserEvent, setHasNewUserEvent] = useState(false);
   const [hasLoadedUsersOnce, setHasLoadedUsersOnce] = useState(false);
+  const [isFilterRequestActive, setIsFilterRequestActive] = useState(false);
 
   const selectedFilterStatus = statusFilters[0] ?? null;
   const effectiveStatusTab = selectedFilterStatus ? FILTER_STATUS_TO_TAB[selectedFilterStatus] : statusTab;
 
-  const appliedFilters = useMemo<UserAppliedFilters | null>(() => {
-    const dateFilter =
-      onboardingDateRange || onboardingDateFrom || onboardingDateTo
-        ? {
-            dateRange: onboardingDateRange && onboardingDateRange !== "CUSTOM" ? onboardingDateRange : null,
-            fromDate: onboardingDateFrom || null,
-            toDate: onboardingDateTo || null,
-          }
-        : null;
-
-    const applied: UserAppliedFilters = {
-      designation: normalizeAppliedArray(designationFilters),
-      nodeName:
-        departmentFilters.length > 0 || nodeAccessType
-          ? {
-              values: normalizeAppliedArray(departmentFilters),
-              nodeAccess: nodeAccessType,
-            }
-          : null,
-      nodeType: normalizeAppliedArray(nodeTypeFilters),
-      category: normalizeAppliedArray(accessCategoryFilters),
-      subCategory: normalizeAppliedArray(accessSubcategoryFilters),
-      reportingManager: normalizeAppliedArray(reportingManagerFilters),
-      onboardingDate: dateFilter,
-      status: normalizeAppliedArray(statusFilters),
-      role: roleFilters.length > 0 ? roleFilters : null,
-      isPendingActions: pendingActionFilter,
-    };
-
-    return hasAppliedUserRefinement(applied) ? applied : null;
-  }, [
-    accessCategoryFilters,
-    accessSubcategoryFilters,
-    departmentFilters,
-    designationFilters,
-    nodeAccessType,
-    nodeTypeFilters,
-    onboardingDateFrom,
-    onboardingDateRange,
-    onboardingDateTo,
-    pendingActionFilter,
-    reportingManagerFilters,
-    roleFilters,
-    statusFilters,
-  ]);
+  const appliedFilters = useMemo<UserAppliedFilters>(
+    () =>
+      buildAppliedFilters({
+        designationFilters,
+        nodeNameFilters: departmentFilters,
+        nodeTypeFilters,
+        accessCategoryFilters,
+        accessSubcategoryFilters,
+        reportingManagerFilters,
+        statusFilters,
+        roleFilters,
+        nodeAccessType,
+        pendingActionFilter,
+        onboardingDateRange,
+        onboardingDateFrom,
+        onboardingDateTo,
+      }),
+    [
+      accessCategoryFilters,
+      accessSubcategoryFilters,
+      departmentFilters,
+      designationFilters,
+      nodeAccessType,
+      nodeTypeFilters,
+      onboardingDateFrom,
+      onboardingDateRange,
+      onboardingDateTo,
+      pendingActionFilter,
+      reportingManagerFilters,
+      roleFilters,
+      statusFilters,
+    ],
+  );
 
   const getCountForTab = useCallback(
     (
@@ -191,7 +206,11 @@ export function useUserManagement() {
   );
 
   const loadUsers = useCallback(
-    async (showRefreshToast = false, overrideStatusTab?: MemberStatusTab) => {
+    async (
+      showRefreshToast = false,
+      overrideStatusTab?: MemberStatusTab,
+      requestOverrides?: { forceFilter?: boolean; applied?: UserAppliedFilters | null },
+    ) => {
       const companyCode = currentUser?.companyCode?.trim().toUpperCase();
       if (!companyCode) return null;
       const requestedTab = overrideStatusTab ?? effectiveStatusTab;
@@ -203,10 +222,12 @@ export function useUserManagement() {
 
       setIsLoading(true);
       try {
+        const shouldSendFilter = requestOverrides?.forceFilter ?? isFilterRequestActive;
+        const requestApplied = requestOverrides?.applied ?? appliedFilters;
         const response = await fetchCompanyUsersPaginated(requestedTab, {
           companyCode,
-          filter: Boolean(appliedFilters),
-          applied: appliedFilters,
+          filter: shouldSendFilter,
+          applied: requestApplied,
           pagination: {
             limit: pageSize,
             cursor: null,
@@ -255,7 +276,7 @@ export function useUserManagement() {
         }
       }
     },
-    [appliedFilters, currentUser?.companyCode, debouncedSearch, effectiveStatusTab, getCountForTab, maybeShowActivityToast, pageSize, setUsers, toast],
+    [appliedFilters, currentUser?.companyCode, debouncedSearch, effectiveStatusTab, getCountForTab, isFilterRequestActive, maybeShowActivityToast, pageSize, setUsers, toast],
   );
 
   const loadFilterOptions = useCallback(async () => {
@@ -345,7 +366,38 @@ export function useUserManagement() {
     setOnboardingDateFrom("");
     setOnboardingDateTo("");
     setStatusTab("active");
+    setIsFilterRequestActive(false);
   }, []);
+
+  const applyAdvancedFilters = useCallback(
+    (filters: AppliedUserFiltersDraft) => {
+      setDesignationFilters(filters.designationFilters);
+      setDepartmentFilters(filters.nodeNameFilters);
+      setNodeTypeFilters(filters.nodeTypeFilters);
+      setAccessCategoryFilters(filters.accessCategoryFilters);
+      setAccessSubcategoryFilters(filters.accessSubcategoryFilters);
+      setReportingManagerFilters(filters.reportingManagerFilters);
+      setStatusFilters(filters.statusFilters);
+      setRoleFilters(filters.roleFilters);
+      setNodeAccessType(filters.nodeAccessType);
+      setPendingActionFilter(filters.pendingActionFilter);
+      setOnboardingDateRange(filters.onboardingDateRange);
+      setOnboardingDateFrom(filters.onboardingDateFrom);
+      setOnboardingDateTo(filters.onboardingDateTo);
+      setIsFilterRequestActive(true);
+
+      const selectedStatus = filters.statusFilters[0];
+      const nextStatusTab =
+        selectedStatus === "Pending" ? "pending" : selectedStatus === "Inactive" ? "inactive" : "active";
+      setStatusTab(nextStatusTab);
+      setPage(1);
+      setPageCursors({ 1: null });
+      setTopCursor(null);
+      setNextCursor(null);
+      setHasNext(false);
+    },
+    [],
+  );
 
   const sortedUsers = useMemo(() => {
     const next = [...users];
@@ -387,7 +439,7 @@ export function useUserManagement() {
     try {
       const response = await fetchCompanyUsersPaginated(effectiveStatusTab, {
         companyCode,
-        filter: Boolean(appliedFilters),
+        filter: isFilterRequestActive,
         applied: appliedFilters,
         pagination: {
           limit: pageSize,
@@ -420,7 +472,7 @@ export function useUserManagement() {
     } finally {
       setIsLoading(false);
     }
-  }, [appliedFilters, currentUser?.companyCode, debouncedSearch, effectiveStatusTab, getCountForTab, maybeShowActivityToast, page, pageCursors, pageSize, setUsers, toast, topCursor]);
+  }, [appliedFilters, currentUser?.companyCode, debouncedSearch, effectiveStatusTab, getCountForTab, isFilterRequestActive, maybeShowActivityToast, page, pageCursors, pageSize, setUsers, toast, topCursor]);
 
   const handleNextPage = useCallback(async () => {
     if (!hasNext) return;
@@ -434,7 +486,7 @@ export function useUserManagement() {
     try {
       const response = await fetchCompanyUsersPaginated(effectiveStatusTab, {
         companyCode,
-        filter: Boolean(appliedFilters),
+        filter: isFilterRequestActive,
         applied: appliedFilters,
         pagination: {
           limit: pageSize,
@@ -471,7 +523,7 @@ export function useUserManagement() {
     } finally {
       setIsLoading(false);
     }
-  }, [appliedFilters, currentUser?.companyCode, debouncedSearch, effectiveStatusTab, getCountForTab, hasNext, maybeShowActivityToast, nextCursor, page, pageCursors, pageSize, setUsers, toast, topCursor]);
+  }, [appliedFilters, currentUser?.companyCode, debouncedSearch, effectiveStatusTab, getCountForTab, hasNext, isFilterRequestActive, maybeShowActivityToast, nextCursor, page, pageCursors, pageSize, setUsers, toast, topCursor]);
 
   const handleJumpToPage = useCallback(
     async (requestedPage: number) => {
@@ -485,7 +537,7 @@ export function useUserManagement() {
         const jumpCursor = pageCursors[targetPage] ?? nextCursor ?? topCursor ?? "";
         const response = await fetchCompanyUsersPaginated(effectiveStatusTab, {
           companyCode,
-          filter: Boolean(appliedFilters),
+          filter: isFilterRequestActive,
           applied: appliedFilters,
           pagination: {
             limit: pageSize,
@@ -522,7 +574,7 @@ export function useUserManagement() {
         setIsLoading(false);
       }
     },
-    [appliedFilters, currentUser?.companyCode, debouncedSearch, effectiveStatusTab, getCountForTab, nextCursor, page, pageCursors, pageSize, setUsers, toast, topCursor, totalPages],
+    [appliedFilters, currentUser?.companyCode, debouncedSearch, effectiveStatusTab, getCountForTab, isFilterRequestActive, nextCursor, page, pageCursors, pageSize, setUsers, toast, topCursor, totalPages],
   );
 
   const {
@@ -615,6 +667,7 @@ export function useUserManagement() {
     nodeTypeOptions: filterDropdowns.nodeType,
     toggleFilterValue,
     clearAdvancedFilters,
+    applyAdvancedFilters,
     loadFilterOptions,
     activeMembers,
     pendingMembers,
