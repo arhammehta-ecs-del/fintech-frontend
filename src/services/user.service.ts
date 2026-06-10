@@ -92,13 +92,13 @@ type UserDetailsResponse = {
 
 export type UserListStatusTab = "active" | "pending" | "inactive";
 
-export type UserFilterDateRange = "7DAYS" | "15DAYS" | "1MONTH" | "1YEAR" | null;
+export type UserFilterDateRange = "7DAYS" | "15DAYS" | "1MONTH" | "1YEAR" | "CUSTOM" | null;
 
 export type UserAppliedFilters = {
   designation: string[] | null;
   nodeName: {
     values: string[] | null;
-    nodeAccess: "Primary" | "Secondary" | null;
+    nodeAccess: "P" | "S" | null;
   } | null;
   nodeType: string[] | null;
   category: string[] | null;
@@ -110,6 +110,7 @@ export type UserAppliedFilters = {
     toDate: string | null;
   } | null;
   status: string[] | null;
+  currentStatus: "modify" | "initiate" | null;
   role: string[] | null;
   isPending: "Yes" | "No" | null;
 };

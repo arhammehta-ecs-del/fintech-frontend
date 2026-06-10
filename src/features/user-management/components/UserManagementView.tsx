@@ -48,6 +48,7 @@ export function UserManagementView() {
     setReportingManagerFilters,
     statusFilters,
     setStatusFilters,
+    statusFilterMode,
     roleFilters,
     setRoleFilters,
     nodeAccessType,
@@ -538,6 +539,7 @@ export function UserManagementView() {
         accessSubcategoryFilters={accessSubcategoryFilters}
         reportingManagerFilters={reportingManagerFilters}
         statusFilters={statusFilters}
+        statusFilterMode={statusFilterMode}
         roleFilters={roleFilters}
         nodeAccessType={nodeAccessType}
         pendingActionFilter={pendingActionFilter}

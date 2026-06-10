@@ -14,11 +14,12 @@ import { USER_DEFAULT_PAGE_SIZE, USER_PAGE_SIZE_OPTIONS, USER_SEARCH_DEBOUNCE_MS
 import type { MemberStatusTab, SortOrder } from "@/features/user-management/types";
 import { createUserManagementActions } from "@/features/user-management/hooks/useUserManagement.actions";
 
-type FilterStatusValue = "Active" | "Pending" | "Inactive" | "Modification In Progress";
+type FilterStatusValue = "Active" | "Pending" | "Inactive";
 type FilterRoleValue = "Maker" | "Checker" | "User";
 type NodeAccessValue = "Primary" | "Secondary" | null;
 type PendingActionValue = "Yes" | "No" | null;
 type OnboardingDateRange = "7DAYS" | "15DAYS" | "1MONTH" | "1YEAR" | "CUSTOM" | null;
+type StatusFilterModeValue = "initiate" | "modify";
 type AppliedUserFiltersDraft = {
   designationFilters: string[];
   nodeNameFilters: string[];
@@ -27,6 +28,7 @@ type AppliedUserFiltersDraft = {
   accessSubcategoryFilters: string[];
   reportingManagerFilters: string[];
   statusFilters: FilterStatusValue[];
+  statusFilterMode: StatusFilterModeValue[];
   roleFilters: FilterRoleValue[];
   nodeAccessType: NodeAccessValue;
   pendingActionFilter: PendingActionValue;
@@ -48,7 +50,6 @@ const FILTER_STATUS_TO_TAB: Record<FilterStatusValue, MemberStatusTab> = {
   Active: "active",
   Pending: "pending",
   Inactive: "inactive",
-  "Modification In Progress": "active",
 };
 
 const fuzzyMatch = (text: string, query: string) => {
@@ -68,14 +69,16 @@ const toggleFilterValue = (current: string[], value: string) =>
   current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
 
 const normalizeAppliedArray = (values: string[]) => (values.length > 0 ? values : null);
+const deriveCurrentStatus = (values: StatusFilterModeValue[]): StatusFilterModeValue | null =>
+  values.length === 1 ? values[0] : null;
 
 const buildAppliedFilters = (input: AppliedUserFiltersDraft): UserAppliedFilters => {
   const dateFilter =
     input.onboardingDateRange || input.onboardingDateFrom || input.onboardingDateTo
       ? {
-          dateRange: input.onboardingDateRange && input.onboardingDateRange !== "CUSTOM" ? input.onboardingDateRange : null,
-          fromDate: input.onboardingDateFrom || null,
-          toDate: input.onboardingDateTo || null,
+          dateRange: input.onboardingDateRange ?? null,
+          fromDate: input.onboardingDateRange === "CUSTOM" ? input.onboardingDateFrom || null : null,
+          toDate: input.onboardingDateRange === "CUSTOM" ? input.onboardingDateTo || null : null,
         }
       : null;
 
@@ -83,7 +86,7 @@ const buildAppliedFilters = (input: AppliedUserFiltersDraft): UserAppliedFilters
     designation: normalizeAppliedArray(input.designationFilters),
     nodeName: {
       values: normalizeAppliedArray(input.nodeNameFilters),
-      nodeAccess: input.nodeAccessType ? (input.nodeAccessType === "Primary" ? "Primary" : "Secondary") : null,
+      nodeAccess: input.nodeAccessType ? (input.nodeAccessType === "Primary" ? "P" : "S") : null,
     },
     nodeType: normalizeAppliedArray(input.nodeTypeFilters),
     category: normalizeAppliedArray(input.accessCategoryFilters),
@@ -91,6 +94,7 @@ const buildAppliedFilters = (input: AppliedUserFiltersDraft): UserAppliedFilters
     reportingManager: normalizeAppliedArray(input.reportingManagerFilters),
     onboardingDate: dateFilter,
     status: normalizeAppliedArray(input.statusFilters),
+    currentStatus: deriveCurrentStatus(input.statusFilterMode),
     role: input.roleFilters.length > 0 ? input.roleFilters : null,
     isPending: input.pendingActionFilter,
   };
@@ -110,6 +114,7 @@ export function useUserManagement() {
   const [nodeTypeFilters, setNodeTypeFilters] = useState<string[]>([]);
   const [roleFilters, setRoleFilters] = useState<FilterRoleValue[]>([]);
   const [statusFilters, setStatusFilters] = useState<FilterStatusValue[]>([]);
+  const [statusFilterMode, setStatusFilterMode] = useState<StatusFilterModeValue[]>([]);
   const [nodeAccessType, setNodeAccessType] = useState<NodeAccessValue>(null);
   const [pendingActionFilter, setPendingActionFilter] = useState<PendingActionValue>(null);
   const [onboardingDateRange, setOnboardingDateRange] = useState<OnboardingDateRange>(null);
@@ -156,6 +161,7 @@ export function useUserManagement() {
         accessSubcategoryFilters,
         reportingManagerFilters,
         statusFilters,
+        statusFilterMode,
         roleFilters,
         nodeAccessType,
         pendingActionFilter,
@@ -176,6 +182,7 @@ export function useUserManagement() {
       pendingActionFilter,
       reportingManagerFilters,
       roleFilters,
+      statusFilterMode,
       statusFilters,
     ],
   );
@@ -360,6 +367,7 @@ export function useUserManagement() {
     setNodeTypeFilters([]);
     setRoleFilters([]);
     setStatusFilters([]);
+    setStatusFilterMode([]);
     setNodeAccessType(null);
     setPendingActionFilter(null);
     setOnboardingDateRange(null);
@@ -377,6 +385,7 @@ export function useUserManagement() {
       setAccessCategoryFilters(filters.accessCategoryFilters);
       setAccessSubcategoryFilters(filters.accessSubcategoryFilters);
       setReportingManagerFilters(filters.reportingManagerFilters);
+      setStatusFilterMode(filters.statusFilterMode);
       setStatusFilters(filters.statusFilters);
       setRoleFilters(filters.roleFilters);
       setNodeAccessType(filters.nodeAccessType);
@@ -628,6 +637,7 @@ export function useUserManagement() {
     setRoleFilters,
     statusFilters,
     setStatusFilters,
+    statusFilterMode,
     nodeAccessType,
     setNodeAccessType,
     pendingActionFilter,
