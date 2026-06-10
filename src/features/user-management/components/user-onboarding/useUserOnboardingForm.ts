@@ -115,10 +115,13 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
           safetyCounter += 1;
           const response = await fetchCompanyUsersPaginated("active", {
             companyCode: normalizedCompanyCode,
-            limit: 100,
-            cursor,
-            topCursor,
-            direction: "NEXT",
+            pagination: {
+              limit: 100,
+              cursor,
+              topCursor,
+              direction: "NEXT",
+              statusType: "active",
+            },
           });
 
           allActiveUsers.push(...response.users);

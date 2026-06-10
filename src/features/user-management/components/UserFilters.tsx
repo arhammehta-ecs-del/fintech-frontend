@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { ArrowUpDown, ChevronDown, Filter, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -13,17 +14,44 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { formatRoleTokenLabel } from "@/features/user-management/roleLabels";
 import type { MemberStatusTab, SortOrder } from "@/features/user-management/types";
 import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
+import type { UserFilterDropdownOption, UserFilterNodeOption } from "@/services/user.service";
+
+type FilterStatusValue = "Active" | "Pending" | "Inactive" | "Modification In Progress";
+type FilterRoleValue = "Maker" | "Checker" | "User";
+type NodeAccessValue = "Primary" | "Secondary" | null;
+type PendingActionValue = "Yes" | "No" | null;
+type OnboardingDateRange = "7DAYS" | "15DAYS" | "1MONTH" | "1YEAR" | "CUSTOM" | null;
+
+type AppliedUserFiltersDraft = {
+  designationFilters: string[];
+  nodeNameFilters: string[];
+  nodeTypeFilters: string[];
+  accessCategoryFilters: string[];
+  accessSubcategoryFilters: string[];
+  reportingManagerFilters: string[];
+  statusFilters: FilterStatusValue[];
+  roleFilters: FilterRoleValue[];
+  nodeAccessType: NodeAccessValue;
+  pendingActionFilter: PendingActionValue;
+  onboardingDateRange: OnboardingDateRange;
+  onboardingDateFrom: string;
+  onboardingDateTo: string;
+};
 
 const STATUS_TABS: Array<{ id: MemberStatusTab; label: string }> = [
   { id: "active", label: "Active" },
   { id: "pending", label: "Pending" },
   { id: "inactive", label: "Inactive" },
 ];
+
+const FILTER_STATUS_OPTIONS: FilterStatusValue[] = ["Active", "Pending", "Inactive", "Modification In Progress"];
+const FILTER_ROLE_OPTIONS: FilterRoleValue[] = ["Maker", "Checker", "User"];
+const DATE_RANGE_OPTIONS: Array<Exclude<OnboardingDateRange, "CUSTOM" | null>> = ["7DAYS", "1MONTH", "1YEAR"];
 
 const STATUS_BADGE_CLASS: Record<MemberStatusTab, string> = {
   active: "bg-emerald-100 text-emerald-700",
@@ -38,134 +66,130 @@ type UserFiltersProps = {
   onSearchChange: (value: string) => void;
   searchSuggestions: string[];
   designationFilters: string[];
-  onToggleDesignation: (value: string) => void;
+  nodeNameFilters: string[];
+  nodeTypeFilters: string[];
   accessCategoryFilters: string[];
-  onToggleAccessCategory: (value: string) => void;
   accessSubcategoryFilters: string[];
-  onToggleAccessSubcategory: (value: string) => void;
-  departmentFilters: string[];
-  onToggleDepartment: (value: string) => void;
   reportingManagerFilters: string[];
-  onToggleReportingManager: (value: string) => void;
-  primaryNodeFilters: string[];
-  onTogglePrimaryNode: (value: string) => void;
-  secondaryNodeFilters: string[];
-  onToggleSecondaryNode: (value: string) => void;
+  statusFilters: FilterStatusValue[];
+  roleFilters: FilterRoleValue[];
+  nodeAccessType: NodeAccessValue;
+  pendingActionFilter: PendingActionValue;
+  onboardingDateRange: OnboardingDateRange;
   onboardingDateFrom: string;
   onboardingDateTo: string;
-  onOnboardingDateFromChange: (value: string) => void;
-  onOnboardingDateToChange: (value: string) => void;
   onClearAdvancedFilters: () => void;
-  onApplyAdvancedFilters: (filters: {
-    designationFilters: string[];
-    accessCategoryFilters: string[];
-    accessSubcategoryFilters: string[];
-    departmentFilters: string[];
-    reportingManagerFilters: string[];
-    primaryNodeFilters: string[];
-    secondaryNodeFilters: string[];
-  }) => void;
+  onApplyAdvancedFilters: (filters: AppliedUserFiltersDraft) => void;
+  onOpenFilters: () => void | Promise<void>;
   sortOrder: SortOrder;
   onSortOrderChange: (value: SortOrder) => void;
   hasNewUserEvent: boolean;
   suppressAutoEventTooltip?: boolean;
   onRefresh: () => void | Promise<void>;
   refreshInitializedAt?: number | null;
-  roles: string[];
+  roles: UserFilterDropdownOption[];
   accessCategories: string[];
-  accessSubcategories: string[];
-  departments: string[];
+  accessSubcategories: Record<string, string[]>;
+  filterNodeOptions: UserFilterNodeOption[];
+  nodeTypeOptions: string[];
   reportingManagerOptions: string[];
-  primaryNodeOptions: string[];
-  secondaryNodeOptions: string[];
   statusCounts: Record<MemberStatusTab, number>;
+  isFilterLoading: boolean;
 };
 
-export default function UserFilters({
-  statusTab,
-  onStatusTabChange,
-  search,
-  onSearchChange,
-  searchSuggestions,
-  designationFilters,
-  onToggleDesignation,
-  accessCategoryFilters,
-  onToggleAccessCategory,
-  accessSubcategoryFilters,
-  onToggleAccessSubcategory,
-  departmentFilters,
-  onToggleDepartment,
-  reportingManagerFilters,
-  onToggleReportingManager,
-  primaryNodeFilters,
-  onTogglePrimaryNode,
-  secondaryNodeFilters,
-  onToggleSecondaryNode,
-  onboardingDateFrom,
-  onboardingDateTo,
-  onOnboardingDateFromChange,
-  onOnboardingDateToChange,
-  onClearAdvancedFilters,
-  onApplyAdvancedFilters,
-  hasNewUserEvent,
-  suppressAutoEventTooltip = false,
-  onRefresh,
-  refreshInitializedAt,
-  onSortOrderChange,
-  roles,
-  accessCategories,
-  accessSubcategories,
-  departments,
-  reportingManagerOptions,
-  primaryNodeOptions,
-  secondaryNodeOptions,
-  statusCounts,
-}: UserFiltersProps) {
+const buildDraftFromProps = (props: UserFiltersProps): AppliedUserFiltersDraft => ({
+  designationFilters: props.designationFilters,
+  nodeNameFilters: props.nodeNameFilters,
+  nodeTypeFilters: props.nodeTypeFilters,
+  accessCategoryFilters: props.accessCategoryFilters,
+  accessSubcategoryFilters: props.accessSubcategoryFilters,
+  reportingManagerFilters: props.reportingManagerFilters,
+  statusFilters: props.statusFilters,
+  roleFilters: props.roleFilters,
+  nodeAccessType: props.nodeAccessType,
+  pendingActionFilter: props.pendingActionFilter,
+  onboardingDateRange: props.onboardingDateRange,
+  onboardingDateFrom: props.onboardingDateFrom,
+  onboardingDateTo: props.onboardingDateTo,
+});
+
+export default function UserFilters(props: UserFiltersProps) {
+  const {
+    statusTab,
+    onStatusTabChange,
+    search,
+    onSearchChange,
+    searchSuggestions,
+    onClearAdvancedFilters,
+    onApplyAdvancedFilters,
+    onOpenFilters,
+    hasNewUserEvent,
+    suppressAutoEventTooltip = false,
+    onRefresh,
+    refreshInitializedAt,
+    sortOrder,
+    onSortOrderChange,
+    roles,
+    accessCategories,
+    accessSubcategories,
+    filterNodeOptions,
+    nodeTypeOptions,
+    reportingManagerOptions,
+    statusCounts,
+    isFilterLoading,
+  } = props;
   const visibleTabs = STATUS_TABS.filter((tab) => tab.id === "active" || statusCounts[tab.id] > 0);
-  const activeFilterCount =
-    designationFilters.length +
-    accessCategoryFilters.length +
-    accessSubcategoryFilters.length +
-    departmentFilters.length +
-    reportingManagerFilters.length +
-    primaryNodeFilters.length +
-    secondaryNodeFilters.length +
-    (onboardingDateFrom ? 1 : 0) +
-    (onboardingDateTo ? 1 : 0);
-  const hasAnyFilter = activeFilterCount > 0;
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [draftDesignationFilters, setDraftDesignationFilters] = useState<string[]>(designationFilters);
-  const [draftAccessCategoryFilters, setDraftAccessCategoryFilters] = useState<string[]>(accessCategoryFilters);
-  const [draftAccessSubcategoryFilters, setDraftAccessSubcategoryFilters] = useState<string[]>(accessSubcategoryFilters);
-  const [draftDepartmentFilters, setDraftDepartmentFilters] = useState<string[]>(departmentFilters);
-  const [draftReportingManagerFilters, setDraftReportingManagerFilters] = useState<string[]>(reportingManagerFilters);
-  const [draftPrimaryNodeFilters, setDraftPrimaryNodeFilters] = useState<string[]>(primaryNodeFilters);
-  const [draftSecondaryNodeFilters, setDraftSecondaryNodeFilters] = useState<string[]>(secondaryNodeFilters);
+  const [draft, setDraft] = useState<AppliedUserFiltersDraft>(buildDraftFromProps(props));
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isRefreshTooltipOpen, setIsRefreshTooltipOpen] = useState(false);
   const { refreshLabel, markRefreshed } = useRefreshTimestamp({ initializedAt: refreshInitializedAt });
 
-  const toggleValue = (current: string[], value: string) =>
-    current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+  const activeFilterCount =
+    draft.designationFilters.length +
+    draft.nodeNameFilters.length +
+    draft.nodeTypeFilters.length +
+    draft.accessCategoryFilters.length +
+    draft.accessSubcategoryFilters.length +
+    draft.reportingManagerFilters.length +
+    draft.statusFilters.length +
+    draft.roleFilters.length +
+    (draft.nodeAccessType ? 1 : 0) +
+    (draft.pendingActionFilter ? 1 : 0) +
+    (draft.onboardingDateRange ? 1 : 0) +
+    (draft.onboardingDateFrom ? 1 : 0) +
+    (draft.onboardingDateTo ? 1 : 0);
 
-  const resetDraftFilters = () => {
-    setDraftDesignationFilters([]);
-    setDraftAccessCategoryFilters([]);
-    setDraftAccessSubcategoryFilters([]);
-    setDraftDepartmentFilters([]);
-    setDraftReportingManagerFilters([]);
-    setDraftPrimaryNodeFilters([]);
-    setDraftSecondaryNodeFilters([]);
+  const hasAnyFilter = activeFilterCount > 0;
+  const subCategoryOptions = useMemo(
+    () =>
+      draft.accessCategoryFilters.length === 0
+        ? Object.values(accessSubcategories).flat()
+        : draft.accessCategoryFilters.flatMap((category) => accessSubcategories[category] ?? []),
+    [accessSubcategories, draft.accessCategoryFilters],
+  );
+
+  const updateDraft = <K extends keyof AppliedUserFiltersDraft>(key: K, value: AppliedUserFiltersDraft[K]) => {
+    setDraft((current) => ({ ...current, [key]: value }));
   };
 
-  const syncDraftFromApplied = () => {
-    setDraftDesignationFilters(designationFilters);
-    setDraftAccessCategoryFilters(accessCategoryFilters);
-    setDraftAccessSubcategoryFilters(accessSubcategoryFilters);
-    setDraftDepartmentFilters(departmentFilters);
-    setDraftReportingManagerFilters(reportingManagerFilters);
-    setDraftPrimaryNodeFilters(primaryNodeFilters);
-    setDraftSecondaryNodeFilters(secondaryNodeFilters);
+  const clearDraftField = (key: keyof AppliedUserFiltersDraft) => {
+    const emptyValue: Partial<AppliedUserFiltersDraft> = {
+      designationFilters: [],
+      nodeNameFilters: [],
+      nodeTypeFilters: [],
+      accessCategoryFilters: [],
+      accessSubcategoryFilters: [],
+      reportingManagerFilters: [],
+      statusFilters: [],
+      roleFilters: [],
+      nodeAccessType: null,
+      pendingActionFilter: null,
+      onboardingDateRange: null,
+      onboardingDateFrom: "",
+      onboardingDateTo: "",
+    };
+    updateDraft(key, emptyValue[key] as AppliedUserFiltersDraft[keyof AppliedUserFiltersDraft]);
   };
 
   return (
@@ -179,9 +203,7 @@ export default function UserFilters({
             onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
             onChange={(event) => onSearchChange(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                onSearchChange(search.trim());
-              }
+              if (event.key === "Enter") onSearchChange(search.trim());
             }}
             placeholder="Search by name, email, designation, or phone..."
             className="h-12 rounded-xl border-slate-200 bg-white pl-10 pr-9 text-[15px] shadow-sm"
@@ -231,7 +253,6 @@ export default function UserFilters({
                     ? "bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)]"
                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
                 )}
-                aria-pressed={statusTab === tab.id}
               >
                 <span>{tab.label}</span>
                 <span
@@ -248,8 +269,11 @@ export default function UserFilters({
 
           <Popover
             open={filtersOpen}
-            onOpenChange={(nextOpen) => {
-              if (nextOpen) syncDraftFromApplied();
+            onOpenChange={async (nextOpen) => {
+              if (nextOpen) {
+                setDraft(buildDraftFromProps(props));
+                await onOpenFilters();
+              }
               setFiltersOpen(nextOpen);
             }}
           >
@@ -272,112 +296,175 @@ export default function UserFilters({
             </PopoverTrigger>
             <PopoverContent
               align="end"
-              className="w-[460px] rounded-2xl border border-slate-200 bg-white p-0 shadow-[0_26px_60px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80"
+              className="w-[560px] rounded-2xl border border-slate-200 bg-white p-0 shadow-[0_26px_60px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80"
             >
               <div className="border-b border-slate-200 bg-white px-5 py-3.5">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[14px] font-semibold tracking-[0.01em] text-slate-900">Filter Members</p>
                     <p className="mt-0.5 text-[12px] text-slate-500">
-                      {hasAnyFilter ? `${activeFilterCount} filters applied` : "No filters applied"}
+                      {isFilterLoading ? "Loading filter options..." : hasAnyFilter ? `${activeFilterCount} filters applied` : "No filters applied"}
                     </p>
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-7 rounded-lg px-2.5 text-[12px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                    onClick={resetDraftFilters}
+                    onClick={() => setDraft(buildEmptyDraft())}
                   >
                     Clear all
                   </Button>
                 </div>
               </div>
 
-              <div className="max-h-[62vh] space-y-3.5 overflow-y-auto bg-white px-5 py-3.5">
+              <div className="max-h-[70vh] space-y-4 overflow-y-auto bg-white px-5 py-3.5">
                 <FilterSection title="Identity">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <FilterDropdown
+                    <MultiSelectDropdown
                       title="Designation"
                       placeholder="All designations"
-                      options={roles}
-                      selected={draftDesignationFilters}
-                      onToggle={(value) => setDraftDesignationFilters((current) => toggleValue(current, value))}
+                      options={roles.map((role) => role.value)}
+                      counts={Object.fromEntries(roles.map((role) => [role.value, role.count ?? 0]))}
+                      selected={draft.designationFilters}
+                      onToggle={(value) => updateDraft("designationFilters", toggleFilterValue(draft.designationFilters, value))}
+                      onClear={() => clearDraftField("designationFilters")}
                     />
-                    <FilterDropdown
-                      title="Node Name"
-                      placeholder="All node names"
-                      options={departments}
-                      selected={draftDepartmentFilters}
-                      onToggle={(value) => setDraftDepartmentFilters((current) => toggleValue(current, value))}
+                    <NodeNameDropdown
+                      options={filterNodeOptions}
+                      selected={draft.nodeNameFilters}
+                      nodeAccessType={draft.nodeAccessType}
+                      onToggle={(value) => updateDraft("nodeNameFilters", toggleFilterValue(draft.nodeNameFilters, value))}
+                      onNodeAccessChange={(value) => updateDraft("nodeAccessType", value)}
+                      onSelectAllChildren={(values) =>
+                        updateDraft("nodeNameFilters", Array.from(new Set([...draft.nodeNameFilters, ...values])))
+                      }
+                      onClearSelection={() => {
+                        clearDraftField("nodeNameFilters");
+                        clearDraftField("nodeAccessType");
+                      }}
                     />
-                    <FilterDropdown
+                    <MultiSelectDropdown
+                      title="Node Type"
+                      placeholder="All node types"
+                      options={nodeTypeOptions}
+                      selected={draft.nodeTypeFilters}
+                      onToggle={(value) => updateDraft("nodeTypeFilters", toggleFilterValue(draft.nodeTypeFilters, value))}
+                      onClear={() => clearDraftField("nodeTypeFilters")}
+                    />
+                    <MultiSelectDropdown
+                      title="Reporting Manager"
+                      placeholder="All reporting managers"
+                      options={reportingManagerOptions}
+                      selected={draft.reportingManagerFilters}
+                      onToggle={(value) => updateDraft("reportingManagerFilters", toggleFilterValue(draft.reportingManagerFilters, value))}
+                      onClear={() => clearDraftField("reportingManagerFilters")}
+                    />
+                    <MultiSelectDropdown
                       title="Category"
                       placeholder="All categories"
                       options={accessCategories}
-                      selected={draftAccessCategoryFilters}
-                      onToggle={(value) => setDraftAccessCategoryFilters((current) => toggleValue(current, value))}
+                      selected={draft.accessCategoryFilters}
+                      onToggle={(value) => {
+                        const nextCategories = toggleFilterValue(draft.accessCategoryFilters, value);
+                        const allowedSubcategories = new Set(nextCategories.flatMap((category) => accessSubcategories[category] ?? []));
+                        updateDraft("accessCategoryFilters", nextCategories);
+                        updateDraft(
+                          "accessSubcategoryFilters",
+                          draft.accessSubcategoryFilters.filter((subCategory) => allowedSubcategories.size === 0 || allowedSubcategories.has(subCategory)),
+                        );
+                      }}
+                      onClear={() => {
+                        clearDraftField("accessCategoryFilters");
+                        clearDraftField("accessSubcategoryFilters");
+                      }}
                     />
-                    <FilterDropdown
+                    <MultiSelectDropdown
                       title="Subcategory"
                       placeholder="All subcategories"
-                      options={accessSubcategories}
-                      selected={draftAccessSubcategoryFilters}
-                      onToggle={(value) => setDraftAccessSubcategoryFilters((current) => toggleValue(current, value))}
+                      options={subCategoryOptions}
+                      selected={draft.accessSubcategoryFilters}
+                      onToggle={(value) => updateDraft("accessSubcategoryFilters", toggleFilterValue(draft.accessSubcategoryFilters, value))}
+                      onClear={() => clearDraftField("accessSubcategoryFilters")}
                     />
-                    <FilterDropdown
-                      title="Primary Node"
-                      placeholder="All primary nodes"
-                      options={primaryNodeOptions}
-                      selected={draftPrimaryNodeFilters}
-                      onToggle={(value) => setDraftPrimaryNodeFilters((current) => toggleValue(current, value))}
+                  </div>
+                </FilterSection>
+
+                <FilterSection title="Activity">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <MultiSelectDropdown
+                      title="Status"
+                      placeholder="All statuses"
+                      options={FILTER_STATUS_OPTIONS}
+                      selected={draft.statusFilters}
+                      onToggle={(value) => updateDraft("statusFilters", toggleFilterValue(draft.statusFilters, value as FilterStatusValue) as FilterStatusValue[])}
+                      onClear={() => clearDraftField("statusFilters")}
                     />
-                    <FilterDropdown
-                      title="Secondary Node"
-                      placeholder="All secondary nodes"
-                      options={secondaryNodeOptions}
-                      selected={draftSecondaryNodeFilters}
-                      onToggle={(value) => setDraftSecondaryNodeFilters((current) => toggleValue(current, value))}
+                    <SingleSelectDropdown
+                      title="Has Pending Action"
+                      placeholder="All"
+                      options={["Yes", "No"]}
+                      value={draft.pendingActionFilter}
+                      onSelect={(value) => updateDraft("pendingActionFilter", value as PendingActionValue)}
+                      onClear={() => clearDraftField("pendingActionFilter")}
                     />
-                    <div className="md:col-span-2">
-                      <FilterDropdown
-                        title="Reporting Manager"
-                        placeholder="All reporting managers"
-                        options={reportingManagerOptions}
-                        selected={draftReportingManagerFilters}
-                        onToggle={(value) => setDraftReportingManagerFilters((current) => toggleValue(current, value))}
-                      />
-                    </div>
+                    <MultiSelectDropdown
+                      title="Roles"
+                      placeholder="All roles"
+                      options={FILTER_ROLE_OPTIONS}
+                      selected={draft.roleFilters}
+                      onToggle={(value) => updateDraft("roleFilters", toggleFilterValue(draft.roleFilters, value as FilterRoleValue) as FilterRoleValue[])}
+                      onClear={() => clearDraftField("roleFilters")}
+                    />
+                    <DateRangeDropdown
+                      title="Onboarding Date"
+                      range={draft.onboardingDateRange}
+                      fromDate={draft.onboardingDateFrom}
+                      toDate={draft.onboardingDateTo}
+                      onRangeChange={(value) => updateDraft("onboardingDateRange", value)}
+                      onFromDateChange={(value) => updateDraft("onboardingDateFrom", value)}
+                      onToDateChange={(value) => updateDraft("onboardingDateTo", value)}
+                      onClear={() => {
+                        clearDraftField("onboardingDateRange");
+                        clearDraftField("onboardingDateFrom");
+                        clearDraftField("onboardingDateTo");
+                      }}
+                    />
                   </div>
                 </FilterSection>
               </div>
-              <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3">
+
+              <div className="flex items-center justify-between gap-2 border-t border-slate-200 bg-white px-5 py-3">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    syncDraftFromApplied();
-                    setFiltersOpen(false);
+                    onClearAdvancedFilters();
+                    setDraft(buildEmptyDraft());
                   }}
                 >
-                  Cancel
+                  Reset Applied
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    onApplyAdvancedFilters({
-                      designationFilters: draftDesignationFilters,
-                      accessCategoryFilters: draftAccessCategoryFilters,
-                      accessSubcategoryFilters: draftAccessSubcategoryFilters,
-                      departmentFilters: draftDepartmentFilters,
-                      reportingManagerFilters: draftReportingManagerFilters,
-                      primaryNodeFilters: draftPrimaryNodeFilters,
-                      secondaryNodeFilters: draftSecondaryNodeFilters,
-                    });
-                    setFiltersOpen(false);
-                  }}
-                >
-                  Apply
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setDraft(buildDraftFromProps(props));
+                      setFiltersOpen(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      onApplyAdvancedFilters(draft);
+                      setFiltersOpen(false);
+                    }}
+                  >
+                    Apply
+                  </Button>
+                </div>
               </div>
             </PopoverContent>
           </Popover>
@@ -437,143 +524,303 @@ export default function UserFilters({
   );
 }
 
-function FilterDropdown({
+function buildEmptyDraft(): AppliedUserFiltersDraft {
+  return {
+    designationFilters: [],
+    nodeNameFilters: [],
+    nodeTypeFilters: [],
+    accessCategoryFilters: [],
+    accessSubcategoryFilters: [],
+    reportingManagerFilters: [],
+    statusFilters: [],
+    roleFilters: [],
+    nodeAccessType: null,
+    pendingActionFilter: null,
+    onboardingDateRange: null,
+    onboardingDateFrom: "",
+    onboardingDateTo: "",
+  };
+}
+
+function FilterSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <div className="border-b border-slate-100 pb-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function FieldHeader({ title, onClear, canClear }: { title: string; onClear: () => void; canClear: boolean }) {
+  return (
+    <div className="mb-1.5 flex items-center justify-between">
+      <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{title}</Label>
+      {canClear ? (
+        <button type="button" onClick={onClear} className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-600">
+          Clear
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function MultiSelectDropdown({
   title,
   placeholder,
   options,
   selected,
   onToggle,
+  onClear,
+  counts,
 }: {
   title: string;
   placeholder: string;
   options: string[];
   selected: string[];
   onToggle: (value: string) => void;
+  onClear: () => void;
+  counts?: Record<string, number>;
 }) {
-  const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-  const searchInputId = `${title.replace(/\s+/g, "-").toLowerCase()}-search`;
-  const summaryLabel =
-    selected.length === 0
-      ? placeholder
-      : selected.length === 1
-        ? formatRoleTokenLabel(selected[0])
-        : `${selected.length} selected`;
-  const filteredOptions = options.filter((option) => option.toLowerCase().includes(searchTerm));
-
+  const [search, setSearch] = useState("");
+  const filteredOptions = options.filter((option) => option.toLowerCase().includes(search.toLowerCase()));
   return (
-    <div className="space-y-1.5">
-      <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{title}</Label>
-      <DropdownMenu
-        open={open}
-        onOpenChange={(nextOpen) => {
-          setOpen(nextOpen);
-          if (!nextOpen) {
-            setSearchTerm("");
-            setIsSearchExpanded(false);
-          }
-        }}
-      >
+    <div>
+      <FieldHeader title={title} onClear={onClear} canClear={selected.length > 0} />
+      <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn(
-              "h-10 w-full justify-between rounded-lg border-slate-200 bg-white px-3 text-left text-[12px] font-medium hover:border-slate-300",
-              selected.length > 0 ? "border-blue-200 bg-blue-50/40 text-blue-800" : "text-slate-700",
-            )}
-          >
-            <span className="truncate">{summaryLabel}</span>
-            <span className="ml-2 inline-flex items-center gap-1.5">
-              {selected.length > 0 ? (
-                <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
-                  {selected.length}
-                </span>
-              ) : null}
-              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-            </span>
+          <Button variant="outline" className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", selected.length > 0 && "border-blue-200 bg-blue-50/40 text-blue-800")}>
+            <span className="truncate">{selected.length === 0 ? placeholder : selected.length === 1 ? selected[0] : `${selected.length} selected`}</span>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[260px] border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
-          onOpenAutoFocus={(event) => event.preventDefault()}
-        >
-          <div className="mt-1 flex items-center justify-between gap-2 px-1">
-            <DropdownMenuLabel className="p-0 text-[11px] uppercase tracking-[0.14em] text-slate-500">{title}</DropdownMenuLabel>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => {
-                if (isSearchExpanded) {
-                  setSearchTerm("");
-                  setIsSearchExpanded(false);
-                  return;
-                }
-                setIsSearchExpanded(true);
-              }}
-              className="h-9 w-9 rounded-lg border-slate-200 bg-slate-50 text-slate-600 shadow-none hover:border-slate-300 hover:bg-white"
-              aria-label={isSearchExpanded ? `Close ${title.toLowerCase()} search` : `Open ${title.toLowerCase()} search`}
+        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[260px] border border-slate-200 bg-white p-2">
+          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${title.toLowerCase()}`} className="mb-2 h-9" />
+          {filteredOptions.map((option) => (
+            <DropdownMenuCheckboxItem
+              key={option}
+              checked={selected.includes(option)}
+              onCheckedChange={() => onToggle(option)}
+              onSelect={(event) => event.preventDefault()}
+              className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
             >
-              {isSearchExpanded ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-            </Button>
-          </div>
-          <div
-            className={cn(
-              "overflow-hidden px-1 transition-all duration-250 ease-out",
-              isSearchExpanded ? "mt-2 max-h-12 opacity-100" : "max-h-0 opacity-0",
-            )}
-          >
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                id={searchInputId}
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                onKeyDown={(event) => {
-                  // Prevent Radix DropdownMenu typeahead from stealing focus on first key press.
-                  event.stopPropagation();
-                  if (event.key === "Escape") {
-                    setSearchTerm("");
-                    setIsSearchExpanded(false);
-                  }
-                }}
-                placeholder={`Search ${title.toLowerCase()}...`}
-                className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] shadow-none"
-                autoComplete="off"
-                autoFocus={isSearchExpanded}
-              />
-            </div>
-          </div>
-          {filteredOptions.length === 0 ? (
-            <div className="px-2 py-2 text-[12px] text-slate-400">No options available</div>
-          ) : (
-            <div className="mt-2 max-h-56 overflow-y-auto">
-              {filteredOptions.map((option) => (
-              <DropdownMenuCheckboxItem
-                key={option}
-                checked={selected.includes(option)}
-                onSelect={(event) => event.preventDefault()}
-                onCheckedChange={() => onToggle(option)}
-                className="text-[13px]"
-              >
-                  {formatRoleTokenLabel(option)}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </div>
-          )}
+              <div className="flex w-full items-center justify-between gap-2">
+                <span>{option}</span>
+                {counts && counts[option] ? <span className="text-[11px] text-slate-400">{counts[option]}</span> : null}
+              </div>
+            </DropdownMenuCheckboxItem>
+          ))}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
   );
 }
 
-function FilterSection({ title, children }: { title: string; children: ReactNode }) {
+function SingleSelectDropdown({
+  title,
+  placeholder,
+  options,
+  value,
+  onSelect,
+  onClear,
+}: {
+  title: string;
+  placeholder: string;
+  options: string[];
+  value: string | null;
+  onSelect: (value: string | null) => void;
+  onClear: () => void;
+}) {
   return (
-    <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/45 p-3 shadow-[0_2px_8px_rgba(148,163,184,0.1)]">
-      <p className="border-b border-slate-200 pb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-700">{title}</p>
-      <div className="space-y-2.5">{children}</div>
+    <div>
+      <FieldHeader title={title} onClear={onClear} canClear={Boolean(value)} />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", value && "border-blue-200 bg-blue-50/40 text-blue-800")}>
+            <span className="truncate">{value || placeholder}</span>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[220px] border border-slate-200 bg-white p-2">
+          {options.map((option) => (
+            <DropdownMenuCheckboxItem
+              key={option}
+              checked={value === option}
+              onCheckedChange={() => onSelect(value === option ? null : option)}
+              onSelect={(event) => event.preventDefault()}
+              className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
+            >
+              <span>{option}</span>
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+function DateRangeDropdown({
+  title,
+  range,
+  fromDate,
+  toDate,
+  onRangeChange,
+  onFromDateChange,
+  onToDateChange,
+  onClear,
+}: {
+  title: string;
+  range: OnboardingDateRange;
+  fromDate: string;
+  toDate: string;
+  onRangeChange: (value: OnboardingDateRange) => void;
+  onFromDateChange: (value: string) => void;
+  onToDateChange: (value: string) => void;
+  onClear: () => void;
+}) {
+  const summary =
+    range === "CUSTOM"
+      ? fromDate || toDate
+        ? `${fromDate || "Start"} to ${toDate || "End"}`
+        : "Custom range"
+      : range === "7DAYS"
+        ? "7 Days"
+        : range === "1MONTH"
+          ? "1 Month"
+          : range === "1YEAR"
+            ? "1 Year"
+            : "All dates";
+
+  return (
+    <div>
+      <FieldHeader title={title} onClear={onClear} canClear={Boolean(range || fromDate || toDate)} />
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", (range || fromDate || toDate) && "border-blue-200 bg-blue-50/40 text-blue-800")}>
+            <span className="truncate">{summary}</span>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-[320px] border border-slate-200 bg-white p-3">
+          <div className="flex flex-wrap gap-2">
+            {DATE_RANGE_OPTIONS.map((option) => (
+              <Button
+                key={option}
+                type="button"
+                variant={range === option ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  onRangeChange(option);
+                  onFromDateChange("");
+                  onToDateChange("");
+                }}
+              >
+                {option === "7DAYS" ? "7 Days" : option === "1MONTH" ? "1 Month" : "1 Year"}
+              </Button>
+            ))}
+            <Button type="button" variant={range === "CUSTOM" ? "default" : "outline"} size="sm" onClick={() => onRangeChange(range === "CUSTOM" ? null : "CUSTOM")}>
+              Custom
+            </Button>
+          </div>
+          {range === "CUSTOM" ? (
+            <div className="mt-3 grid grid-cols-1 gap-2">
+              <Input type="date" value={fromDate} onChange={(event) => onFromDateChange(event.target.value)} />
+              <Input type="date" value={toDate} onChange={(event) => onToDateChange(event.target.value)} />
+            </div>
+          ) : null}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+function NodeNameDropdown({
+  options,
+  selected,
+  nodeAccessType,
+  onToggle,
+  onNodeAccessChange,
+  onSelectAllChildren,
+  onClearSelection,
+}: {
+  options: UserFilterNodeOption[];
+  selected: string[];
+  nodeAccessType: NodeAccessValue;
+  onToggle: (value: string) => void;
+  onNodeAccessChange: (value: NodeAccessValue) => void;
+  onSelectAllChildren: (values: string[]) => void;
+  onClearSelection: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const filteredOptions = options.filter((option) => option.value.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div>
+      <FieldHeader title="Node Name" onClear={onClearSelection} canClear={selected.length > 0 || Boolean(nodeAccessType)} />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", (selected.length > 0 || nodeAccessType) && "border-blue-200 bg-blue-50/40 text-blue-800")}>
+            <span className="truncate">{selected.length === 0 ? "All node names" : selected.length === 1 ? selected[0] : `${selected.length} selected`}</span>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[340px] border border-slate-200 bg-white p-3">
+          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search node name" className="mb-3 h-9" />
+          <div className="mb-3 rounded-lg border border-slate-100 bg-slate-50 p-2">
+            <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              <span>Access</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 bg-white text-[10px]">P</span>
+                  </TooltipTrigger>
+                  <TooltipContent>Primary</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 bg-white text-[10px]">S</span>
+                  </TooltipTrigger>
+                  <TooltipContent>Secondary</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <RadioGroup value={nodeAccessType ?? ""} onValueChange={(value) => onNodeAccessChange((value || null) as NodeAccessValue)} className="flex gap-4">
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="Primary" id="node-access-primary" />
+                <Label htmlFor="node-access-primary">Primary</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="Secondary" id="node-access-secondary" />
+                <Label htmlFor="node-access-secondary">Secondary</Label>
+              </div>
+            </RadioGroup>
+          </div>
+          <div className="max-h-64 space-y-2 overflow-auto">
+            {filteredOptions.map((option) => {
+              const childValues = options
+                .filter((candidate) => candidate.path === option.path || candidate.path.startsWith(`${option.path}/`))
+                .map((candidate) => candidate.value);
+              return (
+                <div key={`${option.path}-${option.value}`} className="rounded-lg border border-slate-100 p-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <label className="flex items-start gap-2">
+                      <Checkbox checked={selected.includes(option.value)} onCheckedChange={() => onToggle(option.value)} />
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{option.value}</p>
+                        <p className="text-[11px] text-slate-500">{option.path}</p>
+                      </div>
+                    </label>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => onSelectAllChildren(childValues)}>
+                      All child
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

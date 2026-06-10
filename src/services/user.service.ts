@@ -92,14 +92,41 @@ type UserDetailsResponse = {
 
 export type UserListStatusTab = "active" | "pending" | "inactive";
 
+export type UserFilterDateRange = "7DAYS" | "15DAYS" | "1MONTH" | "1YEAR" | null;
+
+export type UserAppliedFilters = {
+  designation: string[] | null;
+  nodeName: {
+    values: string[] | null;
+    nodeAccess: "Primary" | "Secondary" | null;
+  } | null;
+  nodeType: string[] | null;
+  category: string[] | null;
+  subCategory: string[] | null;
+  reportingManager: string[] | null;
+  onboardingDate: {
+    dateRange: UserFilterDateRange;
+    fromDate: string | null;
+    toDate: string | null;
+  } | null;
+  status: string[] | null;
+  role: string[] | null;
+  isPendingActions: "Yes" | "No" | null;
+};
+
 export type UserPaginatedRequest = {
   companyCode: string;
-  limit: number;
-  cursor: string | null;
-  topCursor: string | null;
-  page?: number | null;
-  direction?: "NEXT" | "PREV";
-  query?: string | null;
+  filter?: boolean;
+  applied?: UserAppliedFilters | null;
+  pagination: {
+    limit: number;
+    cursor: string | null;
+    topCursor: string | null;
+    page?: number | null;
+    direction?: "NEXT" | "PREV";
+    query?: string | null;
+    statusType?: UserListStatusTab;
+  };
 };
 
 export type UserPaginatedResult = {
@@ -142,6 +169,20 @@ type CompanyNodesResponse = {
   };
 };
 
+type CompanyNodesFilterResponse = {
+  success?: boolean;
+  filter?: boolean;
+  subCategory?: string;
+  dropdowns?: {
+    designation?: Array<{ value?: string; count?: number }>;
+    nodeName?: Array<{ value?: string; path?: string }>;
+    nodeType?: string[];
+    category?: string[];
+    subCategory?: Record<string, string[]>;
+    reportingManager?: string[];
+  };
+};
+
 export type CompanyNodesAccessMeta = {
   designation: string;
   isGlobalUser: boolean;
@@ -152,6 +193,25 @@ export type CompanyNodesAccessMeta = {
 export type CompanyNodesFetchResult = {
   nodes: CompanyNodeWithWorkflows[];
   access: CompanyNodesAccessMeta;
+};
+
+export type UserFilterDropdownOption = {
+  value: string;
+  count?: number;
+};
+
+export type UserFilterNodeOption = {
+  value: string;
+  path: string;
+};
+
+export type UserFilterDropdowns = {
+  designation: UserFilterDropdownOption[];
+  nodeName: UserFilterNodeOption[];
+  nodeType: string[];
+  category: string[];
+  subCategory: Record<string, string[]>;
+  reportingManager: string[];
 };
 
 export type GlobalSignatoryOnboardingPayload = {
@@ -396,8 +456,8 @@ export async function fetchUserHistory(email: string) {
   });
 }
 
-export async function fetchCompanyNodesWithAccess(subCategory: string): Promise<CompanyNodesFetchResult> {
-  const cacheKey = (subCategory || "").trim().toUpperCase();
+export async function fetchCompanyNodesWithAccess(subCategory: string, filter = false): Promise<CompanyNodesFetchResult> {
+  const cacheKey = `${(subCategory || "").trim().toUpperCase()}::${filter ? "filter" : "default"}`;
   const now = Date.now();
   const cached = companyNodesCache.get(cacheKey);
   if (cached && cached.expiresAt > now) {
@@ -414,6 +474,7 @@ export async function fetchCompanyNodesWithAccess(subCategory: string): Promise<
     method: "POST",
     body: JSON.stringify({
       subCategory,
+      filter,
     }),
   });
 
@@ -474,8 +535,60 @@ export async function fetchCompanyNodesWithAccess(subCategory: string): Promise<
 }
 
 export async function fetchCompanyNodes(subCategory: string): Promise<CompanyNodeWithWorkflows[]> {
-  const result = await fetchCompanyNodesWithAccess(subCategory);
+  const result = await fetchCompanyNodesWithAccess(subCategory, false);
   return result.nodes;
+}
+
+export async function fetchUserFilterDropdowns(subCategory: string): Promise<UserFilterDropdowns> {
+  const payload = await apiFetch<CompanyNodesFilterResponse>(COMPANY_NODES_PATH, {
+    method: "POST",
+    body: JSON.stringify({
+      subCategory,
+      filter: true,
+    }),
+  });
+
+  const dropdowns = payload.dropdowns;
+  if (!dropdowns) {
+    throw new Error("Invalid company node filter response: missing dropdowns");
+  }
+
+  return {
+    designation: Array.isArray(dropdowns.designation)
+      ? dropdowns.designation
+          .map((item) => ({
+            value: readString(item?.value).trim(),
+            count: typeof item?.count === "number" ? item.count : undefined,
+          }))
+          .filter((item) => item.value)
+      : [],
+    nodeName: Array.isArray(dropdowns.nodeName)
+      ? dropdowns.nodeName
+          .map((item) => ({
+            value: readString(item?.value).trim(),
+            path: readString(item?.path).trim(),
+          }))
+          .filter((item) => item.value && item.path)
+      : [],
+    nodeType: Array.isArray(dropdowns.nodeType)
+      ? dropdowns.nodeType.map((item) => readString(item).trim()).filter(Boolean)
+      : [],
+    category: Array.isArray(dropdowns.category)
+      ? dropdowns.category.map((item) => readString(item).trim()).filter(Boolean)
+      : [],
+    subCategory:
+      dropdowns.subCategory && typeof dropdowns.subCategory === "object"
+        ? Object.fromEntries(
+            Object.entries(dropdowns.subCategory).map(([key, values]) => [
+              key,
+              Array.isArray(values) ? values.map((item) => readString(item).trim()).filter(Boolean) : [],
+            ]),
+          )
+        : {},
+    reportingManager: Array.isArray(dropdowns.reportingManager)
+      ? dropdowns.reportingManager.map((item) => readString(item).trim()).filter(Boolean)
+      : [],
+  };
 }
 
 
@@ -517,10 +630,13 @@ export async function getCompanyUsers(_companyCode: string): Promise<AppUser[]> 
       safetyCounter += 1;
       const response = await fetchCompanyUsersPaginated(statusTab, {
         companyCode,
-        limit: 100,
-        cursor,
-        topCursor,
-        direction: "NEXT",
+        pagination: {
+          limit: 100,
+          cursor,
+          topCursor,
+          direction: "NEXT",
+          statusType: statusTab,
+        },
       });
       allUsers.push(...response.users);
       cursor = response.pageInfo.nextCursor;
@@ -544,13 +660,17 @@ export async function fetchCompanyUsersPaginated(
   payload: UserPaginatedRequest,
 ): Promise<UserPaginatedResult> {
   const requestBody: Record<string, unknown> = {
-    statusType: statusTab,
-    limit: payload.limit,
-    cursor: payload.cursor ?? null,
-    topCursor: payload.topCursor ?? null,
-    page: payload.page ?? null,
-    direction: payload.direction ?? "NEXT",
-    query: readString(payload.query).trim() || null,
+    filter: Boolean(payload.filter),
+    pagination: {
+      cursor: payload.pagination.cursor ?? null,
+      direction: payload.pagination.direction ?? "NEXT",
+      limit: payload.pagination.limit,
+      page: payload.pagination.page ?? null,
+      query: readString(payload.pagination.query).trim() || null,
+      statusType: payload.pagination.statusType ?? statusTab,
+      topCursor: payload.pagination.topCursor ?? null,
+    },
+    applied: payload.filter ? payload.applied ?? null : null,
   };
   const response = await apiFetch<UserPaginatedResponse>(COMPANY_USERS_PATH, {
     method: "POST",

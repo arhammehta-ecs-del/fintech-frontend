@@ -128,6 +128,23 @@ const mapOrgHistoryEntry = (
   const disableViewMore = isAutoEvent;
   const remarks = readString(record.remarks);
   const levelCount = readString(record.levelCount);
+
+  const approvedByLevels = (Array.isArray(record.approvedBy) ? record.approvedBy : [])
+    .map((levelEntry: any) => ({
+      level: readLevel(levelEntry.level),
+      rule: readString(levelEntry.rule) || null,
+      approvers: (Array.isArray(levelEntry.approvedBy) ? levelEntry.approvedBy : [])
+        .map((approver: any) => ({
+          name: readString(approver.name) || "Unknown",
+          email: readString(approver.email) || "no-email@example.com",
+          levelCount: readString(approver.levelCount),
+          approvedAt: readString(approver.approvedAt),
+        }))
+        .filter((approver: any) => approver.name || approver.email),
+    }))
+    .filter((entry: any) => entry.level !== null && entry.approvers.length > 0)
+    .sort((a: any, b: any) => (b.level ?? 0) - (a.level ?? 0));
+
   const details = eligibleApprovers.length > 0
     ? "Eligible approvers listed below."
     : nodeName
@@ -148,7 +165,28 @@ const mapOrgHistoryEntry = (
     details,
     remarks: remarks || undefined,
     timestampMissing: !hasCreatedAt,
-    eligibleApprovers,
+    eligibleApprovers: eligibleApprovers.length > 0 ? eligibleApprovers : undefined,
+    approvalSections: approvedByLevels.length > 0
+      ? [{
+          title: "Approved By",
+          tone: "success" as const,
+          items: approvedByLevels.map((entry: any) => ({
+            label: `Level ${entry.level}`,
+            levelCount: entry.approvers[0]?.levelCount || null,
+            rule: entry.rule || null,
+            status: null,
+            people: entry.approvers.map((approver: any) => {
+              const { date, time } = formatDateParts(approver.approvedAt || "");
+              return {
+                name: approver.name,
+                email: approver.email,
+                date: date || undefined,
+                time: time || undefined,
+              };
+            }),
+          })),
+        }]
+      : undefined,
     initiator: {
       name: initiatorName,
       email: initiatorEmail,

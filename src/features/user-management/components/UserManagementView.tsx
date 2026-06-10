@@ -36,6 +36,8 @@ export function UserManagementView() {
     searchSuggestions,
     designationFilters,
     setDesignationFilters,
+    nodeTypeFilters,
+    setNodeTypeFilters,
     accessCategoryFilters,
     setAccessCategoryFilters,
     accessSubcategoryFilters,
@@ -44,10 +46,16 @@ export function UserManagementView() {
     setDepartmentFilters,
     reportingManagerFilters,
     setReportingManagerFilters,
-    primaryNodeFilters,
-    setPrimaryNodeFilters,
-    secondaryNodeFilters,
-    setSecondaryNodeFilters,
+    statusFilters,
+    setStatusFilters,
+    roleFilters,
+    setRoleFilters,
+    nodeAccessType,
+    setNodeAccessType,
+    pendingActionFilter,
+    setPendingActionFilter,
+    onboardingDateRange,
+    setOnboardingDateRange,
     onboardingDateFrom,
     setOnboardingDateFrom,
     onboardingDateTo,
@@ -60,13 +68,13 @@ export function UserManagementView() {
     roles,
     accessCategories,
     accessSubcategories,
-    departments,
+    filterNodeOptions,
+    nodeTypeOptions,
     reportingManagerOptions,
-    primaryNodeOptions,
-    secondaryNodeOptions,
-    toggleFilterValue,
     clearAdvancedFilters,
+    loadFilterOptions,
     isLoading,
+    isFilterLoading,
     activeMembers,
     currentMembers,
     inactiveMembers,
@@ -523,32 +531,38 @@ export function UserManagementView() {
         onSearchChange={setSearch}
         searchSuggestions={searchSuggestions}
         designationFilters={designationFilters}
-        onToggleDesignation={(value) => setDesignationFilters((current) => toggleFilterValue(current, value))}
+        nodeNameFilters={departmentFilters}
+        nodeTypeFilters={nodeTypeFilters}
         accessCategoryFilters={accessCategoryFilters}
-        onToggleAccessCategory={(value) => setAccessCategoryFilters((current) => toggleFilterValue(current, value))}
         accessSubcategoryFilters={accessSubcategoryFilters}
-        onToggleAccessSubcategory={(value) => setAccessSubcategoryFilters((current) => toggleFilterValue(current, value))}
-        departmentFilters={departmentFilters}
-        onToggleDepartment={(value) => setDepartmentFilters((current) => toggleFilterValue(current, value))}
         reportingManagerFilters={reportingManagerFilters}
-        onToggleReportingManager={(value) => setReportingManagerFilters((current) => toggleFilterValue(current, value))}
-        primaryNodeFilters={primaryNodeFilters}
-        onTogglePrimaryNode={(value) => setPrimaryNodeFilters((current) => toggleFilterValue(current, value))}
-        secondaryNodeFilters={secondaryNodeFilters}
-        onToggleSecondaryNode={(value) => setSecondaryNodeFilters((current) => toggleFilterValue(current, value))}
+        statusFilters={statusFilters}
+        roleFilters={roleFilters}
+        nodeAccessType={nodeAccessType}
+        pendingActionFilter={pendingActionFilter}
+        onboardingDateRange={onboardingDateRange}
         onboardingDateFrom={onboardingDateFrom}
         onboardingDateTo={onboardingDateTo}
-        onOnboardingDateFromChange={setOnboardingDateFrom}
-        onOnboardingDateToChange={setOnboardingDateTo}
         onClearAdvancedFilters={clearAdvancedFilters}
+        onOpenFilters={loadFilterOptions}
         onApplyAdvancedFilters={(filters) => {
           setDesignationFilters(filters.designationFilters);
+          setDepartmentFilters(filters.nodeNameFilters);
+          setNodeTypeFilters(filters.nodeTypeFilters);
           setAccessCategoryFilters(filters.accessCategoryFilters);
           setAccessSubcategoryFilters(filters.accessSubcategoryFilters);
-          setDepartmentFilters(filters.departmentFilters);
           setReportingManagerFilters(filters.reportingManagerFilters);
-          setPrimaryNodeFilters(filters.primaryNodeFilters);
-          setSecondaryNodeFilters(filters.secondaryNodeFilters);
+          setStatusFilters(filters.statusFilters);
+          setRoleFilters(filters.roleFilters);
+          setNodeAccessType(filters.nodeAccessType);
+          setPendingActionFilter(filters.pendingActionFilter);
+          setOnboardingDateRange(filters.onboardingDateRange);
+          setOnboardingDateFrom(filters.onboardingDateFrom);
+          setOnboardingDateTo(filters.onboardingDateTo);
+          const selectedStatus = filters.statusFilters[0];
+          if (selectedStatus === "Pending") setStatusTab("pending");
+          else if (selectedStatus === "Inactive") setStatusTab("inactive");
+          else setStatusTab("active");
         }}
         sortOrder={sortOrder}
         onSortOrderChange={setSortOrder}
@@ -562,10 +576,10 @@ export function UserManagementView() {
         roles={roles}
         accessCategories={accessCategories}
         accessSubcategories={accessSubcategories}
-        departments={departments}
+        filterNodeOptions={filterNodeOptions}
+        nodeTypeOptions={nodeTypeOptions}
         reportingManagerOptions={reportingManagerOptions}
-        primaryNodeOptions={primaryNodeOptions}
-        secondaryNodeOptions={secondaryNodeOptions}
+        isFilterLoading={isFilterLoading}
         statusCounts={{
           active: statusCounts.active,
           pending: statusCounts.pending,
