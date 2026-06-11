@@ -132,10 +132,13 @@ export function groupByNode(items: NonNullable<AppUser["accessDetails"]>): Group
     if (!result[key]) {
       result[key] = {
         nodeName: item.nodeName || item.nodePath || "Unknown",
-        nodeType: "",
+        nodeType: item.nodeType || "",
         parentSubtitle: getParentSubtitleFromPath(item.nodePath),
         categories: {},
       };
+    }
+    if (!result[key].nodeType && item.nodeType) {
+      result[key].nodeType = item.nodeType;
     }
     const cat = item.roleCategory || "OTHER";
     if (!result[key].categories[cat]) {

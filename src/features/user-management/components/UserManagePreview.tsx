@@ -33,6 +33,7 @@ import {
   buildPreviewUserData,
   displayOrFallback,
   formatDesignation,
+  formatKey,
   formatToIst,
   getNodeBadgeClass,
   getNodeEdgeBorderClass,
@@ -110,6 +111,15 @@ export function UserManagePreview({
   const [remarkTouched, setRemarkTouched] = useState(false);
   const remarkCardRef = useRef<HTMLDivElement | null>(null);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const formatNodeTypeLabel = (value?: string | null) => {
+    const normalized = (value || "").trim();
+    return normalized ? formatKey(normalized) : "";
+  };
+  const getNodeTitleWithType = (nodeName?: string | null, nodeType?: string | null) => {
+    const trimmedName = (nodeName || "").trim() || "-";
+    const formattedNodeType = formatNodeTypeLabel(nodeType);
+    return formattedNodeType ? `${trimmedName} (${formattedNodeType})` : trimmedName;
+  };
 
   const toRecord = (value: unknown) =>
     typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
@@ -1080,7 +1090,9 @@ export function UserManagePreview({
                               <div className="grid grid-cols-[110px_10px_1fr] items-center gap-x-2">
                                 <span className="text-slate-500">Node Name</span>
                                 <span className="text-slate-400">:</span>
-                                <span className="font-semibold text-slate-900">{globalAccessNode.nodeName || "-"}</span>
+                                <span className="font-semibold text-slate-900">
+                                  {getNodeTitleWithType(globalAccessNode.nodeName, globalAccessNode.nodeType)}
+                                </span>
                               </div>
                               <div className="mt-2 flex items-center gap-2">
                                 <span className="text-slate-500">Access Category</span>
@@ -1109,6 +1121,7 @@ export function UserManagePreview({
                               <NodeAccessCard
                                 key={key}
                                 nodeName={group.nodeName}
+                                nodeType={group.nodeType}
                                 parentSubtitle={group.parentSubtitle}
                                 nodeIndex={idx}
                                 categories={group.categories}
@@ -1171,6 +1184,7 @@ export function UserManagePreview({
                             <NodeAccessCard
                               key={key}
                               nodeName={group.nodeName}
+                              nodeType={group.nodeType}
                               parentSubtitle={group.parentSubtitle}
                               nodeIndex={idx}
                               categories={group.categories}
@@ -1267,6 +1281,7 @@ export function UserManagePreview({
                               {shouldShowExpandedCard ? (
                                 <NodeAccessCard
                                   nodeName={group.nodeName}
+                                  nodeType={group.nodeType}
                                   parentSubtitle={group.parentSubtitle}
                                   nodeIndex={idx}
                                   categories={group.categories}
@@ -1300,7 +1315,9 @@ export function UserManagePreview({
                                     P{idx + 1}
                                   </div>
                                   <div className="min-w-0">
-                                    <div className={cn("truncate text-sm font-semibold text-slate-700", isRemovedNode && "text-slate-500 line-through")}>{group.nodeName}</div>
+                                    <div className={cn("truncate text-sm font-semibold text-slate-700", isRemovedNode && "text-slate-500 line-through")}>
+                                      {getNodeTitleWithType(group.nodeName, group.nodeType)}
+                                    </div>
                                     {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
                                   </div>
                                   <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
@@ -1337,6 +1354,7 @@ export function UserManagePreview({
                               {shouldShowExpandedCard ? (
                                 <NodeAccessCard
                                   nodeName={group.nodeName}
+                                  nodeType={group.nodeType}
                                   parentSubtitle={group.parentSubtitle}
                                   nodeIndex={idx}
                                   categories={group.categories}
@@ -1370,7 +1388,9 @@ export function UserManagePreview({
                                     S{idx + 1}
                                   </div>
                                   <div className="min-w-0">
-                                    <div className={cn("truncate text-sm font-semibold text-slate-700", isRemovedNode && "text-slate-500 line-through")}>{group.nodeName}</div>
+                                    <div className={cn("truncate text-sm font-semibold text-slate-700", isRemovedNode && "text-slate-500 line-through")}>
+                                      {getNodeTitleWithType(group.nodeName, group.nodeType)}
+                                    </div>
                                     {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
                                   </div>
                                   <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />

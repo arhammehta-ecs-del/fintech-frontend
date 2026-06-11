@@ -16,7 +16,7 @@ import { createUserManagementActions } from "@/features/user-management/hooks/us
 
 type FilterStatusValue = "Active" | "Pending" | "Inactive";
 type FilterRoleValue = "Maker" | "Checker" | "User";
-type NodeAccessValue = "Primary" | "Secondary" | null;
+type NodeAccessValue = "Primary" | "Secondary";
 type PendingActionValue = "Yes" | "No" | null;
 type OnboardingDateRange = "7DAYS" | "15DAYS" | "1MONTH" | "1YEAR" | "CUSTOM" | null;
 type StatusFilterModeValue = "initiate" | "modify";
@@ -30,7 +30,7 @@ type AppliedUserFiltersDraft = {
   statusFilters: FilterStatusValue[];
   statusFilterMode: StatusFilterModeValue[];
   roleFilters: FilterRoleValue[];
-  nodeAccessType: NodeAccessValue;
+  nodeAccessType: Record<string, NodeAccessValue[]>;
   pendingActionFilter: PendingActionValue;
   onboardingDateRange: OnboardingDateRange;
   onboardingDateFrom: string;
@@ -86,7 +86,13 @@ const buildAppliedFilters = (input: AppliedUserFiltersDraft): UserAppliedFilters
     designation: normalizeAppliedArray(input.designationFilters),
     nodeName: {
       values: normalizeAppliedArray(input.nodeNameFilters),
-      nodeAccess: input.nodeAccessType ? (input.nodeAccessType === "Primary" ? "P" : "S") : null,
+      nodeAccess: Object.keys(input.nodeAccessType).length > 0
+        ? (Object.fromEntries(
+            Object.entries(input.nodeAccessType)
+              .filter(([_, v]) => v && v.length > 0)
+              .map(([k, v]) => [k, v])
+          ) as Record<string, NodeAccessValue[]>)
+        : null,
     },
     nodeType: normalizeAppliedArray(input.nodeTypeFilters),
     category: normalizeAppliedArray(input.accessCategoryFilters),
@@ -96,7 +102,7 @@ const buildAppliedFilters = (input: AppliedUserFiltersDraft): UserAppliedFilters
     status: normalizeAppliedArray(input.statusFilters),
     currentStatus: deriveCurrentStatus(input.statusFilterMode),
     role: input.roleFilters.length > 0 ? input.roleFilters : null,
-    isPending: input.pendingActionFilter,
+    hasPending: input.pendingActionFilter,
   };
 };
 
@@ -115,7 +121,7 @@ export function useUserManagement() {
   const [roleFilters, setRoleFilters] = useState<FilterRoleValue[]>([]);
   const [statusFilters, setStatusFilters] = useState<FilterStatusValue[]>([]);
   const [statusFilterMode, setStatusFilterMode] = useState<StatusFilterModeValue[]>([]);
-  const [nodeAccessType, setNodeAccessType] = useState<NodeAccessValue>(null);
+  const [nodeAccessType, setNodeAccessType] = useState<Record<string, NodeAccessValue[]>>({});
   const [pendingActionFilter, setPendingActionFilter] = useState<PendingActionValue>(null);
   const [onboardingDateRange, setOnboardingDateRange] = useState<OnboardingDateRange>(null);
   const [onboardingDateFrom, setOnboardingDateFrom] = useState("");
@@ -368,7 +374,7 @@ export function useUserManagement() {
     setRoleFilters([]);
     setStatusFilters([]);
     setStatusFilterMode([]);
-    setNodeAccessType(null);
+    setNodeAccessType({});
     setPendingActionFilter(null);
     setOnboardingDateRange(null);
     setOnboardingDateFrom("");

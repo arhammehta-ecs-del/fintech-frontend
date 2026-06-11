@@ -42,6 +42,16 @@ export interface OrgNode {
   id: string;
   uuid?: string;
   isPending?: boolean;
+  impactSummary?: {
+    userAccess: Array<{
+      name: string;
+      email: string;
+    }>;
+    workflow: Array<{
+      workflowName: string;
+      alias: string;
+    }>;
+  };
   name: string;
   companyId?: string;
   nodeType: string;

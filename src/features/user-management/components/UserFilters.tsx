@@ -19,7 +19,7 @@ import type { UserFilterDropdownOption, UserFilterNodeOption } from "@/services/
 
 type FilterStatusValue = "Active" | "Pending" | "Inactive";
 type FilterRoleValue = "Maker" | "Checker" | "User";
-type NodeAccessValue = "Primary" | "Secondary" | null;
+type NodeAccessValue = "Primary" | "Secondary";
 type PendingActionValue = "Yes" | "No" | null;
 type OnboardingDateRange = "7DAYS" | "15DAYS" | "1MONTH" | "1YEAR" | "CUSTOM" | null;
 type StatusFilterModeValue = "initiate" | "modify";
@@ -34,7 +34,7 @@ type AppliedUserFiltersDraft = {
   statusFilters: FilterStatusValue[];
   statusFilterMode: StatusFilterModeValue[];
   roleFilters: FilterRoleValue[];
-  nodeAccessType: NodeAccessValue;
+  nodeAccessType: Record<string, NodeAccessValue[]>;
   pendingActionFilter: PendingActionValue;
   onboardingDateRange: OnboardingDateRange;
   onboardingDateFrom: string;
@@ -82,7 +82,7 @@ type UserFiltersProps = {
   statusFilters: FilterStatusValue[];
   statusFilterMode: StatusFilterModeValue[];
   roleFilters: FilterRoleValue[];
-  nodeAccessType: NodeAccessValue;
+  nodeAccessType: Record<string, NodeAccessValue[]>;
   pendingActionFilter: PendingActionValue;
   onboardingDateRange: OnboardingDateRange;
   onboardingDateFrom: string;
@@ -116,7 +116,7 @@ const buildDraftFromProps = (props: UserFiltersProps): AppliedUserFiltersDraft =
   statusFilters: [...props.statusFilters],
   statusFilterMode: props.statusFilterMode,
   roleFilters: [...props.roleFilters],
-  nodeAccessType: props.nodeAccessType,
+  nodeAccessType: { ...props.nodeAccessType },
   pendingActionFilter: props.pendingActionFilter,
   onboardingDateRange: props.onboardingDateRange,
   onboardingDateFrom: props.onboardingDateFrom,
@@ -163,9 +163,9 @@ export default function UserFilters(props: UserFiltersProps) {
     draft.accessSubcategoryFilters.length +
     draft.reportingManagerFilters.length +
     draft.statusFilters.length +
-    (draft.statusFilterMode ? 1 : 0) +
+    draft.statusFilterMode.length +
     draft.roleFilters.length +
-    (draft.nodeAccessType ? 1 : 0) +
+    Object.values(draft.nodeAccessType).reduce((count, types) => count + (types ? types.length : 0), 0) +
     (draft.pendingActionFilter ? 1 : 0) +
     (draft.onboardingDateRange ? 1 : 0) +
     (draft.onboardingDateFrom ? 1 : 0) +
@@ -203,7 +203,7 @@ export default function UserFilters(props: UserFiltersProps) {
       statusFilters: [],
       statusFilterMode: [],
       roleFilters: [],
-      nodeAccessType: null,
+      nodeAccessType: {},
       pendingActionFilter: null,
       onboardingDateRange: null,
       onboardingDateFrom: "",
@@ -316,7 +316,7 @@ export default function UserFilters(props: UserFiltersProps) {
             </PopoverTrigger>
             <PopoverContent
               align="end"
-              className="w-[560px] overflow-visible rounded-2xl border border-slate-200 bg-white p-0 shadow-[0_26px_60px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80"
+              className="z-[110] w-[560px] overflow-visible rounded-2xl border border-slate-200 bg-white p-0 shadow-[0_26px_60px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80"
             >
               <div className="border-b border-slate-200 bg-white px-5 py-3.5">
                 <div className="flex items-center justify-between">
@@ -363,12 +363,39 @@ export default function UserFilters(props: UserFiltersProps) {
                       selected={draft.nodeNameFilters}
                       nodeAccessType={draft.nodeAccessType}
                       onToggle={(value) =>
-                        setDraft((current) => ({
-                          ...current,
-                          nodeNameFilters: toggleFilterValue(current.nodeNameFilters, value),
-                        }))
+                        setDraft((current) => {
+                          const isRemoving = current.nodeNameFilters.includes(value);
+                          const nextFilters = isRemoving
+                            ? current.nodeNameFilters.filter((item) => item !== value)
+                            : [...current.nodeNameFilters, value];
+                          
+                          const nextAccess = { ...current.nodeAccessType };
+                          if (isRemoving) {
+                            delete nextAccess[value];
+                          }
+
+                          return {
+                            ...current,
+                            nodeNameFilters: nextFilters,
+                            nodeAccessType: nextAccess,
+                          };
+                        })
                       }
-                      onNodeAccessChange={(value) => updateDraft("nodeAccessType", value)}
+                      onNodeAccessChange={(nodeName, accessType) =>
+                        setDraft((current) => {
+                          const currentTypes = current.nodeAccessType[nodeName] || [];
+                          const nextTypes = currentTypes.includes(accessType)
+                            ? currentTypes.filter((t) => t !== accessType)
+                            : [...currentTypes, accessType];
+                          return {
+                            ...current,
+                            nodeAccessType: {
+                              ...current.nodeAccessType,
+                              [nodeName]: nextTypes,
+                            },
+                          };
+                        })
+                      }
                       onSelectAllChildren={(values) =>
                         setDraft((current) => ({
                           ...current,
@@ -472,16 +499,16 @@ export default function UserFilters(props: UserFiltersProps) {
                       }
                     />
                     <div className="space-y-2">
-                      <FieldHeader title="Status Mode" count={2} onClear={() => updateDraft("statusFilterMode", [])} canClear={draft.statusFilterMode.length > 0} />
+                      <FieldHeader title="Sub status" count={2} onClear={() => updateDraft("statusFilterMode", [])} canClear={draft.statusFilterMode.length > 0} />
                       <div className="rounded-lg border border-slate-200 px-3 py-2">
-                        <div className="flex flex-wrap gap-4">
+                        <div className="flex items-center gap-4">
                           {[
-                            { id: "status-mode-initiate", value: "initiate", label: "Initiate" },
+                            { id: "status-mode-initiate", value: "initiate", label: "New track" },
                             { id: "status-mode-modify", value: "modify", label: "In modification" },
                           ].map((option) => {
                             const isChecked = draft.statusFilterMode.includes(option.value as StatusFilterModeValue);
                             return (
-                              <label key={option.id} htmlFor={option.id} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                              <label key={option.id} htmlFor={option.id} className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700 whitespace-nowrap">
                                 <input
                                   id={option.id}
                                   type="checkbox"
@@ -638,7 +665,7 @@ function buildEmptyDraft(): AppliedUserFiltersDraft {
     statusFilters: [],
     statusFilterMode: [],
     roleFilters: [],
-    nodeAccessType: null,
+    nodeAccessType: {},
     pendingActionFilter: null,
     onboardingDateRange: null,
     onboardingDateFrom: "",
@@ -990,9 +1017,9 @@ function NodeNameDropdown({
 }: {
   options: UserFilterNodeOption[];
   selected: string[];
-  nodeAccessType: NodeAccessValue;
+  nodeAccessType: Record<string, NodeAccessValue[]>;
   onToggle: (value: string) => void;
-  onNodeAccessChange: (value: NodeAccessValue) => void;
+  onNodeAccessChange: (nodeName: string, accessType: NodeAccessValue) => void;
   onSelectAllChildren: (values: string[]) => void;
   onClearSelection: () => void;
 }) {
@@ -1026,14 +1053,20 @@ function NodeNameDropdown({
 
   return (
     <div ref={containerRef} className="relative">
-      <FieldHeader title="Node Name" count={normalizedOptions.length} onClear={onClearSelection} canClear={selected.length > 0 || Boolean(nodeAccessType)} />
+      <FieldHeader title="Node Name" count={normalizedOptions.length} onClear={onClearSelection} canClear={selected.length > 0 || Object.values(nodeAccessType).some(types => types && types.length > 0)} />
       <Button
         type="button"
         variant="outline"
         onClick={() => setOpen((current) => !current)}
-        className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", (selected.length > 0 || nodeAccessType) && "border-blue-200 bg-blue-50/40 text-blue-800")}
+        className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", (selected.length > 0 || Object.values(nodeAccessType).some(types => types && types.length > 0)) && "border-blue-200 bg-blue-50/40 text-blue-800")}
       >
-        <span className="truncate">{selected.length === 0 ? "Select node name" : selected.length === 1 ? selected[0] : `${selected.length} selected`}</span>
+        <span className="truncate">
+          {selected.length === 0
+            ? "Select node name"
+            : selected.length === 1
+              ? `${selected[0]}${nodeAccessType[selected[0]]?.length ? ` (${nodeAccessType[selected[0]].join(", ")})` : ""}`
+              : `${selected.length} selected`}
+        </span>
         <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", open && "rotate-180")} />
       </Button>
       {open ? (
@@ -1067,10 +1100,15 @@ function NodeNameDropdown({
                           <TooltipTrigger asChild>
                             <button
                               type="button"
-                              onClick={() => onNodeAccessChange(nodeAccessType === "Primary" ? null : "Primary")}
+                              onClick={() => {
+                                if (isSelected) {
+                                  onNodeAccessChange(option.value, "Primary");
+                                }
+                              }}
                               className={cn(
                                 "inline-flex h-7 min-w-7 items-center justify-center rounded-full border px-2 text-[11px] font-semibold transition",
-                                nodeAccessType === "Primary"
+                                !isSelected ? "opacity-50 cursor-not-allowed border-slate-200 bg-white text-slate-400" :
+                                (nodeAccessType[option.value] || []).includes("Primary")
                                   ? "border-sky-300 bg-sky-100 text-sky-800 shadow-sm"
                                   : "border-slate-200 bg-white text-slate-400 hover:border-sky-200 hover:text-sky-700",
                               )}
@@ -1079,16 +1117,21 @@ function NodeNameDropdown({
                               P
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent>Primary node access</TooltipContent>
+                          <TooltipContent>{isSelected ? "Primary node access" : "Select node first"}</TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <button
                               type="button"
-                              onClick={() => onNodeAccessChange(nodeAccessType === "Secondary" ? null : "Secondary")}
+                              onClick={() => {
+                                if (isSelected) {
+                                  onNodeAccessChange(option.value, "Secondary");
+                                }
+                              }}
                               className={cn(
                                 "inline-flex h-7 min-w-7 items-center justify-center rounded-full border px-2 text-[11px] font-semibold transition",
-                                nodeAccessType === "Secondary"
+                                !isSelected ? "opacity-50 cursor-not-allowed border-slate-200 bg-white text-slate-400" :
+                                (nodeAccessType[option.value] || []).includes("Secondary")
                                   ? "border-violet-300 bg-violet-100 text-violet-800 shadow-sm"
                                   : "border-slate-200 bg-white text-slate-400 hover:border-violet-200 hover:text-violet-700",
                               )}
@@ -1097,7 +1140,7 @@ function NodeNameDropdown({
                               S
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent>Secondary node access</TooltipContent>
+                          <TooltipContent>{isSelected ? "Secondary node access" : "Select node first"}</TooltipContent>
                         </Tooltip>
                       </div>
                     </TooltipProvider>

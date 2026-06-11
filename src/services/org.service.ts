@@ -95,6 +95,45 @@ const getNullableString = (record: RawCompanyRecord, keys: string[]) => {
   return null;
 };
 
+const mapImpactSummary = (value: unknown): OrgNode["impactSummary"] | undefined => {
+  if (typeof value !== "object" || value === null) return undefined;
+
+  const source = value as Record<string, unknown>;
+  const impactSource =
+    typeof source.impactSummary === "object" && source.impactSummary !== null
+      ? (source.impactSummary as Record<string, unknown>)
+      : source;
+
+  const userAccess = Array.isArray(impactSource.userAccess)
+    ? impactSource.userAccess
+      .map((item) => {
+        if (typeof item !== "object" || item === null) return null;
+        const record = item as Record<string, unknown>;
+        const name = typeof record.name === "string" ? record.name.trim() : "";
+        const email = typeof record.email === "string" ? record.email.trim() : "";
+        if (!name && !email) return null;
+        return { name, email };
+      })
+      .filter((item): item is { name: string; email: string } => item !== null)
+    : [];
+
+  const workflow = Array.isArray(impactSource.workflow)
+    ? impactSource.workflow
+      .map((item) => {
+        if (typeof item !== "object" || item === null) return null;
+        const record = item as Record<string, unknown>;
+        const workflowName = typeof record.workflowName === "string" ? record.workflowName.trim() : "";
+        const alias = typeof record.alias === "string" ? record.alias.trim() : "";
+        if (!workflowName && !alias) return null;
+        return { workflowName, alias };
+      })
+      .filter((item): item is { workflowName: string; alias: string } => item !== null)
+    : [];
+
+  if (userAccess.length === 0 && workflow.length === 0) return undefined;
+  return { userAccess, workflow };
+};
+
 const normalizePathSegment = (value: string) =>
   value
     .trim()
@@ -157,11 +196,13 @@ const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"):
 
   const affectedUserAccessCount = getNumber(record, ["affectedUserAccessCount"]) ?? getNumber(pendingRequest, ["affectedUserAccessCount"]);
   const affectedWorkflowCount = getNumber(record, ["affectedWorkflowCount"]) ?? getNumber(pendingRequest, ["affectedWorkflowCount"]);
+  const impactSummary = mapImpactSummary(record) ?? mapImpactSummary(pendingRequest) ?? mapImpactSummary(pendingRequestNewData);
 
   return {
     id: nodeId,
     uuid: nodeUuid || undefined,
     isPending: shouldTreatAsPending,
+    impactSummary,
     companyId: getNullableString(record, ["companyId"]) ?? undefined,
     name: nodeName,
     nodeType,
@@ -197,8 +238,8 @@ const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"):
     pendingRequestType: pendingRequestType || undefined,
     pendingOldData: pendingRequestOldData,
     pendingNewData: pendingRequestNewData,
-    affectedUserAccessCount,
-    affectedWorkflowCount,
+    affectedUserAccessCount: affectedUserAccessCount ?? impactSummary?.userAccess.length,
+    affectedWorkflowCount: affectedWorkflowCount ?? impactSummary?.workflow.length,
     children: [],
   };
 };
@@ -253,6 +294,7 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
 
   const affectedUserAccessCount = getNumber(record, ["affectedUserAccessCount"]) ?? getNumber(requestData, ["affectedUserAccessCount"]);
   const affectedWorkflowCount = getNumber(record, ["affectedWorkflowCount"]) ?? getNumber(requestData, ["affectedWorkflowCount"]);
+  const impactSummary = mapImpactSummary(record) ?? mapImpactSummary(requestData) ?? mapImpactSummary(requestData.newData);
 
   if (!newNodeName || !nodeType) return null;
 
@@ -267,6 +309,7 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
     id: requestId || derivedNodePath || `pending-${normalizePathSegment(newNodeName)}`,
     uuid: requestId || undefined,
     isPending: false,
+    impactSummary,
     companyId: getNullableString(record, ["companyId"]) ?? undefined,
     name: newNodeName,
     nodeType: nodeType || "NODE",
@@ -278,8 +321,8 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
     alias: alias || undefined,
     status: "Pending",
     requestedStatus,
-    affectedUserAccessCount,
-    affectedWorkflowCount,
+    affectedUserAccessCount: affectedUserAccessCount ?? impactSummary?.userAccess.length,
+    affectedWorkflowCount: affectedWorkflowCount ?? impactSummary?.workflow.length,
     children: [],
   };
 };
@@ -320,6 +363,7 @@ const mergePendingUpdatesIntoActiveNodes = (activeNodes: OrgNode[], pendingRecor
 
     const affectedUserAccessCount = getNumber(record, ["affectedUserAccessCount"]) ?? getNumber(requestData, ["affectedUserAccessCount"]);
     const affectedWorkflowCount = getNumber(record, ["affectedWorkflowCount"]) ?? getNumber(requestData, ["affectedWorkflowCount"]);
+    const impactSummary = mapImpactSummary(record) ?? mapImpactSummary(requestData) ?? mapImpactSummary(pendingNewData);
 
     const targetNodePath = getString(
       requestData,
@@ -346,6 +390,7 @@ const mergePendingUpdatesIntoActiveNodes = (activeNodes: OrgNode[], pendingRecor
         : requestedStatusRaw === "ACTIVE"
           ? "ACTIVE"
           : matchedNode.requestedStatus ?? null;
+    matchedNode.impactSummary = impactSummary ?? matchedNode.impactSummary;
     matchedNode.affectedUserAccessCount = affectedUserAccessCount ?? matchedNode.affectedUserAccessCount;
     matchedNode.affectedWorkflowCount = affectedWorkflowCount ?? matchedNode.affectedWorkflowCount;
     matchedNode.requestedByName =

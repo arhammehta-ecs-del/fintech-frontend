@@ -188,6 +188,9 @@ export default function UserTable({
       <tbody>
         {paginatedMembers.map((member) => {
           const isPending = Boolean(member.isPending);
+          const requestType = (member.basicDetails?.requestType || "").trim().toUpperCase();
+          const isPendingLikeMember = isPending || member.status === "Pending";
+          const showModificationInProgress = isPendingLikeMember && requestType !== "INITIATE";
           const canDeleteMember = member.status !== "Pending" && member.status !== "Inactive";
 
           return (
@@ -211,7 +214,7 @@ export default function UserTable({
                 <div>
                   <div className="text-[15px] font-medium text-slate-900">{member.name}</div>
                   <div className="text-[13when px] text-slate-500">{member.email || "No email"}</div>
-                  {isPending ? (
+                  {showModificationInProgress ? (
                     <div className="mt-0.5 text-[12px] font-medium leading-5 text-amber-700">Modification in progress</div>
                   ) : null}
                 </div>

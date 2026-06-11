@@ -10,6 +10,7 @@ import {
 
 type NodeAccessCardProps = {
   nodeName: string;
+  nodeType?: string;
   parentSubtitle?: string;
   nodeIndex: number;
   categories: Record<string, Array<{
@@ -31,6 +32,7 @@ type NodeAccessCardProps = {
 
 export function NodeAccessCard({
   nodeName,
+  nodeType,
   parentSubtitle,
   nodeIndex,
   categories,
@@ -130,6 +132,8 @@ export function NodeAccessCard({
     return grouped;
   };
   const labelPriority = ["Global Access", "Corp Admin", "Checker", "Maker", "Viewer"];
+  const formattedNodeType = nodeType ? formatKey(nodeType) : "";
+  const nodeTitle = formattedNodeType ? `${nodeName} (${formattedNodeType})` : nodeName;
 
   return (
     <div
@@ -158,7 +162,7 @@ export function NodeAccessCard({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className={cn("truncate text-[18px] font-semibold leading-tight text-slate-800", isRemovedNode && "text-slate-500 line-through")}>
-              {nodeName}
+              {nodeTitle}
             </div>
             {isRemovedNode ? (
               <span className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-rose-600">

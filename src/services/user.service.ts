@@ -98,7 +98,7 @@ export type UserAppliedFilters = {
   designation: string[] | null;
   nodeName: {
     values: string[] | null;
-    nodeAccess: "P" | "S" | null;
+    nodeAccess: Record<string, ("Primary" | "Secondary")[]> | "Primary" | "Secondary" | null;
   } | null;
   nodeType: string[] | null;
   category: string[] | null;
@@ -112,7 +112,7 @@ export type UserAppliedFilters = {
   status: string[] | null;
   currentStatus: "modify" | "initiate" | null;
   role: string[] | null;
-  isPending: "Yes" | "No" | null;
+  hasPending: "Yes" | "No" | null;
 };
 
 export type UserPaginatedRequest = {
