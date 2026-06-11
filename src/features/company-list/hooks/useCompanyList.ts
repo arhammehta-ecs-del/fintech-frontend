@@ -5,7 +5,14 @@ import { fetchCompaniesPaginated, updateCompanyOnboardingAction, fetchCompanyDet
 import { getApiErrorMessage } from "@/services/client";
 import { useToast } from "@/hooks/use-toast";
 import { connectNotificationStream } from "@/services/notification.service";
-import type { DisplayRow, StatusTab, VisibleColumn } from "@/features/company-list/types";
+import {
+  COMPANY_LIST_DATE_OPTIONS,
+  type CompanyListAppliedFiltersDraft,
+  type CompanyListDateFilterValue,
+  type DisplayRow,
+  type StatusTab,
+  type VisibleColumn,
+} from "@/features/company-list/types";
 import {
   buildAllDisplayRows,
   getSelectedGroupInfo,
@@ -18,6 +25,57 @@ const EMPTY_STATUS_COUNTS = {
 };
 const COMPANY_PAGE_SIZE_OPTIONS = [15, 25, 35, 50] as const;
 const COMPANY_SEARCH_DEBOUNCE_MS = 500;
+
+const todayIso = () => {
+  const today = new Date();
+  const year = String(today.getFullYear());
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const buildEmptyFilters = (): CompanyListAppliedFiltersDraft => ({
+  incorporationDate: null,
+  fromDate: "",
+  toDate: "",
+  gstcode: null,
+  isCode: null,
+  signatoryCount: [],
+});
+
+const hasFiltersApplied = (draft: CompanyListAppliedFiltersDraft) =>
+  Boolean(
+    draft.incorporationDate ||
+      draft.fromDate ||
+      draft.toDate ||
+      draft.gstcode ||
+      draft.isCode ||
+      draft.signatoryCount.length > 0,
+  );
+
+const toApiDateRange = (value: CompanyListDateFilterValue): "7DAYS" | "15DAYS" | "1MONTH" | "CUSTOM" | null => {
+  if (value === COMPANY_LIST_DATE_OPTIONS[0]) return "7DAYS";
+  if (value === COMPANY_LIST_DATE_OPTIONS[1]) return "15DAYS";
+  if (value === COMPANY_LIST_DATE_OPTIONS[2]) return "1MONTH";
+  if (value === COMPANY_LIST_DATE_OPTIONS[3]) return "CUSTOM";
+  return null;
+};
+
+const buildAppliedRequest = (draft: CompanyListAppliedFiltersDraft) => {
+  if (!hasFiltersApplied(draft)) return null;
+  return {
+    incorporationDate: draft.incorporationDate
+      ? {
+          dateRange: toApiDateRange(draft.incorporationDate) ?? "7DAYS",
+          fromDate: draft.incorporationDate === "custom" ? draft.fromDate || null : null,
+          toDate: draft.incorporationDate === "custom" ? draft.toDate || null : null,
+        }
+      : null,
+    gstcode: draft.gstcode,
+    isCode: draft.isCode,
+    signatoryCount: draft.signatoryCount.length > 0 ? draft.signatoryCount : null,
+  };
+};
 
 const fuzzyMatch = (text: string, query: string) => {
   const source = text.trim().toLowerCase().replace(/\s+/g, "");
@@ -39,9 +97,8 @@ export function useCompanyList() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearchInput, setDebouncedSearchInput] = useState("");
-  const [groupNameFilters, setGroupNameFilters] = useState<string[]>([]);
-  const [companyNameFilters, setCompanyNameFilters] = useState<string[]>([]);
-  const [legalNameFilters, setLegalNameFilters] = useState<string[]>([]);
+  const [appliedFilters, setAppliedFilters] = useState<CompanyListAppliedFiltersDraft>(buildEmptyFilters());
+  const [isFilterRequestActive, setIsFilterRequestActive] = useState(false);
   const [selectedStatusTab, setSelectedStatusTab] = useState<StatusTab>(() => {
     const routeStatus = location.state?.statusFilter as CompanyStatus | undefined;
     if (routeStatus === "Approved") return "active";
@@ -70,6 +127,7 @@ export function useCompanyList() {
   const [hasNewCompanyListEvent, setHasNewCompanyListEvent] = useState(false);
   const statusFilter: CompanyStatus =
     selectedStatusTab === "inactive" ? "Inactive" : selectedStatusTab === "pending" ? "Pending" : "Approved";
+  const requestApplied = useMemo(() => buildAppliedRequest(appliedFilters), [appliedFilters]);
 
   useEffect(() => {
     const trimmedSearch = searchInput.trim();
@@ -107,6 +165,8 @@ export function useCompanyList() {
           page: params.page,
           direction: params.direction,
           query: debouncedSearchInput || null,
+          filter: isFilterRequestActive,
+          applied: requestApplied,
         });
 
         setGroups(response.groups);
@@ -156,7 +216,7 @@ export function useCompanyList() {
         if (showLoader) setIsLoading(false);
       }
     },
-    [debouncedSearchInput, pageSize, selectedStatusTab],
+    [debouncedSearchInput, isFilterRequestActive, pageSize, requestApplied, selectedStatusTab],
   );
 
   const refreshCompanies = useCallback(
@@ -215,46 +275,7 @@ export function useCompanyList() {
     [groups, statusFilter],
   );
 
-  const groupNameOptions = useMemo(
-    () => Array.from(new Set(statusScopedGroups.map((group) => group.groupName).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [statusScopedGroups],
-  );
-  const companyNameOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(statusScopedGroups.flatMap((group) => group.subsidiaries.map((company) => company.companyName)).filter(Boolean)),
-      ).sort((a, b) => a.localeCompare(b)),
-    [statusScopedGroups],
-  );
-  const legalNameOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(statusScopedGroups.flatMap((group) => group.subsidiaries.map((company) => company.legalName)).filter(Boolean)),
-      ).sort((a, b) => a.localeCompare(b)),
-    [statusScopedGroups],
-  );
-  const filteredGroups = useMemo(() => {
-    return statusScopedGroups
-      .map((group) => {
-        const groupNameMatch = groupNameFilters.length === 0 || groupNameFilters.includes(group.groupName);
-
-        const subsidiaries = group.subsidiaries.filter((company) => {
-          const matchesCompanyName = companyNameFilters.length === 0 || companyNameFilters.includes(company.companyName);
-          const matchesLegalName = legalNameFilters.length === 0 || legalNameFilters.includes(company.legalName);
-          return groupNameMatch && matchesCompanyName && matchesLegalName;
-        });
-
-        return { ...group, subsidiaries };
-      })
-      .filter((group) => group.subsidiaries.length > 0);
-  }, [
-    statusScopedGroups,
-    groupNameFilters,
-    companyNameFilters,
-    legalNameFilters,
-  ]);
-
-  const displayRows = useMemo<DisplayRow[]>(() => buildAllDisplayRows(filteredGroups), [filteredGroups]);
+  const displayRows = useMemo<DisplayRow[]>(() => buildAllDisplayRows(statusScopedGroups), [statusScopedGroups]);
   const totalPages = Math.max(1, resolvedTotalPages);
   const safePage = page;
   const paginatedDisplayRows = displayRows;
@@ -342,11 +363,25 @@ export function useCompanyList() {
     [fetchPage, nextCursor, page, pageCursors, topCursor, totalPages],
   );
 
-  const clearAdvancedFilters = () => {
-    setGroupNameFilters([]);
-    setCompanyNameFilters([]);
-    setLegalNameFilters([]);
-  };
+  const clearAdvancedFilters = useCallback(() => {
+    setAppliedFilters(buildEmptyFilters());
+    setIsFilterRequestActive(false);
+    setPage(1);
+    setPageCursors({ 1: null });
+    setTopCursor(null);
+    setNextCursor(null);
+    setHasNext(false);
+  }, []);
+
+  const applyFilters = useCallback((draft: CompanyListAppliedFiltersDraft) => {
+    setAppliedFilters(draft);
+    setIsFilterRequestActive(hasFiltersApplied(draft));
+    setPage(1);
+    setPageCursors({ 1: null });
+    setTopCursor(null);
+    setNextCursor(null);
+    setHasNext(false);
+  }, []);
 
   const toggleGroup = (id: string) => {
     setExpanded((previous) => {
@@ -479,15 +514,8 @@ export function useCompanyList() {
     expanded,
     searchInput,
     setSearchInput,
-    groupNameFilters,
-    setGroupNameFilters,
-    companyNameFilters,
-    setCompanyNameFilters,
-    legalNameFilters,
-    setLegalNameFilters,
-    groupNameOptions,
-    companyNameOptions,
-    legalNameOptions,
+    appliedFilters,
+    applyFilters,
     statusFilter,
     selectedCompany,
     isPreviewOpen,
@@ -515,6 +543,7 @@ export function useCompanyList() {
     searchSuggestions,
     handleClearSearch,
     clearAdvancedFilters,
+    todayIso: todayIso(),
     toggleGroup,
     openModal,
     handleSaveCompany,

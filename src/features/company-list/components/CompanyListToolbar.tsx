@@ -1,18 +1,27 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { ChevronDown, Filter, Plus, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { CompanyListToolbarProps, StatusTab } from "@/features/company-list/types";
+import {
+  COMPANY_LIST_BOOLEAN_OPTIONS,
+  COMPANY_LIST_DATE_OPTIONS,
+  COMPANY_LIST_SIGNATORY_OPTIONS,
+  type CompanyListAppliedFiltersDraft,
+  type CompanyListBooleanFilterValue,
+  type CompanyListToolbarProps,
+  type StatusTab,
+} from "@/features/company-list/types";
 import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 
 const STATUS_TABS: Array<{ id: StatusTab; label: string; badgeClassName: string }> = [
@@ -20,6 +29,24 @@ const STATUS_TABS: Array<{ id: StatusTab; label: string; badgeClassName: string 
   { id: "pending", label: "Pending", badgeClassName: "bg-amber-100 text-amber-700" },
   { id: "inactive", label: "Inactive", badgeClassName: "bg-rose-100 text-rose-700" },
 ];
+
+const buildEmptyDraft = (): CompanyListAppliedFiltersDraft => ({
+  incorporationDate: null,
+  fromDate: "",
+  toDate: "",
+  gstcode: null,
+  isCode: null,
+  signatoryCount: [],
+});
+
+const countFilters = (draft: CompanyListAppliedFiltersDraft) =>
+  (draft.incorporationDate ? 1 : 0) +
+  (draft.gstcode ? 1 : 0) +
+  (draft.isCode ? 1 : 0) +
+  draft.signatoryCount.length;
+
+const dateLabel = (value: (typeof COMPANY_LIST_DATE_OPTIONS)[number]) =>
+  value === "7days" ? "7 Days" : value === "15days" ? "15 Days" : value === "1month" ? "1 Month" : "Custom";
 
 export default function CompanyListToolbar({
   searchInput,
@@ -29,16 +56,10 @@ export default function CompanyListToolbar({
   selectedStatusTab,
   onStatusTabChange,
   statusCounts,
-  groupNameFilters,
-  onSetGroupNameFilters,
-  companyNameFilters,
-  onSetCompanyNameFilters,
-  legalNameFilters,
-  onSetLegalNameFilters,
-  groupNameOptions,
-  companyNameOptions,
-  legalNameOptions,
+  appliedFilters,
+  onApplyFilters,
   onClearAdvancedFilters,
+  todayIso,
   onOpenOnboarding,
   hasNewCompanyListEvent,
   suppressAutoEventTooltip = false,
@@ -50,28 +71,35 @@ export default function CompanyListToolbar({
     if (option.id === "pending") return statusCounts.pending > 0;
     return statusCounts[option.id] > 0;
   });
-  const activeFilterCount = groupNameFilters.length + companyNameFilters.length + legalNameFilters.length;
-  const hasAnyFilter = activeFilterCount > 0;
+  const activeFilterCount = countFilters(appliedFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [draftGroupNameFilters, setDraftGroupNameFilters] = useState<string[]>(groupNameFilters);
-  const [draftCompanyNameFilters, setDraftCompanyNameFilters] = useState<string[]>(companyNameFilters);
-  const [draftLegalNameFilters, setDraftLegalNameFilters] = useState<string[]>(legalNameFilters);
+  const [draft, setDraft] = useState<CompanyListAppliedFiltersDraft>(buildEmptyDraft());
   const [showSuggestions, setShowSuggestions] = useState(false);
   const { refreshLabel, markRefreshed } = useRefreshTimestamp({ initializedAt: refreshInitializedAt });
 
-  const toggleValue = (current: string[], value: string) =>
-    current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
-
-  const syncDraftFromApplied = () => {
-    setDraftGroupNameFilters(groupNameFilters);
-    setDraftCompanyNameFilters(companyNameFilters);
-    setDraftLegalNameFilters(legalNameFilters);
+  const syncDraft = () => {
+    setDraft({
+      ...appliedFilters,
+      signatoryCount: [...appliedFilters.signatoryCount],
+    });
   };
 
-  const clearDraftFilters = () => {
-    setDraftGroupNameFilters([]);
-    setDraftCompanyNameFilters([]);
-    setDraftLegalNameFilters([]);
+  const setFromDate = (value: string) => {
+    const normalized = value && value > todayIso ? todayIso : value;
+    setDraft((current) => ({
+      ...current,
+      fromDate: normalized,
+      toDate: current.toDate && normalized && normalized > current.toDate ? normalized : current.toDate,
+    }));
+  };
+
+  const setToDate = (value: string) => {
+    const normalized = value && value > todayIso ? todayIso : value;
+    setDraft((current) => ({
+      ...current,
+      toDate: normalized,
+      fromDate: current.fromDate && normalized && normalized < current.fromDate ? normalized : current.fromDate,
+    }));
   };
 
   return (
@@ -163,7 +191,7 @@ export default function CompanyListToolbar({
             <Popover
               open={filtersOpen}
               onOpenChange={(nextOpen) => {
-                if (nextOpen) syncDraftFromApplied();
+                if (nextOpen) syncDraft();
                 setFiltersOpen(nextOpen);
               }}
             >
@@ -172,12 +200,12 @@ export default function CompanyListToolbar({
                   variant="outline"
                   className={cn(
                     "h-12 rounded-xl border-slate-200 bg-white px-5 text-[15px] font-medium shadow-sm transition-all hover:border-slate-300",
-                    hasAnyFilter && "border-primary/40 bg-primary/[0.04] text-primary",
+                    activeFilterCount > 0 && "border-primary/40 bg-primary/[0.04] text-primary",
                   )}
                 >
                   <Filter className="mr-2 h-4 w-4" />
                   Filters
-                  {hasAnyFilter ? (
+                  {activeFilterCount > 0 ? (
                     <span className="ml-2 rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-semibold text-primary">
                       {activeFilterCount}
                     </span>
@@ -186,63 +214,98 @@ export default function CompanyListToolbar({
               </PopoverTrigger>
               <PopoverContent
                 align="end"
-                className="w-[520px] rounded-2xl border border-slate-200 bg-white p-0 shadow-[0_26px_60px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80"
+                className="w-[560px] rounded-2xl border border-slate-200 bg-white p-0 shadow-[0_26px_60px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80"
               >
                 <div className="border-b border-slate-200 bg-white px-5 py-3.5">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-[14px] font-semibold tracking-[0.01em] text-slate-900">Filter Companies</p>
                       <p className="mt-0.5 text-[12px] text-slate-500">
-                        {hasAnyFilter ? `${activeFilterCount} filters applied` : "No filters applied"}
+                        {activeFilterCount > 0 ? `${activeFilterCount} filters applied` : "No filters applied"}
                       </p>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-7 rounded-lg px-2.5 text-[12px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                      onClick={clearDraftFilters}
+                      onClick={async () => {
+                        setDraft(buildEmptyDraft());
+                        await onClearAdvancedFilters();
+                        setFiltersOpen(false);
+                      }}
                     >
                       Clear all
                     </Button>
                   </div>
                 </div>
 
-                <div className="max-h-[62vh] space-y-3.5 overflow-y-auto bg-white px-5 py-3.5">
-                  <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/45 p-3 shadow-[0_2px_8px_rgba(148,163,184,0.1)]">
-                    <p className="border-b border-slate-200 pb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-700">
-                      Company Filters
-                    </p>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <CompanyFilterDropdown
-                        title="Group Name"
-                        placeholder="All group names"
-                        options={groupNameOptions}
-                        selected={draftGroupNameFilters}
-                        onToggle={(value) => setDraftGroupNameFilters((current) => toggleValue(current, value))}
-                      />
-                      <CompanyFilterDropdown
-                        title="Company Name"
-                        placeholder="All company names"
-                        options={companyNameOptions}
-                        selected={draftCompanyNameFilters}
-                        onToggle={(value) => setDraftCompanyNameFilters((current) => toggleValue(current, value))}
-                      />
-                      <CompanyFilterDropdown
-                        title="Legal Name"
-                        placeholder="All legal names"
-                        options={legalNameOptions}
-                        selected={draftLegalNameFilters}
-                        onToggle={(value) => setDraftLegalNameFilters((current) => toggleValue(current, value))}
-                      />
-                    </div>
+                <div className="max-h-[68vh] overflow-y-auto bg-white px-5 py-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <DateDropdown
+                      value={draft.incorporationDate}
+                      fromDate={draft.fromDate}
+                      toDate={draft.toDate}
+                      todayIso={todayIso}
+                      onValueChange={(option) =>
+                        setDraft((current) => ({
+                          ...current,
+                          incorporationDate: current.incorporationDate === option ? null : option,
+                          fromDate: option === "custom" ? current.fromDate : "",
+                          toDate: option === "custom" ? current.toDate : "",
+                        }))
+                      }
+                      onFromDateChange={setFromDate}
+                      onToDateChange={setToDate}
+                    />
+                    <SingleSelectDropdown
+                      title="GST Code"
+                      placeholder="Select GST code"
+                      options={COMPANY_LIST_BOOLEAN_OPTIONS.map((option) => ({
+                        value: option,
+                        label: option.toUpperCase(),
+                      }))}
+                      value={draft.gstcode}
+                      onSelect={(value) => setDraft((current) => ({ ...current, gstcode: current.gstcode === value ? null : value as CompanyListBooleanFilterValue }))}
+                    />
+                    <SingleSelectDropdown
+                      title="IE Code"
+                      placeholder="Select IE code"
+                      options={COMPANY_LIST_BOOLEAN_OPTIONS.map((option) => ({
+                        value: option,
+                        label: option.toUpperCase(),
+                      }))}
+                      value={draft.isCode}
+                      onSelect={(value) => setDraft((current) => ({ ...current, isCode: current.isCode === value ? null : value as CompanyListBooleanFilterValue }))}
+                    />
+                    <MultiSelectDropdown
+                      title="Signatory Count"
+                      placeholder="Select signatory count"
+                      options={COMPANY_LIST_SIGNATORY_OPTIONS.map((count) => ({
+                        value: String(count),
+                        label: String(count),
+                      }))}
+                      selected={draft.signatoryCount.map(String)}
+                      onToggle={(value) =>
+                        setDraft((current) => {
+                          const count = Number(value);
+                          return {
+                            ...current,
+                            signatoryCount: current.signatoryCount.includes(count)
+                              ? current.signatoryCount.filter((item) => item !== count)
+                              : [...current.signatoryCount, count].sort((a, b) => a - b),
+                          };
+                        })
+                      }
+                    />
                   </div>
                 </div>
+
                 <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => {
-                      syncDraftFromApplied();
+                      syncDraft();
                       setFiltersOpen(false);
                     }}
                   >
@@ -251,16 +314,7 @@ export default function CompanyListToolbar({
                   <Button
                     size="sm"
                     onClick={() => {
-                      onSetGroupNameFilters(() => draftGroupNameFilters);
-                      onSetCompanyNameFilters(() => draftCompanyNameFilters);
-                      onSetLegalNameFilters(() => draftLegalNameFilters);
-                      if (
-                        draftGroupNameFilters.length === 0 &&
-                        draftCompanyNameFilters.length === 0 &&
-                        draftLegalNameFilters.length === 0
-                      ) {
-                        onClearAdvancedFilters();
-                      }
+                      onApplyFilters(draft);
                       setFiltersOpen(false);
                     }}
                   >
@@ -310,7 +364,67 @@ export default function CompanyListToolbar({
   );
 }
 
-function CompanyFilterDropdown({
+function SectionLabel({ title }: { title: string }) {
+  return <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</p>;
+}
+
+function DropdownField({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <SectionLabel title={title} />
+      {children}
+    </div>
+  );
+}
+
+function SingleSelectDropdown({
+  title,
+  placeholder,
+  options,
+  value,
+  onSelect,
+}: {
+  title: string;
+  placeholder: string;
+  options: Array<{ value: string; label: string }>;
+  value: string | null;
+  onSelect: (value: string) => void;
+}) {
+  const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder;
+  return (
+    <DropdownField title={title}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]",
+              value && "border-primary/40 text-primary",
+            )}
+          >
+            <span className="truncate">{selectedLabel}</span>
+            <ChevronDown className="h-4 w-4 text-slate-400" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl border border-slate-200 p-2">
+          {options.map((option) => (
+            <DropdownMenuItem key={option.value} onSelect={() => onSelect(option.value)} className="cursor-pointer rounded-md">
+              {option.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </DropdownField>
+  );
+}
+
+function MultiSelectDropdown({
   title,
   placeholder,
   options,
@@ -319,117 +433,132 @@ function CompanyFilterDropdown({
 }: {
   title: string;
   placeholder: string;
-  options: string[];
+  options: Array<{ value: string; label: string }>;
   selected: string[];
   onToggle: (value: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-  const summaryLabel = selected.length === 0 ? placeholder : selected.length === 1 ? selected[0] : `${selected.length} selected`;
-  const filteredOptions = options.filter((option) => option.toLowerCase().includes(searchTerm.toLowerCase()));
-
+  const summary =
+    selected.length === 0
+      ? placeholder
+      : selected.length === 1
+        ? options.find((option) => option.value === selected[0])?.label ?? selected[0]
+        : `${selected.length} selected`;
   return (
-    <div className="space-y-1.5">
-      <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{title}</Label>
-      <DropdownMenu
-        open={open}
-        onOpenChange={(nextOpen) => {
-          setOpen(nextOpen);
-          if (!nextOpen) {
-            setSearchTerm("");
-            setIsSearchExpanded(false);
-          }
-        }}
-      >
+    <DropdownField title={title}>
+      <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
             className={cn(
-              "h-10 w-full justify-between rounded-lg border-slate-200 bg-white px-3 text-left text-[12px] font-medium hover:border-slate-300",
-              selected.length > 0 ? "border-blue-200 bg-blue-50/40 text-blue-800" : "text-slate-700",
+              "h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]",
+              selected.length > 0 && "border-primary/40 text-primary",
             )}
           >
-            <span className="truncate">{summaryLabel}</span>
-            <span className="ml-2 inline-flex items-center gap-1.5">
-              {selected.length > 0 ? (
-                <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
-                  {selected.length}
-                </span>
-              ) : null}
-              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-            </span>
+            <span className="truncate">{summary}</span>
+            <ChevronDown className="h-4 w-4 text-slate-400" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[260px] border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
-          onOpenAutoFocus={(event) => event.preventDefault()}
-        >
-          <div className="mt-1 flex items-center justify-between gap-2 px-1">
-            <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">{title}</div>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => {
-                if (isSearchExpanded) {
-                  setSearchTerm("");
-                  setIsSearchExpanded(false);
-                  return;
-                }
-                setIsSearchExpanded(true);
-              }}
-              className="h-9 w-9 rounded-lg border-slate-200 bg-slate-50 text-slate-600 shadow-none hover:border-slate-300 hover:bg-white"
-              aria-label={isSearchExpanded ? `Close ${title.toLowerCase()} search` : `Open ${title.toLowerCase()} search`}
+        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl border border-slate-200 p-2">
+          {options.map((option) => (
+            <DropdownMenuCheckboxItem
+              key={option.value}
+              checked={selected.includes(option.value)}
+              onCheckedChange={() => onToggle(option.value)}
+              onSelect={(event) => event.preventDefault()}
+              className="cursor-pointer rounded-md"
             >
-              {isSearchExpanded ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-            </Button>
-          </div>
-          <div
-            className={cn(
-              "overflow-hidden px-1 transition-all duration-250 ease-out",
-              isSearchExpanded ? "mt-2 max-h-12 opacity-100" : "max-h-0 opacity-0",
-            )}
-          >
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                onKeyDown={(event) => {
-                  event.stopPropagation();
-                  if (event.key === "Escape") {
-                    setSearchTerm("");
-                    setIsSearchExpanded(false);
-                  }
-                }}
-                placeholder={`Search ${title.toLowerCase()}...`}
-                className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] shadow-none"
-                autoComplete="off"
-                autoFocus={isSearchExpanded}
-              />
-            </div>
-          </div>
-          {filteredOptions.length === 0 ? (
-            <div className="px-2 py-2 text-[12px] text-slate-400">No options available</div>
-          ) : (
-            <div className="mt-2 max-h-56 overflow-y-auto">
-              {filteredOptions.map((option) => (
-                <DropdownMenuCheckboxItem
-                  key={option}
-                  checked={selected.includes(option)}
-                  onSelect={(event) => event.preventDefault()}
-                  onCheckedChange={() => onToggle(option)}
-                  className="text-[13px]"
-                >
-                  {option}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </div>
-          )}
+              {option.label}
+            </DropdownMenuCheckboxItem>
+          ))}
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
+    </DropdownField>
+  );
+}
+
+function DateDropdown({
+  value,
+  fromDate,
+  toDate,
+  todayIso,
+  onValueChange,
+  onFromDateChange,
+  onToDateChange,
+}: {
+  value: CompanyListAppliedFiltersDraft["incorporationDate"];
+  fromDate: string;
+  toDate: string;
+  todayIso: string;
+  onValueChange: (value: NonNullable<CompanyListAppliedFiltersDraft["incorporationDate"]>) => void;
+  onFromDateChange: (value: string) => void;
+  onToDateChange: (value: string) => void;
+}) {
+  const selectedLabel =
+    value === "custom"
+      ? fromDate || toDate
+        ? `${fromDate || "From"} to ${toDate || "To"}`
+        : "Custom"
+      : value
+        ? dateLabel(value)
+        : "Select date";
+
+  return (
+    <DropdownField title="Incorporation Date">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]",
+              value && "border-primary/40 text-primary",
+            )}
+          >
+            <span className="truncate">{selectedLabel}</span>
+            <ChevronDown className="h-4 w-4 text-slate-400" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[320px] rounded-xl border border-slate-200 p-3">
+          <div className="grid grid-cols-2 gap-2">
+            {COMPANY_LIST_DATE_OPTIONS.map((option) => (
+              <Button
+                key={option}
+                type="button"
+                variant={value === option ? "default" : "outline"}
+                size="sm"
+                className="h-9 px-2 text-[12px]"
+                onClick={() => onValueChange(option)}
+              >
+                {dateLabel(option)}
+              </Button>
+            ))}
+          </div>
+          {value === "custom" ? (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <p className="text-xs text-slate-500">From</p>
+                <Input
+                  type="date"
+                  max={toDate || todayIso}
+                  value={fromDate}
+                  onChange={(event) => onFromDateChange(event.target.value)}
+                  className="h-10"
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-slate-500">To</p>
+                <Input
+                  type="date"
+                  min={fromDate || undefined}
+                  max={todayIso}
+                  value={toDate}
+                  onChange={(event) => onToDateChange(event.target.value)}
+                  className="h-10"
+                />
+              </div>
+            </div>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </DropdownField>
   );
 }

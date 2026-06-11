@@ -76,10 +76,18 @@ const toResponseSizeByteRange = (value: ResponseSizeRange): string | null => {
   return `${minRaw * 1024} - ${maxRaw * 1024}`;
 };
 
+const toApiDateRange = (value: DateFilterValue): "7day" | "15day" | "1month" | "custom" | null => {
+  if (value === "7days") return "7day";
+  if (value === "15days") return "15day";
+  if (value === "1month") return "1month";
+  if (value === "custom") return "custom";
+  return null;
+};
+
 const buildAppliedRequest = (draft: ApiMonitoringAppliedFiltersDraft): ApiMonitoringPaginatedRequest["applied"] => {
   if (!hasFiltersApplied(draft)) return null;
   return {
-    date: draft.date,
+    date: toApiDateRange(draft.date),
     formDate: draft.date === "custom" ? draft.fromDate || null : null,
     toDate: draft.date === "custom" ? draft.toDate || null : null,
     status: draft.status.length > 0 ? draft.status : null,

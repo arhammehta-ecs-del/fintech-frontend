@@ -54,21 +54,31 @@ export type CompanyListToolbarProps = {
   selectedStatusTab: StatusTab;
   onStatusTabChange: (value: StatusTab) => void;
   statusCounts: Record<"active" | "pending" | "inactive", number>;
-  groupNameFilters: string[];
-  onSetGroupNameFilters: (updater: (current: string[]) => string[]) => void;
-  companyNameFilters: string[];
-  onSetCompanyNameFilters: (updater: (current: string[]) => string[]) => void;
-  legalNameFilters: string[];
-  onSetLegalNameFilters: (updater: (current: string[]) => string[]) => void;
-  groupNameOptions: string[];
-  companyNameOptions: string[];
-  legalNameOptions: string[];
-  onClearAdvancedFilters: () => void;
+  appliedFilters: CompanyListAppliedFiltersDraft;
+  onApplyFilters: (draft: CompanyListAppliedFiltersDraft) => void;
+  onClearAdvancedFilters: () => void | Promise<void>;
+  todayIso: string;
   onOpenOnboarding: () => void;
   hasNewCompanyListEvent: boolean;
   suppressAutoEventTooltip?: boolean;
   onRefresh: () => void | Promise<void>;
   refreshInitializedAt?: number | null;
+};
+
+export const COMPANY_LIST_DATE_OPTIONS = ["7days", "15days", "1month", "custom"] as const;
+export const COMPANY_LIST_BOOLEAN_OPTIONS = ["yes", "no"] as const;
+export const COMPANY_LIST_SIGNATORY_OPTIONS = [1, 2, 3, 4, 5] as const;
+
+export type CompanyListDateFilterValue = (typeof COMPANY_LIST_DATE_OPTIONS)[number] | null;
+export type CompanyListBooleanFilterValue = (typeof COMPANY_LIST_BOOLEAN_OPTIONS)[number] | null;
+
+export type CompanyListAppliedFiltersDraft = {
+  incorporationDate: CompanyListDateFilterValue;
+  fromDate: string;
+  toDate: string;
+  gstcode: CompanyListBooleanFilterValue;
+  isCode: CompanyListBooleanFilterValue;
+  signatoryCount: number[];
 };
 
 // export type CompanyListMobileListProps = {

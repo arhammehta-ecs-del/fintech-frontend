@@ -26,15 +26,8 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     expanded,
     searchInput,
     setSearchInput,
-    groupNameFilters,
-    setGroupNameFilters,
-    companyNameFilters,
-    setCompanyNameFilters,
-    legalNameFilters,
-    setLegalNameFilters,
-    groupNameOptions,
-    companyNameOptions,
-    legalNameOptions,
+    appliedFilters,
+    applyFilters,
     searchSuggestions,
     visibleColumns,
     selectedCompany,
@@ -62,6 +55,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     handleJumpToPage,
     handleClearSearch,
     clearAdvancedFilters,
+    todayIso,
     toggleGroup,
     openModal,
     handleSaveCompany,
@@ -97,17 +91,11 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
         selectedStatusTab={selectedStatusTab}
         onStatusTabChange={setSelectedStatusTab}
         statusCounts={statusCounts}
-        groupNameFilters={groupNameFilters}
-        onSetGroupNameFilters={setGroupNameFilters}
-        companyNameFilters={companyNameFilters}
-        onSetCompanyNameFilters={setCompanyNameFilters}
-        legalNameFilters={legalNameFilters}
-        onSetLegalNameFilters={setLegalNameFilters}
-        groupNameOptions={groupNameOptions}
-        companyNameOptions={companyNameOptions}
-        legalNameOptions={legalNameOptions}
+        appliedFilters={appliedFilters}
+        onApplyFilters={applyFilters}
         searchSuggestions={searchSuggestions}
         onClearAdvancedFilters={clearAdvancedFilters}
+        todayIso={todayIso}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
         hasNewCompanyListEvent={hasNewCompanyListEvent}
         suppressAutoEventTooltip={isOnboardingOpen || isPreviewOpen || remarkDialogOpen || isNotificationsPanelOpen}

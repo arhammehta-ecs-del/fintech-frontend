@@ -127,6 +127,17 @@ export type CompanyPaginatedRequest = {
   page?: number | null;
   direction?: CompanyListDirection;
   query?: string | null;
+  filter?: boolean;
+  applied?: {
+    incorporationDate: {
+      dateRange: "7DAYS" | "15DAYS" | "1MONTH" | "CUSTOM";
+      fromDate: string | null;
+      toDate: string | null;
+    } | null;
+    gstcode: "yes" | "no" | null;
+    isCode: "yes" | "no" | null;
+    signatoryCount: number[] | null;
+  } | null;
 };
 
 type CompanyPageInfo = {
@@ -321,13 +332,17 @@ export async function fetchCompaniesPaginated(request: CompanyPaginatedRequest):
   const payload = await apiFetch<CompanyListApiResponse>(COMPANY_LIST_PATH, {
     method: "POST",
     body: JSON.stringify({
-      statusType: request.type ?? "active",
-      limit: request.limit,
-      cursor: request.cursor ?? null,
-      topCursor: request.topCursor ?? null,
-      page: request.page ?? null,
-      direction: request.direction ?? "NEXT",
-      query: toNullableString(request.query),
+      filter: Boolean(request.filter),
+      pagination: {
+        statusType: request.type ?? "active",
+        limit: request.limit,
+        cursor: request.cursor ?? null,
+        topCursor: request.topCursor ?? null,
+        page: request.page ?? null,
+        direction: request.direction ?? "NEXT",
+        query: toNullableString(request.query),
+      },
+      applied: request.filter ? request.applied ?? null : null,
     }),
   });
 

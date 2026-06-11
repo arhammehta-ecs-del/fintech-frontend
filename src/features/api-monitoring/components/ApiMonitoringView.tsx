@@ -272,6 +272,7 @@ export default function ApiMonitoringView() {
                         value={draft.date}
                         fromDate={draft.fromDate}
                         toDate={draft.toDate}
+                        placeholder="Select date"
                         todayIso={todayIso}
                         onValueChange={(option) =>
                           setDraft((current) => ({
@@ -286,12 +287,13 @@ export default function ApiMonitoringView() {
                       />
                       <MultiSelectDropdown
                         title="Status"
-                        placeholder="All statuses"
+                        placeholder="Select statuses"
                         options={API_MONITORING_STATUS_OPTIONS.map((status) => ({ value: String(status), label: String(status) }))}
                         selected={draft.status.map(String)}
                         onToggle={(value) => toggleStatus(Number(value))}
                       />
                       <SubtrackDropdown
+                        placeholder="Select subtracks"
                         value={subtrackInput}
                         selected={draft.subtrack}
                         onInputChange={setSubtrackInput}
@@ -300,9 +302,10 @@ export default function ApiMonitoringView() {
                       />
                       <SingleSelectDropdown
                         title="Response Size"
-                        placeholder="All response sizes"
+                        placeholder="Select response size"
                         options={API_MONITORING_RESPONSE_SIZE_OPTIONS.map((range) => ({ value: range, label: `${range} KB` }))}
                         value={draft.responseSize}
+                        emptySummary=""
                         onSelect={(value) => setDraft((current) => ({ ...current, responseSize: current.responseSize === value ? null : value as typeof current.responseSize }))}
                       />
                       <SingleSelectDropdown
@@ -310,6 +313,7 @@ export default function ApiMonitoringView() {
                         placeholder="Select flow"
                         options={API_MONITORING_RESPONSE_SORT_OPTIONS.map((sort) => ({ value: sort, label: sort === "asc" ? "Ascending" : "Descending" }))}
                         value={draft.responseSizeSort}
+                        emptySummary=""
                         onSelect={(value) => setDraft((current) => ({ ...current, responseSizeSort: current.responseSizeSort === value ? null : value as typeof current.responseSizeSort }))}
                       />
                     </div>
@@ -456,19 +460,17 @@ function SectionHint({ children }: { children: ReactNode }) {
 function DropdownField({
   title,
   summary,
-  active,
   children,
 }: {
   title: string;
   summary: string;
-  active?: boolean;
   children: ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
       <SectionLabel title={title} />
       {children}
-      <SectionHint>{summary}</SectionHint>
+      {summary ? <SectionHint>{summary}</SectionHint> : null}
     </div>
   );
 }
@@ -478,17 +480,19 @@ function SingleSelectDropdown({
   placeholder,
   options,
   value,
+  emptySummary = "No selection applied",
   onSelect,
 }: {
   title: string;
   placeholder: string;
   options: Array<{ value: string; label: string }>;
   value: string | null;
+  emptySummary?: string;
   onSelect: (value: string) => void;
 }) {
   const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder;
   return (
-    <DropdownField title={title} summary={value ? selectedLabel : "No selection applied"} active={Boolean(value)}>
+    <DropdownField title={title} summary={value ? selectedLabel : emptySummary}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", value && "border-primary/40 text-primary")}>
@@ -523,7 +527,7 @@ function MultiSelectDropdown({
 }) {
   const summary =
     selected.length === 0
-      ? "No selection applied"
+      ? ""
       : selected.length === 1
         ? options.find((option) => option.value === selected[0])?.label ?? selected[0]
         : `${selected.length} selected`;
@@ -558,6 +562,7 @@ function DateDropdown({
   value,
   fromDate,
   toDate,
+  placeholder,
   todayIso,
   onValueChange,
   onFromDateChange,
@@ -566,6 +571,7 @@ function DateDropdown({
   value: (typeof API_MONITORING_DATE_OPTIONS)[number] | null;
   fromDate: string;
   toDate: string;
+  placeholder: string;
   todayIso: string;
   onValueChange: (value: (typeof API_MONITORING_DATE_OPTIONS)[number]) => void;
   onFromDateChange: (value: string) => void;
@@ -578,13 +584,13 @@ function DateDropdown({
         : "Custom range"
       : value
         ? dateLabel(value)
-        : "No selection applied";
+        : "";
   return (
     <DropdownField title="Date" summary={summary}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", value && "border-primary/40 text-primary")}>
-            <span className="truncate">{value ? dateLabel(value) : "All dates"}</span>
+            <span className="truncate">{value ? dateLabel(value) : placeholder}</span>
             <ChevronDown className="h-4 w-4 text-slate-400" />
           </Button>
         </DropdownMenuTrigger>
@@ -615,12 +621,14 @@ function DateDropdown({
 }
 
 function SubtrackDropdown({
+  placeholder,
   value,
   selected,
   onInputChange,
   onAdd,
   onRemove,
 }: {
+  placeholder: string;
   value: string;
   selected: number[];
   onInputChange: (value: string) => void;
@@ -628,12 +636,13 @@ function SubtrackDropdown({
   onRemove: (value: number) => void;
 }) {
   const summary = selected.length === 0 ? "No subtracks selected" : `${selected.length} selected`;
+  const normalizedSummary = selected.length === 0 ? "" : summary;
   return (
-    <DropdownField title="Subtracks" summary={summary}>
+    <DropdownField title="Subtracks" summary={normalizedSummary}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", selected.length > 0 && "border-primary/40 text-primary")}>
-            <span className="truncate">{selected.length === 0 ? "Select subtracks" : summary}</span>
+            <span className="truncate">{selected.length === 0 ? placeholder : summary}</span>
             <ChevronDown className="h-4 w-4 text-slate-400" />
           </Button>
         </DropdownMenuTrigger>
@@ -654,7 +663,7 @@ function SubtrackDropdown({
             <Button type="button" variant="outline" onClick={onAdd}>Add</Button>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            {selected.length === 0 ? <SectionHint>No subtracks selected</SectionHint> : selected.map((item) => (
+            {selected.length === 0 ? null : selected.map((item) => (
               <button
                 key={item}
                 type="button"
