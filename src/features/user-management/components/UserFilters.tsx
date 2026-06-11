@@ -27,6 +27,7 @@ type StatusFilterModeValue = "initiate" | "modify";
 type AppliedUserFiltersDraft = {
   designationFilters: string[];
   nodeNameFilters: string[];
+  nodeNameFilterPaths: string[];
   nodeTypeFilters: string[];
   accessCategoryFilters: string[];
   accessSubcategoryFilters: string[];
@@ -75,6 +76,7 @@ type UserFiltersProps = {
   searchSuggestions: string[];
   designationFilters: string[];
   nodeNameFilters: string[];
+  nodeNameFilterPaths: string[];
   nodeTypeFilters: string[];
   accessCategoryFilters: string[];
   accessSubcategoryFilters: string[];
@@ -100,15 +102,17 @@ type UserFiltersProps = {
   accessCategories: string[];
   accessSubcategories: Record<string, string[]>;
   filterNodeOptions: UserFilterNodeOption[];
-  nodeTypeOptions: string[];
+  nodeTypeOptions: UserFilterDropdownOption[];
   reportingManagerOptions: string[];
   statusCounts: Record<MemberStatusTab, number>;
+  userStatusSummary?: Record<string, number>;
   isFilterLoading: boolean;
 };
 
 const buildDraftFromProps = (props: UserFiltersProps): AppliedUserFiltersDraft => ({
   designationFilters: [...props.designationFilters],
   nodeNameFilters: [...props.nodeNameFilters],
+  nodeNameFilterPaths: [...props.nodeNameFilterPaths],
   nodeTypeFilters: [...props.nodeTypeFilters],
   accessCategoryFilters: [...props.accessCategoryFilters],
   accessSubcategoryFilters: [...props.accessSubcategoryFilters],
@@ -122,6 +126,22 @@ const buildDraftFromProps = (props: UserFiltersProps): AppliedUserFiltersDraft =
   onboardingDateFrom: props.onboardingDateFrom,
   onboardingDateTo: props.onboardingDateTo,
 });
+
+const countActiveFilters = (filters: AppliedUserFiltersDraft) =>
+  filters.designationFilters.length +
+  filters.nodeNameFilters.length +
+  filters.nodeTypeFilters.length +
+  filters.accessCategoryFilters.length +
+  filters.accessSubcategoryFilters.length +
+  filters.reportingManagerFilters.length +
+  filters.statusFilters.length +
+  filters.statusFilterMode.length +
+  filters.roleFilters.length +
+  Object.values(filters.nodeAccessType).reduce((count, types) => count + (types ? types.length : 0), 0) +
+  (filters.pendingActionFilter ? 1 : 0) +
+  (filters.onboardingDateRange ? 1 : 0) +
+  (filters.onboardingDateFrom ? 1 : 0) +
+  (filters.onboardingDateTo ? 1 : 0);
 
 export default function UserFilters(props: UserFiltersProps) {
   const {
@@ -146,6 +166,7 @@ export default function UserFilters(props: UserFiltersProps) {
     nodeTypeOptions,
     reportingManagerOptions,
     statusCounts,
+    userStatusSummary,
     isFilterLoading,
   } = props;
   const visibleTabs = STATUS_TABS.filter((tab) => tab.id === "active" || statusCounts[tab.id] > 0);
@@ -154,24 +175,11 @@ export default function UserFilters(props: UserFiltersProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isRefreshTooltipOpen, setIsRefreshTooltipOpen] = useState(false);
   const { refreshLabel, markRefreshed } = useRefreshTimestamp({ initializedAt: refreshInitializedAt });
+  const appliedFilters = useMemo(() => buildDraftFromProps(props), [props]);
+  const appliedFilterCount = useMemo(() => countActiveFilters(appliedFilters), [appliedFilters]);
 
-  const activeFilterCount =
-    draft.designationFilters.length +
-    draft.nodeNameFilters.length +
-    draft.nodeTypeFilters.length +
-    draft.accessCategoryFilters.length +
-    draft.accessSubcategoryFilters.length +
-    draft.reportingManagerFilters.length +
-    draft.statusFilters.length +
-    draft.statusFilterMode.length +
-    draft.roleFilters.length +
-    Object.values(draft.nodeAccessType).reduce((count, types) => count + (types ? types.length : 0), 0) +
-    (draft.pendingActionFilter ? 1 : 0) +
-    (draft.onboardingDateRange ? 1 : 0) +
-    (draft.onboardingDateFrom ? 1 : 0) +
-    (draft.onboardingDateTo ? 1 : 0);
-
-  const hasAnyFilter = activeFilterCount > 0;
+  const activeFilterCount = countActiveFilters(draft);
+  const hasAnyFilter = appliedFilterCount > 0;
   const categoryOptions = useMemo(
     () => accessCategories.filter((option) => option.trim().toLowerCase() !== "all"),
     [accessCategories],
@@ -196,6 +204,7 @@ export default function UserFilters(props: UserFiltersProps) {
     const emptyValue: Partial<AppliedUserFiltersDraft> = {
       designationFilters: [],
       nodeNameFilters: [],
+      nodeNameFilterPaths: [],
       nodeTypeFilters: [],
       accessCategoryFilters: [],
       accessSubcategoryFilters: [],
@@ -309,7 +318,7 @@ export default function UserFilters(props: UserFiltersProps) {
                 Filters
                 {hasAnyFilter ? (
                   <span className="ml-2 rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                    {activeFilterCount}
+                    {appliedFilterCount}
                   </span>
                 ) : null}
               </Button>
@@ -323,7 +332,7 @@ export default function UserFilters(props: UserFiltersProps) {
                   <div>
                     <p className="text-[14px] font-semibold tracking-[0.01em] text-slate-900">Filter Members</p>
                     <p className="mt-0.5 text-[12px] text-slate-500">
-                      {isFilterLoading ? "Loading filter options..." : hasAnyFilter ? `${activeFilterCount} filters applied` : "No filters applied"}
+                      {isFilterLoading ? "Loading filter options..." : activeFilterCount > 0 ? `${activeFilterCount} filters applied` : "No filters applied"}
                     </p>
                   </div>
                   <Button
@@ -361,22 +370,27 @@ export default function UserFilters(props: UserFiltersProps) {
                     <NodeNameDropdown
                       options={filterNodeOptions}
                       selected={draft.nodeNameFilters}
+                      selectedPaths={draft.nodeNameFilterPaths}
                       nodeAccessType={draft.nodeAccessType}
-                      onToggle={(value) =>
+                      onToggle={(option) =>
                         setDraft((current) => {
-                          const isRemoving = current.nodeNameFilters.includes(value);
+                          const isRemoving = current.nodeNameFilterPaths.includes(option.path);
                           const nextFilters = isRemoving
-                            ? current.nodeNameFilters.filter((item) => item !== value)
-                            : [...current.nodeNameFilters, value];
+                            ? current.nodeNameFilters.filter((item, index) => current.nodeNameFilterPaths[index] !== option.path)
+                            : [...current.nodeNameFilters, option.value];
+                          const nextPaths = isRemoving
+                            ? current.nodeNameFilterPaths.filter((path) => path !== option.path)
+                            : [...current.nodeNameFilterPaths, option.path];
                           
                           const nextAccess = { ...current.nodeAccessType };
                           if (isRemoving) {
-                            delete nextAccess[value];
+                            delete nextAccess[option.value];
                           }
 
                           return {
                             ...current,
                             nodeNameFilters: nextFilters,
+                            nodeNameFilterPaths: nextPaths,
                             nodeAccessType: nextAccess,
                           };
                         })
@@ -396,22 +410,25 @@ export default function UserFilters(props: UserFiltersProps) {
                           };
                         })
                       }
-                      onSelectAllChildren={(values) =>
+                      onSelectAllChildren={(items) =>
                         setDraft((current) => ({
                           ...current,
-                          nodeNameFilters: Array.from(new Set([...current.nodeNameFilters, ...values])),
+                          nodeNameFilters: [...current.nodeNameFilters, ...items.map((item) => item.value)],
+                          nodeNameFilterPaths: Array.from(new Set([...current.nodeNameFilterPaths, ...items.map((item) => item.path)])),
                         }))
                       }
                       onClearSelection={() => {
                         clearDraftField("nodeNameFilters");
+                        clearDraftField("nodeNameFilterPaths");
                         clearDraftField("nodeAccessType");
                       }}
                     />
                     <MultiSelectDropdown
                       title="Node Type"
                       placeholder="Select node type"
-                      options={nodeTypeOptions}
+                      options={nodeTypeOptions.map((n) => n.value)}
                       itemCount={nodeTypeOptions.length}
+                      counts={Object.fromEntries(nodeTypeOptions.map((n) => [n.value, n.count ?? 0]))}
                       selected={draft.nodeTypeFilters}
                       onToggle={(value) =>
                         setDraft((current) => ({
@@ -481,8 +498,9 @@ export default function UserFilters(props: UserFiltersProps) {
                     <MultiSelectDropdown
                       title="Status"
                       placeholder="Select status"
-                      options={FILTER_STATUS_OPTIONS}
-                      itemCount={FILTER_STATUS_OPTIONS.length}
+                      options={userStatusSummary ? (Object.keys(userStatusSummary).map(k => k.charAt(0).toUpperCase() + k.slice(1)) as FilterStatusValue[]) : FILTER_STATUS_OPTIONS}
+                      itemCount={userStatusSummary ? Object.keys(userStatusSummary).length : FILTER_STATUS_OPTIONS.length}
+                      counts={userStatusSummary ? Object.fromEntries(Object.entries(userStatusSummary).map(([k, v]) => [k.charAt(0).toUpperCase() + k.slice(1), v])) : undefined}
                       disabledOptions={draft.statusFilterMode.includes("initiate") && !draft.statusFilterMode.includes("modify") ? ["Active", "Inactive"] : []}
                       selected={draft.statusFilters}
                       onToggle={(value) =>
@@ -658,6 +676,7 @@ function buildEmptyDraft(): AppliedUserFiltersDraft {
   return {
     designationFilters: [],
     nodeNameFilters: [],
+    nodeNameFilterPaths: [],
     nodeTypeFilters: [],
     accessCategoryFilters: [],
     accessSubcategoryFilters: [],
@@ -791,7 +810,7 @@ function MultiSelectDropdown({
                     />
                     <span>{option}</span>
                   </span>
-                  {counts && counts[option] ? <span className="text-[11px] text-slate-400">{counts[option]}</span> : null}
+                  {counts && counts[option] ? <span className="text-[11px] font-medium text-blue-600">{counts[option]}</span> : null}
                 </label>
               );
             })}
@@ -1009,6 +1028,7 @@ function DateRangeDropdown({
 function NodeNameDropdown({
   options,
   selected,
+  selectedPaths,
   nodeAccessType,
   onToggle,
   onNodeAccessChange,
@@ -1017,10 +1037,11 @@ function NodeNameDropdown({
 }: {
   options: UserFilterNodeOption[];
   selected: string[];
+  selectedPaths: string[];
   nodeAccessType: Record<string, NodeAccessValue[]>;
-  onToggle: (value: string) => void;
+  onToggle: (option: UserFilterNodeOption) => void;
   onNodeAccessChange: (nodeName: string, accessType: NodeAccessValue) => void;
-  onSelectAllChildren: (values: string[]) => void;
+  onSelectAllChildren: (values: UserFilterNodeOption[]) => void;
   onClearSelection: () => void;
 }) {
   const [search, setSearch] = useState("");
@@ -1074,11 +1095,10 @@ function NodeNameDropdown({
           <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search node name" className="mb-3 h-9" />
           <div className="max-h-[220px] space-y-2 overflow-auto">
             {filteredOptions.map((option) => {
-              const isSelected = selected.includes(option.value);
-              const childValues = normalizedOptions
+              const isSelected = selectedPaths.length > 0 ? selectedPaths.includes(option.path) : selected.includes(option.value);
+              const childOptions = normalizedOptions
                 .filter((candidate) => isDescendantNodePath(option.path, candidate.path))
-                .map((candidate) => candidate.value);
-              const selectableChildValues = childValues.filter((value) => !selected.includes(value));
+              const selectableChildOptions = childOptions.filter((candidate) => !selectedPaths.includes(candidate.path));
               return (
                 <div key={`${option.path}-${option.value}`} className={cn("rounded-lg border p-2", isSelected ? "border-blue-200 bg-blue-50/40" : "border-slate-100")}>
                   <div className="flex items-start justify-between gap-2">
@@ -1086,7 +1106,7 @@ function NodeNameDropdown({
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => onToggle(option.value)}
+                        onChange={() => onToggle(option)}
                         className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
                       />
                       <div>
@@ -1145,10 +1165,10 @@ function NodeNameDropdown({
                       </div>
                     </TooltipProvider>
                   </div>
-                  {isSelected && childValues.length > 0 ? (
+                  {isSelected && childOptions.length > 0 ? (
                     <div className="mt-2 flex items-center justify-between rounded-lg border border-blue-100 bg-white/80 px-2.5 py-1.5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                        Child Nodes ({childValues.length})
+                        Child Nodes ({childOptions.length})
                       </p>
                       <Button
                         type="button"
@@ -1156,9 +1176,9 @@ function NodeNameDropdown({
                         variant="outline"
                         className={cn(
                           "h-7 rounded-full border-blue-200 px-2.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-50",
-                          selectableChildValues.length === 0 && "opacity-70",
+                          selectableChildOptions.length === 0 && "opacity-70",
                         )}
-                        onClick={() => onSelectAllChildren(childValues)}
+                        onClick={() => onSelectAllChildren(childOptions)}
                       >
                         Select all child
                       </Button>

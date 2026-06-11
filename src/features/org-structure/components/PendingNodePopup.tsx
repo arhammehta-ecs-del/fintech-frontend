@@ -11,6 +11,7 @@ type PendingNodePopupProps = {
   onClose: () => void;
   onApprove: (node: OrgNode, remark: string) => void;
   onReject: (node: OrgNode, remark: string) => void;
+  onNavigateToImpactedUsers?: (node: OrgNode) => void;
   onOpenHistory?: (node: OrgNode) => void;
   onToggleHistory?: () => void;
   isHistoryOpen?: boolean;
@@ -152,6 +153,7 @@ export function PendingNodePopup({
   onClose,
   onApprove,
   onReject,
+  onNavigateToImpactedUsers,
   onOpenHistory,
   onToggleHistory,
   isHistoryOpen = false,
@@ -375,16 +377,16 @@ export function PendingNodePopup({
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Initiator Info</p>
                   <div className="mt-2.5 space-y-1.5 text-[13px] leading-relaxed">
                     <div className="flex items-center gap-2">
-                      <User size={13} className="shrink-0 text-slate-400" />
-                      <p className="truncate text-slate-600">{requesterName}</p>
+                      <User size={13} className="shrink-0 text-slate-500" />
+                      <p className="truncate font-medium text-slate-800">{requesterName}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Mail size={13} className="shrink-0 text-slate-400" />
-                      <p className="truncate text-slate-500">{requesterEmail}</p>
+                      <Mail size={13} className="shrink-0 text-slate-500" />
+                      <p className="truncate font-medium text-slate-700">{requesterEmail}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Clock3 size={13} className="shrink-0 text-slate-400" />
-                      <p className="text-slate-500">{requestedOn}</p>
+                      <Clock3 size={13} className="shrink-0 text-slate-500" />
+                      <p className="font-medium text-slate-700">{requestedOn}</p>
                     </div>
                   </div>
                 </div>
@@ -457,10 +459,16 @@ export function PendingNodePopup({
           {(affectedUsersCount > 0 || affectedWorkflowsCount > 0) ? (
             <div className={cn("grid items-start gap-4", isStandaloneDialog ? "lg:grid-cols-2" : "xl:grid-cols-2")}>
               {affectedUsersCount > 0 ? (
-                <div
+                <button
+                  type="button"
+                  onClick={() => onNavigateToImpactedUsers?.(node)}
+                  disabled={!onNavigateToImpactedUsers}
                   className={cn(
-                    "h-fit self-start overflow-hidden rounded-2xl border",
+                    "h-fit self-start overflow-hidden rounded-2xl border text-left transition",
                     "border-sky-200/80 bg-sky-50/80",
+                    onNavigateToImpactedUsers
+                      ? "cursor-pointer hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/40"
+                      : "cursor-default",
                   )}
                 >
                   <div className="border-b border-sky-100 bg-sky-100/70 px-4 py-3">
@@ -493,7 +501,7 @@ export function PendingNodePopup({
                       </div>
                     </>
                   ) : null}
-                </div>
+                </button>
               ) : null}
 
               {affectedWorkflowsCount > 0 ? (

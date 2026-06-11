@@ -23,6 +23,7 @@ type StatusFilterModeValue = "initiate" | "modify";
 type AppliedUserFiltersDraft = {
   designationFilters: string[];
   nodeNameFilters: string[];
+  nodeNameFilterPaths: string[];
   nodeTypeFilters: string[];
   accessCategoryFilters: string[];
   accessSubcategoryFilters: string[];
@@ -35,6 +36,17 @@ type AppliedUserFiltersDraft = {
   onboardingDateRange: OnboardingDateRange;
   onboardingDateFrom: string;
   onboardingDateTo: string;
+};
+
+type LoadUserRequestOverrides = {
+  forceFilter?: boolean;
+  applied?: UserAppliedFilters | null;
+};
+
+type QueuedLoadRequest = {
+  showRefreshToast: boolean;
+  overrideStatusTab?: MemberStatusTab;
+  requestOverrides?: LoadUserRequestOverrides;
 };
 
 const DEFAULT_FILTER_DROPDOWNS: UserFilterDropdowns = {
@@ -106,6 +118,25 @@ const buildAppliedFilters = (input: AppliedUserFiltersDraft): UserAppliedFilters
   };
 };
 
+const mergeQueuedLoadRequest = (
+  current: QueuedLoadRequest | null,
+  next: QueuedLoadRequest,
+): QueuedLoadRequest => {
+  if (!current) return next;
+
+  const currentOverrides = current.requestOverrides;
+  const nextOverrides = next.requestOverrides;
+  const shouldPreferNextOverrides = Boolean(
+    nextOverrides?.forceFilter || nextOverrides?.applied,
+  );
+
+  return {
+    showRefreshToast: current.showRefreshToast || next.showRefreshToast,
+    overrideStatusTab: next.overrideStatusTab ?? current.overrideStatusTab,
+    requestOverrides: shouldPreferNextOverrides ? nextOverrides : (currentOverrides ?? nextOverrides),
+  };
+};
+
 export function useUserManagement() {
   const { currentUser, orgStructure, users, setUsers } = useAppContext();
   const { toast } = useToast();
@@ -114,6 +145,7 @@ export function useUserManagement() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [designationFilters, setDesignationFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [departmentFilterPaths, setDepartmentFilterPaths] = useState<string[]>([]);
   const [reportingManagerFilters, setReportingManagerFilters] = useState<string[]>([]);
   const [accessCategoryFilters, setAccessCategoryFilters] = useState<string[]>([]);
   const [accessSubcategoryFilters, setAccessSubcategoryFilters] = useState<string[]>([]);
@@ -144,7 +176,8 @@ export function useUserManagement() {
   const [filterDropdowns, setFilterDropdowns] = useState<UserFilterDropdowns>(DEFAULT_FILTER_DROPDOWNS);
   const lastActivityToastKeyRef = useRef<string>("");
   const isLoadingRef = useRef(false);
-  const queuedLoadRequestRef = useRef<{ showRefreshToast: boolean; overrideStatusTab?: MemberStatusTab } | null>(null);
+  const queuedLoadRequestRef = useRef<QueuedLoadRequest | null>(null);
+  const pendingNextLoadRequestRef = useRef<QueuedLoadRequest | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [viewingMember, setViewingMember] = useState<AppUser | null>(null);
   const [editingMember, setEditingMember] = useState<AppUser | null>(null);
@@ -162,6 +195,7 @@ export function useUserManagement() {
       buildAppliedFilters({
         designationFilters,
         nodeNameFilters: departmentFilters,
+        nodeNameFilterPaths: departmentFilterPaths,
         nodeTypeFilters,
         accessCategoryFilters,
         accessSubcategoryFilters,
@@ -179,6 +213,7 @@ export function useUserManagement() {
       accessCategoryFilters,
       accessSubcategoryFilters,
       departmentFilters,
+      departmentFilterPaths,
       designationFilters,
       nodeAccessType,
       nodeTypeFilters,
@@ -222,13 +257,17 @@ export function useUserManagement() {
     async (
       showRefreshToast = false,
       overrideStatusTab?: MemberStatusTab,
-      requestOverrides?: { forceFilter?: boolean; applied?: UserAppliedFilters | null },
+      requestOverrides?: LoadUserRequestOverrides,
     ) => {
       const companyCode = currentUser?.companyCode?.trim().toUpperCase();
       if (!companyCode) return null;
       const requestedTab = overrideStatusTab ?? effectiveStatusTab;
       if (isLoadingRef.current) {
-        queuedLoadRequestRef.current = { showRefreshToast, overrideStatusTab: requestedTab };
+        queuedLoadRequestRef.current = mergeQueuedLoadRequest(queuedLoadRequestRef.current, {
+          showRefreshToast,
+          overrideStatusTab: requestedTab,
+          requestOverrides,
+        });
         return null;
       }
       isLoadingRef.current = true;
@@ -285,7 +324,7 @@ export function useUserManagement() {
         if (queuedLoadRequestRef.current) {
           const queuedRequest = queuedLoadRequestRef.current;
           queuedLoadRequestRef.current = null;
-          void loadUsers(queuedRequest.showRefreshToast, queuedRequest.overrideStatusTab);
+          void loadUsers(queuedRequest.showRefreshToast, queuedRequest.overrideStatusTab, queuedRequest.requestOverrides);
         }
       }
     },
@@ -309,7 +348,13 @@ export function useUserManagement() {
   }, [toast]);
 
   useEffect(() => {
-    void loadUsers();
+    const pendingNextLoad = pendingNextLoadRequestRef.current;
+    pendingNextLoadRequestRef.current = null;
+    void loadUsers(
+      pendingNextLoad?.showRefreshToast ?? false,
+      pendingNextLoad?.overrideStatusTab,
+      pendingNextLoad?.requestOverrides,
+    );
   }, [loadUsers]);
 
   useEffect(() => {
@@ -367,6 +412,7 @@ export function useUserManagement() {
   const clearAdvancedFilters = useCallback(() => {
     setDesignationFilters([]);
     setDepartmentFilters([]);
+    setDepartmentFilterPaths([]);
     setReportingManagerFilters([]);
     setAccessCategoryFilters([]);
     setAccessSubcategoryFilters([]);
@@ -385,8 +431,10 @@ export function useUserManagement() {
 
   const applyAdvancedFilters = useCallback(
     (filters: AppliedUserFiltersDraft) => {
+      const nextAppliedFilters = buildAppliedFilters(filters);
       setDesignationFilters(filters.designationFilters);
       setDepartmentFilters(filters.nodeNameFilters);
+      setDepartmentFilterPaths(filters.nodeNameFilterPaths);
       setNodeTypeFilters(filters.nodeTypeFilters);
       setAccessCategoryFilters(filters.accessCategoryFilters);
       setAccessSubcategoryFilters(filters.accessSubcategoryFilters);
@@ -404,6 +452,14 @@ export function useUserManagement() {
       const selectedStatus = filters.statusFilters[0];
       const nextStatusTab =
         selectedStatus === "Pending" ? "pending" : selectedStatus === "Inactive" ? "inactive" : "active";
+      pendingNextLoadRequestRef.current = {
+        showRefreshToast: false,
+        overrideStatusTab: nextStatusTab,
+        requestOverrides: {
+          forceFilter: true,
+          applied: nextAppliedFilters,
+        },
+      };
       setStatusTab(nextStatusTab);
       setPage(1);
       setPageCursors({ 1: null });
@@ -631,6 +687,8 @@ export function useUserManagement() {
     setDesignationFilters,
     departmentFilters,
     setDepartmentFilters,
+    departmentFilterPaths,
+    setDepartmentFilterPaths,
     reportingManagerFilters,
     setReportingManagerFilters,
     accessCategoryFilters,
@@ -693,6 +751,7 @@ export function useUserManagement() {
     safePage,
     paginatedMembers,
     statusCounts,
+    userStatusSummary: filterDropdowns.userStatusSummary,
     handlePrevPage,
     handleNextPage,
     handleJumpToPage,

@@ -272,6 +272,25 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     });
   };
 
+  const handleNavigateToImpactedUsers = (node: OrgNode) => {
+    const impactedEmails = Array.from(
+      new Set(
+        (node.impactSummary?.userAccess ?? [])
+          .map((user) => (user.email || "").trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    );
+    if (impactedEmails.length === 0) return;
+
+    setSearchParams({
+      tab: "users",
+      um_impact_users: impactedEmails.join(","),
+      um_impact_label: node.name.trim() || "Org Impact",
+      um_impact_node_path: node.nodePath.trim(),
+    });
+    handleClosePendingNodePopup();
+  };
+
   return (
     <div
       className={cn(
@@ -584,6 +603,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
             setIsOrgHistoryOpen(true);
           }
         }}
+        onNavigateToImpactedUsers={handleNavigateToImpactedUsers}
       />
 
       <OrgHistorySidebar

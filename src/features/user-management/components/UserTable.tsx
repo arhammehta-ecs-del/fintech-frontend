@@ -7,11 +7,19 @@ import { ArrowUpDown, SlidersHorizontal, Users, History, Trash2, Info } from "lu
 import { maskContactNumber, getInitials, getAvatarColor, formatCollapsedNodePath } from "@/features/user-management/utils";
 import UserHistorySidebar from "./UserHistorySidebar";
 import { useEffect, useRef, useState } from "react";
+import { formatRoleTokenLabel, getPermissionActionLabelFromText } from "@/features/user-management/roleLabels";
 
 type UserTableProps = {
   isLoading: boolean;
   currentMembers: AppUser[];
   paginatedMembers: AppUser[];
+  linkedAccessContext?: {
+    nodeName: string;
+    nodePath: string;
+    category: string;
+    subCategory: string;
+    action: "checker" | "maker" | "viewer";
+  } | null;
   onView: (member: AppUser) => void;
   onOpenHistoryDetail?: (member: AppUser, detail: HistoryDetailViewModel, sourceId: string) => void;
   onDelete?: (member: AppUser) => void;
@@ -41,19 +49,57 @@ const getPrimaryNodeMeta = (member: AppUser) => {
   const isRootByPath = nodeDepth <= 1;
   const showPath = Boolean(nodePath) && !isRootByType && !isRootByPath;
 
-  console.log("DEBUG_NODE_TYPE", {
-    extractedNodeType: nodeType,
-    preferredAccessType: preferredAccess?.nodeType,
-    memberNodeType: member.nodeType,
-    basicDetailsNodeType: member.basicDetails?.nodeType,
-    member
-  });
-
   return {
     departmentLabel: nodeName || member.department || "",
     primaryNodePath: nodePath,
     nodeType,
     showPath,
+  };
+};
+
+const normalizeAccessValue = (value: string) => value.trim().toUpperCase();
+
+const getMatchedAccessMeta = (
+  member: AppUser,
+  linkedAccessContext?: UserTableProps["linkedAccessContext"],
+) => {
+  if (!linkedAccessContext) return null;
+
+  const matchedEntry = (member.accessDetails ?? []).find((entry) => {
+    const entryRoleName = (entry.roleName || "").trim().toLowerCase();
+    const actionMatched =
+      linkedAccessContext.action === "checker"
+        ? entryRoleName.endsWith("manager") || entryRoleName.endsWith("checker")
+        : linkedAccessContext.action === "maker"
+          ? entryRoleName.endsWith("user") || entryRoleName.endsWith("maker")
+          : entryRoleName.endsWith("viewer");
+
+    return (
+      (!linkedAccessContext.nodePath || normalizeAccessValue(entry.nodePath || "") === normalizeAccessValue(linkedAccessContext.nodePath)) &&
+      (!linkedAccessContext.nodeName || normalizeAccessValue(entry.nodeName || "") === normalizeAccessValue(linkedAccessContext.nodeName)) &&
+      (!linkedAccessContext.category || normalizeAccessValue(entry.roleCategory || "") === normalizeAccessValue(linkedAccessContext.category)) &&
+      (!linkedAccessContext.subCategory || normalizeAccessValue(entry.roleSubCategory || "") === normalizeAccessValue(linkedAccessContext.subCategory)) &&
+      actionMatched
+    );
+  });
+
+  if (!matchedEntry) return null;
+
+  const nodeType = (matchedEntry.nodeType || "").trim().toUpperCase();
+  const nodePath = (matchedEntry.nodePath || "").trim();
+  const nodeName = (matchedEntry.nodeName || "").trim();
+  const nodeDepth = nodePath.split(".").map((part) => part.trim()).filter(Boolean).length;
+  const showPath = Boolean(nodePath) && nodeType !== "ROOT" && nodeDepth > 1;
+
+  return {
+    nodeName,
+    nodePath,
+    nodeType,
+    showPath,
+    accessType: (matchedEntry.accessType || "").trim(),
+    categoryLabel: formatRoleTokenLabel(matchedEntry.roleCategory || linkedAccessContext.category),
+    subCategoryLabel: formatRoleTokenLabel(matchedEntry.roleSubCategory || linkedAccessContext.subCategory),
+    roleLabel: getPermissionActionLabelFromText(linkedAccessContext.action),
   };
 };
 
@@ -144,6 +190,7 @@ export default function UserTable({
   isLoading,
   currentMembers,
   paginatedMembers,
+  linkedAccessContext,
   onView,
   onOpenHistoryDetail,
   onDelete,
@@ -223,18 +270,34 @@ export default function UserTable({
             <td className="px-4 py-4 text-sm text-slate-700">{member.designation || "—"}</td>
             <td className="px-4 py-4 text-sm text-slate-600">
               {(() => {
-                const { departmentLabel, primaryNodePath, showPath, nodeType } = getPrimaryNodeMeta(member);
-                const formattedPath = showPath ? formatCollapsedNodePath(primaryNodePath) : "";
-                const displayNodeType = nodeType ? nodeType.charAt(0).toUpperCase() + nodeType.slice(1).toLowerCase() : "";
+                const matchedAccessMeta = getMatchedAccessMeta(member, linkedAccessContext);
+                const baseNodeMeta = getPrimaryNodeMeta(member);
+                const activeNodeMeta = matchedAccessMeta
+                  ? {
+                    departmentLabel: matchedAccessMeta.nodeName,
+                    primaryNodePath: matchedAccessMeta.nodePath,
+                    showPath: matchedAccessMeta.showPath,
+                    nodeType: matchedAccessMeta.nodeType,
+                  }
+                  : baseNodeMeta;
+                const formattedPath = activeNodeMeta.showPath ? formatCollapsedNodePath(activeNodeMeta.primaryNodePath) : "";
+                const displayNodeType = activeNodeMeta.nodeType
+                  ? activeNodeMeta.nodeType.charAt(0).toUpperCase() + activeNodeMeta.nodeType.slice(1).toLowerCase()
+                  : "";
                 
                 return (
                   <div className="min-w-0">
                     <p className="truncate text-sm text-slate-700">
-                      {departmentLabel || "—"}
+                      {activeNodeMeta.departmentLabel || "—"}
                       {displayNodeType ? (
                         <span className="ml-1 text-[13px] text-slate-500">({displayNodeType})</span>
                       ) : null}
                     </p>
+                    {matchedAccessMeta ? (
+                      <p className="mt-1 truncate text-[12px] font-medium text-[#3553e9]">
+                        {`${matchedAccessMeta.roleLabel} access • ${matchedAccessMeta.subCategoryLabel}`}
+                      </p>
+                    ) : null}
                     {formattedPath ? (
                       <NodePathMarquee text={formattedPath} />
                     ) : null}

@@ -17,12 +17,15 @@ import UserHistorySidebar from "./UserHistorySidebar";
 import { RemarkDialog } from "@/components/RemarkDialog";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
-import { fetchCompanyNodesWithAccess, fetchUserDetails } from "@/services/user.service";
+import { fetchCompanyNodesWithAccess, fetchUserDetails, fetchUserFilterDropdowns } from "@/services/user.service";
 import { useEditLockSession } from "@/hooks/useEditLockSession";
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
 import type { HistoryDetailPreviewEvent, HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
+import { formatRoleTokenLabel } from "@/features/user-management/roleLabels";
 // import { acquireEditLock } from "@/services/edit-lock.service";
+
+const normalizeFilterIntentValue = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
 export function UserManagementView() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -44,6 +47,7 @@ export function UserManagementView() {
     setAccessSubcategoryFilters,
     departmentFilters,
     setDepartmentFilters,
+    departmentFilterPaths,
     reportingManagerFilters,
     setReportingManagerFilters,
     statusFilters,
@@ -111,6 +115,7 @@ export function UserManagementView() {
     pendingAction,
     processUserStatusAction,
     loadUsers,
+    userStatusSummary,
   } = useUserManagement();
   const [refreshInitializedAt, setRefreshInitializedAt] = useState<number | null>(null);
   const [historyOpenForMember, setHistoryOpenForMember] = useState(false);
@@ -124,12 +129,16 @@ export function UserManagementView() {
   const [pendingManageActionType, setPendingManageActionType] = useState<"archive" | "active" | "inactive" | null>(null);
   const [manageActionRemark, setManageActionRemark] = useState("");
   const [manageActionRemarkError, setManageActionRemarkError] = useState("");
+  const [impactedPreviewMembers, setImpactedPreviewMembers] = useState<AppUser[] | null>(null);
+  const [isImpactedPreviewLoading, setIsImpactedPreviewLoading] = useState(false);
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const [viewportWidth, setViewportWidth] = useState(0);
   const isNotificationsPanelOpen = useNotificationsPanelOpen();
   const isAnyUserDialogOpen = addDialogOpen || Boolean(viewingMember) || Boolean(editingMember) || remarkDialogOpen;
   const pageMemberCount = useMemo(() => paginatedMembers.length, [paginatedMembers]);
   const totalMembersForTab = statusCounts[statusTab];
+  const impactedPreviewKeyRef = useRef<string | null>(null);
+  const linkedFilterKeyRef = useRef<string | null>(null);
 
   const clearNotificationIntentParams = (params: URLSearchParams) => {
     const nextParams = new URLSearchParams(params);
@@ -145,6 +154,43 @@ export function UserManagementView() {
     ].forEach((key) => nextParams.delete(key));
     return nextParams;
   };
+
+  const clearImpactedUserIntentParams = useCallback((params: URLSearchParams) => {
+    const nextParams = new URLSearchParams(params);
+    nextParams.delete("um_impact_users");
+    nextParams.delete("um_impact_label");
+    nextParams.delete("um_impact_node_path");
+    return nextParams;
+  }, []);
+
+  const impactedUserEmailsParam = (searchParams.get("um_impact_users") || "").trim();
+  const impactedUserLabel = (searchParams.get("um_impact_label") || "").trim();
+  const isImpactedPreviewActive = Boolean(impactedUserEmailsParam);
+  const linkedAccessContext = useMemo(() => {
+    if ((searchParams.get("tab") || "").trim() !== "users") return null;
+
+    const nodeName = (searchParams.get("um_node") || "").trim();
+    const nodePath = (searchParams.get("um_node_path") || "").trim();
+    const category = (searchParams.get("um_category") || "").trim();
+    const subCategory = (searchParams.get("um_subcategory") || "").trim();
+    const action = (searchParams.get("um_action") || "").trim().toLowerCase();
+
+    if (!nodeName && !nodePath && !category && !subCategory && !action) return null;
+    if (action !== "checker" && action !== "maker" && action !== "viewer") return null;
+
+    return {
+      nodeName,
+      nodePath,
+      category,
+      subCategory,
+      action,
+    } as const;
+  }, [searchParams]);
+
+  const clearImpactedPreview = useCallback(() => {
+    if (!isImpactedPreviewActive) return;
+    setSearchParams(clearImpactedUserIntentParams(searchParams), { replace: true });
+  }, [clearImpactedUserIntentParams, isImpactedPreviewActive, searchParams, setSearchParams]);
 
   const openMemberPreview = useCallback(async (
     member: AppUser,
@@ -169,7 +215,7 @@ export function UserManagementView() {
     } finally {
       setIsOpeningMemberPreview(false);
     }
-  }, [statusTab, toast]);
+  }, [setViewingMember, statusTab, toast]);
 
   useEffect(() => {
     if (!viewingMember) {
@@ -177,6 +223,173 @@ export function UserManagementView() {
       setHistoryPreviewEvent(null);
     }
   }, [viewingMember]);
+
+  useEffect(() => {
+    const activeTab = (searchParams.get("tab") || "").trim();
+    if (activeTab !== "users") {
+      impactedPreviewKeyRef.current = null;
+      setImpactedPreviewMembers(null);
+      setIsImpactedPreviewLoading(false);
+      return;
+    }
+
+    const rawEmails = impactedUserEmailsParam;
+    if (!rawEmails) {
+      impactedPreviewKeyRef.current = null;
+      setImpactedPreviewMembers(null);
+      setIsImpactedPreviewLoading(false);
+      return;
+    }
+
+    if (impactedPreviewKeyRef.current === rawEmails) return;
+    impactedPreviewKeyRef.current = rawEmails;
+
+    const requestedEmails = Array.from(
+      new Set(
+        rawEmails
+          .split(",")
+          .map((value) => value.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    );
+
+    if (requestedEmails.length === 0) {
+      setImpactedPreviewMembers([]);
+      setIsImpactedPreviewLoading(false);
+      return;
+    }
+
+    clearAdvancedFilters();
+    setSearch("");
+    setStatusTab("active");
+    setIsImpactedPreviewLoading(true);
+
+    let cancelled = false;
+
+    void Promise.allSettled(
+      requestedEmails.map((email) =>
+        fetchUserDetails("active", { email }),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+
+      const resolvedMembers = results
+        .flatMap((result) => (result.status === "fulfilled" ? [result.value] : []))
+        .filter(
+          (member, index, members) =>
+            members.findIndex((candidate) => (candidate.email || "").trim().toLowerCase() === (member.email || "").trim().toLowerCase()) === index,
+        );
+
+      setImpactedPreviewMembers(resolvedMembers);
+      setIsImpactedPreviewLoading(false);
+
+      if (resolvedMembers.length === 0) {
+        toast({
+          title: "No impacted users found",
+          description: "The selected impacted users are no longer available.",
+          variant: "destructive",
+        });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [clearAdvancedFilters, impactedUserEmailsParam, searchParams, setSearch, setStatusTab, toast]);
+
+  useEffect(() => {
+    const activeTab = (searchParams.get("tab") || "").trim();
+    if (activeTab !== "users") {
+      linkedFilterKeyRef.current = null;
+      return;
+    }
+
+    const linkedNode = (searchParams.get("um_node") || "").trim();
+    const linkedNodePath = (searchParams.get("um_node_path") || "").trim();
+    const linkedCategory = (searchParams.get("um_category") || "").trim();
+    const linkedSubcategory = (searchParams.get("um_subcategory") || "").trim();
+    const linkedAction = (searchParams.get("um_action") || "").trim().toLowerCase();
+
+    if (!linkedNode && !linkedNodePath && !linkedCategory && !linkedSubcategory && !linkedAction) {
+      linkedFilterKeyRef.current = null;
+      return;
+    }
+
+    const linkedKey = [linkedNode, linkedNodePath, linkedCategory, linkedSubcategory, linkedAction].join("|");
+    if (linkedFilterKeyRef.current === linkedKey) return;
+    linkedFilterKeyRef.current = linkedKey;
+
+    const resolveRoleFilter = () => {
+      if (linkedAction === "checker") return ["Checker"] as const;
+      if (linkedAction === "maker") return ["Maker"] as const;
+      if (linkedAction === "viewer") return ["User"] as const;
+      return [] as const;
+    };
+
+    const resolveByNormalizedValue = (options: string[], rawValue: string) => {
+      const normalizedRaw = normalizeFilterIntentValue(rawValue);
+      if (!normalizedRaw) return null;
+      return (
+        options.find((option) => normalizeFilterIntentValue(option) === normalizedRaw) ??
+        options.find((option) => normalizeFilterIntentValue(option) === normalizeFilterIntentValue(formatRoleTokenLabel(rawValue))) ??
+        null
+      );
+    };
+
+    const resolveNodeFilter = async () => {
+      try {
+        const dropdowns = await fetchUserFilterDropdowns("USER_ACC");
+        const formattedCategoryIntent = formatRoleTokenLabel(linkedCategory);
+        const categoryCandidates = [linkedCategory, formattedCategoryIntent].filter(Boolean);
+        const resolvedCategory =
+          categoryCandidates
+            .map((candidate) => resolveByNormalizedValue(dropdowns.category, candidate))
+            .find(Boolean) ?? null;
+        const scopedSubcategories = resolvedCategory
+          ? dropdowns.subCategory[resolvedCategory] ?? []
+          : Object.values(dropdowns.subCategory).flat();
+        const formattedSubcategoryIntent = formatRoleTokenLabel(linkedSubcategory);
+        const subcategoryCandidates = [linkedSubcategory, formattedSubcategoryIntent].filter(Boolean);
+
+        const resolvedNode =
+          dropdowns.nodeName.find((option) => normalizeFilterIntentValue(option.path) === normalizeFilterIntentValue(linkedNodePath))?.value ??
+          dropdowns.nodeName.find((option) => normalizeFilterIntentValue(option.value) === normalizeFilterIntentValue(linkedNode))?.value ??
+          null;
+        const resolvedSubcategory =
+          subcategoryCandidates
+            .map((candidate) => resolveByNormalizedValue(scopedSubcategories, candidate))
+            .find(Boolean) ?? null;
+
+        clearImpactedPreview();
+        setSearch("");
+        applyAdvancedFilters({
+          designationFilters: [],
+          nodeNameFilters: resolvedNode ? [resolvedNode] : linkedNode ? [linkedNode] : [],
+          nodeNameFilterPaths: linkedNodePath ? [linkedNodePath] : [],
+          nodeTypeFilters: [],
+          accessCategoryFilters: resolvedCategory ? [resolvedCategory] : formattedCategoryIntent ? [formattedCategoryIntent] : linkedCategory ? [linkedCategory] : [],
+          accessSubcategoryFilters: resolvedSubcategory ? [resolvedSubcategory] : formattedSubcategoryIntent ? [formattedSubcategoryIntent] : linkedSubcategory ? [linkedSubcategory] : [],
+          reportingManagerFilters: [],
+          statusFilters: [],
+          statusFilterMode: [],
+          roleFilters: [...resolveRoleFilter()],
+          nodeAccessType: {},
+          pendingActionFilter: null,
+          onboardingDateRange: null,
+          onboardingDateFrom: "",
+          onboardingDateTo: "",
+        });
+      } catch (error) {
+        toast({
+          title: "Unable to apply linked filters",
+          description: getApiErrorMessage(error, "Could not resolve the linked user filters."),
+          variant: "destructive",
+        });
+      }
+    };
+
+    void resolveNodeFilter();
+  }, [applyAdvancedFilters, clearImpactedPreview, searchParams, setSearch, toast]);
 
   useEffect(() => {
     if (!historyOpenForMember) {
@@ -318,6 +531,7 @@ export function UserManagementView() {
     statusCounts.pending,
     statusTab,
     openMemberPreview,
+    toast,
   ]);
   const startUserLockSession = async (member: AppUser) => {
     const targetMail = (member.email || "").trim();
@@ -523,17 +737,33 @@ export function UserManagementView() {
   const splitDockOffset = canSplitHistoryLayout
     ? { top: Math.max(0, shellOffset.top - splitHistoryTopOverlap), left: shellOffset.left }
     : shellOffset;
+  const displayMembers = impactedPreviewMembers ?? paginatedMembers;
+  const displayCurrentMembers = impactedPreviewMembers ?? currentMembers;
+  const displayMemberCount = impactedPreviewMembers?.length ?? statusCounts[statusTab];
+  const displayPageMemberCount = impactedPreviewMembers?.length ?? pageMemberCount;
+  const displayStatusHeading = impactedPreviewMembers ? (impactedUserLabel ? `${impactedUserLabel} Impacted Users` : "Impacted Users") : statusHeading;
+  const shouldShowDefaultPagination = !impactedPreviewMembers;
+  const isUserTableLoading = isLoading || isImpactedPreviewLoading;
 
   return (
     <div className="space-y-4">
       <UserFilters
         statusTab={statusTab}
-        onStatusTabChange={setStatusTab}
+        onStatusTabChange={(value) => {
+          clearImpactedPreview();
+          setStatusTab(value);
+        }}
         search={search}
-        onSearchChange={setSearch}
+        onSearchChange={(value) => {
+          if (value.trim()) {
+            clearImpactedPreview();
+          }
+          setSearch(value);
+        }}
         searchSuggestions={searchSuggestions}
         designationFilters={designationFilters}
         nodeNameFilters={departmentFilters}
+        nodeNameFilterPaths={departmentFilterPaths}
         nodeTypeFilters={nodeTypeFilters}
         accessCategoryFilters={accessCategoryFilters}
         accessSubcategoryFilters={accessSubcategoryFilters}
@@ -546,9 +776,15 @@ export function UserManagementView() {
         onboardingDateRange={onboardingDateRange}
         onboardingDateFrom={onboardingDateFrom}
         onboardingDateTo={onboardingDateTo}
-        onClearAdvancedFilters={clearAdvancedFilters}
+        onClearAdvancedFilters={() => {
+          clearImpactedPreview();
+          clearAdvancedFilters();
+        }}
         onOpenFilters={loadFilterOptions}
-        onApplyAdvancedFilters={applyAdvancedFilters}
+        onApplyAdvancedFilters={(filters) => {
+          clearImpactedPreview();
+          applyAdvancedFilters(filters);
+        }}
         sortOrder={sortOrder}
         onSortOrderChange={setSortOrder}
         hasNewUserEvent={hasNewUserEvent}
@@ -570,6 +806,7 @@ export function UserManagementView() {
           pending: statusCounts.pending,
           inactive: statusCounts.inactive,
         }}
+        userStatusSummary={userStatusSummary}
       />
 
       <Card className="overflow-hidden border-slate-200 shadow-sm md:flex md:h-[calc(100dvh-21rem)] md:min-h-[420px] md:flex-col">
@@ -577,7 +814,7 @@ export function UserManagementView() {
           <div className="flex items-center gap-3">
             <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-800">
               {statusTab === "inactive" ? <EyeOff className="h-4 w-4" /> : <Users className="h-4 w-4" />}
-              {statusHeading} ({statusCounts[statusTab]})
+              {displayStatusHeading} ({displayMemberCount})
             </CardTitle>
           </div>
 
@@ -598,9 +835,10 @@ export function UserManagementView() {
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <div className="relative min-h-0 flex-1 overflow-auto">
             <UserTable
-              isLoading={isLoading}
-              currentMembers={currentMembers}
-              paginatedMembers={paginatedMembers}
+              isLoading={isUserTableLoading}
+              currentMembers={displayCurrentMembers}
+              paginatedMembers={displayMembers}
+              linkedAccessContext={impactedPreviewMembers ? null : linkedAccessContext}
               onView={(member) => {
                 void openMemberPreview(member);
               }}
@@ -633,20 +871,26 @@ export function UserManagementView() {
             />
           </div>
 
-          <UserPagination
-            currentCount={currentMembers.length}
-            recordCurrentCount={pageMemberCount}
-            recordTotalCount={totalMembersForTab}
-            recordLabel="Records"
-            pageSize={pageSize}
-            onPageSizeChange={setPageSize}
-            safePage={safePage}
-            totalPages={totalPages}
-            onPrevPage={() => void handlePrevPage()}
-            onNextPage={() => void handleNextPage()}
-            onJumpToPage={(value) => void handleJumpToPage(value)}
-            className="sticky bottom-0 z-20 shrink-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-          />
+          {shouldShowDefaultPagination ? (
+            <UserPagination
+              currentCount={currentMembers.length}
+              recordCurrentCount={pageMemberCount}
+              recordTotalCount={totalMembersForTab}
+              recordLabel="Records"
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
+              safePage={safePage}
+              totalPages={totalPages}
+              onPrevPage={() => void handlePrevPage()}
+              onNextPage={() => void handleNextPage()}
+              onJumpToPage={(value) => void handleJumpToPage(value)}
+              className="sticky bottom-0 z-20 shrink-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            />
+          ) : (
+            <div className="sticky bottom-0 z-20 shrink-0 border-t border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+              Showing {displayPageMemberCount} impacted user{displayPageMemberCount === 1 ? "" : "s"} from the selected org approval.
+            </div>
+          )}
         </CardContent>
       </Card>
 

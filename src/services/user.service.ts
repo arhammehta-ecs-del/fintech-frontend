@@ -177,10 +177,11 @@ type CompanyNodesFilterResponse = {
   dropdowns?: {
     designation?: Array<{ value?: string; count?: number }>;
     nodeName?: Array<{ value?: string; path?: string }>;
-    nodeType?: string[];
+    nodeType?: Array<{ value?: string; count?: number }>;
     category?: string[];
     subCategory?: Record<string, string[]>;
     reportingManager?: string[];
+    userStatusSummary?: Record<string, number>;
   };
 };
 
@@ -209,10 +210,11 @@ export type UserFilterNodeOption = {
 export type UserFilterDropdowns = {
   designation: UserFilterDropdownOption[];
   nodeName: UserFilterNodeOption[];
-  nodeType: string[];
+  nodeType: UserFilterDropdownOption[];
   category: string[];
   subCategory: Record<string, string[]>;
   reportingManager: string[];
+  userStatusSummary?: Record<string, number>;
 };
 
 export type GlobalSignatoryOnboardingPayload = {
@@ -572,7 +574,15 @@ export async function fetchUserFilterDropdowns(subCategory: string): Promise<Use
           .filter((item) => item.value && item.path)
       : [],
     nodeType: Array.isArray(dropdowns.nodeType)
-      ? dropdowns.nodeType.map((item) => readString(item).trim()).filter(Boolean)
+      ? dropdowns.nodeType
+          .map((item) => {
+            if (typeof item === "string") return { value: readString(item).trim() };
+            return {
+              value: readString(item?.value).trim(),
+              count: typeof item?.count === "number" ? item.count : undefined,
+            };
+          })
+          .filter((item) => item.value)
       : [],
     category: Array.isArray(dropdowns.category)
       ? dropdowns.category.map((item) => readString(item).trim()).filter(Boolean)
@@ -589,6 +599,10 @@ export async function fetchUserFilterDropdowns(subCategory: string): Promise<Use
     reportingManager: Array.isArray(dropdowns.reportingManager)
       ? dropdowns.reportingManager.map((item) => readString(item).trim()).filter(Boolean)
       : [],
+    userStatusSummary:
+      dropdowns.userStatusSummary && typeof dropdowns.userStatusSummary === "object"
+        ? (dropdowns.userStatusSummary as Record<string, number>)
+        : undefined,
   };
 }
 
