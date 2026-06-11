@@ -475,55 +475,55 @@ export async function fetchCompanyNodesWithAccess(subCategory: string, filter = 
   }
 
   const requestPromise = (async () => {
-  const payload = await apiFetch<CompanyNodesResponse>(COMPANY_NODES_PATH, {
-    method: "POST",
-    body: JSON.stringify({
-      subCategory,
-      filter,
-    }),
-  });
+    const payload = await apiFetch<CompanyNodesResponse>(COMPANY_NODES_PATH, {
+      method: "POST",
+      body: JSON.stringify({
+        subCategory,
+        filter,
+      }),
+    });
 
-  if (!Array.isArray(payload.data)) {
-    throw new Error("Invalid company nodes response: data must be an array");
-  }
-
-  const nodes = payload.data.map((row) => {
-    const record = toRecord(row);
-    const workflowsRaw = record.workflows;
-    if (!Array.isArray(workflowsRaw)) {
-      throw new Error("Invalid company nodes response: workflows must be an array");
+    if (!Array.isArray(payload.data)) {
+      throw new Error("Invalid company nodes response: data must be an array");
     }
-    const workflows = workflowsRaw.map((workflow) => ({
-      levelsHash: readString((workflow as RawUserRecord).levelsHash).trim(),
-      name: readString(workflow.name).trim(),
-      alias: readString(workflow.alias).trim() || undefined,
-    }));
 
-    return {
-      nodeName: readString(record.nodeName).trim(),
-      nodePath: readString(record.nodePath).trim(),
-      nodeType: readString(record.nodeType).trim(),
-      roleCode: readString(record.roleCode).trim().toUpperCase() || undefined,
-      roleName: readString(record.roleName).trim() || undefined,
-      workflows,
-    };
-  });
+    const nodes = payload.data.map((row) => {
+      const record = toRecord(row);
+      const workflowsRaw = record.workflows;
+      if (!Array.isArray(workflowsRaw)) {
+        throw new Error("Invalid company nodes response: workflows must be an array");
+      }
+      const workflows = workflowsRaw.map((workflow) => ({
+        levelsHash: readString((workflow as RawUserRecord).levelsHash).trim(),
+        name: readString(workflow.name).trim(),
+        alias: readString(workflow.alias).trim() || undefined,
+      }));
+
+      return {
+        nodeName: readString(record.nodeName).trim(),
+        nodePath: readString(record.nodePath).trim(),
+        nodeType: readString(record.nodeType).trim(),
+        roleCode: readString(record.roleCode).trim().toUpperCase() || undefined,
+        roleName: readString(record.roleName).trim() || undefined,
+        workflows,
+      };
+    });
 
     const result: CompanyNodesFetchResult = {
-    nodes,
-    access: {
-      designation: readString(payload.access?.designation).trim(),
-      isGlobalUser: Boolean(payload.access?.isGlobalUser),
-      roleName:
-        readString((payload.access as Record<string, unknown> | undefined)?.roleName).trim() ||
-        nodes.find((node) => (node.roleName || "").trim())?.roleName?.trim() ||
-        "",
-      roleCode:
-        readString((payload.access as Record<string, unknown> | undefined)?.roleCode).trim().toUpperCase() ||
-        nodes.find((node) => (node.roleCode || "").trim())?.roleCode?.trim().toUpperCase() ||
-        "",
-    },
-  };
+      nodes,
+      access: {
+        designation: readString(payload.access?.designation).trim(),
+        isGlobalUser: Boolean(payload.access?.isGlobalUser),
+        roleName:
+          readString((payload.access as Record<string, unknown> | undefined)?.roleName).trim() ||
+          nodes.find((node) => (node.roleName || "").trim())?.roleName?.trim() ||
+          "",
+        roleCode:
+          readString((payload.access as Record<string, unknown> | undefined)?.roleCode).trim().toUpperCase() ||
+          nodes.find((node) => (node.roleCode || "").trim())?.roleCode?.trim().toUpperCase() ||
+          "",
+      },
+    };
     companyNodesCache.set(cacheKey, {
       expiresAt: Date.now() + COMPANY_NODES_CACHE_TTL_MS,
       value: result,
@@ -561,30 +561,30 @@ export async function fetchUserFilterDropdowns(subCategory: string): Promise<Use
   return {
     designation: Array.isArray(dropdowns.designation)
       ? dropdowns.designation
-          .map((item) => ({
-            value: readString(item?.value).trim(),
-            count: typeof item?.count === "number" ? item.count : undefined,
-          }))
-          .filter((item) => item.value)
+        .map((item) => ({
+          value: readString(item?.value).trim(),
+          count: typeof item?.count === "number" ? item.count : undefined,
+        }))
+        .filter((item) => item.value)
       : [],
     nodeName: Array.isArray(dropdowns.nodeName)
       ? dropdowns.nodeName
-          .map((item) => ({
-            value: readString(item?.value).trim(),
-            path: readString(item?.path).trim(),
-          }))
-          .filter((item) => item.value && item.path)
+        .map((item) => ({
+          value: readString(item?.value).trim(),
+          path: readString(item?.path).trim(),
+        }))
+        .filter((item) => item.value && item.path)
       : [],
     nodeType: Array.isArray(dropdowns.nodeType)
       ? dropdowns.nodeType
-          .map((item) => {
-            if (typeof item === "string") return { value: readString(item).trim() };
-            return {
-              value: readString(item?.value).trim(),
-              count: typeof item?.count === "number" ? item.count : undefined,
-            };
-          })
-          .filter((item) => item.value)
+        .map((item) => {
+          if (typeof item === "string") return { value: readString(item).trim() };
+          return {
+            value: readString(item?.value).trim(),
+            count: typeof item?.count === "number" ? item.count : undefined,
+          };
+        })
+        .filter((item) => item.value)
       : [],
     category: Array.isArray(dropdowns.category)
       ? dropdowns.category.map((item) => readString(item).trim()).filter(Boolean)
@@ -592,11 +592,11 @@ export async function fetchUserFilterDropdowns(subCategory: string): Promise<Use
     subCategory:
       dropdowns.subCategory && typeof dropdowns.subCategory === "object"
         ? Object.fromEntries(
-            Object.entries(dropdowns.subCategory).map(([key, values]) => [
-              key,
-              Array.isArray(values) ? values.map((item) => readString(item).trim()).filter(Boolean) : [],
-            ]),
-          )
+          Object.entries(dropdowns.subCategory).map(([key, values]) => [
+            key,
+            Array.isArray(values) ? values.map((item) => readString(item).trim()).filter(Boolean) : [],
+          ]),
+        )
         : {},
     reportingManager: Array.isArray(dropdowns.reportingManager)
       ? dropdowns.reportingManager.map((item) => readString(item).trim()).filter(Boolean)

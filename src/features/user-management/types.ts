@@ -2,7 +2,7 @@ import type { AppUser } from "@/contexts/AppContext";
 
 export type MemberStatusTab = "active" | "pending" | "inactive";
 
-export type SortOrder = "asc" | "desc";
+export type SortOrder = "none" | "asc" | "desc";
 
 export type PermissionAction = "manager" | "user" | "viewer";
 export type SystemAccessScope = "NODE" | "IMMEDIATE_CHILD" | "ALL_CHILD";

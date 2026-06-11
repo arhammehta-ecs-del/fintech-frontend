@@ -88,10 +88,10 @@ const buildAppliedFilters = (input: AppliedUserFiltersDraft): UserAppliedFilters
   const dateFilter =
     input.onboardingDateRange || input.onboardingDateFrom || input.onboardingDateTo
       ? {
-          dateRange: input.onboardingDateRange ?? null,
-          fromDate: input.onboardingDateRange === "CUSTOM" ? input.onboardingDateFrom || null : null,
-          toDate: input.onboardingDateRange === "CUSTOM" ? input.onboardingDateTo || null : null,
-        }
+        dateRange: input.onboardingDateRange ?? null,
+        fromDate: input.onboardingDateRange === "CUSTOM" ? input.onboardingDateFrom || null : null,
+        toDate: input.onboardingDateRange === "CUSTOM" ? input.onboardingDateTo || null : null,
+      }
       : null;
 
   return {
@@ -100,10 +100,10 @@ const buildAppliedFilters = (input: AppliedUserFiltersDraft): UserAppliedFilters
       values: normalizeAppliedArray(input.nodeNameFilters),
       nodeAccess: Object.keys(input.nodeAccessType).length > 0
         ? (Object.fromEntries(
-            Object.entries(input.nodeAccessType)
-              .filter(([_, v]) => v && v.length > 0)
-              .map(([k, v]) => [k, v])
-          ) as Record<string, NodeAccessValue[]>)
+          Object.entries(input.nodeAccessType)
+            .filter(([_, v]) => v && v.length > 0)
+            .map(([k, v]) => [k, v])
+        ) as Record<string, NodeAccessValue[]>)
         : null,
     },
     nodeType: normalizeAppliedArray(input.nodeTypeFilters),
@@ -158,7 +158,7 @@ export function useUserManagement() {
   const [onboardingDateRange, setOnboardingDateRange] = useState<OnboardingDateRange>(null);
   const [onboardingDateFrom, setOnboardingDateFrom] = useState("");
   const [onboardingDateTo, setOnboardingDateTo] = useState("");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("none");
   const [isLoading, setIsLoading] = useState(false);
   const [isFilterLoading, setIsFilterLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -298,7 +298,7 @@ export function useUserManagement() {
         setHasNext(response.pageInfo.hasNext);
         setResolvedTotalPages(
           response.pageInfo.totalPages ||
-            Math.max(1, Math.ceil(getCountForTab(response.counts, requestedTab) / pageSize)),
+          Math.max(1, Math.ceil(getCountForTab(response.counts, requestedTab) / pageSize)),
         );
         setStatusCounts(response.counts);
         setHasLoadedUsersOnce(true);
@@ -471,6 +471,7 @@ export function useUserManagement() {
   );
 
   const sortedUsers = useMemo(() => {
+    if (sortOrder === "none") return users;
     const next = [...users];
     next.sort((left, right) => {
       const comparison = left.name.localeCompare(right.name);
@@ -530,7 +531,7 @@ export function useUserManagement() {
       setHasNext(response.pageInfo.hasNext);
       setResolvedTotalPages(
         response.pageInfo.totalPages ||
-          Math.max(1, Math.ceil(getCountForTab(response.counts, effectiveStatusTab) / pageSize)),
+        Math.max(1, Math.ceil(getCountForTab(response.counts, effectiveStatusTab) / pageSize)),
       );
       setStatusCounts(response.counts);
       maybeShowActivityToast(response, effectiveStatusTab);
@@ -581,7 +582,7 @@ export function useUserManagement() {
       setHasNext(response.pageInfo.hasNext);
       setResolvedTotalPages(
         response.pageInfo.totalPages ||
-          Math.max(1, Math.ceil(getCountForTab(response.counts, effectiveStatusTab) / pageSize)),
+        Math.max(1, Math.ceil(getCountForTab(response.counts, effectiveStatusTab) / pageSize)),
       );
       setStatusCounts(response.counts);
       maybeShowActivityToast(response, effectiveStatusTab);
@@ -632,7 +633,7 @@ export function useUserManagement() {
         setHasNext(response.pageInfo.hasNext);
         setResolvedTotalPages(
           response.pageInfo.totalPages ||
-            Math.max(1, Math.ceil(getCountForTab(response.counts, effectiveStatusTab) / pageSize)),
+          Math.max(1, Math.ceil(getCountForTab(response.counts, effectiveStatusTab) / pageSize)),
         );
         setStatusCounts(response.counts);
       } catch (error) {

@@ -517,6 +517,7 @@ export default function UserFilters(props: UserFiltersProps) {
                       itemCount={userStatusSummary ? Object.keys(userStatusSummary).length : FILTER_STATUS_OPTIONS.length}
                       counts={userStatusSummary ? Object.fromEntries(Object.entries(userStatusSummary).map(([k, v]) => [k.charAt(0).toUpperCase() + k.slice(1), v])) : undefined}
                       disabledOptions={draft.statusFilterMode.includes("initiate") && !draft.statusFilterMode.includes("modify") ? ["Active", "Inactive"] : []}
+                      disabled={draft.statusFilterMode.includes("modify")}
                       selected={draft.statusFilters}
                       onToggle={(value) =>
                         setDraft((current) => ({
@@ -545,17 +546,19 @@ export default function UserFilters(props: UserFiltersProps) {
                               <label key={option.id} htmlFor={option.id} className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700 whitespace-nowrap">
                                 <input
                                   id={option.id}
-                                  type="checkbox"
+                                  type="radio"
+                                  name="sub-status"
                                   checked={isChecked}
-                                  onChange={() =>
-                                    setDraft((current) => ({
-                                      ...current,
-                                      statusFilterMode: isChecked
-                                        ? current.statusFilterMode.filter((item) => item !== option.value)
-                                        : [...current.statusFilterMode, option.value as StatusFilterModeValue],
-                                    }))
-                                  }
-                                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setDraft((current) => ({
+                                        ...current,
+                                        statusFilterMode: [option.value as StatusFilterModeValue],
+                                        statusFilters: option.value === "initiate" ? ["Pending"] : [],
+                                      }));
+                                    }
+                                  }}
+                                  className="h-4 w-4 rounded-full border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
                                 />
                                 <span>{option.label}</span>
                               </label>
@@ -636,11 +639,12 @@ export default function UserFilters(props: UserFiltersProps) {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" aria-label="Sort members" className="h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm">
+              <Button variant="outline" size="icon" aria-label="Sort members" className={cn("h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm", sortOrder !== "none" && "bg-slate-100")}>
                 <ArrowUpDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onSortOrderChange("none")}>Default</DropdownMenuItem>
               <DropdownMenuItem onClick={() => onSortOrderChange("asc")}>Name (A-Z)</DropdownMenuItem>
               <DropdownMenuItem onClick={() => onSortOrderChange("desc")}>Name (Z-A)</DropdownMenuItem>
             </DropdownMenuContent>
@@ -745,8 +749,10 @@ function MultiSelectDropdown({
   selected,
   onToggle,
   onClear,
+  onSelectAll,
   counts,
   dropdownPosition = "bottom",
+  disabled,
 }: {
   title: string;
   placeholder: string;
@@ -759,6 +765,7 @@ function MultiSelectDropdown({
   onSelectAll?: (values: string[]) => void;
   counts?: Record<string, number>;
   dropdownPosition?: "top" | "bottom";
+  disabled?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -791,6 +798,7 @@ function MultiSelectDropdown({
       <Button
         type="button"
         variant="outline"
+        disabled={disabled}
         onClick={() => setOpen((current) => !current)}
         className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", selected.length > 0 && "border-blue-200 bg-blue-50/40 text-blue-800")}
       >
