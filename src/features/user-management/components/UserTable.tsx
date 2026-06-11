@@ -259,8 +259,15 @@ export default function UserTable({
                   );
                 })()}
                 <div>
-                  <div className="text-[15px] font-medium text-slate-900">{member.name}</div>
-                  <div className="text-[13when px] text-slate-500">{member.email || "No email"}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[15px] font-medium text-slate-900">{member.name}</span>
+                    {member.pendingApprovalCount && member.pendingApprovalCount > 0 ? (
+                      <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 shadow-sm">
+                        Pending tracks: {member.pendingApprovalCount}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="text-[13px] text-slate-500">{member.email || "No email"}</div>
                   {showModificationInProgress ? (
                     <div className="mt-0.5 text-[12px] font-medium leading-5 text-amber-700">Modification in progress</div>
                   ) : null}

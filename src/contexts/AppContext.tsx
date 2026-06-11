@@ -77,6 +77,7 @@ export interface AppUser {
   uuid?: string;
   requestId?: string;
   isPending?: boolean;
+  pendingApprovalCount?: number;
   name: string;
   email: string;
   role: string;

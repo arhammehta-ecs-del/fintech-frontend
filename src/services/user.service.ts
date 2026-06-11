@@ -364,6 +364,7 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   const uuid = readString(record.uuid).trim() || readString(basicDetails.uuid).trim();
   const companyId = readString(record.companyId).trim();
   const isPending = Boolean(record.isPending) || pendingRequestStatus === "PENDING";
+  const pendingApprovalCount = typeof record.pendingApprovalCount === "number" ? record.pendingApprovalCount : undefined;
   const nodePath = getNodePathFromAccessDetails(record);
 
   return {
@@ -371,6 +372,7 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
     uuid: uuid || undefined,
     requestId: requestId || undefined,
     isPending,
+    pendingApprovalCount,
     name,
     email,
     role: designation,

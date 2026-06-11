@@ -347,6 +347,16 @@ function ApprovalSections({ item }: { item: HistoryEntry }) {
                       ) : null}
                     </div>
                   ))}
+                  {group.rule === "AND" && group.people.length === 1 && section.title === "Approved By" ? (
+                    <div className="flex items-start justify-between gap-4 text-[11px] leading-tight mt-2">
+                      <div className="flex items-center gap-1.5 text-slate-700">
+                        <span className="h-1 w-1 shrink-0 rounded-full bg-slate-300" />
+                        <span className="inline-flex items-center justify-center rounded-full border border-dashed border-amber-300 bg-amber-50 px-10 py-1 text-[10px] font-semibold text-amber-700 shadow-sm">
+                          2nd approver
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
               );

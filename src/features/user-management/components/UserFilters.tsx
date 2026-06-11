@@ -365,6 +365,7 @@ export default function UserFilters(props: UserFiltersProps) {
                           designationFilters: toggleFilterValue(current.designationFilters, value),
                         }))
                       }
+                      onSelectAll={(values) => setDraft((current) => ({ ...current, designationFilters: values }))}
                       onClear={() => clearDraftField("designationFilters")}
                     />
                     <NodeNameDropdown
@@ -450,6 +451,7 @@ export default function UserFilters(props: UserFiltersProps) {
                           reportingManagerFilters: toggleFilterValue(current.reportingManagerFilters, value),
                         }))
                       }
+                      onSelectAll={(values) => setDraft((current) => ({ ...current, reportingManagerFilters: values }))}
                       onClear={() => clearDraftField("reportingManagerFilters")}
                     />
                     <MultiSelectDropdown
@@ -465,6 +467,18 @@ export default function UserFilters(props: UserFiltersProps) {
                           return {
                             ...current,
                             accessCategoryFilters: nextCategories,
+                            accessSubcategoryFilters: current.accessSubcategoryFilters.filter(
+                              (subCategory) => allowedSubcategories.size === 0 || allowedSubcategories.has(subCategory),
+                            ),
+                          };
+                        })
+                      }
+                      onSelectAll={(values) =>
+                        setDraft((current) => {
+                          const allowedSubcategories = new Set(values.flatMap((category) => accessSubcategories[category] ?? []));
+                          return {
+                            ...current,
+                            accessCategoryFilters: values,
                             accessSubcategoryFilters: current.accessSubcategoryFilters.filter(
                               (subCategory) => allowedSubcategories.size === 0 || allowedSubcategories.has(subCategory),
                             ),
@@ -488,6 +502,7 @@ export default function UserFilters(props: UserFiltersProps) {
                           accessSubcategoryFilters: toggleFilterValue(current.accessSubcategoryFilters, value),
                         }))
                       }
+                      onSelectAll={(values) => setDraft((current) => ({ ...current, accessSubcategoryFilters: values }))}
                       onClear={() => clearDraftField("accessSubcategoryFilters")}
                     />
                   </div>
@@ -509,6 +524,7 @@ export default function UserFilters(props: UserFiltersProps) {
                           statusFilters: (toggleFilterValue(current.statusFilters, value as FilterStatusValue) as FilterStatusValue[]),
                         }))
                       }
+                      onSelectAll={(values) => setDraft((current) => ({ ...current, statusFilters: values as FilterStatusValue[] }))}
                       onClear={() =>
                         setDraft((current) => ({
                           ...current,
@@ -570,6 +586,7 @@ export default function UserFilters(props: UserFiltersProps) {
                           roleFilters: toggleFilterValue(current.roleFilters, value as FilterRoleValue) as FilterRoleValue[],
                         }))
                       }
+                      onSelectAll={(values) => setDraft((current) => ({ ...current, roleFilters: values as FilterRoleValue[] }))}
                       onClear={() => clearDraftField("roleFilters")}
                     />
                     <DateRangeDropdown
@@ -739,6 +756,7 @@ function MultiSelectDropdown({
   selected: string[];
   onToggle: (value: string) => void;
   onClear: () => void;
+  onSelectAll?: (values: string[]) => void;
   counts?: Record<string, number>;
   dropdownPosition?: "top" | "bottom";
 }) {
@@ -786,7 +804,22 @@ function MultiSelectDropdown({
             dropdownPosition === "top" ? "bottom-full mb-2" : "top-full mt-2",
           )}
         >
-          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${title.toLowerCase()}`} className="mb-2 h-9" />
+          <div className="mb-2 flex items-center gap-2">
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${title.toLowerCase()}`} className="h-9 flex-1" />
+            {normalizedOptions.length > 5 && onSelectAll ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 px-2 text-[11px] font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                onClick={() => {
+                  const allSelectable = normalizedOptions.filter((o) => !disabledOptionSet.has(o));
+                  onSelectAll(allSelectable);
+                }}
+              >
+                Select all
+              </Button>
+            ) : null}
+          </div>
           <div className="max-h-[220px] space-y-1 overflow-auto">
             {filteredOptions.map((option) => {
               const isSelected = selected.includes(option);
@@ -966,7 +999,7 @@ function DateRangeDropdown({
             <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-[320px] border border-slate-200 bg-white p-3">
+        <PopoverContent align="start" className="z-[120] w-[320px] border border-slate-200 bg-white p-3">
           <div className="grid grid-cols-4 gap-2">
             {DATE_RANGE_OPTIONS.map((option) => (
               <Button
