@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { AlertTriangle, ChevronDown, CircleCheck, Filter, RefreshCw, Search, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -6,13 +7,21 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import PaginationFooter from "@/components/PaginationFooter";
 import { cn } from "@/lib/utils";
-import { useApiMonitoring } from "@/features/api-monitoring/hooks/useApiMonitoring";
+import {
+  API_MONITORING_DATE_OPTIONS,
+  API_MONITORING_RESPONSE_SIZE_OPTIONS,
+  API_MONITORING_RESPONSE_SORT_OPTIONS,
+  API_MONITORING_STATUS_OPTIONS,
+  useApiMonitoring,
+  type ApiMonitoringAppliedFiltersDraft,
+} from "@/features/api-monitoring/hooks/useApiMonitoring";
 import type { ApiMonitoringLog } from "@/features/api-monitoring/types";
 import ApiMonitoringDetailsDialog from "@/features/api-monitoring/components/ApiMonitoringDetailsDialog";
 import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
@@ -35,6 +44,28 @@ const companyBadgeStyle = (code: string) => {
   };
 };
 
+const buildEmptyDraft = (): ApiMonitoringAppliedFiltersDraft => ({
+  date: null,
+  fromDate: "",
+  toDate: "",
+  status: [],
+  subtrack: [],
+  responseSize: null,
+  responseSizeSort: null,
+});
+
+const countFilters = (draft: ApiMonitoringAppliedFiltersDraft) =>
+  (draft.date ? 1 : 0) +
+  draft.status.length +
+  draft.subtrack.length +
+  (draft.responseSize ? 1 : 0) +
+  (draft.responseSizeSort ? 1 : 0) +
+  (draft.fromDate ? 1 : 0) +
+  (draft.toDate ? 1 : 0);
+
+const dateLabel = (value: (typeof API_MONITORING_DATE_OPTIONS)[number]) =>
+  value === "7days" ? "7 Days" : value === "15days" ? "15 Days" : value === "1month" ? "1 Month" : "Custom";
+
 export default function ApiMonitoringView() {
   const {
     filteredLogs,
@@ -46,26 +77,9 @@ export default function ApiMonitoringView() {
     searchText,
     clearSearch,
     suggestions,
-    statusFilters,
-    setStatusFilters,
-    companyCodeFilters,
-    setCompanyCodeFilters,
-    userEmailFilters,
-    setUserEmailFilters,
-    ipFilters,
-    setIpFilters,
-    apiUrlFilters,
-    setApiUrlFilters,
-    dateFilters,
-    setDateFilters,
+    appliedFilters,
+    applyFilters,
     clearFilters,
-    statusOptions,
-    companyCodeOptions,
-    userEmailOptions,
-    ipOptions,
-    apiUrlOptions,
-    dateOptions,
-    page,
     pageSize,
     setPageSize,
     safePage,
@@ -77,32 +91,25 @@ export default function ApiMonitoringView() {
     handleJumpToPage,
     fetchDetailsForTrack,
     refreshLogs,
+    todayIso,
   } = useApiMonitoring();
   const [selectedLog, setSelectedLog] = useState<ApiMonitoringLog | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draft, setDraft] = useState<ApiMonitoringAppliedFiltersDraft>(buildEmptyDraft());
+  const [subtrackInput, setSubtrackInput] = useState("");
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
-  const [draftStatusFilters, setDraftStatusFilters] = useState<string[]>(statusFilters);
-  const [draftCompanyCodeFilters, setDraftCompanyCodeFilters] = useState<string[]>(companyCodeFilters);
-  const [draftUserEmailFilters, setDraftUserEmailFilters] = useState<string[]>(userEmailFilters);
-  const [draftIpFilters, setDraftIpFilters] = useState<string[]>(ipFilters);
-  const [draftApiUrlFilters, setDraftApiUrlFilters] = useState<string[]>(apiUrlFilters);
-  const [draftDateFilters, setDraftDateFilters] = useState<string[]>(dateFilters);
   const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
 
-  const activeFilterCount = statusFilters.length + companyCodeFilters.length + userEmailFilters.length + ipFilters.length + apiUrlFilters.length + dateFilters.length;
+  const activeFilterCount = countFilters(appliedFilters);
 
-  const toggleValue = (current: string[], value: string) => (
-    current.includes(value) ? current.filter((item) => item !== value) : [...current, value]
-  );
-
-  const syncDraftFilters = () => {
-    setDraftStatusFilters(statusFilters);
-    setDraftCompanyCodeFilters(companyCodeFilters);
-    setDraftUserEmailFilters(userEmailFilters);
-    setDraftIpFilters(ipFilters);
-    setDraftApiUrlFilters(apiUrlFilters);
-    setDraftDateFilters(dateFilters);
+  const syncDraft = () => {
+    setDraft({
+      ...appliedFilters,
+      status: [...appliedFilters.status],
+      subtrack: [...appliedFilters.subtrack],
+    });
+    setSubtrackInput("");
   };
 
   const emptyMessage = useMemo(() => {
@@ -111,6 +118,7 @@ export default function ApiMonitoringView() {
     if (searchText.trim()) return "No logs found for this search.";
     return "No API monitoring logs available.";
   }, [loading, error, searchText]);
+
   const currentRangeSummary = useMemo(() => {
     if (totalCount <= 0 || paginatedLogs.length === 0) return "Range: 0-0/0";
     const start = Math.max(1, (safePage - 1) * pageSize + 1);
@@ -129,6 +137,43 @@ export default function ApiMonitoringView() {
     markRefreshed();
   }, [error, lastRefreshedAt, loading, markRefreshed]);
 
+  const toggleStatus = (status: number) =>
+    setDraft((current) => ({
+      ...current,
+      status: current.status.includes(status) ? current.status.filter((item) => item !== status) : [...current.status, status],
+    }));
+
+  const addSubtrack = (value: string) => {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) return;
+    setDraft((current) => ({
+      ...current,
+      subtrack: current.subtrack.includes(parsed) ? current.subtrack : [...current.subtrack, parsed].sort((a, b) => a - b),
+    }));
+    setSubtrackInput("");
+  };
+
+  const removeSubtrack = (value: number) =>
+    setDraft((current) => ({ ...current, subtrack: current.subtrack.filter((item) => item !== value) }));
+
+  const setFromDate = (value: string) => {
+    const normalized = value && value > todayIso ? todayIso : value;
+    setDraft((current) => ({
+      ...current,
+      fromDate: normalized,
+      toDate: current.toDate && normalized && normalized > current.toDate ? normalized : current.toDate,
+    }));
+  };
+
+  const setToDate = (value: string) => {
+    const normalized = value && value > todayIso ? todayIso : value;
+    setDraft((current) => ({
+      ...current,
+      toDate: normalized,
+      fromDate: current.fromDate && normalized && normalized < current.fromDate ? normalized : current.fromDate,
+    }));
+  };
+
   return (
     <div className="space-y-4">
       <Card className="rounded-xl border border-border px-6 py-4 shadow-sm">
@@ -136,8 +181,8 @@ export default function ApiMonitoringView() {
         <p className="mt-1 text-sm text-muted-foreground">Real-time traffic and latency tracking</p>
       </Card>
 
-      <Card className="flex h-[760px] flex-col overflow-hidden border border-border shadow-sm">
-        <div className="border-b border-border bg-muted/40 p-4">
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm md:flex md:h-[760px] md:flex-col">
+        <div className="border-b border-slate-200 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="relative w-full lg:flex-1 lg:pr-4">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -145,9 +190,7 @@ export default function ApiMonitoringView() {
                 value={searchInput}
                 onFocus={() => setShowSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
-                onChange={(event) => {
-                  setSearchInput(event.target.value);
-                }}
+                onChange={(event) => setSearchInput(event.target.value)}
                 className="pl-9 pr-9"
                 placeholder="Search by company name/code, user name/email, IP, URL, track ID..."
               />
@@ -186,7 +229,7 @@ export default function ApiMonitoringView() {
               <Popover
                 open={filtersOpen}
                 onOpenChange={(nextOpen) => {
-                  if (nextOpen) syncDraftFilters();
+                  if (nextOpen) syncDraft();
                   setFiltersOpen(nextOpen);
                 }}
               >
@@ -197,7 +240,7 @@ export default function ApiMonitoringView() {
                     {activeFilterCount > 0 ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs">{activeFilterCount}</span> : null}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-[520px] p-0">
+                <PopoverContent align="end" className="w-[640px] p-0">
                   <div className="border-b px-5 py-3.5">
                     <div className="flex items-center justify-between">
                       <div>
@@ -210,51 +253,83 @@ export default function ApiMonitoringView() {
                         variant="ghost"
                         size="sm"
                         className="h-7 rounded-lg px-2.5 text-[12px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                        onClick={() => {
+                        onClick={async () => {
+                          const empty = buildEmptyDraft();
+                          setDraft(empty);
+                          setSubtrackInput("");
                           clearFilters();
-                          setDraftStatusFilters([]);
-                          setDraftCompanyCodeFilters([]);
-                          setDraftUserEmailFilters([]);
-                          setDraftIpFilters([]);
-                          setDraftApiUrlFilters([]);
-                          setDraftDateFilters([]);
+                          setFiltersOpen(false);
                         }}
                       >
                         Clear all
                       </Button>
                     </div>
                   </div>
-                  <div className="max-h-[62vh] space-y-3.5 overflow-y-auto bg-white px-5 py-3.5">
-                    <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/45 p-3 shadow-[0_2px_8px_rgba(148,163,184,0.1)]">
-                      <p className="border-b border-slate-200 pb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-700">
-                        Identity
-                      </p>
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <ApiFilterDropdown title="Status" placeholder="All statuses" options={statusOptions} selected={draftStatusFilters} onToggle={(value) => setDraftStatusFilters((current) => toggleValue(current, value))} />
-                        <ApiFilterDropdown title="Company Code" placeholder="All company codes" options={companyCodeOptions} selected={draftCompanyCodeFilters} onToggle={(value) => setDraftCompanyCodeFilters((current) => toggleValue(current, value))} />
-                        <ApiFilterDropdown title="User Email" placeholder="All user emails" options={userEmailOptions} selected={draftUserEmailFilters} onToggle={(value) => setDraftUserEmailFilters((current) => toggleValue(current, value))} />
-                        <ApiFilterDropdown title="IP" placeholder="All IPs" options={ipOptions} selected={draftIpFilters} onToggle={(value) => setDraftIpFilters((current) => toggleValue(current, value))} />
-                        <ApiFilterDropdown title="API URL" placeholder="All API URLs" options={apiUrlOptions} selected={draftApiUrlFilters} onToggle={(value) => setDraftApiUrlFilters((current) => toggleValue(current, value))} />
-                        <ApiFilterDropdown title="Date" placeholder="All dates" options={dateOptions} selected={draftDateFilters} onToggle={(value) => setDraftDateFilters((current) => toggleValue(current, value))} />
-                      </div>
+
+                  <div className="max-h-[68vh] space-y-5 overflow-y-auto bg-white px-5 py-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <DateDropdown
+                        value={draft.date}
+                        fromDate={draft.fromDate}
+                        toDate={draft.toDate}
+                        todayIso={todayIso}
+                        onValueChange={(option) =>
+                          setDraft((current) => ({
+                            ...current,
+                            date: current.date === option ? null : option,
+                            fromDate: option === "custom" ? current.fromDate : "",
+                            toDate: option === "custom" ? current.toDate : "",
+                          }))
+                        }
+                        onFromDateChange={setFromDate}
+                        onToDateChange={setToDate}
+                      />
+                      <MultiSelectDropdown
+                        title="Status"
+                        placeholder="All statuses"
+                        options={API_MONITORING_STATUS_OPTIONS.map((status) => ({ value: String(status), label: String(status) }))}
+                        selected={draft.status.map(String)}
+                        onToggle={(value) => toggleStatus(Number(value))}
+                      />
+                      <SubtrackDropdown
+                        value={subtrackInput}
+                        selected={draft.subtrack}
+                        onInputChange={setSubtrackInput}
+                        onAdd={() => addSubtrack(subtrackInput)}
+                        onRemove={removeSubtrack}
+                      />
+                      <SingleSelectDropdown
+                        title="Response Size"
+                        placeholder="All response sizes"
+                        options={API_MONITORING_RESPONSE_SIZE_OPTIONS.map((range) => ({ value: range, label: `${range} KB` }))}
+                        value={draft.responseSize}
+                        onSelect={(value) => setDraft((current) => ({ ...current, responseSize: current.responseSize === value ? null : value as typeof current.responseSize }))}
+                      />
+                      <SingleSelectDropdown
+                        title="Response Size Flow"
+                        placeholder="Select flow"
+                        options={API_MONITORING_RESPONSE_SORT_OPTIONS.map((sort) => ({ value: sort, label: sort === "asc" ? "Ascending" : "Descending" }))}
+                        value={draft.responseSizeSort}
+                        onSelect={(value) => setDraft((current) => ({ ...current, responseSizeSort: current.responseSizeSort === value ? null : value as typeof current.responseSizeSort }))}
+                      />
                     </div>
                   </div>
+
                   <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
                     <Button variant="ghost" size="sm" onClick={() => setFiltersOpen(false)}>Cancel</Button>
-                    <Button size="sm" onClick={() => {
-                      setStatusFilters(draftStatusFilters);
-                      setCompanyCodeFilters(draftCompanyCodeFilters);
-                      setUserEmailFilters(draftUserEmailFilters);
-                      setIpFilters(draftIpFilters);
-                      setApiUrlFilters(draftApiUrlFilters);
-                      setDateFilters(draftDateFilters);
-                      setFiltersOpen(false);
-                    }}>
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        applyFilters(draft);
+                        setFiltersOpen(false);
+                      }}
+                    >
                       Apply
                     </Button>
                   </div>
                 </PopoverContent>
               </Popover>
+
               <div className="relative flex h-11 w-10 items-center justify-center">
                 <Button
                   variant="outline"
@@ -303,40 +378,24 @@ export default function ApiMonitoringView() {
                         const parsed = details.mainRequest.timeString.split(" ");
                         const nextDate = parsed[0] || current.dateStr;
                         const nextTime = parsed.slice(1).join(" ") || current.timeStr;
-                        return {
-                          ...current,
-                          id: details.mainRequest.id,
-                          trackId: details.mainRequest.trackId,
-                          method: details.mainRequest.method,
-                          path: details.mainRequest.path,
-                          status: details.mainRequest.status,
-                          timeString: details.mainRequest.timeString,
-                          timeStr: nextTime,
-                          dateStr: nextDate,
-                          subApis: [details.mainRequest, ...details.childSpans],
-                        };
+                        return { ...current, id: details.mainRequest.id, trackId: details.mainRequest.trackId, method: details.mainRequest.method, path: details.mainRequest.path, status: details.mainRequest.status, timeString: details.mainRequest.timeString, timeStr: nextTime, dateStr: nextDate, subApis: [details.mainRequest, ...details.childSpans] };
                       });
                     } catch {
-                      // Keep table payload as fallback if details call fails.
+                      return;
                     }
                   }}
                   className="cursor-pointer border-b border-border/70 transition hover:bg-muted/40"
                 >
                   <td className="px-6 py-3 align-top">
                     <p className="text-sm font-medium text-foreground">{log.company.name}</p>
-                    <span
-                      className={cn("mt-1 inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold")}
-                      style={companyBadgeStyle(log.company.code)}
-                    >
+                    <span className={cn("mt-1 inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold")} style={companyBadgeStyle(log.company.code)}>
                       {log.company.code}
                     </span>
                   </td>
                   <td className="px-4 py-3 align-top">
                     <p className="text-sm font-medium text-foreground">{log.user.name}</p>
                     <p className="mt-0.5 text-[11px] text-sky-700">{log.user.email}</p>
-                    {log.clientIp ? (
-                      <p className="mt-0.5 text-[11px] text-amber-700">{log.clientIp}</p>
-                    ) : null}
+                    {log.clientIp ? <p className="mt-0.5 text-[11px] text-amber-700">{log.clientIp}</p> : null}
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
                     <div className="flex flex-col leading-tight">
@@ -346,25 +405,19 @@ export default function ApiMonitoringView() {
                   </td>
                   <td className="px-4 py-3 align-top">
                     <p className="max-w-[280px] truncate font-mono text-sm text-foreground">{log.path}</p>
-                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700">
-                      {log.spanCount} sub-tracks
-                    </p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700">{log.spanCount} sub-tracks</p>
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
                     <span className="font-medium text-slate-700">{log.responseSize || "-"}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-start">
-                      {getStatusIcon(log.status)}
-                    </div>
+                    <div className="flex items-center justify-start">{getStatusIcon(log.status)}</div>
                   </td>
                 </tr>
               ))}
               {!filteredLogs.length && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                    {emptyMessage}
-                  </td>
+                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">{emptyMessage}</td>
                 </tr>
               )}
             </tbody>
@@ -385,14 +438,77 @@ export default function ApiMonitoringView() {
           onNextPage={() => void handleNextPage()}
           onJumpToPage={(value) => void handleJumpToPage(value)}
         />
-      </Card>
+      </div>
 
       <ApiMonitoringDetailsDialog log={selectedLog} open={Boolean(selectedLog)} onOpenChange={(open) => !open && setSelectedLog(null)} />
     </div>
   );
 }
 
-function ApiFilterDropdown({
+function SectionLabel({ title }: { title: string }) {
+  return <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</p>;
+}
+
+function SectionHint({ children }: { children: ReactNode }) {
+  return <p className="text-xs text-slate-500">{children}</p>;
+}
+
+function DropdownField({
+  title,
+  summary,
+  active,
+  children,
+}: {
+  title: string;
+  summary: string;
+  active?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <SectionLabel title={title} />
+      {children}
+      <SectionHint>{summary}</SectionHint>
+    </div>
+  );
+}
+
+function SingleSelectDropdown({
+  title,
+  placeholder,
+  options,
+  value,
+  onSelect,
+}: {
+  title: string;
+  placeholder: string;
+  options: Array<{ value: string; label: string }>;
+  value: string | null;
+  onSelect: (value: string) => void;
+}) {
+  const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder;
+  return (
+    <DropdownField title={title} summary={value ? selectedLabel : "No selection applied"} active={Boolean(value)}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", value && "border-primary/40 text-primary")}>
+            <span className="truncate">{selectedLabel}</span>
+            <ChevronDown className="h-4 w-4 text-slate-400" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl border border-slate-200 p-2">
+          {options.map((option) => (
+            <DropdownMenuItem key={option.value} onSelect={() => onSelect(option.value)} className="cursor-pointer rounded-md">
+              {option.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </DropdownField>
+  );
+}
+
+function MultiSelectDropdown({
   title,
   placeholder,
   options,
@@ -401,83 +517,157 @@ function ApiFilterDropdown({
 }: {
   title: string;
   placeholder: string;
-  options: string[];
+  options: Array<{ value: string; label: string }>;
   selected: string[];
   onToggle: (value: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-  const summaryLabel = selected.length === 0 ? placeholder : selected.length === 1 ? selected[0] : `${selected.length} selected`;
-  const normalized = searchTerm.trim().toLowerCase();
-  const filteredOptions = options.filter((option) => option.toLowerCase().includes(normalized));
-
+  const summary =
+    selected.length === 0
+      ? "No selection applied"
+      : selected.length === 1
+        ? options.find((option) => option.value === selected[0])?.label ?? selected[0]
+        : `${selected.length} selected`;
   return (
-    <div className="space-y-1.5">
-      <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-600">{title}</p>
-      <DropdownMenu
-        open={open}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen) {
-            setSearchTerm("");
-            setIsSearchExpanded(false);
-          }
-          setOpen(nextOpen);
-        }}
-      >
+    <DropdownField title={title} summary={summary}>
+      <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3.5 text-left text-[15px] text-slate-700 shadow-sm hover:border-slate-300"
-          >
-            <span className="truncate">{summaryLabel}</span>
+          <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", selected.length > 0 && "border-primary/40 text-primary")}>
+            <span className="truncate">{selected.length === 0 ? placeholder : summary}</span>
             <ChevronDown className="h-4 w-4 text-slate-400" />
-          </button>
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl border border-slate-200 p-2">
-          <div className="mb-2 flex items-center justify-between px-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">{title}</p>
-            <button
-              type="button"
-              onClick={() => {
-                if (isSearchExpanded) {
-                  setSearchTerm("");
-                  setIsSearchExpanded(false);
-                  return;
-                }
-                setIsSearchExpanded(true);
-              }}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:text-slate-700"
-              aria-label={isSearchExpanded ? `Close ${title.toLowerCase()} search` : `Open ${title.toLowerCase()} search`}
+          {options.map((option) => (
+            <DropdownMenuCheckboxItem
+              key={option.value}
+              checked={selected.includes(option.value)}
+              onCheckedChange={() => onToggle(option.value)}
+              onSelect={(event) => event.preventDefault()}
+              className="cursor-pointer rounded-md"
             >
-              {isSearchExpanded ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-            </button>
+              {option.label}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </DropdownField>
+  );
+}
+
+function DateDropdown({
+  value,
+  fromDate,
+  toDate,
+  todayIso,
+  onValueChange,
+  onFromDateChange,
+  onToDateChange,
+}: {
+  value: (typeof API_MONITORING_DATE_OPTIONS)[number] | null;
+  fromDate: string;
+  toDate: string;
+  todayIso: string;
+  onValueChange: (value: (typeof API_MONITORING_DATE_OPTIONS)[number]) => void;
+  onFromDateChange: (value: string) => void;
+  onToDateChange: (value: string) => void;
+}) {
+  const summary =
+    value === "custom"
+      ? fromDate || toDate
+        ? `${fromDate || "Start"} to ${toDate || "End"}`
+        : "Custom range"
+      : value
+        ? dateLabel(value)
+        : "No selection applied";
+  return (
+    <DropdownField title="Date" summary={summary}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", value && "border-primary/40 text-primary")}>
+            <span className="truncate">{value ? dateLabel(value) : "All dates"}</span>
+            <ChevronDown className="h-4 w-4 text-slate-400" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[320px] rounded-xl border border-slate-200 p-3">
+          <div className="grid grid-cols-2 gap-2">
+            {API_MONITORING_DATE_OPTIONS.map((option) => (
+              <Button key={option} type="button" variant={value === option ? "default" : "outline"} size="sm" className="h-9 px-2 text-[12px]" onClick={() => onValueChange(option)}>
+                {dateLabel(option)}
+              </Button>
+            ))}
           </div>
-          <div className={cn("overflow-hidden transition-all duration-200", isSearchExpanded ? "mb-2 max-h-12 opacity-100" : "max-h-0 opacity-0")}>
+          {value === "custom" ? (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <SectionHint>From</SectionHint>
+                <Input type="date" max={toDate || todayIso} value={fromDate} onChange={(event) => onFromDateChange(event.target.value)} className="h-10" />
+              </div>
+              <div className="space-y-1">
+                <SectionHint>To</SectionHint>
+                <Input type="date" min={fromDate || undefined} max={todayIso} value={toDate} onChange={(event) => onToDateChange(event.target.value)} className="h-10" />
+              </div>
+            </div>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </DropdownField>
+  );
+}
+
+function SubtrackDropdown({
+  value,
+  selected,
+  onInputChange,
+  onAdd,
+  onRemove,
+}: {
+  value: string;
+  selected: number[];
+  onInputChange: (value: string) => void;
+  onAdd: () => void;
+  onRemove: (value: number) => void;
+}) {
+  const summary = selected.length === 0 ? "No subtracks selected" : `${selected.length} selected`;
+  return (
+    <DropdownField title="Subtracks" summary={summary}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", selected.length > 0 && "border-primary/40 text-primary")}>
+            <span className="truncate">{selected.length === 0 ? "Select subtracks" : summary}</span>
+            <ChevronDown className="h-4 w-4 text-slate-400" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[320px] rounded-xl border border-slate-200 p-3">
+          <div className="flex items-center gap-2">
             <Input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder={`Search ${title.toLowerCase()}...`}
-              className="h-9"
-              autoFocus={isSearchExpanded}
+              inputMode="numeric"
+              value={value}
+              onChange={(event) => onInputChange(event.target.value.replace(/[^\d]/g, ""))}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  onAdd();
+                }
+              }}
+              placeholder="Add subtrack number"
             />
+            <Button type="button" variant="outline" onClick={onAdd}>Add</Button>
           </div>
-          <div className="max-h-52 overflow-auto px-1 pb-1">
-            {filteredOptions.length === 0 ? (
-              <div className="px-2 py-1.5 text-sm text-muted-foreground">No options</div>
-            ) : filteredOptions.map((option) => (
-              <DropdownMenuCheckboxItem
-                key={option}
-                checked={selected.includes(option)}
-                onCheckedChange={() => onToggle(option)}
-                className="cursor-pointer rounded-md"
+          <div className="mt-3 flex flex-wrap gap-2">
+            {selected.length === 0 ? <SectionHint>No subtracks selected</SectionHint> : selected.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => onRemove(item)}
+                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
               >
-                {option}
-              </DropdownMenuCheckboxItem>
+                {item}
+                <X className="h-3 w-3" />
+              </button>
             ))}
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
+    </DropdownField>
   );
 }

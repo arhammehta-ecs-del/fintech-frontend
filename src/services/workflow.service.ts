@@ -8,6 +8,7 @@ const WORKFLOW_FETCH_PATH = "/api/v1/company-settings/workflow/fetch";
 const WORKFLOW_DETAILS_PATH = "/api/v1/company-settings/workflow/details";
 const WORKFLOW_ACTION_PATH = "/api/v1/company-settings/workflow/action";
 const WORKFLOW_HISTORY_PATH = "/api/v1/company-settings/workflow/fetch-history";
+const COMPANY_NODES_PATH = "/api/v1/company-settings/user/fetch-company-nodes";
 
 export type CreateWorkflowPayload = {
   type?: "initiate" | "update" | "active" | "inactive" | "archive" | string;
@@ -58,15 +59,47 @@ type WorkflowDetailsApiResponse = WorkflowApiResponse & {
   data?: unknown;
 };
 
+type WorkflowFilterDropdownsResponse = WorkflowApiResponse & {
+  dropdowns?: {
+    nodeName?: Array<{ value?: string; path?: string } | string>;
+    nodeType?: Array<{ value?: string; count?: number } | string>;
+    category?: string[];
+    subCategory?: string[];
+  };
+  nodeName?: Array<{ value?: string; path?: string } | string>;
+  nodeType?: Array<{ value?: string; count?: number } | string>;
+  category?: string[];
+  subCategory?: string[];
+};
+
 export type WorkflowFetchType = "active" | "pending" | "inactive";
 
 export type WorkflowPaginatedRequest = {
+  filter?: boolean;
+  applied?: WorkflowAppliedFilters | null;
   limit: number;
   cursor: string | null;
   topCursor: string | null;
   page?: number | null;
   direction?: "NEXT" | "PREV";
   query?: string | null;
+};
+
+export type WorkflowAppliedFilters = {
+  nodeName: { values: string[] | null } | null;
+  nodeType: string[] | null;
+  workflowType: string[] | null;
+  module: string[] | null;
+  subModule: string[] | null;
+  workflowLevels: number | null;
+  levels: Array<{ count: number; approverType: string }> | null;
+  approverType: string[] | null;
+  onboardingDate: {
+    dateRange: string | null;
+    fromDate: string | null;
+    toDate: string | null;
+  } | null;
+  hasLinkedOrg: "Yes" | "No" | null;
 };
 
 export type WorkflowPaginatedResult = {
@@ -84,11 +117,24 @@ export type FetchWorkflowDetailsInput = {
   status?: WorkflowStatus;
 };
 
+export type WorkflowFilterDropdowns = {
+  nodeName: Array<{ value: string; label: string; path: string; description?: string }>;
+  nodeType: Array<{ value: string; label: string; count?: number; description?: string }>;
+  module: Array<{ value: string; label: string; description?: string }>;
+};
+
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 const toNullableString = (value: unknown): string | null => {
   const parsed = readString(value);
   return parsed || null;
 };
+const formatFilterLabel = (value: string) =>
+  value
+    .trim()
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+const toApiToken = (value: string) => value.trim().replace(/\s+/g, "_").toUpperCase();
 
 const mapWorkflowPageInfo = (pageInfo?: Partial<WorkflowPageInfo>): WorkflowPageInfo => ({
   page: Number(pageInfo?.page ?? 1) || 1,
@@ -121,13 +167,17 @@ export async function fetchWorkflowsPaginated(
   const response = await apiFetch<WorkflowPaginatedApiResponse>(WORKFLOW_FETCH_PATH, {
     method: "POST",
     body: JSON.stringify({
-      statusType: type,
-      limit: payload.limit,
-      cursor: payload.cursor ?? null,
-      topCursor: payload.topCursor ?? null,
-      page: payload.page ?? null,
-      direction: payload.direction ?? "NEXT",
-      query: readString(payload.query),
+      filter: Boolean(payload.filter),
+      pagination: {
+        statusType: type,
+        limit: payload.limit,
+        cursor: payload.cursor ?? null,
+        topCursor: payload.topCursor ?? null,
+        page: payload.page ?? null,
+        direction: payload.direction ?? "NEXT",
+        query: readString(payload.query) || null,
+      },
+      applied: payload.filter ? payload.applied ?? null : null,
     }),
   });
 
@@ -188,4 +238,77 @@ export async function fetchWorkflowDetails(payload: FetchWorkflowDetailsInput): 
     (derivedStatusRaw === "PENDING" ? "Pending" : derivedStatusRaw === "INACTIVE" ? "Inactive" : "Active");
 
   return mapWorkflowRecord(response.data, derivedStatus);
+}
+
+export async function fetchWorkflowFilterDropdowns(): Promise<WorkflowFilterDropdowns> {
+  const response = await apiFetch<WorkflowFilterDropdownsResponse>(COMPANY_NODES_PATH, {
+    method: "POST",
+    body: JSON.stringify({
+      filter: true,
+      subCategory: "WORK_FLOW",
+    }),
+  });
+
+  const dropdowns = response.dropdowns ?? {
+    nodeName: response.nodeName,
+    nodeType: response.nodeType,
+    category: response.category,
+    subCategory: response.subCategory,
+  };
+
+  if (!dropdowns.nodeName && !dropdowns.nodeType && !dropdowns.subCategory) {
+    throw new Error("Invalid workflow filter response: missing dropdowns");
+  }
+
+  return {
+    nodeName: Array.isArray(dropdowns.nodeName)
+      ? dropdowns.nodeName
+        .map((item) => {
+          if (typeof item === "string") {
+            const value = readString(item);
+            return value ? { value, label: value, path: "" } : null;
+          }
+
+          const value = readString(item?.value);
+          const path = readString(item?.path);
+          if (!value) return null;
+          return {
+            value,
+            path,
+            label: value,
+            description: path || undefined,
+          };
+        })
+        .filter((item): item is { value: string; label: string; path: string; description?: string } => Boolean(item))
+      : [],
+    nodeType: Array.isArray(dropdowns.nodeType)
+      ? dropdowns.nodeType
+        .map((item) => {
+          if (typeof item === "string") {
+            const value = formatFilterLabel(readString(item));
+            return value ? { value, label: value } : null;
+          }
+
+          const value = formatFilterLabel(readString(item?.value));
+          if (!value) return null;
+          const count = typeof item?.count === "number" ? item.count : undefined;
+          return {
+            value,
+            count,
+            label: value,
+            description: typeof count === "number" ? `${count} available` : undefined,
+          };
+        })
+        .filter((item): item is { value: string; label: string; count?: number; description?: string } => Boolean(item))
+      : [],
+    module: Array.isArray(dropdowns.subCategory)
+      ? dropdowns.subCategory
+        .map(readString)
+        .filter((value) => Boolean(value) && value.trim().toLowerCase() !== "all")
+        .map((value) => ({
+          value: toApiToken(value),
+          label: formatFilterLabel(value),
+        }))
+      : [],
+  };
 }

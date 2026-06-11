@@ -160,21 +160,27 @@ export default function WorkflowManagementView() {
     search,
     setSearch,
     searchSuggestions,
-    workflowFilters,
-    setWorkflowFilters,
-    aliasFilters,
-    setAliasFilters,
     moduleFilters,
     setModuleFilters,
     nodeNameFilters,
     setNodeNameFilters,
-    typeFilters,
-    setTypeFilters,
-    workflowOptions,
-    aliasOptions,
+    nodeTypeFilters,
+    setNodeTypeFilters,
+    workflowLevelFilters,
+    setWorkflowLevelFilters,
+    approverTypeFilters,
+    setApproverTypeFilters,
+    linkedOrgStructureFilters,
+    setLinkedOrgStructureFilters,
+    setIsFilterRequestActive,
     moduleOptions,
     nodeNameOptions,
-    typeOptions,
+    nodeTypeOptions,
+    workflowLevelOptions,
+    approverTypeOptions,
+    linkedOrgStructureOptions,
+    loadWorkflowFilterOptions,
+    isFilterLoading,
     clearColumnFilters,
     addDialogOpen,
     setAddDialogOpen,
@@ -209,7 +215,12 @@ export default function WorkflowManagementView() {
     ...(statusCounts.inactive > 0 ? [{ id: "Inactive" as const, label: "Inactive", count: statusCounts.inactive }] : []),
   ];
   const activeFilterCount =
-    workflowFilters.length + aliasFilters.length + moduleFilters.length + nodeNameFilters.length + typeFilters.length;
+    moduleFilters.length +
+    nodeNameFilters.length +
+    nodeTypeFilters.length +
+    workflowLevelFilters.length +
+    approverTypeFilters.length +
+    linkedOrgStructureFilters.length;
   const hasAnyFilter = activeFilterCount > 0;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [manageHistoryOpen, setManageHistoryOpen] = useState(false);
@@ -217,11 +228,12 @@ export default function WorkflowManagementView() {
   const [workflowHistoryPreviewEvent, setWorkflowHistoryPreviewEvent] = useState<HistoryDetailPreviewEvent | null>(null);
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const [viewportWidth, setViewportWidth] = useState(0);
-  const [draftWorkflowFilters, setDraftWorkflowFilters] = useState<string[]>(workflowFilters);
-  const [draftAliasFilters, setDraftAliasFilters] = useState<string[]>(aliasFilters);
   const [draftModuleFilters, setDraftModuleFilters] = useState<string[]>(moduleFilters);
   const [draftNodeNameFilters, setDraftNodeNameFilters] = useState<string[]>(nodeNameFilters);
-  const [draftTypeFilters, setDraftTypeFilters] = useState<string[]>(typeFilters);
+  const [draftNodeTypeFilters, setDraftNodeTypeFilters] = useState<string[]>(nodeTypeFilters);
+  const [draftWorkflowLevelFilters, setDraftWorkflowLevelFilters] = useState<string[]>(workflowLevelFilters);
+  const [draftApproverTypeFilters, setDraftApproverTypeFilters] = useState<string[]>(approverTypeFilters);
+  const [draftLinkedOrgStructureFilters, setDraftLinkedOrgStructureFilters] = useState<string[]>(linkedOrgStructureFilters);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [onboardingMode, setOnboardingMode] = useState<"create" | "edit">("create");
   const [workflowSeedForEdit, setWorkflowSeedForEdit] = useState<(typeof manageWorkflow) | null>(null);
@@ -452,19 +464,21 @@ export default function WorkflowManagementView() {
     current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
 
   const syncDraftFromApplied = () => {
-    setDraftWorkflowFilters(workflowFilters);
-    setDraftAliasFilters(aliasFilters);
     setDraftModuleFilters(moduleFilters);
     setDraftNodeNameFilters(nodeNameFilters);
-    setDraftTypeFilters(typeFilters);
+    setDraftNodeTypeFilters(nodeTypeFilters);
+    setDraftWorkflowLevelFilters(workflowLevelFilters);
+    setDraftApproverTypeFilters(approverTypeFilters);
+    setDraftLinkedOrgStructureFilters(linkedOrgStructureFilters);
   };
 
   const clearDraftFilters = () => {
-    setDraftWorkflowFilters([]);
-    setDraftAliasFilters([]);
     setDraftModuleFilters([]);
     setDraftNodeNameFilters([]);
-    setDraftTypeFilters([]);
+    setDraftNodeTypeFilters([]);
+    setDraftWorkflowLevelFilters([]);
+    setDraftApproverTypeFilters([]);
+    setDraftLinkedOrgStructureFilters([]);
   };
 
   const closeOnboardingDialog = async () => {
@@ -740,8 +754,11 @@ export default function WorkflowManagementView() {
 
             <Popover
               open={filtersOpen}
-              onOpenChange={(nextOpen) => {
-                if (nextOpen) syncDraftFromApplied();
+              onOpenChange={async (nextOpen) => {
+                if (nextOpen) {
+                  syncDraftFromApplied();
+                  await loadWorkflowFilterOptions();
+                }
                 setFiltersOpen(nextOpen);
               }}
             >
@@ -771,7 +788,7 @@ export default function WorkflowManagementView() {
                     <div>
                       <p className="text-[14px] font-semibold tracking-[0.01em] text-slate-900">Filter Workflows</p>
                       <p className="mt-0.5 text-[12px] text-slate-500">
-                        {hasAnyFilter ? `${activeFilterCount} filters applied` : "No filters applied"}
+                        {isFilterLoading ? "Loading filter options..." : activeFilterCount > 0 ? `${activeFilterCount} filters applied` : "No filters applied"}
                       </p>
                     </div>
                     <Button
@@ -786,49 +803,58 @@ export default function WorkflowManagementView() {
                 </div>
 
                 <div className="max-h-[62vh] space-y-3.5 overflow-y-auto bg-white px-5 py-3.5">
-                  <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/45 p-3 shadow-[0_2px_8px_rgba(148,163,184,0.1)]">
-                    <p className="border-b border-slate-200 pb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-700">
+                  <div className="border-b border-slate-100 pb-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Workflow Filters
                     </p>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <WorkflowFilterDropdown
-                        title="Workflow"
-                        placeholder="All workflows"
-                        options={workflowOptions}
-                        selected={draftWorkflowFilters}
-                        onToggle={(value) => setDraftWorkflowFilters((current) => toggleValue(current, value))}
-                      />
-                      <WorkflowFilterDropdown
-                        title="Alias"
-                        placeholder="All aliases"
-                        options={aliasOptions}
-                        selected={draftAliasFilters}
-                        onToggle={(value) => setDraftAliasFilters((current) => toggleValue(current, value))}
-                      />
-                      <WorkflowFilterDropdown
-                        title="Module"
-                        placeholder="All modules"
-                        options={moduleOptions}
-                        selected={draftModuleFilters}
-                        onToggle={(value) => setDraftModuleFilters((current) => toggleValue(current, value))}
-                      />
-                      <WorkflowFilterDropdown
-                        title="Node Name"
-                        placeholder="All node names"
-                        options={nodeNameOptions}
-                        selected={draftNodeNameFilters}
-                        onToggle={(value) => setDraftNodeNameFilters((current) => toggleValue(current, value))}
-                      />
-                      <div className="md:col-span-2">
-                        <WorkflowFilterDropdown
-                          title="Type"
-                          placeholder="All types"
-                          options={typeOptions}
-                          selected={draftTypeFilters}
-                          onToggle={(value) => setDraftTypeFilters((current) => toggleValue(current, value))}
-                        />
-                      </div>
-                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <WorkflowFilterDropdown
+                      title="Node Name"
+                      placeholder="All node names"
+                      options={nodeNameOptions}
+                      selected={draftNodeNameFilters}
+                      onToggle={(value) => setDraftNodeNameFilters((current) => toggleValue(current, value))}
+                    />
+                    <WorkflowFilterDropdown
+                      title="Node Type"
+                      placeholder="All node types"
+                      options={nodeTypeOptions}
+                      selected={draftNodeTypeFilters}
+                      onToggle={(value) => setDraftNodeTypeFilters((current) => toggleValue(current, value))}
+                    />
+                    <WorkflowFilterDropdown
+                      title="Module"
+                      placeholder="All modules"
+                      options={moduleOptions}
+                      selected={draftModuleFilters}
+                      onToggle={(value) => setDraftModuleFilters((current) => toggleValue(current, value))}
+                    />
+                    <WorkflowFilterDropdown
+                      title="Workflow Levels"
+                      placeholder="Select workflow levels"
+                      options={workflowLevelOptions.map((value) => ({ value, label: value }))}
+                      selected={draftWorkflowLevelFilters}
+                      onToggle={(value) =>
+                        setDraftWorkflowLevelFilters((current) => (current.includes(value) ? [] : [value]))
+                      }
+                    />
+                    <WorkflowFilterDropdown
+                      title="Approver Type"
+                      placeholder="Select approver type"
+                      options={approverTypeOptions.map((value) => ({ value, label: value }))}
+                      selected={draftApproverTypeFilters}
+                      onToggle={(value) => setDraftApproverTypeFilters((current) => toggleValue(current, value))}
+                    />
+                    <WorkflowFilterDropdown
+                      title="Linked Org Structure"
+                      placeholder="Select linked org structure"
+                      options={linkedOrgStructureOptions.map((value) => ({ value, label: value }))}
+                      selected={draftLinkedOrgStructureFilters}
+                      onToggle={(value) =>
+                        setDraftLinkedOrgStructureFilters((current) => (current.includes(value) ? [] : [value]))
+                      }
+                    />
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3">
@@ -845,17 +871,22 @@ export default function WorkflowManagementView() {
                   <Button
                     size="sm"
                     onClick={() => {
-                      setWorkflowFilters(draftWorkflowFilters);
-                      setAliasFilters(draftAliasFilters);
                       setModuleFilters(draftModuleFilters);
                       setNodeNameFilters(draftNodeNameFilters);
-                      setTypeFilters(draftTypeFilters);
+                      setNodeTypeFilters(draftNodeTypeFilters);
+                      setWorkflowLevelFilters(draftWorkflowLevelFilters);
+                      setApproverTypeFilters(draftApproverTypeFilters);
+                      setLinkedOrgStructureFilters(draftLinkedOrgStructureFilters);
+                      const hasFilters =
+                        draftModuleFilters.length > 0 ||
+                        draftNodeNameFilters.length > 0 ||
+                        draftNodeTypeFilters.length > 0 ||
+                        draftWorkflowLevelFilters.length > 0 ||
+                        draftApproverTypeFilters.length > 0 ||
+                        draftLinkedOrgStructureFilters.length > 0;
+                      setIsFilterRequestActive(hasFilters);
                       if (
-                        draftWorkflowFilters.length === 0 &&
-                        draftAliasFilters.length === 0 &&
-                        draftModuleFilters.length === 0 &&
-                        draftNodeNameFilters.length === 0 &&
-                        draftTypeFilters.length === 0
+                        !hasFilters
                       ) {
                         clearColumnFilters();
                       }
@@ -1311,15 +1342,23 @@ function WorkflowFilterDropdown({
 }: {
   title: string;
   placeholder: string;
-  options: string[];
+  options: Array<{ value: string; label: string; description?: string }>;
   selected: string[];
   onToggle: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-  const summaryLabel = selected.length === 0 ? placeholder : selected.length === 1 ? selected[0] : `${selected.length} selected`;
-  const filteredOptions = options.filter((option) => option.toLowerCase().includes(searchTerm.toLowerCase()));
+  const selectedLabels = selected
+    .map((value) => {
+      const option = options.find((entry) => entry.value === value);
+      if (!option) return value;
+      return option.description ? `${option.label} - ${option.description}` : option.label;
+    })
+    .filter(Boolean);
+  const summaryLabel =
+    selected.length === 0 ? placeholder : selected.length === 1 ? selectedLabels[0] : `${selected.length} selected`;
+  const filteredOptions = options.filter((option) => option.label.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
     <div className="space-y-1.5">
@@ -1409,13 +1448,18 @@ function WorkflowFilterDropdown({
             <div className="mt-2 max-h-56 overflow-y-auto">
               {filteredOptions.map((option) => (
                 <DropdownMenuCheckboxItem
-                  key={option}
-                  checked={selected.includes(option)}
+                  key={`${option.value}-${option.label}`}
+                  checked={selected.includes(option.value)}
                   onSelect={(event) => event.preventDefault()}
-                  onCheckedChange={() => onToggle(option)}
+                  onCheckedChange={() => onToggle(option.value)}
                   className="text-[13px]"
                 >
-                  {option}
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate">{option.label}</span>
+                    {option.description ? (
+                      <span className="truncate text-[11px] text-slate-500">{option.description}</span>
+                    ) : null}
+                  </div>
                 </DropdownMenuCheckboxItem>
               ))}
             </div>

@@ -44,6 +44,16 @@ export type ApiMonitoringPaginatedRequest = {
   page?: number | null;
   direction?: "NEXT" | "PREV";
   query?: string | null;
+  filter?: boolean;
+  applied?: {
+    date: "7days" | "15days" | "1month" | "custom" | null;
+    formDate: string | null;
+    toDate: string | null;
+    status: number[] | null;
+    responseSize: string | null;
+    responseSizeSort: "asc" | "desc" | null;
+    subtrack: number[] | null;
+  } | null;
 };
 
 export type ApiMonitoringPaginatedResult = {
@@ -316,6 +326,8 @@ export async function fetchApiMonitoringListPaginated(
       page: payload.page ?? null,
       direction: payload.direction ?? "NEXT",
       query: asNullableString(payload.query),
+      filter: Boolean(payload.filter),
+      applied: payload.filter ? payload.applied ?? null : null,
     }),
   });
 

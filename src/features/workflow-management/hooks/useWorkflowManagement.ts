@@ -2,7 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
 import { connectNotificationStream } from "@/services/notification.service";
-import { createWorkflow, fetchWorkflowsPaginated, updateWorkflowAction } from "@/services/workflow.service";
+import {
+  createWorkflow,
+  fetchWorkflowFilterDropdowns,
+  fetchWorkflowsPaginated,
+  updateWorkflowAction,
+  type WorkflowAppliedFilters,
+} from "@/services/workflow.service";
 import { fetchCompanyNodes } from "@/services/user.service";
 import { fetchCompanyNodesWithAccess } from "@/services/user.service";
 import type { WorkflowPageSize, WorkflowRecord, WorkflowStatus } from "@/features/workflow-management/types/workflow.types";
@@ -10,6 +16,9 @@ import { WORKFLOW_PAGE_SIZE_OPTIONS } from "@/features/workflow-management/types
 import { mapWorkflowRecord } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 const WORKFLOW_SEARCH_DEBOUNCE_MS = 500;
+const APPROVER_FILTER_OPTIONS = ["Reporting Manager", "Node Approver", "Hierarchy Approver"] as const;
+const WORKFLOW_LEVEL_FILTER_OPTIONS = ["1", "2", "3", "4", "5"] as const;
+const LINKED_ORG_STRUCTURE_OPTIONS = ["Yes", "No"] as const;
 
 const fuzzyMatch = (text: string, query: string) => {
   const source = text.trim().toLowerCase().replace(/\s+/g, "");
@@ -24,6 +33,51 @@ const fuzzyMatch = (text: string, query: string) => {
   return false;
 };
 
+const toApiToken = (value: string) => value.trim().replace(/\s+/g, "_").toUpperCase();
+const normalizeFilterValue = (value: string) => value.trim().toLowerCase().replace(/[_\s]+/g, " ");
+
+const buildWorkflowAppliedFilters = (input: {
+  nodeNameFilters: string[];
+  nodeTypeFilters: string[];
+  moduleFilters: string[];
+  workflowLevelFilters: string[];
+  approverTypeFilters: string[];
+  linkedOrgStructureFilters: string[];
+}): WorkflowAppliedFilters | null => {
+  const workflowLevels = Number(input.workflowLevelFilters[0] ?? 0) || null;
+  const approverType = input.approverTypeFilters.length > 0 ? input.approverTypeFilters : null;
+  const levels =
+    approverType && approverType.length > 0
+      ? approverType.map((entry, index) => ({
+        count: index + 1,
+        approverType: entry,
+      }))
+      : null;
+
+  const hasAnyFilter =
+    input.nodeNameFilters.length > 0 ||
+    input.nodeTypeFilters.length > 0 ||
+    input.moduleFilters.length > 0 ||
+    input.workflowLevelFilters.length > 0 ||
+    input.approverTypeFilters.length > 0 ||
+    input.linkedOrgStructureFilters.length > 0;
+
+  if (!hasAnyFilter) return null;
+
+  return {
+    nodeName: input.nodeNameFilters.length > 0 ? { values: input.nodeNameFilters } : null,
+    nodeType: input.nodeTypeFilters.length > 0 ? input.nodeTypeFilters : null,
+    workflowType: null,
+    module: input.moduleFilters.length > 0 ? input.moduleFilters.map(toApiToken) : null,
+    subModule: input.moduleFilters.length > 0 ? input.moduleFilters.map(toApiToken) : null,
+    workflowLevels,
+    levels,
+    approverType,
+    onboardingDate: null,
+    hasLinkedOrg: (input.linkedOrgStructureFilters[0] as "Yes" | "No" | undefined) ?? null,
+  };
+};
+
 export function useWorkflowManagement() {
   const { toast } = useToast();
   const toastRef = useRef(toast);
@@ -31,11 +85,12 @@ export function useWorkflowManagement() {
   const [activeStatus, setActiveStatus] = useState<WorkflowStatus>("Active");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [workflowFilters, setWorkflowFilters] = useState<string[]>([]);
-  const [aliasFilters, setAliasFilters] = useState<string[]>([]);
   const [moduleFilters, setModuleFilters] = useState<string[]>([]);
   const [nodeNameFilters, setNodeNameFilters] = useState<string[]>([]);
-  const [typeFilters, setTypeFilters] = useState<string[]>([]);
+  const [nodeTypeFilters, setNodeTypeFilters] = useState<string[]>([]);
+  const [workflowLevelFilters, setWorkflowLevelFilters] = useState<string[]>([]);
+  const [approverTypeFilters, setApproverTypeFilters] = useState<string[]>([]);
+  const [linkedOrgStructureFilters, setLinkedOrgStructureFilters] = useState<string[]>([]);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<WorkflowPageSize>(15);
@@ -50,6 +105,11 @@ export function useWorkflowManagement() {
   const [workflows, setWorkflows] = useState<WorkflowRecord[]>([]);
   const [hasNewWorkflowEvent, setHasNewWorkflowEvent] = useState(false);
   const [hasLoadedWorkflowsOnce, setHasLoadedWorkflowsOnce] = useState(false);
+  const [filterNodeNameOptions, setFilterNodeNameOptions] = useState<Array<{ value: string; label: string; path: string; description?: string }>>([]);
+  const [filterNodeTypeOptions, setFilterNodeTypeOptions] = useState<Array<{ value: string; label: string; count?: number; description?: string }>>([]);
+  const [filterModuleOptions, setFilterModuleOptions] = useState<Array<{ value: string; label: string; description?: string }>>([]);
+  const [isFilterLoading, setIsFilterLoading] = useState(false);
+  const [isFilterRequestActive, setIsFilterRequestActive] = useState(false);
 
   useEffect(() => {
     toastRef.current = toast;
@@ -69,6 +129,19 @@ export function useWorkflowManagement() {
     return () => window.clearTimeout(timeoutId);
   }, [search]);
 
+  const appliedFilters = useMemo(
+    () =>
+      buildWorkflowAppliedFilters({
+        nodeNameFilters,
+        nodeTypeFilters,
+        moduleFilters,
+        workflowLevelFilters,
+        approverTypeFilters,
+        linkedOrgStructureFilters,
+      }),
+    [approverTypeFilters, linkedOrgStructureFilters, moduleFilters, nodeNameFilters, nodeTypeFilters, workflowLevelFilters],
+  );
+
   const fetchPage = useCallback(
     async (
       params: {
@@ -86,12 +159,14 @@ export function useWorkflowManagement() {
       try {
         const type = activeStatus === "Pending" ? "pending" : activeStatus === "Inactive" ? "inactive" : "active";
         const response = await fetchWorkflowsPaginated(type, {
+          filter: isFilterRequestActive,
+          applied: appliedFilters,
           limit: pageSize,
           cursor: params.cursor,
           topCursor: params.topCursor,
           page: params.page,
           direction: params.direction,
-          query: debouncedSearch || "",
+          query: debouncedSearch || null,
         });
         const mapped = response.rows.map((row) => mapWorkflowRecord(row, activeStatus));
         setWorkflows(mapped);
@@ -118,7 +193,7 @@ export function useWorkflowManagement() {
         isFetchingRef.current = false;
       }
     },
-    [activeStatus, debouncedSearch, pageSize],
+    [activeStatus, appliedFilters, debouncedSearch, isFilterRequestActive, pageSize],
   );
 
   const loadWorkflows = useCallback(async () => {
@@ -266,27 +341,59 @@ export function useWorkflowManagement() {
     }
   };
 
+  const loadWorkflowFilterOptions = useCallback(async () => {
+    setIsFilterLoading(true);
+    try {
+      const dropdowns = await fetchWorkflowFilterDropdowns();
+      setFilterNodeNameOptions(dropdowns.nodeName);
+      setFilterNodeTypeOptions(dropdowns.nodeType);
+      setFilterModuleOptions(dropdowns.module);
+    } catch (error) {
+      toast({
+        title: "Unable to load workflow filters",
+        description: getApiErrorMessage(error, "Failed to load workflow filter dropdowns."),
+        variant: "destructive",
+      });
+    } finally {
+      setIsFilterLoading(false);
+    }
+  }, [toast]);
+
   const statusScopedWorkflows = useMemo(() => workflows, [workflows]);
 
-  const workflowOptions = useMemo(
-    () => Array.from(new Set(workflows.map((workflow) => workflow.name).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [workflows],
-  );
-  const aliasOptions = useMemo(
-    () => Array.from(new Set(workflows.map((workflow) => workflow.alias).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [workflows],
-  );
   const moduleOptions = useMemo(
-    () => Array.from(new Set(workflows.map((workflow) => workflow.module).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [workflows],
+    () =>
+      Array.from(
+        new Map(
+          [...filterModuleOptions, ...workflows.map((workflow) => workflow.module).filter(Boolean).map((value) => ({ value, label: value }))]
+            .map((option) => [normalizeFilterValue(option.value), option]),
+        ).values(),
+      ).sort((a, b) => a.label.localeCompare(b.label)),
+    [filterModuleOptions, workflows],
   );
   const nodeNameOptions = useMemo(
-    () => Array.from(new Set(workflows.map((workflow) => workflow.nodeName).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [workflows],
+    () =>
+      Array.from(
+        new Map(
+          [
+            ...filterNodeNameOptions,
+            ...workflows.map((workflow) => workflow.nodeName).filter(Boolean).map((value) => ({ value, label: value, path: "", description: undefined })),
+          ].map((option) => [normalizeFilterValue(option.value), option]),
+        ).values(),
+      ).sort((a, b) => a.label.localeCompare(b.label)),
+    [filterNodeNameOptions, workflows],
   );
-  const typeOptions = useMemo(
-    () => Array.from(new Set(workflows.map((workflow) => workflow.nodeType).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [workflows],
+  const nodeTypeOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          [
+            ...filterNodeTypeOptions,
+            ...workflows.map((workflow) => workflow.nodeType).filter(Boolean).map((value) => ({ value, label: value, description: undefined })),
+          ].map((option) => [normalizeFilterValue(option.value), option]),
+        ).values(),
+      ).sort((a, b) => a.label.localeCompare(b.label)),
+    [filterNodeTypeOptions, workflows],
   );
 
   const searchSuggestions = useMemo(() => {
@@ -302,23 +409,87 @@ export function useWorkflowManagement() {
   }, [search, workflows]);
 
   const clearColumnFilters = () => {
-    setWorkflowFilters([]);
-    setAliasFilters([]);
     setModuleFilters([]);
     setNodeNameFilters([]);
-    setTypeFilters([]);
+    setNodeTypeFilters([]);
+    setWorkflowLevelFilters([]);
+    setApproverTypeFilters([]);
+    setLinkedOrgStructureFilters([]);
+    setIsFilterRequestActive(false);
+  };
+
+  const getWorkflowLevelCount = (levels: unknown) => {
+    if (Array.isArray(levels)) {
+      return levels.filter((entry) => {
+        if (!entry || typeof entry !== "object") return false;
+        const record = entry as Record<string, unknown>;
+        return readString(record.approver1) || readString(record.approver2);
+      }).length;
+    }
+
+    if (!levels || typeof levels !== "object") return 0;
+
+    return Object.values(levels as Record<string, unknown>).filter((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      const record = entry as Record<string, unknown>;
+      return readString(record.approver1) || readString(record.approver2);
+    }).length;
+  };
+  const getWorkflowApproverTypes = (levels: unknown) => {
+    const labels = new Set<string>();
+    const collectApprover = (value: unknown) => {
+      const normalized = readString(value).toUpperCase();
+      if (normalized === "REPORTING_MANAGER") labels.add("Reporting Manager");
+      if (normalized === "NODE_APPROVER") labels.add("Node Approver");
+      if (normalized === "HIERARCHY_APPROVER") labels.add("Hierarchy Approver");
+    };
+
+    const entries = Array.isArray(levels)
+      ? levels
+      : levels && typeof levels === "object"
+        ? Object.values(levels as Record<string, unknown>)
+        : [];
+
+    entries.forEach((entry) => {
+      if (!entry || typeof entry !== "object") return;
+      const record = entry as Record<string, unknown>;
+      collectApprover(record.approver1);
+      collectApprover(record.approver2);
+    });
+
+    return labels;
   };
 
   const filteredWorkflows = useMemo(() => {
+    if (isFilterRequestActive) {
+      return workflows;
+    }
+
     return workflows.filter((workflow) => {
-      const matchesWorkflow = workflowFilters.length === 0 || workflowFilters.includes(workflow.name);
-      const matchesAlias = aliasFilters.length === 0 || aliasFilters.includes(workflow.alias);
-      const matchesModule = moduleFilters.length === 0 || moduleFilters.includes(workflow.module);
-      const matchesNodeName = nodeNameFilters.length === 0 || nodeNameFilters.includes(workflow.nodeName);
-      const matchesType = typeFilters.length === 0 || typeFilters.includes(workflow.nodeType);
-      return matchesWorkflow && matchesAlias && matchesModule && matchesNodeName && matchesType;
+      const workflowModuleValues = [workflow.module, workflow.rawModule].map(normalizeFilterValue).filter(Boolean);
+      const workflowApproverTypes = getWorkflowApproverTypes(workflow.levels);
+      const workflowLevelCount = String(getWorkflowLevelCount(workflow.levels));
+      const hasLinkedOrgStructure =
+        (Array.isArray(workflow.linkedOrgStructure) && workflow.linkedOrgStructure.length > 0) ||
+        (Array.isArray(workflow.autoGenerated) && workflow.autoGenerated.length > 0);
+      const matchesNodeName =
+        nodeNameFilters.length === 0 ||
+        nodeNameFilters.some((selected) => normalizeFilterValue(selected) === normalizeFilterValue(workflow.nodeName));
+      const matchesNodeType =
+        nodeTypeFilters.length === 0 ||
+        nodeTypeFilters.some((selected) => normalizeFilterValue(selected) === normalizeFilterValue(workflow.nodeType));
+      const matchesModule =
+        moduleFilters.length === 0 ||
+        moduleFilters.some((selected) => workflowModuleValues.includes(normalizeFilterValue(selected)));
+      const matchesWorkflowLevels = workflowLevelFilters.length === 0 || workflowLevelFilters.includes(workflowLevelCount);
+      const matchesApproverType =
+        approverTypeFilters.length === 0 || approverTypeFilters.some((selected) => workflowApproverTypes.has(selected));
+      const matchesLinkedOrgStructure =
+        linkedOrgStructureFilters.length === 0 ||
+        linkedOrgStructureFilters.some((selected) => (selected === "Yes" ? hasLinkedOrgStructure : !hasLinkedOrgStructure));
+      return matchesNodeName && matchesNodeType && matchesModule && matchesWorkflowLevels && matchesApproverType && matchesLinkedOrgStructure;
     });
-  }, [aliasFilters, moduleFilters, nodeNameFilters, typeFilters, workflowFilters, workflows]);
+  }, [approverTypeFilters, isFilterRequestActive, linkedOrgStructureFilters, moduleFilters, nodeNameFilters, nodeTypeFilters, workflowLevelFilters, workflows]);
 
   useEffect(() => {
     if (!hasLoadedWorkflowsOnce) return;
@@ -372,7 +543,7 @@ export function useWorkflowManagement() {
     return () => {
       isMounted = false;
     };
-  }, [activeStatus, debouncedSearch, pageSize, fetchPage]);
+  }, [activeStatus, debouncedSearch, pageSize, fetchPage, appliedFilters, isFilterRequestActive]);
 
   const totalPages = Math.max(1, resolvedTotalPages);
   const safePage = page;
@@ -451,21 +622,28 @@ export function useWorkflowManagement() {
     search,
     setSearch,
     searchSuggestions,
-    workflowFilters,
-    setWorkflowFilters,
-    aliasFilters,
-    setAliasFilters,
     moduleFilters,
     setModuleFilters,
     nodeNameFilters,
     setNodeNameFilters,
-    typeFilters,
-    setTypeFilters,
-    workflowOptions,
-    aliasOptions,
+    nodeTypeFilters,
+    setNodeTypeFilters,
+    workflowLevelFilters,
+    setWorkflowLevelFilters,
+    approverTypeFilters,
+    setApproverTypeFilters,
+    linkedOrgStructureFilters,
+    setLinkedOrgStructureFilters,
+    isFilterRequestActive,
+    setIsFilterRequestActive,
     moduleOptions,
     nodeNameOptions,
-    typeOptions,
+    nodeTypeOptions,
+    workflowLevelOptions: [...WORKFLOW_LEVEL_FILTER_OPTIONS],
+    approverTypeOptions: [...APPROVER_FILTER_OPTIONS],
+    linkedOrgStructureOptions: [...LINKED_ORG_STRUCTURE_OPTIONS],
+    loadWorkflowFilterOptions,
+    isFilterLoading,
     clearColumnFilters,
     addDialogOpen,
     setAddDialogOpen,
