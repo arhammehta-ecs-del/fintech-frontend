@@ -45,8 +45,9 @@ const buildWorkflowAppliedFilters = (input: {
   approverTypeFilters: string[];
   approverLevelFilters: string[];
   linkedOrgStructureFilters: string[];
+  approverCountFilters: string[];
 }): WorkflowAppliedFilters | null => {
-  const workflowLevels = Number(input.workflowLevelFilters[0] ?? 0) || null;
+  const workflowLevels = Number(input.approverCountFilters[0] ?? input.workflowLevelFilters[0] ?? 0) || null;
   const approverLevel = Number(input.approverLevelFilters[0] ?? 0) || null;
   const approverType = input.approverTypeFilters.length > 0 ? input.approverTypeFilters : null;
   const levels =
@@ -71,7 +72,8 @@ const buildWorkflowAppliedFilters = (input: {
     input.workflowLevelFilters.length > 0 ||
     input.approverTypeFilters.length > 0 ||
     input.approverLevelFilters.length > 0 ||
-    input.linkedOrgStructureFilters.length > 0;
+    input.linkedOrgStructureFilters.length > 0 ||
+    input.approverCountFilters.length > 0;
 
   if (!hasAnyFilter) return null;
 
@@ -103,6 +105,7 @@ export function useWorkflowManagement() {
   const [approverTypeFilters, setApproverTypeFilters] = useState<string[]>([]);
   const [approverLevelFilters, setApproverLevelFilters] = useState<string[]>([]);
   const [linkedOrgStructureFilters, setLinkedOrgStructureFilters] = useState<string[]>([]);
+  const [approverCountFilters, setApproverCountFilters] = useState<string[]>([]);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<WorkflowPageSize>(15);
@@ -117,9 +120,10 @@ export function useWorkflowManagement() {
   const [workflows, setWorkflows] = useState<WorkflowRecord[]>([]);
   const [hasNewWorkflowEvent, setHasNewWorkflowEvent] = useState(false);
   const [hasLoadedWorkflowsOnce, setHasLoadedWorkflowsOnce] = useState(false);
-  const [filterNodeNameOptions, setFilterNodeNameOptions] = useState<Array<{ value: string; label: string; path: string; description?: string }>>([]);
+  const [filterNodeNameOptions, setFilterNodeNameOptions] = useState<Array<{ value: string; label: string; path: string; description?: string; level?: number }>>([]);
   const [filterNodeTypeOptions, setFilterNodeTypeOptions] = useState<Array<{ value: string; label: string; count?: number; description?: string }>>([]);
   const [filterModuleOptions, setFilterModuleOptions] = useState<Array<{ value: string; label: string; description?: string }>>([]);
+  const [filterApproverCountOptions, setFilterApproverCountOptions] = useState<Array<{ value: string; label: string; count: number }>>([]);
   const [isFilterLoading, setIsFilterLoading] = useState(false);
   const [isFilterRequestActive, setIsFilterRequestActive] = useState(false);
 
@@ -151,8 +155,9 @@ export function useWorkflowManagement() {
         approverTypeFilters,
         approverLevelFilters,
         linkedOrgStructureFilters,
+        approverCountFilters,
       }),
-    [approverLevelFilters, approverTypeFilters, linkedOrgStructureFilters, moduleFilters, nodeNameFilters, nodeTypeFilters, workflowLevelFilters],
+    [approverLevelFilters, approverTypeFilters, linkedOrgStructureFilters, moduleFilters, nodeNameFilters, nodeTypeFilters, workflowLevelFilters, approverCountFilters],
   );
 
   const fetchPage = useCallback(
@@ -357,10 +362,13 @@ export function useWorkflowManagement() {
   const loadWorkflowFilterOptions = useCallback(async () => {
     setIsFilterLoading(true);
     try {
-      const dropdowns = await fetchWorkflowFilterDropdowns();
+      const dropdowns = await fetchWorkflowFilterDropdowns(
+        isFilterRequestActive ? appliedFilters : null
+      );
       setFilterNodeNameOptions(dropdowns.nodeName);
       setFilterNodeTypeOptions(dropdowns.nodeType);
       setFilterModuleOptions(dropdowns.module);
+      setFilterApproverCountOptions(dropdowns.approverCount);
     } catch (error) {
       toast({
         title: "Unable to load workflow filters",
@@ -370,7 +378,7 @@ export function useWorkflowManagement() {
     } finally {
       setIsFilterLoading(false);
     }
-  }, [toast]);
+  }, [appliedFilters, isFilterRequestActive, toast]);
 
   const statusScopedWorkflows = useMemo(() => workflows, [workflows]);
 
@@ -378,8 +386,10 @@ export function useWorkflowManagement() {
     () =>
       Array.from(
         new Map(
-          [...filterModuleOptions, ...workflows.map((workflow) => workflow.module).filter(Boolean).map((value) => ({ value, label: value }))]
-            .map((option) => [normalizeFilterValue(option.value), option]),
+          [
+            ...workflows.map((workflow) => workflow.module).filter(Boolean).map((value) => ({ value, label: value })),
+            ...filterModuleOptions,
+          ].map((option) => [normalizeFilterValue(option.value), option]),
         ).values(),
       ).sort((a, b) => a.label.localeCompare(b.label)),
     [filterModuleOptions, workflows],
@@ -389,8 +399,8 @@ export function useWorkflowManagement() {
       Array.from(
         new Map(
           [
-            ...filterNodeNameOptions,
             ...workflows.map((workflow) => workflow.nodeName).filter(Boolean).map((value) => ({ value, label: value, path: "", description: undefined })),
+            ...filterNodeNameOptions,
           ].map((option) => [normalizeFilterValue(option.value), option]),
         ).values(),
       ).sort((a, b) => a.label.localeCompare(b.label)),
@@ -401,8 +411,8 @@ export function useWorkflowManagement() {
       Array.from(
         new Map(
           [
+            ...workflows.map((workflow) => ({ value: workflow.nodeType, label: workflow.nodeType, description: undefined })).filter((o) => Boolean(o.value)),
             ...filterNodeTypeOptions,
-            ...workflows.map((workflow) => workflow.nodeType).filter(Boolean).map((value) => ({ value, label: value, description: undefined })),
           ].map((option) => [normalizeFilterValue(option.value), option]),
         ).values(),
       ).sort((a, b) => a.label.localeCompare(b.label)),
@@ -429,6 +439,7 @@ export function useWorkflowManagement() {
     setApproverTypeFilters([]);
     setApproverLevelFilters([]);
     setLinkedOrgStructureFilters([]);
+    setApproverCountFilters([]);
     setIsFilterRequestActive(false);
   };
 
@@ -546,10 +557,11 @@ export function useWorkflowManagement() {
         matchesWorkflowLevels &&
         matchesApproverLevel &&
         matchesApproverType &&
-        matchesLinkedOrgStructure
+        matchesLinkedOrgStructure &&
+        (approverCountFilters.length === 0 || approverCountFilters.includes(workflowLevelCount))
       );
     });
-  }, [approverLevelFilters, approverTypeFilters, isFilterRequestActive, linkedOrgStructureFilters, moduleFilters, nodeNameFilters, nodeTypeFilters, workflowLevelFilters, workflows]);
+  }, [approverLevelFilters, approverTypeFilters, isFilterRequestActive, linkedOrgStructureFilters, moduleFilters, nodeNameFilters, nodeTypeFilters, workflowLevelFilters, approverCountFilters, workflows]);
 
   useEffect(() => {
     if (!hasLoadedWorkflowsOnce) return;
@@ -696,11 +708,14 @@ export function useWorkflowManagement() {
     setApproverLevelFilters,
     linkedOrgStructureFilters,
     setLinkedOrgStructureFilters,
+    approverCountFilters,
+    setApproverCountFilters,
     isFilterRequestActive,
     setIsFilterRequestActive,
     moduleOptions,
     nodeNameOptions,
     nodeTypeOptions,
+    approverCountOptions: filterApproverCountOptions,
     workflowLevelOptions: [...WORKFLOW_LEVEL_FILTER_OPTIONS],
     approverLevelOptions: [...WORKFLOW_LEVEL_FILTER_OPTIONS],
     approverTypeOptions: [...APPROVER_FILTER_OPTIONS],

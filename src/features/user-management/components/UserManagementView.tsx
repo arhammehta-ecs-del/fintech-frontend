@@ -116,6 +116,7 @@ export function UserManagementView() {
     processUserStatusAction,
     loadUsers,
     userStatusSummary,
+    permissionSummary,
   } = useUserManagement();
   const [refreshInitializedAt, setRefreshInitializedAt] = useState<number | null>(null);
   const [historyOpenForMember, setHistoryOpenForMember] = useState(false);
@@ -807,6 +808,7 @@ export function UserManagementView() {
           inactive: statusCounts.inactive,
         }}
         userStatusSummary={userStatusSummary}
+        permissionSummary={permissionSummary}
       />
 
       <Card className="overflow-hidden border-slate-200 shadow-sm md:flex md:h-[calc(100dvh-21rem)] md:min-h-[420px] md:flex-col">

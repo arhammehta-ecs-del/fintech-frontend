@@ -176,12 +176,13 @@ type CompanyNodesFilterResponse = {
   subCategory?: string;
   dropdowns?: {
     designation?: Array<{ value?: string; count?: number }>;
-    nodeName?: Array<{ value?: string; path?: string }>;
+    nodeName?: Array<{ value?: string; path?: string; nodeType?: string; level?: number; levelCount?: string; count?: number; permissionCount?: number }>;
     nodeType?: Array<{ value?: string; count?: number }>;
     category?: string[];
     subCategory?: Record<string, string[]>;
     reportingManager?: string[];
     userStatusSummary?: Record<string, number>;
+    permissionSummary?: Record<string, { count: number }>;
   };
 };
 
@@ -205,6 +206,13 @@ export type UserFilterDropdownOption = {
 export type UserFilterNodeOption = {
   value: string;
   path: string;
+  level?: number;
+  nodeType?: string;
+  levelCount?: string;
+};
+
+export type PermissionSummaryEntry = {
+  count: number;
 };
 
 export type UserFilterDropdowns = {
@@ -215,6 +223,7 @@ export type UserFilterDropdowns = {
   subCategory: Record<string, string[]>;
   reportingManager: string[];
   userStatusSummary?: Record<string, number>;
+  permissionSummary?: Record<string, PermissionSummaryEntry>;
 };
 
 export type GlobalSignatoryOnboardingPayload = {
@@ -544,12 +553,16 @@ export async function fetchCompanyNodes(subCategory: string): Promise<CompanyNod
   return result.nodes;
 }
 
-export async function fetchUserFilterDropdowns(subCategory: string): Promise<UserFilterDropdowns> {
+export async function fetchUserFilterDropdowns(
+  subCategory: string,
+  applied: UserAppliedFilters | null = null,
+): Promise<UserFilterDropdowns> {
   const payload = await apiFetch<CompanyNodesFilterResponse>(COMPANY_NODES_PATH, {
     method: "POST",
     body: JSON.stringify({
       subCategory,
       filter: true,
+      applied,
     }),
   });
 
@@ -572,6 +585,9 @@ export async function fetchUserFilterDropdowns(subCategory: string): Promise<Use
         .map((item) => ({
           value: readString(item?.value).trim(),
           path: readString(item?.path).trim(),
+          level: typeof item?.level === "number" ? item.level : undefined,
+          nodeType: typeof item?.nodeType === "string" ? item.nodeType.trim() : undefined,
+          levelCount: typeof item?.levelCount === "string" ? item.levelCount.trim() : undefined,
         }))
         .filter((item) => item.value && item.path)
       : [],
@@ -604,6 +620,10 @@ export async function fetchUserFilterDropdowns(subCategory: string): Promise<Use
     userStatusSummary:
       dropdowns.userStatusSummary && typeof dropdowns.userStatusSummary === "object"
         ? (dropdowns.userStatusSummary as Record<string, number>)
+        : undefined,
+    permissionSummary:
+      dropdowns.permissionSummary && typeof dropdowns.permissionSummary === "object"
+        ? (dropdowns.permissionSummary as Record<string, PermissionSummaryEntry>)
         : undefined,
   };
 }

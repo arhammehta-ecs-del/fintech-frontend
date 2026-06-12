@@ -61,15 +61,17 @@ type WorkflowDetailsApiResponse = WorkflowApiResponse & {
 
 type WorkflowFilterDropdownsResponse = WorkflowApiResponse & {
   dropdowns?: {
-    nodeName?: Array<{ value?: string; path?: string } | string>;
+    nodeName?: Array<{ value?: string; path?: string; levelCount?: number } | string>;
     nodeType?: Array<{ value?: string; count?: number } | string>;
     category?: string[];
     subCategory?: string[];
+    levels?: Array<{ value: string; level: number; count: number }>;
   };
-  nodeName?: Array<{ value?: string; path?: string } | string>;
+  nodeName?: Array<{ value?: string; path?: string; levelCount?: number } | string>;
   nodeType?: Array<{ value?: string; count?: number } | string>;
   category?: string[];
   subCategory?: string[];
+  levels?: Array<{ value: string; level: number; count: number }>;
 };
 
 export type WorkflowFetchType = "active" | "pending" | "inactive";
@@ -118,9 +120,10 @@ export type FetchWorkflowDetailsInput = {
 };
 
 export type WorkflowFilterDropdowns = {
-  nodeName: Array<{ value: string; label: string; path: string; description?: string }>;
+  nodeName: Array<{ value: string; label: string; path: string; description?: string; level?: number }>;
   nodeType: Array<{ value: string; label: string; count?: number; description?: string }>;
   module: Array<{ value: string; label: string; description?: string }>;
+  approverCount: Array<{ value: string; label: string; count: number }>;
 };
 
 type WorkflowNodeNameOption = WorkflowFilterDropdowns["nodeName"][number];
@@ -243,12 +246,13 @@ export async function fetchWorkflowDetails(payload: FetchWorkflowDetailsInput): 
   return mapWorkflowRecord(response.data, derivedStatus);
 }
 
-export async function fetchWorkflowFilterDropdowns(): Promise<WorkflowFilterDropdowns> {
+export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilters | null = null): Promise<WorkflowFilterDropdowns> {
   const response = await apiFetch<WorkflowFilterDropdownsResponse>(COMPANY_NODES_PATH, {
     method: "POST",
     body: JSON.stringify({
       filter: true,
       subCategory: "WORK_FLOW",
+      applied,
     }),
   });
 
@@ -257,6 +261,7 @@ export async function fetchWorkflowFilterDropdowns(): Promise<WorkflowFilterDrop
     nodeType: response.nodeType,
     category: response.category,
     subCategory: response.subCategory,
+    levels: response.levels,
   };
 
   if (!dropdowns.nodeName && !dropdowns.nodeType && !dropdowns.subCategory) {
@@ -281,6 +286,7 @@ export async function fetchWorkflowFilterDropdowns(): Promise<WorkflowFilterDrop
           path,
           label: value,
           description: path || undefined,
+          level: typeof item?.levelCount === "number" ? item.levelCount : undefined,
         });
         return accumulator;
       }, [])
@@ -320,6 +326,16 @@ export async function fetchWorkflowFilterDropdowns(): Promise<WorkflowFilterDrop
           value: toApiToken(value),
           label: formatFilterLabel(value),
         }))
+      : [],
+    approverCount: Array.isArray(dropdowns.levels)
+      ? dropdowns.levels
+          .filter((item) => typeof item.level === "number" && typeof item.count === "number")
+          .map((item) => ({
+            value: String(item.level),
+            label: String(item.level),
+            count: item.count,
+          }))
+          .sort((a, b) => Number(a.value) - Number(b.value))
       : [],
   };
 }

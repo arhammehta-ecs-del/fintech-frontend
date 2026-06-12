@@ -16,9 +16,8 @@ import PaginationFooter from "@/components/PaginationFooter";
 import { cn } from "@/lib/utils";
 import {
   API_MONITORING_DATE_OPTIONS,
-  API_MONITORING_RESPONSE_SIZE_OPTIONS,
   API_MONITORING_RESPONSE_SORT_OPTIONS,
-  API_MONITORING_STATUS_OPTIONS,
+  API_MONITORING_TIME_OPTIONS,
   useApiMonitoring,
   type ApiMonitoringAppliedFiltersDraft,
 } from "@/features/api-monitoring/hooks/useApiMonitoring";
@@ -46,8 +45,14 @@ const companyBadgeStyle = (code: string) => {
 
 const buildEmptyDraft = (): ApiMonitoringAppliedFiltersDraft => ({
   date: null,
+  time: null,
   fromDate: "",
   toDate: "",
+  fromTime: "",
+  toTime: "",
+  users: [],
+  ips: [],
+  urls: [],
   status: [],
   subtrack: [],
   responseSize: null,
@@ -56,15 +61,24 @@ const buildEmptyDraft = (): ApiMonitoringAppliedFiltersDraft => ({
 
 const countFilters = (draft: ApiMonitoringAppliedFiltersDraft) =>
   (draft.date ? 1 : 0) +
+  (draft.time ? 1 : 0) +
+  draft.users.length +
+  draft.ips.length +
+  draft.urls.length +
   draft.status.length +
   draft.subtrack.length +
   (draft.responseSize ? 1 : 0) +
   (draft.responseSizeSort ? 1 : 0) +
   (draft.fromDate ? 1 : 0) +
-  (draft.toDate ? 1 : 0);
+  (draft.toDate ? 1 : 0) +
+  (draft.fromTime ? 1 : 0) +
+  (draft.toTime ? 1 : 0);
 
 const dateLabel = (value: (typeof API_MONITORING_DATE_OPTIONS)[number]) =>
   value === "7days" ? "7 Days" : value === "15days" ? "15 Days" : value === "1month" ? "1 Month" : "Custom";
+
+const timeLabel = (value: (typeof API_MONITORING_TIME_OPTIONS)[number]) =>
+  value === "10min" ? "10 Min" : value === "1hours" ? "1 Hours" : value === "3hour" ? "3 Hour" : "Custom";
 
 export default function ApiMonitoringView() {
   const {
@@ -80,6 +94,7 @@ export default function ApiMonitoringView() {
     appliedFilters,
     applyFilters,
     clearFilters,
+    filterMetadata,
     pageSize,
     setPageSize,
     safePage,
@@ -91,6 +106,7 @@ export default function ApiMonitoringView() {
     handleJumpToPage,
     fetchDetailsForTrack,
     refreshLogs,
+    fetchFilterPanelData,
     todayIso,
   } = useApiMonitoring();
   const [selectedLog, setSelectedLog] = useState<ApiMonitoringLog | null>(null);
@@ -105,6 +121,9 @@ export default function ApiMonitoringView() {
   const syncDraft = () => {
     setDraft({
       ...appliedFilters,
+      users: [...appliedFilters.users],
+      ips: [...appliedFilters.ips],
+      urls: [...appliedFilters.urls],
       status: [...appliedFilters.status],
       subtrack: [...appliedFilters.subtrack],
     });
@@ -169,6 +188,26 @@ export default function ApiMonitoringView() {
     }));
   };
 
+  const setFromTime = (value: string) => {
+    setDraft((current) => ({
+      ...current,
+      fromTime: value,
+      toTime: current.fromDate && current.toDate && current.fromDate === current.toDate && current.toTime && value > current.toTime
+        ? value
+        : current.toTime,
+    }));
+  };
+
+  const setToTime = (value: string) => {
+    setDraft((current) => ({
+      ...current,
+      toTime: value,
+      fromTime: current.fromDate && current.toDate && current.fromDate === current.toDate && current.fromTime && value < current.fromTime
+        ? value
+        : current.fromTime,
+    }));
+  };
+
   return (
     <div className="space-y-4">
       <Card className="rounded-xl border border-border px-6 py-4 shadow-sm">
@@ -225,6 +264,11 @@ export default function ApiMonitoringView() {
                 open={filtersOpen}
                 onOpenChange={(nextOpen) => {
                   if (nextOpen) syncDraft();
+                  if (nextOpen) {
+                    void fetchFilterPanelData().then(() => {
+                      markRefreshed();
+                    });
+                  }
                   setFiltersOpen(nextOpen);
                 }}
               >
@@ -272,8 +316,11 @@ export default function ApiMonitoringView() {
                           setDraft((current) => ({
                             ...current,
                             date: null,
+                            time: null,
                             fromDate: "",
                             toDate: "",
+                            fromTime: "",
+                            toTime: "",
                           }))
                         }
                         onValueChange={(option) =>
@@ -287,10 +334,81 @@ export default function ApiMonitoringView() {
                         onFromDateChange={setFromDate}
                         onToDateChange={setToDate}
                       />
+                      <TimeDropdown
+                        value={draft.time}
+                        fromTime={draft.fromTime}
+                        toTime={draft.toTime}
+                        onClear={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            time: null,
+                            fromTime: "",
+                            toTime: "",
+                          }))
+                        }
+                        onValueChange={(option) =>
+                          setDraft((current) => ({
+                            ...current,
+                            time: current.time === option ? null : option,
+                            fromTime: option === "custom" ? current.fromTime : "",
+                            toTime: option === "custom" ? current.toTime : "",
+                          }))
+                        }
+                        onFromTimeChange={setFromTime}
+                        onToTimeChange={setToTime}
+                      />
+                      <MultiSelectDropdown
+                        title="User"
+                        placeholder="Select user"
+                        options={filterMetadata.users}
+                        optionCount={filterMetadata.users.length}
+                        selected={draft.users}
+                        onClear={() => setDraft((current) => ({ ...current, users: [] }))}
+                        onToggle={(value) =>
+                          setDraft((current) => ({
+                            ...current,
+                            users: current.users.includes(value) ? current.users.filter((item) => item !== value) : [...current.users, value],
+                          }))
+                        }
+                      />
+                      <MultiSelectDropdown
+                        title="IP Address"
+                        placeholder="Select IP"
+                        options={filterMetadata.ips}
+                        optionCount={filterMetadata.ips.length}
+                        selected={draft.ips}
+                        onClear={() => setDraft((current) => ({ ...current, ips: [] }))}
+                        onToggle={(value) =>
+                          setDraft((current) => ({
+                            ...current,
+                            ips: current.ips.includes(value) ? current.ips.filter((item) => item !== value) : [...current.ips, value],
+                          }))
+                        }
+                      />
+                      <MultiSelectDropdown
+                        title="API"
+                        placeholder="Select API"
+                        options={filterMetadata.urls}
+                        optionCount={filterMetadata.urls.length}
+                        contentClassName="max-h-[420px] overflow-y-auto"
+                        selected={draft.urls}
+                        onClear={() => setDraft((current) => ({ ...current, urls: [] }))}
+                        onToggle={(value) =>
+                          setDraft((current) => ({
+                            ...current,
+                            urls: current.urls.includes(value) ? current.urls.filter((item) => item !== value) : [...current.urls, value],
+                          }))
+                        }
+                      />
                       <MultiSelectDropdown
                         title="Status"
                         placeholder="Select status"
-                        options={API_MONITORING_STATUS_OPTIONS.map((status) => ({ value: String(status), label: String(status) }))}
+                        options={filterMetadata.statusCodes.map((status) => ({
+                          value: String(status.value),
+                          label: status.label,
+                          count: status.count,
+                        }))}
+                        optionCount={filterMetadata.statusCodes.length}
                         selected={draft.status.map(String)}
                         onClear={() => setDraft((current) => ({ ...current, status: [] }))}
                         onToggle={(value) => toggleStatus(Number(value))}
@@ -306,7 +424,12 @@ export default function ApiMonitoringView() {
                       <SingleSelectDropdown
                         title="Response Size"
                         placeholder="Select response size"
-                        options={API_MONITORING_RESPONSE_SIZE_OPTIONS.map((range) => ({ value: range, label: `${range} KB` }))}
+                        options={filterMetadata.responseSizeRanges.map((range) => ({
+                          value: range.value,
+                          label: range.label,
+                          count: range.count,
+                        }))}
+                        optionCount={filterMetadata.responseSizeRanges.length}
                         value={draft.responseSize}
                         emptySummary=""
                         onClear={() => setDraft((current) => ({ ...current, responseSize: null }))}
@@ -316,6 +439,7 @@ export default function ApiMonitoringView() {
                         title="Sort Response Size "
                         placeholder="Select flow"
                         options={API_MONITORING_RESPONSE_SORT_OPTIONS.map((sort) => ({ value: sort, label: sort === "asc" ? "Ascending" : "Descending" }))}
+                        optionCount={API_MONITORING_RESPONSE_SORT_OPTIONS.length}
                         value={draft.responseSizeSort}
                         emptySummary=""
                         onClear={() => setDraft((current) => ({ ...current, responseSizeSort: null }))}
@@ -454,8 +578,13 @@ export default function ApiMonitoringView() {
   );
 }
 
-function SectionLabel({ title }: { title: string }) {
-  return <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</p>;
+function SectionLabel({ title, count }: { title: string; count?: number }) {
+  return (
+    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+      {title}
+      {typeof count === "number" ? ` (${count})` : ""}
+    </p>
+  );
 }
 
 function SectionHint({ children }: { children: ReactNode }) {
@@ -464,12 +593,14 @@ function SectionHint({ children }: { children: ReactNode }) {
 
 function DropdownField({
   title,
+  optionCount,
   summary,
   canClear = false,
   onClear,
   children,
 }: {
   title: string;
+  optionCount?: number;
   summary: string;
   canClear?: boolean;
   onClear?: () => void;
@@ -478,7 +609,7 @@ function DropdownField({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <SectionLabel title={title} />
+        <SectionLabel title={title} count={optionCount} />
         {canClear && onClear ? (
           <button
             type="button"
@@ -503,18 +634,22 @@ function SingleSelectDropdown({
   emptySummary = "No selection applied",
   onClear,
   onSelect,
+  optionCount,
+  contentClassName,
 }: {
   title: string;
   placeholder: string;
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; count?: number }>;
   value: string | null;
   emptySummary?: string;
   onClear?: () => void;
   onSelect: (value: string) => void;
+  optionCount?: number;
+  contentClassName?: string;
 }) {
   const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder;
   return (
-    <DropdownField title={title} summary={value ? selectedLabel : emptySummary} canClear={Boolean(value)} onClear={onClear}>
+    <DropdownField title={title} optionCount={optionCount} summary={value ? selectedLabel : emptySummary} canClear={Boolean(value)} onClear={onClear}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", value && "border-primary/40 text-primary")}>
@@ -522,12 +657,28 @@ function SingleSelectDropdown({
             <ChevronDown className="h-4 w-4 text-slate-400" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl border border-slate-200 p-2">
-          {options.map((option) => (
-            <DropdownMenuItem key={option.value} onSelect={() => onSelect(option.value)} className="cursor-pointer rounded-md">
-              {option.label}
+        <DropdownMenuContent
+          align="start"
+          sideOffset={8}
+          className={cn("min-w-[var(--radix-dropdown-menu-trigger-width)] w-fit max-w-[80vw] rounded-xl border border-slate-200 p-2", contentClassName)}
+        >
+          {options.map((option) => {
+            const disabled = typeof option.count === "number" && option.count === 0;
+            return (
+            <DropdownMenuItem
+              key={option.value}
+              disabled={disabled}
+              onSelect={() => {
+                if (!disabled) onSelect(option.value);
+              }}
+              className={cn("rounded-md", !disabled && "cursor-pointer", disabled && "cursor-not-allowed opacity-50")}
+            >
+              <div className="flex w-full min-w-0 items-center justify-between gap-3">
+                <span className="min-w-0 flex-1">{option.label}</span>
+                {typeof option.count === "number" ? <span className="shrink-0 text-xs font-semibold text-sky-600">{option.count}</span> : null}
+              </div>
             </DropdownMenuItem>
-          ))}
+          )})}
         </DropdownMenuContent>
       </DropdownMenu>
     </DropdownField>
@@ -541,13 +692,17 @@ function MultiSelectDropdown({
   selected,
   onClear,
   onToggle,
+  optionCount,
+  contentClassName,
 }: {
   title: string;
   placeholder: string;
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; count?: number }>;
   selected: string[];
   onClear?: () => void;
   onToggle: (value: string) => void;
+  optionCount?: number;
+  contentClassName?: string;
 }) {
   const summary =
     selected.length === 0
@@ -556,7 +711,7 @@ function MultiSelectDropdown({
         ? options.find((option) => option.value === selected[0])?.label ?? selected[0]
         : `${selected.length} selected`;
   return (
-    <DropdownField title={title} summary={summary} canClear={selected.length > 0} onClear={onClear}>
+    <DropdownField title={title} optionCount={optionCount} summary={summary} canClear={selected.length > 0} onClear={onClear}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", selected.length > 0 && "border-primary/40 text-primary")}>
@@ -564,18 +719,30 @@ function MultiSelectDropdown({
             <ChevronDown className="h-4 w-4 text-slate-400" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl border border-slate-200 p-2">
-          {options.map((option) => (
+        <DropdownMenuContent
+          align="start"
+          sideOffset={8}
+          className={cn("min-w-[var(--radix-dropdown-menu-trigger-width)] w-fit max-w-[80vw] rounded-xl border border-slate-200 p-2", contentClassName)}
+        >
+          {options.map((option) => {
+            const disabled = typeof option.count === "number" && option.count === 0;
+            return (
             <DropdownMenuCheckboxItem
               key={option.value}
+              disabled={disabled}
               checked={selected.includes(option.value)}
-              onCheckedChange={() => onToggle(option.value)}
+              onCheckedChange={() => {
+                if (!disabled) onToggle(option.value);
+              }}
               onSelect={(event) => event.preventDefault()}
-              className="cursor-pointer rounded-md"
+              className={cn("rounded-md", !disabled && "cursor-pointer", disabled && "cursor-not-allowed opacity-50")}
             >
-              {option.label}
+              <div className="flex w-full min-w-0 items-center justify-between gap-3">
+                <span className="min-w-0 flex-1">{option.label}</span>
+                {typeof option.count === "number" ? <span className="shrink-0 text-xs font-semibold text-sky-600">{option.count}</span> : null}
+              </div>
             </DropdownMenuCheckboxItem>
-          ))}
+          )})}
         </DropdownMenuContent>
       </DropdownMenu>
     </DropdownField>
@@ -603,10 +770,12 @@ function DateDropdown({
   onFromDateChange: (value: string) => void;
   onToDateChange: (value: string) => void;
 }) {
+  const fromSummary = fromDate || "Start";
+  const toSummary = toDate || "End";
   const summary =
     value === "custom"
       ? fromDate || toDate
-        ? `${fromDate || "Start"} to ${toDate || "End"}`
+        ? `${fromSummary} to ${toSummary}`
         : "Custom range"
       : value
         ? dateLabel(value)
@@ -629,14 +798,75 @@ function DateDropdown({
             ))}
           </div>
           {value === "custom" ? (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div className="space-y-1">
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="space-y-2">
                 <SectionHint>From</SectionHint>
                 <Input type="date" max={toDate || todayIso} value={fromDate} onChange={(event) => onFromDateChange(event.target.value)} className="h-10" />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <SectionHint>To</SectionHint>
                 <Input type="date" min={fromDate || undefined} max={todayIso} value={toDate} onChange={(event) => onToDateChange(event.target.value)} className="h-10" />
+              </div>
+            </div>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </DropdownField>
+  );
+}
+
+function TimeDropdown({
+  value,
+  fromTime,
+  toTime,
+  onClear,
+  onValueChange,
+  onFromTimeChange,
+  onToTimeChange,
+}: {
+  value: (typeof API_MONITORING_TIME_OPTIONS)[number] | null;
+  fromTime: string;
+  toTime: string;
+  onClear?: () => void;
+  onValueChange: (value: (typeof API_MONITORING_TIME_OPTIONS)[number]) => void;
+  onFromTimeChange: (value: string) => void;
+  onToTimeChange: (value: string) => void;
+}) {
+  const summary =
+    value === "custom"
+      ? fromTime || toTime
+        ? `${fromTime || "Start"} to ${toTime || "End"}`
+        : "Custom time"
+      : value
+        ? timeLabel(value)
+        : "";
+
+  return (
+    <DropdownField title="Time" optionCount={API_MONITORING_TIME_OPTIONS.length} summary={summary} canClear={Boolean(value || fromTime || toTime)} onClear={onClear}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", value && "border-primary/40 text-primary")}>
+            <span className="truncate">{value ? timeLabel(value) : "Select time"}</span>
+            <ChevronDown className="h-4 w-4 text-slate-400" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[320px] rounded-xl border border-slate-200 p-3">
+          <div className="grid grid-cols-2 gap-2">
+            {API_MONITORING_TIME_OPTIONS.map((option) => (
+              <Button key={option} type="button" variant={value === option ? "default" : "outline"} size="sm" className="h-9 px-2 text-[12px]" onClick={() => onValueChange(option)}>
+                {timeLabel(option)}
+              </Button>
+            ))}
+          </div>
+          {value === "custom" ? (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <SectionHint>From</SectionHint>
+                <Input type="time" value={fromTime} onChange={(event) => onFromTimeChange(event.target.value)} className="h-10" aria-label="From time" />
+              </div>
+              <div className="space-y-2">
+                <SectionHint>To</SectionHint>
+                <Input type="time" value={toTime} onChange={(event) => onToTimeChange(event.target.value)} className="h-10" aria-label="To time" />
               </div>
             </div>
           ) : null}

@@ -334,7 +334,10 @@ export function useUserManagement() {
   const loadFilterOptions = useCallback(async () => {
     setIsFilterLoading(true);
     try {
-      const dropdowns = await fetchUserFilterDropdowns("USER_ACC");
+      const dropdowns = await fetchUserFilterDropdowns(
+        "USER_ACC",
+        isFilterRequestActive ? appliedFilters : null,
+      );
       setFilterDropdowns(dropdowns);
     } catch (error) {
       toast({
@@ -345,7 +348,7 @@ export function useUserManagement() {
     } finally {
       setIsFilterLoading(false);
     }
-  }, [toast]);
+  }, [appliedFilters, isFilterRequestActive, toast]);
 
   useEffect(() => {
     const pendingNextLoad = pendingNextLoadRequestRef.current;
@@ -753,6 +756,7 @@ export function useUserManagement() {
     paginatedMembers,
     statusCounts,
     userStatusSummary: filterDropdowns.userStatusSummary,
+    permissionSummary: filterDropdowns.permissionSummary,
     handlePrevPage,
     handleNextPage,
     handleJumpToPage,

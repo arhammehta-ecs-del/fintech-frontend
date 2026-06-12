@@ -15,7 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import type { MemberStatusTab, SortOrder } from "@/features/user-management/types";
 import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
-import type { UserFilterDropdownOption, UserFilterNodeOption } from "@/services/user.service";
+import type { UserFilterDropdownOption, UserFilterNodeOption, PermissionSummaryEntry } from "@/services/user.service";
 
 type FilterStatusValue = "Active" | "Pending" | "Inactive";
 type FilterRoleValue = "Maker" | "Checker" | "User";
@@ -49,7 +49,7 @@ const STATUS_TABS: Array<{ id: MemberStatusTab; label: string }> = [
 ];
 
 const FILTER_STATUS_OPTIONS: FilterStatusValue[] = ["Active", "Pending", "Inactive"];
-const FILTER_ROLE_OPTIONS: FilterRoleValue[] = ["Maker", "Checker", "User"];
+const DEFAULT_FILTER_ROLE_OPTIONS: FilterRoleValue[] = ["Maker", "Checker", "User"];
 const DATE_RANGE_OPTIONS: Array<Exclude<OnboardingDateRange, "CUSTOM" | null>> = ["7DAYS", "1MONTH", "1YEAR"];
 
 const STATUS_BADGE_CLASS: Record<MemberStatusTab, string> = {
@@ -106,6 +106,7 @@ type UserFiltersProps = {
   reportingManagerOptions: string[];
   statusCounts: Record<MemberStatusTab, number>;
   userStatusSummary?: Record<string, number>;
+  permissionSummary?: Record<string, PermissionSummaryEntry>;
   isFilterLoading: boolean;
 };
 
@@ -167,9 +168,9 @@ export default function UserFilters(props: UserFiltersProps) {
     reportingManagerOptions,
     statusCounts,
     userStatusSummary,
+    permissionSummary,
     isFilterLoading,
   } = props;
-  const visibleTabs = STATUS_TABS.filter((tab) => tab.id === "active" || statusCounts[tab.id] > 0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draft, setDraft] = useState<AppliedUserFiltersDraft>(buildDraftFromProps(props));
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -271,29 +272,37 @@ export default function UserFilters(props: UserFiltersProps) {
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-full border border-slate-200 bg-white p-1.5 shadow-sm">
-            {visibleTabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => onStatusTabChange(tab.id)}
-                className={cn(
-                  "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200",
-                  statusTab === tab.id
-                    ? "bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)]"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
-                )}
-              >
-                <span>{tab.label}</span>
-                <span
+            {STATUS_TABS.map((tab) => {
+              const isDisabled = statusCounts[tab.id] === 0;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => onStatusTabChange(tab.id)}
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                    statusTab === tab.id ? "bg-white/18 text-white ring-1 ring-white/25" : STATUS_BADGE_CLASS[tab.id],
+                    "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200",
+                    isDisabled
+                      ? "cursor-not-allowed opacity-50 text-slate-400"
+                      : statusTab === tab.id
+                        ? "bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)]"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
                   )}
                 >
-                  {statusCounts[tab.id]}
-                </span>
-              </button>
-            ))}
+                  <span>{tab.label}</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                      isDisabled
+                        ? "bg-slate-100 text-slate-400"
+                        : statusTab === tab.id ? "bg-white/18 text-white ring-1 ring-white/25" : STATUS_BADGE_CLASS[tab.id],
+                    )}
+                  >
+                    {statusCounts[tab.id]}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <Popover
@@ -516,8 +525,18 @@ export default function UserFilters(props: UserFiltersProps) {
                       options={userStatusSummary ? (Object.keys(userStatusSummary).map(k => k.charAt(0).toUpperCase() + k.slice(1)) as FilterStatusValue[]) : FILTER_STATUS_OPTIONS}
                       itemCount={userStatusSummary ? Object.keys(userStatusSummary).length : FILTER_STATUS_OPTIONS.length}
                       counts={userStatusSummary ? Object.fromEntries(Object.entries(userStatusSummary).map(([k, v]) => [k.charAt(0).toUpperCase() + k.slice(1), v])) : undefined}
-                      disabledOptions={draft.statusFilterMode.includes("initiate") && !draft.statusFilterMode.includes("modify") ? ["Active", "Inactive"] : []}
-                      disabled={draft.statusFilterMode.includes("modify")}
+                      disabledOptions={(() => {
+                        const zeroCountStatuses = userStatusSummary
+                          ? Object.entries(userStatusSummary)
+                              .filter(([, v]) => v === 0)
+                              .map(([k]) => k.charAt(0).toUpperCase() + k.slice(1))
+                          : [];
+                        const initiateDisabled =
+                          draft.statusFilterMode.includes("initiate") && !draft.statusFilterMode.includes("modify")
+                            ? ["Active", "Inactive"]
+                            : [];
+                        return Array.from(new Set([...zeroCountStatuses, ...initiateDisabled]));
+                      })()}
                       selected={draft.statusFilters}
                       onToggle={(value) =>
                         setDraft((current) => ({
@@ -554,7 +573,7 @@ export default function UserFilters(props: UserFiltersProps) {
                                       setDraft((current) => ({
                                         ...current,
                                         statusFilterMode: [option.value as StatusFilterModeValue],
-                                        statusFilters: option.value === "initiate" ? ["Pending"] : [],
+                                        ...(option.value === "initiate" ? { statusFilters: ["Pending"] as FilterStatusValue[] } : {}),
                                       }));
                                     }
                                   }}
@@ -576,13 +595,9 @@ export default function UserFilters(props: UserFiltersProps) {
                       onSelect={(value) => updateDraft("pendingActionFilter", value as PendingActionValue)}
                       onClear={() => clearDraftField("pendingActionFilter")}
                     />
-                    <MultiSelectDropdown
-                      title="Roles"
-                      placeholder="Select role"
-                      options={FILTER_ROLE_OPTIONS}
-                      itemCount={FILTER_ROLE_OPTIONS.length}
+                    <RoleFilterDropdown
+                      permissionSummary={permissionSummary}
                       selected={draft.roleFilters}
-                      dropdownPosition="top"
                       onToggle={(value) =>
                         setDraft((current) => ({
                           ...current,
@@ -1151,7 +1166,14 @@ function NodeNameDropdown({
                         className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
                       />
                       <div>
-                        <p className="text-sm font-medium text-slate-800">{option.value}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium text-slate-800">{option.value}</p>
+                          {typeof option.level === "number" ? (
+                            <span className="inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-indigo-700 ring-1 ring-indigo-200/60">
+                              L{option.level}
+                            </span>
+                          ) : null}
+                        </div>
                         <p className="text-[11px] text-slate-500">{option.path}</p>
                       </div>
                     </label>
@@ -1232,5 +1254,58 @@ function NodeNameDropdown({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function RoleFilterDropdown({
+  permissionSummary,
+  selected,
+  onToggle,
+  onSelectAll,
+  onClear,
+}: {
+  permissionSummary?: Record<string, PermissionSummaryEntry>;
+  selected: string[];
+  onToggle: (value: string) => void;
+  onSelectAll?: (values: string[]) => void;
+  onClear: () => void;
+}) {
+  const roleOptions = useMemo(() => {
+    if (!permissionSummary || Object.keys(permissionSummary).length === 0) {
+      return DEFAULT_FILTER_ROLE_OPTIONS.map((role) => ({
+        value: role,
+        count: 0,
+        hasCount: false,
+      }));
+    }
+    return Object.entries(permissionSummary).map(([key, entry]) => ({
+      value: key.charAt(0).toUpperCase() + key.slice(1).toLowerCase(),
+      count: entry.count,
+      hasCount: true,
+    }));
+  }, [permissionSummary]);
+
+  const visibleOptions = roleOptions.map((o) => o.value);
+  const counts = Object.fromEntries(
+    roleOptions.filter((o) => o.hasCount).map((o) => [o.value, o.count]),
+  );
+  const disabledOptions = roleOptions
+    .filter((o) => o.hasCount && o.count === 0)
+    .map((o) => o.value);
+
+  return (
+    <MultiSelectDropdown
+      title="Roles"
+      placeholder="Select role"
+      options={visibleOptions}
+      itemCount={visibleOptions.length}
+      counts={Object.keys(counts).length > 0 ? counts : undefined}
+      disabledOptions={disabledOptions}
+      selected={selected}
+      dropdownPosition="top"
+      onToggle={onToggle}
+      onSelectAll={onSelectAll}
+      onClear={onClear}
+    />
   );
 }

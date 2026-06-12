@@ -35,6 +35,32 @@ type ApiMonitoringFetchAllResponse = {
   data?: FetchAllItem[];
   pageInfo?: Partial<ApiMonitoringPageInfo>;
   totalCount?: number;
+  filter?: {
+    users?: Array<{
+      userId?: string | null;
+      userName?: string | null;
+      userEmail?: string | null;
+      count?: number | null;
+    }>;
+    ips?: Array<{
+      ip?: string | null;
+      count?: number | null;
+    }>;
+    urls?: Array<{
+      apiUrl?: string | null;
+      count?: number | null;
+    }>;
+    statusCodes?: Array<{
+      statusCode?: number | null;
+      count?: number | null;
+    }>;
+    responseSizeRanges?: Array<{
+      label?: string | null;
+      minBytes?: number | null;
+      maxBytes?: number | null;
+      count?: number | null;
+    }>;
+  };
 };
 
 export type ApiMonitoringPaginatedRequest = {
@@ -45,10 +71,14 @@ export type ApiMonitoringPaginatedRequest = {
   direction?: "NEXT" | "PREV";
   query?: string | null;
   filter?: boolean;
+  softFilter?: boolean;
   applied?: {
     date: "7days" | "15days" | "1month" | "custom" | null;
     formDate: string | null;
     toDate: string | null;
+    users: string[] | null;
+    ips: string[] | null;
+    urls: string[] | null;
     status: number[] | null;
     responseSize: string | null;
     responseSizeSort: "asc" | "desc" | null;
@@ -56,10 +86,37 @@ export type ApiMonitoringPaginatedRequest = {
   } | null;
 };
 
+export type ApiMonitoringFilterOption = {
+  value: string;
+  label: string;
+  count: number;
+};
+
+export type ApiMonitoringResponseSizeFilterOption = {
+  value: string;
+  label: string;
+  count: number;
+  minBytes: number;
+  maxBytes: number;
+};
+
+export type ApiMonitoringFilterMetadata = {
+  users: ApiMonitoringFilterOption[];
+  ips: ApiMonitoringFilterOption[];
+  urls: ApiMonitoringFilterOption[];
+  statusCodes: Array<{
+    value: number;
+    label: string;
+    count: number;
+  }>;
+  responseSizeRanges: ApiMonitoringResponseSizeFilterOption[];
+};
+
 export type ApiMonitoringPaginatedResult = {
   logs: ApiMonitoringLog[];
   pageInfo: ApiMonitoringPageInfo;
   totalCount: number;
+  filterMetadata: ApiMonitoringFilterMetadata;
 };
 
 type DetailMainRequest = {
@@ -314,6 +371,51 @@ const mapPageInfo = (pageInfo?: Partial<ApiMonitoringPageInfo>): ApiMonitoringPa
   hasPrev: Boolean(pageInfo?.hasPrev),
 });
 
+const toSafeCount = (value: unknown) => {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const mapFilterMetadata = (filter?: ApiMonitoringFetchAllResponse["filter"]): ApiMonitoringFilterMetadata => ({
+  users: (filter?.users ?? [])
+    .map((item) => ({
+      value: asString(item.userEmail),
+      label: [asString(item.userName), asString(item.userEmail)].filter(Boolean).join(" • ") || "N/A",
+      count: toSafeCount(item.count),
+    }))
+    .filter((item) => item.value),
+  ips: (filter?.ips ?? [])
+    .map((item) => ({
+      value: asString(item.ip),
+      label: asString(item.ip) || "N/A",
+      count: toSafeCount(item.count),
+    }))
+    .filter((item) => item.value),
+  urls: (filter?.urls ?? [])
+    .map((item) => ({
+      value: asString(item.apiUrl),
+      label: asString(item.apiUrl) || "N/A",
+      count: toSafeCount(item.count),
+    }))
+    .filter((item) => item.value),
+  statusCodes: (filter?.statusCodes ?? [])
+    .map((item) => ({
+      value: typeof item.statusCode === "number" ? item.statusCode : Number(item.statusCode ?? 0),
+      label: String(item.statusCode ?? ""),
+      count: toSafeCount(item.count),
+    }))
+    .filter((item) => Number.isFinite(item.value) && item.label),
+  responseSizeRanges: (filter?.responseSizeRanges ?? [])
+    .map((item) => ({
+      value: asString(item.label),
+      label: asString(item.label) || "N/A",
+      count: toSafeCount(item.count),
+      minBytes: Number(item.minBytes ?? 0) || 0,
+      maxBytes: Number(item.maxBytes ?? 0) || 0,
+    }))
+    .filter((item) => item.value),
+});
+
 export async function fetchApiMonitoringListPaginated(
   payload: ApiMonitoringPaginatedRequest,
 ): Promise<ApiMonitoringPaginatedResult> {
@@ -327,7 +429,8 @@ export async function fetchApiMonitoringListPaginated(
       direction: payload.direction ?? "NEXT",
       query: asNullableString(payload.query),
       filter: Boolean(payload.filter),
-      applied: payload.filter ? payload.applied ?? null : null,
+      softFilter: Boolean(payload.softFilter),
+      applied: payload.filter || payload.softFilter ? payload.applied ?? null : null,
     }),
   });
 
@@ -339,6 +442,7 @@ export async function fetchApiMonitoringListPaginated(
     logs: wrappedRows.map(mapListItem),
     pageInfo,
     totalCount,
+    filterMetadata: mapFilterMetadata(response.filter),
   };
 }
 

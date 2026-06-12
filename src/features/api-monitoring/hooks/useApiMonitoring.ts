@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ApiMonitoringDetailsData, ApiMonitoringLog } from "@/features/api-monitoring/types";
 import { getApiErrorMessage } from "@/services/client";
-import { fetchApiMonitoringDetails, fetchApiMonitoringListPaginated, type ApiMonitoringPaginatedRequest } from "@/services/api-monitoring.service";
+import {
+  fetchApiMonitoringDetails,
+  fetchApiMonitoringListPaginated,
+  type ApiMonitoringFilterMetadata,
+  type ApiMonitoringPaginatedRequest,
+} from "@/services/api-monitoring.service";
 
 const PAGE_SIZE_OPTIONS = [15, 25, 35, 50] as const;
 const SEARCH_DEBOUNCE_MS = 500;
 export const API_MONITORING_DATE_OPTIONS = ["7days", "15days", "1month", "custom"] as const;
-export const API_MONITORING_STATUS_OPTIONS = [200, 201, 204, 304, 400, 401, 403, 404, 409, 422, 429, 500, 503] as const;
-export const API_MONITORING_RESPONSE_SIZE_OPTIONS = ["0 - 50", "50 - 100", "100 - 150", "150 - 200", "200 - 250", "250 - 300"] as const;
 export const API_MONITORING_RESPONSE_SORT_OPTIONS = ["asc", "desc"] as const;
+export const API_MONITORING_TIME_OPTIONS = ["10min", "1hours", "3hour", "custom"] as const;
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -35,23 +39,44 @@ const todayIso = () => {
 };
 
 type DateFilterValue = (typeof API_MONITORING_DATE_OPTIONS)[number] | null;
-type ResponseSizeRange = (typeof API_MONITORING_RESPONSE_SIZE_OPTIONS)[number] | null;
+type TimeFilterValue = (typeof API_MONITORING_TIME_OPTIONS)[number] | null;
+type ResponseSizeRange = string | null;
 type ResponseSizeSort = (typeof API_MONITORING_RESPONSE_SORT_OPTIONS)[number] | null;
 
 export type ApiMonitoringAppliedFiltersDraft = {
   date: DateFilterValue;
+  time: TimeFilterValue;
   fromDate: string;
   toDate: string;
+  fromTime: string;
+  toTime: string;
+  users: string[];
+  ips: string[];
+  urls: string[];
   status: number[];
   subtrack: number[];
   responseSize: ResponseSizeRange;
   responseSizeSort: ResponseSizeSort;
 };
 
+const EMPTY_FILTER_METADATA: ApiMonitoringFilterMetadata = {
+  users: [],
+  ips: [],
+  urls: [],
+  statusCodes: [],
+  responseSizeRanges: [],
+};
+
 const buildEmptyDraft = (): ApiMonitoringAppliedFiltersDraft => ({
   date: null,
+  time: null,
   fromDate: "",
   toDate: "",
+  fromTime: "",
+  toTime: "",
+  users: [],
+  ips: [],
+  urls: [],
   status: [],
   subtrack: [],
   responseSize: null,
@@ -61,8 +86,14 @@ const buildEmptyDraft = (): ApiMonitoringAppliedFiltersDraft => ({
 const hasFiltersApplied = (draft: ApiMonitoringAppliedFiltersDraft) =>
   Boolean(
     draft.date ||
+    draft.time ||
     draft.fromDate ||
     draft.toDate ||
+    draft.fromTime ||
+    draft.toTime ||
+    draft.users.length > 0 ||
+    draft.ips.length > 0 ||
+    draft.urls.length > 0 ||
     draft.status.length > 0 ||
     draft.subtrack.length > 0 ||
     draft.responseSize ||
@@ -84,12 +115,79 @@ const toApiDateRange = (value: DateFilterValue): "7day" | "15day" | "1month" | "
   return null;
 };
 
+const shiftIsoDate = (dateValue: string, offsetDays: number) => {
+  const date = new Date(`${dateValue}T00:00:00`);
+  date.setDate(date.getDate() + offsetDays);
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const resolveDatePresetRange = (value: DateFilterValue, today: string): { fromDate: string; toDate: string; dateMode: "custom" | "7day" | "15day" | "1month" | null } => {
+  if (value === "7days") return { fromDate: shiftIsoDate(today, -6), toDate: today, dateMode: "7day" };
+  if (value === "15days") return { fromDate: shiftIsoDate(today, -14), toDate: today, dateMode: "15day" };
+  if (value === "1month") return { fromDate: shiftIsoDate(today, -29), toDate: today, dateMode: "1month" };
+  return { fromDate: "", toDate: "", dateMode: value === "custom" ? "custom" : null };
+};
+
+const buildDateTimeValue = (date: string, time: string, fallback: "start" | "end"): string | null => {
+  if (!date) return null;
+  const normalizedTime = time || (fallback === "start" ? "00:00" : "23:59");
+  return `${date} ${normalizedTime}:00`;
+};
+
+const formatDateToIso = (date: Date) => {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatTimeToHourMinute = (date: Date) => {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+};
+
 const buildAppliedRequest = (draft: ApiMonitoringAppliedFiltersDraft): ApiMonitoringPaginatedRequest["applied"] => {
   if (!hasFiltersApplied(draft)) return null;
+
+  const today = todayIso();
+  const datePresetRange = resolveDatePresetRange(draft.date, today);
+  let resolvedDate = toApiDateRange(draft.date);
+  let resolvedFromDate = draft.date === "custom" ? draft.fromDate : datePresetRange.fromDate;
+  let resolvedToDate = draft.date === "custom" ? draft.toDate : datePresetRange.toDate;
+  let formDate: string | null = draft.date === "custom" ? buildDateTimeValue(draft.fromDate, draft.fromTime, "start") : null;
+  let toDate: string | null = draft.date === "custom" ? buildDateTimeValue(draft.toDate, draft.toTime, "end") : null;
+
+  if (draft.time === "10min" || draft.time === "1hours" || draft.time === "3hour") {
+    const now = new Date();
+    const start = new Date(now);
+    if (draft.time === "10min") start.setMinutes(start.getMinutes() - 10);
+    if (draft.time === "1hours") start.setHours(start.getHours() - 1);
+    if (draft.time === "3hour") start.setHours(start.getHours() - 3);
+
+    resolvedDate = "custom";
+    resolvedFromDate = formatDateToIso(start);
+    resolvedToDate = formatDateToIso(now);
+    formDate = buildDateTimeValue(resolvedFromDate, formatTimeToHourMinute(start), "start");
+    toDate = buildDateTimeValue(resolvedToDate, formatTimeToHourMinute(now), "end");
+  } else if (draft.time === "custom") {
+    const effectiveFromDate = resolvedFromDate || today;
+    const effectiveToDate = resolvedToDate || effectiveFromDate;
+    resolvedDate = "custom";
+    formDate = buildDateTimeValue(effectiveFromDate, draft.fromTime, "start");
+    toDate = buildDateTimeValue(effectiveToDate, draft.toTime, "end");
+  }
+
   return {
-    date: toApiDateRange(draft.date),
-    formDate: draft.date === "custom" ? draft.fromDate || null : null,
-    toDate: draft.date === "custom" ? draft.toDate || null : null,
+    date: resolvedDate,
+    formDate,
+    toDate,
+    users: draft.users.length > 0 ? draft.users : null,
+    ips: draft.ips.length > 0 ? draft.ips : null,
+    urls: draft.urls.length > 0 ? draft.urls : null,
     status: draft.status.length > 0 ? draft.status : null,
     responseSize: toResponseSizeByteRange(draft.responseSize),
     responseSizeSort: draft.responseSizeSort,
@@ -114,6 +212,7 @@ export function useApiMonitoring() {
   const [pageCursors, setPageCursors] = useState<Record<number, string | null>>({ 1: null });
   const [appliedFilters, setAppliedFilters] = useState<ApiMonitoringAppliedFiltersDraft>(buildEmptyDraft());
   const [isFilterRequestActive, setIsFilterRequestActive] = useState(false);
+  const [filterMetadata, setFilterMetadata] = useState<ApiMonitoringFilterMetadata>(EMPTY_FILTER_METADATA);
 
   useEffect(() => {
     const trimmedSearch = searchInput.trim();
@@ -141,10 +240,15 @@ export function useApiMonitoring() {
         page: number | null;
         direction: "NEXT" | "PREV";
         targetPage: number;
+        filterOverride?: boolean;
+        softFilterOverride?: boolean;
+        appliedOverride?: ApiMonitoringPaginatedRequest["applied"];
+        preserveListState?: boolean;
       },
       showLoader = false,
     ) => {
-      if (showLoader) setLoading(true);
+      const shouldPreserveListState = Boolean(params.preserveListState);
+      if (showLoader && !shouldPreserveListState) setLoading(true);
       try {
         setError(null);
         const response = await fetchApiMonitoringListPaginated({
@@ -154,30 +258,37 @@ export function useApiMonitoring() {
           page: params.page,
           direction: params.direction,
           query: debouncedSearchText || null,
-          filter: isFilterRequestActive,
-          applied: requestApplied,
+          filter: params.filterOverride ?? isFilterRequestActive,
+          softFilter: params.softFilterOverride ?? false,
+          applied: params.appliedOverride ?? requestApplied,
         });
 
-        setLogs(response.logs);
-        setPage(params.targetPage);
-        setTotalCount(response.totalCount);
-        setTopCursor(response.pageInfo.topCursor || params.topCursor || null);
-        setNextCursor(response.pageInfo.nextCursor);
-        setHasNext(response.pageInfo.hasNext);
-        setPageCursors((current) => ({
-          ...current,
-          [params.targetPage]: params.cursor,
-          [params.targetPage + 1]: response.pageInfo.nextCursor,
-        }));
-        const fallbackTotalPages = Math.max(1, Math.ceil((response.totalCount || response.logs.length) / pageSize));
-        setResolvedTotalPages(Math.max(response.pageInfo.totalPages || 0, fallbackTotalPages));
+        setFilterMetadata(response.filterMetadata);
+        if (!shouldPreserveListState) {
+          setLogs(response.logs);
+          setPage(params.targetPage);
+          setTotalCount(response.totalCount);
+          setTopCursor(response.pageInfo.topCursor || params.topCursor || null);
+          setNextCursor(response.pageInfo.nextCursor);
+          setHasNext(response.pageInfo.hasNext);
+          setPageCursors((current) => ({
+            ...current,
+            [params.targetPage]: params.cursor,
+            [params.targetPage + 1]: response.pageInfo.nextCursor,
+          }));
+          const fallbackTotalPages = Math.max(1, Math.ceil((response.totalCount || response.logs.length) / pageSize));
+          setResolvedTotalPages(Math.max(response.pageInfo.totalPages || 0, fallbackTotalPages));
+        }
       } catch (err) {
-        setLogs([]);
-        setTotalCount(0);
-        setResolvedTotalPages(1);
+        setFilterMetadata(EMPTY_FILTER_METADATA);
+        if (!shouldPreserveListState) {
+          setLogs([]);
+          setTotalCount(0);
+          setResolvedTotalPages(1);
+        }
         setError(getApiErrorMessage(err, "Unable to load API monitoring logs"));
       } finally {
-        if (showLoader) setLoading(false);
+        if (showLoader && !shouldPreserveListState) setLoading(false);
       }
     },
     [debouncedSearchText, isFilterRequestActive, pageSize, requestApplied],
@@ -194,10 +305,11 @@ export function useApiMonitoring() {
           cursor: null,
           topCursor: null,
           page: null,
-          direction: "NEXT",
-          targetPage: 1,
-        },
-        showLoader,
+        direction: "NEXT",
+        targetPage: 1,
+        softFilterOverride: false,
+      },
+      showLoader,
       );
     },
     [fetchPage],
@@ -289,6 +401,23 @@ export function useApiMonitoring() {
     await loadFirstPage(true);
   }, [loadFirstPage]);
 
+  const fetchFilterPanelData = useCallback(async () => {
+    await fetchPage(
+      {
+        cursor: null,
+        topCursor: null,
+        page: null,
+        direction: "NEXT",
+        targetPage: 1,
+        filterOverride: false,
+        softFilterOverride: true,
+        appliedOverride: requestApplied,
+        preserveListState: true,
+      },
+      false,
+    );
+  }, [fetchPage, requestApplied]);
+
   return {
     logs,
     filteredLogs: logs,
@@ -317,6 +446,8 @@ export function useApiMonitoring() {
     handleJumpToPage,
     fetchDetailsForTrack,
     refreshLogs,
+    fetchFilterPanelData,
+    filterMetadata,
     todayIso: todayIso(),
   };
 }

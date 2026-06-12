@@ -175,10 +175,13 @@ export default function WorkflowManagementView() {
     setApproverLevelFilters,
     linkedOrgStructureFilters,
     setLinkedOrgStructureFilters,
+    approverCountFilters,
+    setApproverCountFilters,
     setIsFilterRequestActive,
     moduleOptions,
     nodeNameOptions,
     nodeTypeOptions,
+    approverCountOptions,
     workflowLevelOptions,
     approverLevelOptions,
     approverTypeOptions,
@@ -225,7 +228,8 @@ export default function WorkflowManagementView() {
     workflowLevelFilters.length +
     approverTypeFilters.length +
     approverLevelFilters.length +
-    linkedOrgStructureFilters.length;
+    linkedOrgStructureFilters.length +
+    approverCountFilters.length;
   const hasAnyFilter = activeFilterCount > 0;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [manageHistoryOpen, setManageHistoryOpen] = useState(false);
@@ -240,6 +244,7 @@ export default function WorkflowManagementView() {
   const [draftApproverTypeFilters, setDraftApproverTypeFilters] = useState<string[]>(approverTypeFilters);
   const [draftApproverLevelFilters, setDraftApproverLevelFilters] = useState<string[]>(approverLevelFilters);
   const [draftLinkedOrgStructureFilters, setDraftLinkedOrgStructureFilters] = useState<string[]>(linkedOrgStructureFilters);
+  const [draftApproverCountFilters, setDraftApproverCountFilters] = useState<string[]>(approverCountFilters);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [onboardingMode, setOnboardingMode] = useState<"create" | "edit">("create");
   const [workflowSeedForEdit, setWorkflowSeedForEdit] = useState<(typeof manageWorkflow) | null>(null);
@@ -477,6 +482,7 @@ export default function WorkflowManagementView() {
     setDraftApproverTypeFilters(approverTypeFilters);
     setDraftApproverLevelFilters(approverLevelFilters);
     setDraftLinkedOrgStructureFilters(linkedOrgStructureFilters);
+    setDraftApproverCountFilters(approverCountFilters);
   };
 
   const clearDraftFilters = () => {
@@ -487,6 +493,7 @@ export default function WorkflowManagementView() {
     setDraftApproverTypeFilters([]);
     setDraftApproverLevelFilters([]);
     setDraftLinkedOrgStructureFilters([]);
+    setDraftApproverCountFilters([]);
   };
 
   const closeOnboardingDialog = async () => {
@@ -835,7 +842,7 @@ export default function WorkflowManagementView() {
                     />
                     <WorkflowFilterDropdown
                       title="Module"
-                      placeholder="All modules"
+                      placeholder="Select modules"
                       options={moduleOptions}
                       selected={draftModuleFilters}
                       onClear={() => setDraftModuleFilters([])}
@@ -881,6 +888,20 @@ export default function WorkflowManagementView() {
                         setDraftLinkedOrgStructureFilters((current) => (current.includes(value) ? [] : [value]))
                       }
                     />
+                    <WorkflowFilterDropdown
+                      title="Approver Count"
+                      placeholder="Select approver count"
+                      options={approverCountOptions.map((option) => ({
+                        value: option.value,
+                        label: option.label,
+                        description: option.count ? `${option.count} available` : undefined,
+                      }))}
+                      selected={draftApproverCountFilters}
+                      onClear={() => setDraftApproverCountFilters([])}
+                      onToggle={(value) =>
+                        setDraftApproverCountFilters((current) => (current.includes(value) ? [] : [value]))
+                      }
+                    />
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3">
@@ -904,6 +925,7 @@ export default function WorkflowManagementView() {
                       setApproverTypeFilters(draftApproverTypeFilters);
                       setApproverLevelFilters(draftApproverLevelFilters);
                       setLinkedOrgStructureFilters(draftLinkedOrgStructureFilters);
+                      setApproverCountFilters(draftApproverCountFilters);
                       const hasFilters =
                         draftModuleFilters.length > 0 ||
                         draftNodeNameFilters.length > 0 ||
@@ -911,7 +933,8 @@ export default function WorkflowManagementView() {
                         draftWorkflowLevelFilters.length > 0 ||
                         draftApproverTypeFilters.length > 0 ||
                         draftApproverLevelFilters.length > 0 ||
-                        draftLinkedOrgStructureFilters.length > 0;
+                        draftLinkedOrgStructureFilters.length > 0 ||
+                        draftApproverCountFilters.length > 0;
                       setIsFilterRequestActive(hasFilters);
                       if (
                         !hasFilters
@@ -1371,7 +1394,7 @@ function WorkflowFilterDropdown({
 }: {
   title: string;
   placeholder: string;
-  options: Array<{ value: string; label: string; description?: string }>;
+  options: Array<{ value: string; label: string; description?: string; count?: number; level?: number }>;
   selected: string[];
   onClear?: () => void;
   onToggle: (value: string) => void;
@@ -1497,7 +1520,14 @@ function WorkflowFilterDropdown({
                 >
                   <div className="flex min-w-0 flex-1 flex-col">
                     <div className="flex min-w-0 items-start justify-between gap-2">
-                      <span className="truncate">{option.label}</span>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="truncate">{option.label}</span>
+                        {typeof option.level === "number" ? (
+                          <span className="shrink-0 rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-bold tracking-wider text-indigo-700">
+                            L{option.level}
+                          </span>
+                        ) : null}
+                      </div>
                       {typeof option.count === "number" ? (
                         <span className="shrink-0 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600">
                           {option.count}
