@@ -92,7 +92,7 @@ export type WorkflowAppliedFilters = {
   module: string[] | null;
   subModule: string[] | null;
   workflowLevels: number | null;
-  levels: Array<{ count: number; approverType: string }> | null;
+  levels: Array<{ count: number; approverType: string | null }> | null;
   approverType: string[] | null;
   onboardingDate: {
     dateRange: string | null;
@@ -122,6 +122,9 @@ export type WorkflowFilterDropdowns = {
   nodeType: Array<{ value: string; label: string; count?: number; description?: string }>;
   module: Array<{ value: string; label: string; description?: string }>;
 };
+
+type WorkflowNodeNameOption = WorkflowFilterDropdowns["nodeName"][number];
+type WorkflowNodeTypeOption = WorkflowFilterDropdowns["nodeType"][number];
 
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 const toNullableString = (value: unknown): string | null => {
@@ -260,47 +263,55 @@ export async function fetchWorkflowFilterDropdowns(): Promise<WorkflowFilterDrop
     throw new Error("Invalid workflow filter response: missing dropdowns");
   }
 
+  const nodeNameOptions: WorkflowNodeNameOption[] = Array.isArray(dropdowns.nodeName)
+    ? dropdowns.nodeName.reduce<WorkflowNodeNameOption[]>((accumulator, item) => {
+        if (typeof item === "string") {
+          const value = readString(item);
+          if (value) {
+            accumulator.push({ value, label: value, path: "" });
+          }
+          return accumulator;
+        }
+
+        const value = readString(item?.value);
+        const path = readString(item?.path);
+        if (!value) return accumulator;
+        accumulator.push({
+          value,
+          path,
+          label: value,
+          description: path || undefined,
+        });
+        return accumulator;
+      }, [])
+    : [];
+
+  const nodeTypeOptions: WorkflowNodeTypeOption[] = Array.isArray(dropdowns.nodeType)
+    ? dropdowns.nodeType.reduce<WorkflowNodeTypeOption[]>((accumulator, item) => {
+        if (typeof item === "string") {
+          const value = formatFilterLabel(readString(item));
+          if (value) {
+            accumulator.push({ value, label: value });
+          }
+          return accumulator;
+        }
+
+        const value = formatFilterLabel(readString(item?.value));
+        if (!value) return accumulator;
+        const count = typeof item?.count === "number" ? item.count : undefined;
+        accumulator.push({
+          value,
+          count,
+          label: value,
+          description: typeof count === "number" ? `${count} available` : undefined,
+        });
+        return accumulator;
+      }, [])
+    : [];
+
   return {
-    nodeName: Array.isArray(dropdowns.nodeName)
-      ? dropdowns.nodeName
-        .map((item) => {
-          if (typeof item === "string") {
-            const value = readString(item);
-            return value ? { value, label: value, path: "" } : null;
-          }
-
-          const value = readString(item?.value);
-          const path = readString(item?.path);
-          if (!value) return null;
-          return {
-            value,
-            path,
-            label: value,
-            description: path || undefined,
-          };
-        })
-        .filter((item): item is { value: string; label: string; path: string; description?: string } => Boolean(item))
-      : [],
-    nodeType: Array.isArray(dropdowns.nodeType)
-      ? dropdowns.nodeType
-        .map((item) => {
-          if (typeof item === "string") {
-            const value = formatFilterLabel(readString(item));
-            return value ? { value, label: value } : null;
-          }
-
-          const value = formatFilterLabel(readString(item?.value));
-          if (!value) return null;
-          const count = typeof item?.count === "number" ? item.count : undefined;
-          return {
-            value,
-            count,
-            label: value,
-            description: typeof count === "number" ? `${count} available` : undefined,
-          };
-        })
-        .filter((item): item is { value: string; label: string; count?: number; description?: string } => Boolean(item))
-      : [],
+    nodeName: nodeNameOptions,
+    nodeType: nodeTypeOptions,
     module: Array.isArray(dropdowns.subCategory)
       ? dropdowns.subCategory
         .map(readString)

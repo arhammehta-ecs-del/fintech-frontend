@@ -6,7 +6,7 @@ import { fetchApiMonitoringDetails, fetchApiMonitoringListPaginated, type ApiMon
 const PAGE_SIZE_OPTIONS = [15, 25, 35, 50] as const;
 const SEARCH_DEBOUNCE_MS = 500;
 export const API_MONITORING_DATE_OPTIONS = ["7days", "15days", "1month", "custom"] as const;
-export const API_MONITORING_STATUS_OPTIONS = [200, 400, 500] as const;
+export const API_MONITORING_STATUS_OPTIONS = [200, 201, 204, 304, 400, 401, 403, 404, 409, 422, 429, 500, 503] as const;
 export const API_MONITORING_RESPONSE_SIZE_OPTIONS = ["0 - 50", "50 - 100", "100 - 150", "150 - 200", "200 - 250", "250 - 300"] as const;
 export const API_MONITORING_RESPONSE_SORT_OPTIONS = ["asc", "desc"] as const;
 

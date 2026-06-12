@@ -246,6 +246,14 @@ export default function CompanyListToolbar({
                       fromDate={draft.fromDate}
                       toDate={draft.toDate}
                       todayIso={todayIso}
+                      onClear={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          incorporationDate: null,
+                          fromDate: "",
+                          toDate: "",
+                        }))
+                      }
                       onValueChange={(option) =>
                         setDraft((current) => ({
                           ...current,
@@ -265,6 +273,7 @@ export default function CompanyListToolbar({
                         label: option.toUpperCase(),
                       }))}
                       value={draft.gstcode}
+                      onClear={() => setDraft((current) => ({ ...current, gstcode: null }))}
                       onSelect={(value) => setDraft((current) => ({ ...current, gstcode: current.gstcode === value ? null : value as CompanyListBooleanFilterValue }))}
                     />
                     <SingleSelectDropdown
@@ -275,6 +284,7 @@ export default function CompanyListToolbar({
                         label: option.toUpperCase(),
                       }))}
                       value={draft.isCode}
+                      onClear={() => setDraft((current) => ({ ...current, isCode: null }))}
                       onSelect={(value) => setDraft((current) => ({ ...current, isCode: current.isCode === value ? null : value as CompanyListBooleanFilterValue }))}
                     />
                     <MultiSelectDropdown
@@ -285,6 +295,7 @@ export default function CompanyListToolbar({
                         label: String(count),
                       }))}
                       selected={draft.signatoryCount.map(String)}
+                      onClear={() => setDraft((current) => ({ ...current, signatoryCount: [] }))}
                       onToggle={(value) =>
                         setDraft((current) => {
                           const count = Number(value);
@@ -370,14 +381,29 @@ function SectionLabel({ title }: { title: string }) {
 
 function DropdownField({
   title,
+  canClear = false,
+  onClear,
   children,
 }: {
   title: string;
+  canClear?: boolean;
+  onClear?: () => void;
   children: ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <SectionLabel title={title} />
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel title={title} />
+        {canClear && onClear ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600 transition hover:text-blue-700"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
       {children}
     </div>
   );
@@ -388,17 +414,19 @@ function SingleSelectDropdown({
   placeholder,
   options,
   value,
+  onClear,
   onSelect,
 }: {
   title: string;
   placeholder: string;
   options: Array<{ value: string; label: string }>;
   value: string | null;
+  onClear?: () => void;
   onSelect: (value: string) => void;
 }) {
   const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder;
   return (
-    <DropdownField title={title}>
+    <DropdownField title={title} canClear={Boolean(value)} onClear={onClear}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -429,12 +457,14 @@ function MultiSelectDropdown({
   placeholder,
   options,
   selected,
+  onClear,
   onToggle,
 }: {
   title: string;
   placeholder: string;
   options: Array<{ value: string; label: string }>;
   selected: string[];
+  onClear?: () => void;
   onToggle: (value: string) => void;
 }) {
   const summary =
@@ -444,7 +474,7 @@ function MultiSelectDropdown({
         ? options.find((option) => option.value === selected[0])?.label ?? selected[0]
         : `${selected.length} selected`;
   return (
-    <DropdownField title={title}>
+    <DropdownField title={title} canClear={selected.length > 0} onClear={onClear}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -481,6 +511,7 @@ function DateDropdown({
   fromDate,
   toDate,
   todayIso,
+  onClear,
   onValueChange,
   onFromDateChange,
   onToDateChange,
@@ -489,6 +520,7 @@ function DateDropdown({
   fromDate: string;
   toDate: string;
   todayIso: string;
+  onClear?: () => void;
   onValueChange: (value: NonNullable<CompanyListAppliedFiltersDraft["incorporationDate"]>) => void;
   onFromDateChange: (value: string) => void;
   onToDateChange: (value: string) => void;
@@ -503,7 +535,7 @@ function DateDropdown({
         : "Select date";
 
   return (
-    <DropdownField title="Incorporation Date">
+    <DropdownField title="Incorporation Date" canClear={Boolean(value || fromDate || toDate)} onClear={onClear}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button

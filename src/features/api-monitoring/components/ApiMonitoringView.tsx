@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { AlertTriangle, ChevronDown, CircleCheck, Filter, RefreshCw, Search, X, XCircle } from "lucide-react";
+import { AlertTriangle, ChevronDown, CircleCheck, Filter, Minus, Plus, RefreshCw, Search, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -97,7 +97,6 @@ export default function ApiMonitoringView() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draft, setDraft] = useState<ApiMonitoringAppliedFiltersDraft>(buildEmptyDraft());
-  const [subtrackInput, setSubtrackInput] = useState("");
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
 
@@ -109,7 +108,6 @@ export default function ApiMonitoringView() {
       status: [...appliedFilters.status],
       subtrack: [...appliedFilters.subtrack],
     });
-    setSubtrackInput("");
   };
 
   const emptyMessage = useMemo(() => {
@@ -143,18 +141,15 @@ export default function ApiMonitoringView() {
       status: current.status.includes(status) ? current.status.filter((item) => item !== status) : [...current.status, status],
     }));
 
-  const addSubtrack = (value: string) => {
-    const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed <= 0) return;
-    setDraft((current) => ({
-      ...current,
-      subtrack: current.subtrack.includes(parsed) ? current.subtrack : [...current.subtrack, parsed].sort((a, b) => a - b),
-    }));
-    setSubtrackInput("");
+  const setSubtrackValue = (value: number) => {
+    const normalized = Math.max(1, Math.trunc(value || 1));
+    setDraft((current) => ({ ...current, subtrack: [normalized] }));
   };
 
-  const removeSubtrack = (value: number) =>
-    setDraft((current) => ({ ...current, subtrack: current.subtrack.filter((item) => item !== value) }));
+  const changeSubtrackValue = (delta: number) => {
+    const currentValue = draft.subtrack[0] ?? 1;
+    setSubtrackValue(currentValue + delta);
+  };
 
   const setFromDate = (value: string) => {
     const normalized = value && value > todayIso ? todayIso : value;
@@ -256,7 +251,6 @@ export default function ApiMonitoringView() {
                         onClick={async () => {
                           const empty = buildEmptyDraft();
                           setDraft(empty);
-                          setSubtrackInput("");
                           clearFilters();
                           setFiltersOpen(false);
                         }}
@@ -274,6 +268,14 @@ export default function ApiMonitoringView() {
                         toDate={draft.toDate}
                         placeholder="Select date"
                         todayIso={todayIso}
+                        onClear={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            date: null,
+                            fromDate: "",
+                            toDate: "",
+                          }))
+                        }
                         onValueChange={(option) =>
                           setDraft((current) => ({
                             ...current,
@@ -287,18 +289,19 @@ export default function ApiMonitoringView() {
                       />
                       <MultiSelectDropdown
                         title="Status"
-                        placeholder="Select statuses"
+                        placeholder="Select status"
                         options={API_MONITORING_STATUS_OPTIONS.map((status) => ({ value: String(status), label: String(status) }))}
                         selected={draft.status.map(String)}
+                        onClear={() => setDraft((current) => ({ ...current, status: [] }))}
                         onToggle={(value) => toggleStatus(Number(value))}
                       />
                       <SubtrackDropdown
-                        placeholder="Select subtracks"
-                        value={subtrackInput}
-                        selected={draft.subtrack}
-                        onInputChange={setSubtrackInput}
-                        onAdd={() => addSubtrack(subtrackInput)}
-                        onRemove={removeSubtrack}
+                        value={draft.subtrack[0] ?? 1}
+                        isActive={draft.subtrack.length > 0}
+                        onChange={setSubtrackValue}
+                        onIncrement={() => changeSubtrackValue(1)}
+                        onDecrement={() => changeSubtrackValue(-1)}
+                        onClear={() => setDraft((current) => ({ ...current, subtrack: [] }))}
                       />
                       <SingleSelectDropdown
                         title="Response Size"
@@ -306,14 +309,16 @@ export default function ApiMonitoringView() {
                         options={API_MONITORING_RESPONSE_SIZE_OPTIONS.map((range) => ({ value: range, label: `${range} KB` }))}
                         value={draft.responseSize}
                         emptySummary=""
+                        onClear={() => setDraft((current) => ({ ...current, responseSize: null }))}
                         onSelect={(value) => setDraft((current) => ({ ...current, responseSize: current.responseSize === value ? null : value as typeof current.responseSize }))}
                       />
                       <SingleSelectDropdown
-                        title="Response Size Flow"
+                        title="Sort Response Size "
                         placeholder="Select flow"
                         options={API_MONITORING_RESPONSE_SORT_OPTIONS.map((sort) => ({ value: sort, label: sort === "asc" ? "Ascending" : "Descending" }))}
                         value={draft.responseSizeSort}
                         emptySummary=""
+                        onClear={() => setDraft((current) => ({ ...current, responseSizeSort: null }))}
                         onSelect={(value) => setDraft((current) => ({ ...current, responseSizeSort: current.responseSizeSort === value ? null : value as typeof current.responseSizeSort }))}
                       />
                     </div>
@@ -460,15 +465,30 @@ function SectionHint({ children }: { children: ReactNode }) {
 function DropdownField({
   title,
   summary,
+  canClear = false,
+  onClear,
   children,
 }: {
   title: string;
   summary: string;
+  canClear?: boolean;
+  onClear?: () => void;
   children: ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <SectionLabel title={title} />
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel title={title} />
+        {canClear && onClear ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600 transition hover:text-blue-700"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
       {children}
       {summary ? <SectionHint>{summary}</SectionHint> : null}
     </div>
@@ -481,6 +501,7 @@ function SingleSelectDropdown({
   options,
   value,
   emptySummary = "No selection applied",
+  onClear,
   onSelect,
 }: {
   title: string;
@@ -488,11 +509,12 @@ function SingleSelectDropdown({
   options: Array<{ value: string; label: string }>;
   value: string | null;
   emptySummary?: string;
+  onClear?: () => void;
   onSelect: (value: string) => void;
 }) {
   const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder;
   return (
-    <DropdownField title={title} summary={value ? selectedLabel : emptySummary}>
+    <DropdownField title={title} summary={value ? selectedLabel : emptySummary} canClear={Boolean(value)} onClear={onClear}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", value && "border-primary/40 text-primary")}>
@@ -517,12 +539,14 @@ function MultiSelectDropdown({
   placeholder,
   options,
   selected,
+  onClear,
   onToggle,
 }: {
   title: string;
   placeholder: string;
   options: Array<{ value: string; label: string }>;
   selected: string[];
+  onClear?: () => void;
   onToggle: (value: string) => void;
 }) {
   const summary =
@@ -532,7 +556,7 @@ function MultiSelectDropdown({
         ? options.find((option) => option.value === selected[0])?.label ?? selected[0]
         : `${selected.length} selected`;
   return (
-    <DropdownField title={title} summary={summary}>
+    <DropdownField title={title} summary={summary} canClear={selected.length > 0} onClear={onClear}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", selected.length > 0 && "border-primary/40 text-primary")}>
@@ -564,6 +588,7 @@ function DateDropdown({
   toDate,
   placeholder,
   todayIso,
+  onClear,
   onValueChange,
   onFromDateChange,
   onToDateChange,
@@ -573,6 +598,7 @@ function DateDropdown({
   toDate: string;
   placeholder: string;
   todayIso: string;
+  onClear?: () => void;
   onValueChange: (value: (typeof API_MONITORING_DATE_OPTIONS)[number]) => void;
   onFromDateChange: (value: string) => void;
   onToDateChange: (value: string) => void;
@@ -586,7 +612,7 @@ function DateDropdown({
         ? dateLabel(value)
         : "";
   return (
-    <DropdownField title="Date" summary={summary}>
+    <DropdownField title="Date" summary={summary} canClear={Boolean(value || fromDate || toDate)} onClear={onClear}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", value && "border-primary/40 text-primary")}>
@@ -621,62 +647,55 @@ function DateDropdown({
 }
 
 function SubtrackDropdown({
-  placeholder,
   value,
-  selected,
-  onInputChange,
-  onAdd,
-  onRemove,
+  isActive,
+  onChange,
+  onIncrement,
+  onDecrement,
+  onClear,
 }: {
-  placeholder: string;
-  value: string;
-  selected: number[];
-  onInputChange: (value: string) => void;
-  onAdd: () => void;
-  onRemove: (value: number) => void;
+  value: number;
+  isActive: boolean;
+  onChange: (value: number) => void;
+  onIncrement: () => void;
+  onDecrement: () => void;
+  onClear?: () => void;
 }) {
-  const summary = selected.length === 0 ? "No subtracks selected" : `${selected.length} selected`;
-  const normalizedSummary = selected.length === 0 ? "" : summary;
+  const summary = isActive ? `Subtrack ${value}` : "";
   return (
-    <DropdownField title="Subtracks" summary={normalizedSummary}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", selected.length > 0 && "border-primary/40 text-primary")}>
-            <span className="truncate">{selected.length === 0 ? placeholder : summary}</span>
-            <ChevronDown className="h-4 w-4 text-slate-400" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[320px] rounded-xl border border-slate-200 p-3">
-          <div className="flex items-center gap-2">
-            <Input
-              inputMode="numeric"
-              value={value}
-              onChange={(event) => onInputChange(event.target.value.replace(/[^\d]/g, ""))}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  onAdd();
-                }
-              }}
-              placeholder="Add subtrack number"
-            />
-            <Button type="button" variant="outline" onClick={onAdd}>Add</Button>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {selected.length === 0 ? null : selected.map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => onRemove(item)}
-                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
-              >
-                {item}
-                <X className="h-3 w-3" />
-              </button>
-            ))}
-          </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
+    <DropdownField title="Subtracks" summary={summary} canClear={isActive} onClear={onClear}>
+      <div className={cn("flex h-11 items-center rounded-xl border border-slate-200 bg-white", isActive && "border-primary/40 text-primary")}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onDecrement}
+          className="h-full w-11 rounded-l-xl rounded-r-none border-r border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+          aria-label="Decrease subtrack"
+        >
+          <Minus className="h-4 w-4" />
+        </Button>
+        <Input
+          inputMode="numeric"
+          value={String(value)}
+          onChange={(event) => {
+            const normalized = event.target.value.replace(/[^\d]/g, "");
+            onChange(normalized ? Number(normalized) : 1);
+          }}
+          className="h-full flex-1 rounded-none border-0 text-center text-[15px] shadow-none focus-visible:ring-0"
+          aria-label="Subtrack number"
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onIncrement}
+          className="h-full w-11 rounded-l-none rounded-r-xl border-l border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+          aria-label="Increase subtrack"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
     </DropdownField>
   );
 }

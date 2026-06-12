@@ -19,6 +19,7 @@ const WORKFLOW_SEARCH_DEBOUNCE_MS = 500;
 const APPROVER_FILTER_OPTIONS = ["Reporting Manager", "Node Approver", "Hierarchy Approver"] as const;
 const WORKFLOW_LEVEL_FILTER_OPTIONS = ["1", "2", "3", "4", "5"] as const;
 const LINKED_ORG_STRUCTURE_OPTIONS = ["Yes", "No"] as const;
+const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
 const fuzzyMatch = (text: string, query: string) => {
   const source = text.trim().toLowerCase().replace(/\s+/g, "");
@@ -42,16 +43,25 @@ const buildWorkflowAppliedFilters = (input: {
   moduleFilters: string[];
   workflowLevelFilters: string[];
   approverTypeFilters: string[];
+  approverLevelFilters: string[];
   linkedOrgStructureFilters: string[];
 }): WorkflowAppliedFilters | null => {
   const workflowLevels = Number(input.workflowLevelFilters[0] ?? 0) || null;
+  const approverLevel = Number(input.approverLevelFilters[0] ?? 0) || null;
   const approverType = input.approverTypeFilters.length > 0 ? input.approverTypeFilters : null;
   const levels =
-    approverType && approverType.length > 0
-      ? approverType.map((entry, index) => ({
-        count: index + 1,
-        approverType: entry,
-      }))
+    approverLevel
+      ? (approverType && approverType.length > 0
+          ? approverType.map((entry) => ({
+              count: approverLevel,
+              approverType: entry,
+            }))
+          : [
+              {
+                count: approverLevel,
+                approverType: null,
+              },
+            ])
       : null;
 
   const hasAnyFilter =
@@ -60,6 +70,7 @@ const buildWorkflowAppliedFilters = (input: {
     input.moduleFilters.length > 0 ||
     input.workflowLevelFilters.length > 0 ||
     input.approverTypeFilters.length > 0 ||
+    input.approverLevelFilters.length > 0 ||
     input.linkedOrgStructureFilters.length > 0;
 
   if (!hasAnyFilter) return null;
@@ -68,7 +79,7 @@ const buildWorkflowAppliedFilters = (input: {
     nodeName: input.nodeNameFilters.length > 0 ? { values: input.nodeNameFilters } : null,
     nodeType: input.nodeTypeFilters.length > 0 ? input.nodeTypeFilters : null,
     workflowType: null,
-    module: input.moduleFilters.length > 0 ? input.moduleFilters.map(toApiToken) : null,
+    module: null,
     subModule: input.moduleFilters.length > 0 ? input.moduleFilters.map(toApiToken) : null,
     workflowLevels,
     levels,
@@ -90,6 +101,7 @@ export function useWorkflowManagement() {
   const [nodeTypeFilters, setNodeTypeFilters] = useState<string[]>([]);
   const [workflowLevelFilters, setWorkflowLevelFilters] = useState<string[]>([]);
   const [approverTypeFilters, setApproverTypeFilters] = useState<string[]>([]);
+  const [approverLevelFilters, setApproverLevelFilters] = useState<string[]>([]);
   const [linkedOrgStructureFilters, setLinkedOrgStructureFilters] = useState<string[]>([]);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -137,9 +149,10 @@ export function useWorkflowManagement() {
         moduleFilters,
         workflowLevelFilters,
         approverTypeFilters,
+        approverLevelFilters,
         linkedOrgStructureFilters,
       }),
-    [approverTypeFilters, linkedOrgStructureFilters, moduleFilters, nodeNameFilters, nodeTypeFilters, workflowLevelFilters],
+    [approverLevelFilters, approverTypeFilters, linkedOrgStructureFilters, moduleFilters, nodeNameFilters, nodeTypeFilters, workflowLevelFilters],
   );
 
   const fetchPage = useCallback(
@@ -414,6 +427,7 @@ export function useWorkflowManagement() {
     setNodeTypeFilters([]);
     setWorkflowLevelFilters([]);
     setApproverTypeFilters([]);
+    setApproverLevelFilters([]);
     setLinkedOrgStructureFilters([]);
     setIsFilterRequestActive(false);
   };
@@ -460,6 +474,33 @@ export function useWorkflowManagement() {
     return labels;
   };
 
+  const getWorkflowApproverTypesByLevel = (levels: unknown) => {
+    const entries = Array.isArray(levels)
+      ? levels.map((entry, index) => [String(index + 1), entry] as const)
+      : levels && typeof levels === "object"
+        ? Object.entries(levels as Record<string, unknown>).map(([key, entry], index) => [String(Number(key.replace(/[^\d]/g, "")) || index + 1), entry] as const)
+        : [];
+
+    const labelsByLevel = new Map<string, Set<string>>();
+    const collectApprover = (target: Set<string>, value: unknown) => {
+      const normalized = readString(value).toUpperCase();
+      if (normalized === "REPORTING_MANAGER") target.add("Reporting Manager");
+      if (normalized === "NODE_APPROVER") target.add("Node Approver");
+      if (normalized === "HIERARCHY_APPROVER") target.add("Hierarchy Approver");
+    };
+
+    entries.forEach(([level, entry]) => {
+      if (!entry || typeof entry !== "object") return;
+      const record = entry as Record<string, unknown>;
+      const labels = labelsByLevel.get(level) ?? new Set<string>();
+      collectApprover(labels, record.approver1);
+      collectApprover(labels, record.approver2);
+      if (labels.size > 0) labelsByLevel.set(level, labels);
+    });
+
+    return labelsByLevel;
+  };
+
   const filteredWorkflows = useMemo(() => {
     if (isFilterRequestActive) {
       return workflows;
@@ -468,7 +509,10 @@ export function useWorkflowManagement() {
     return workflows.filter((workflow) => {
       const workflowModuleValues = [workflow.module, workflow.rawModule].map(normalizeFilterValue).filter(Boolean);
       const workflowApproverTypes = getWorkflowApproverTypes(workflow.levels);
+      const workflowApproverTypesByLevel = getWorkflowApproverTypesByLevel(workflow.levels);
       const workflowLevelCount = String(getWorkflowLevelCount(workflow.levels));
+      const selectedApproverLevel = approverLevelFilters[0] ?? "";
+      const approverTypesAtSelectedLevel = selectedApproverLevel ? workflowApproverTypesByLevel.get(selectedApproverLevel) ?? new Set<string>() : null;
       const hasLinkedOrgStructure =
         (Array.isArray(workflow.linkedOrgStructure) && workflow.linkedOrgStructure.length > 0) ||
         (Array.isArray(workflow.autoGenerated) && workflow.autoGenerated.length > 0);
@@ -482,14 +526,30 @@ export function useWorkflowManagement() {
         moduleFilters.length === 0 ||
         moduleFilters.some((selected) => workflowModuleValues.includes(normalizeFilterValue(selected)));
       const matchesWorkflowLevels = workflowLevelFilters.length === 0 || workflowLevelFilters.includes(workflowLevelCount);
+      const matchesApproverLevel =
+        approverLevelFilters.length === 0 ||
+        workflowApproverTypesByLevel.has(selectedApproverLevel);
       const matchesApproverType =
-        approverTypeFilters.length === 0 || approverTypeFilters.some((selected) => workflowApproverTypes.has(selected));
+        approverTypeFilters.length === 0 ||
+        approverTypeFilters.some((selected) =>
+          approverLevelFilters.length > 0
+            ? Boolean(approverTypesAtSelectedLevel?.has(selected))
+            : workflowApproverTypes.has(selected),
+        );
       const matchesLinkedOrgStructure =
         linkedOrgStructureFilters.length === 0 ||
         linkedOrgStructureFilters.some((selected) => (selected === "Yes" ? hasLinkedOrgStructure : !hasLinkedOrgStructure));
-      return matchesNodeName && matchesNodeType && matchesModule && matchesWorkflowLevels && matchesApproverType && matchesLinkedOrgStructure;
+      return (
+        matchesNodeName &&
+        matchesNodeType &&
+        matchesModule &&
+        matchesWorkflowLevels &&
+        matchesApproverLevel &&
+        matchesApproverType &&
+        matchesLinkedOrgStructure
+      );
     });
-  }, [approverTypeFilters, isFilterRequestActive, linkedOrgStructureFilters, moduleFilters, nodeNameFilters, nodeTypeFilters, workflowLevelFilters, workflows]);
+  }, [approverLevelFilters, approverTypeFilters, isFilterRequestActive, linkedOrgStructureFilters, moduleFilters, nodeNameFilters, nodeTypeFilters, workflowLevelFilters, workflows]);
 
   useEffect(() => {
     if (!hasLoadedWorkflowsOnce) return;
@@ -632,6 +692,8 @@ export function useWorkflowManagement() {
     setWorkflowLevelFilters,
     approverTypeFilters,
     setApproverTypeFilters,
+    approverLevelFilters,
+    setApproverLevelFilters,
     linkedOrgStructureFilters,
     setLinkedOrgStructureFilters,
     isFilterRequestActive,
@@ -640,6 +702,7 @@ export function useWorkflowManagement() {
     nodeNameOptions,
     nodeTypeOptions,
     workflowLevelOptions: [...WORKFLOW_LEVEL_FILTER_OPTIONS],
+    approverLevelOptions: [...WORKFLOW_LEVEL_FILTER_OPTIONS],
     approverTypeOptions: [...APPROVER_FILTER_OPTIONS],
     linkedOrgStructureOptions: [...LINKED_ORG_STRUCTURE_OPTIONS],
     loadWorkflowFilterOptions,
