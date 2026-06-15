@@ -61,14 +61,14 @@ type WorkflowDetailsApiResponse = WorkflowApiResponse & {
 
 type WorkflowFilterDropdownsResponse = WorkflowApiResponse & {
   dropdowns?: {
-    nodeName?: Array<{ value?: string; path?: string; levelCount?: number } | string>;
+    nodeName?: Array<{ value?: string; path?: string; levelCount?: number; count?: number } | string>;
     nodeType?: Array<{ value?: string; count?: number } | string>;
     category?: string[];
     subCategory?: string[];
     workflowLevel?: Array<{ value?: number | string; count?: number }>;
     checker?: Array<{ value?: number | string; count?: number }>;
   };
-  nodeName?: Array<{ value?: string; path?: string; levelCount?: number } | string>;
+  nodeName?: Array<{ value?: string; path?: string; levelCount?: number; count?: number } | string>;
   nodeType?: Array<{ value?: string; count?: number } | string>;
   category?: string[];
   subCategory?: string[];
@@ -122,7 +122,7 @@ export type FetchWorkflowDetailsInput = {
 };
 
 export type WorkflowFilterDropdowns = {
-  nodeName: Array<{ value: string; label: string; path: string; description?: string; level?: number }>;
+  nodeName: Array<{ value: string; label: string; path: string; description?: string; level?: number; count?: number }>;
   nodeType: Array<{ value: string; label: string; count?: number; description?: string }>;
   module: Array<{ value: string; label: string; description?: string }>;
   workflowLevel: Array<{ value: string; label: string; count: number }>;
@@ -292,6 +292,7 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilte
 
         const value = readString(item?.value);
         const path = readString(item?.path);
+        const count = typeof item?.count === "number" ? item.count : undefined;
         if (!value) return accumulator;
         accumulator.push({
           value,
@@ -299,6 +300,7 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilte
           label: value,
           description: path || undefined,
           level: typeof item?.levelCount === "number" ? item.levelCount : undefined,
+          count,
         });
         return accumulator;
       }, []).sort((a, b) => (a.path || "").localeCompare(b.path || ""))

@@ -121,7 +121,7 @@ export function useWorkflowManagement() {
   const [workflows, setWorkflows] = useState<WorkflowRecord[]>([]);
   const [hasNewWorkflowEvent, setHasNewWorkflowEvent] = useState(false);
   const [hasLoadedWorkflowsOnce, setHasLoadedWorkflowsOnce] = useState(false);
-  const [filterNodeNameOptions, setFilterNodeNameOptions] = useState<Array<{ value: string; label: string; path: string; description?: string; level?: number }>>([]);
+  const [filterNodeNameOptions, setFilterNodeNameOptions] = useState<Array<{ value: string; label: string; path: string; description?: string; level?: number; count?: number }>>([]);
   const [filterNodeTypeOptions, setFilterNodeTypeOptions] = useState<Array<{ value: string; label: string; count?: number; description?: string }>>([]);
   const [filterModuleOptions, setFilterModuleOptions] = useState<Array<{ value: string; label: string; description?: string }>>([]);
   const [filterWorkflowLevelOptions, setFilterWorkflowLevelOptions] = useState<Array<{ value: string; label: string; count: number }>>([]);
@@ -402,11 +402,30 @@ export function useWorkflowManagement() {
       Array.from(
         new Map(
           [
-            ...workflows.map((workflow) => workflow.nodeName).filter(Boolean).map((value) => ({ value, label: value, path: "", description: undefined })),
+            ...workflows
+              .filter((workflow) => Boolean(workflow.nodeName))
+              .map((workflow) => {
+                const path = workflow.nodePath || "";
+                const level = path ? path.split(".").length : undefined;
+                return {
+                  value: workflow.nodeName,
+                  label: workflow.nodeName,
+                  path,
+                  description: path || undefined,
+                  level,
+                };
+              }),
             ...filterNodeNameOptions,
           ].map((option) => [normalizeFilterValue(option.value), option]),
         ).values(),
-      ).sort((a, b) => a.label.localeCompare(b.label)),
+      ).sort((a, b) => {
+        if (a.path && b.path) {
+          return a.path.localeCompare(b.path);
+        }
+        if (a.path) return -1;
+        if (b.path) return 1;
+        return a.label.localeCompare(b.label);
+      }),
     [filterNodeNameOptions, workflows],
   );
   const nodeTypeOptions = useMemo(

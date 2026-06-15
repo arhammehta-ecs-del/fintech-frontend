@@ -1461,7 +1461,7 @@ function WorkflowFilterDropdown({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[260px] border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
+          className="min-w-[var(--radix-dropdown-menu-trigger-width)] w-max max-w-[420px] md:max-w-[520px] border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
           onCloseAutoFocus={(event) => event.preventDefault()}
         >
           <div className="mt-1 flex items-center justify-between gap-2 px-1">
@@ -1524,7 +1524,7 @@ function WorkflowFilterDropdown({
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <div className="flex min-w-0 items-start justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <span className="truncate">{option.label}</span>
                         {typeof option.level === "number" ? (
                           <span className="shrink-0 rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-bold tracking-wider text-indigo-700">
