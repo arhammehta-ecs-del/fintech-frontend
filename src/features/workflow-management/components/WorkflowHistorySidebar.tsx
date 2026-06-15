@@ -226,6 +226,7 @@ const mapWorkflowHistoryEntry = (
               return {
                 name: approver.name,
                 email: approver.email,
+                levelCount: approver.levelCount || null,
                 date: date || undefined,
                 time: time || undefined,
               };

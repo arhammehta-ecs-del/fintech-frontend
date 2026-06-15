@@ -28,6 +28,7 @@ type NodeAccessCardProps = {
   }>>;
   changeState?: "unchanged" | "added" | "removed" | "changed";
   onClose?: () => void;
+  stackRows?: boolean;
 };
 
 export function NodeAccessCard({
@@ -40,6 +41,7 @@ export function NodeAccessCard({
   isPrimary,
   changeState = "unchanged",
   onClose,
+  stackRows = false,
 }: NodeAccessCardProps) {
   const edgeCls = getNodeEdgeBorderClass(nodeIndex, isPrimary);
   const badgeCls = getNodeBadgeClass(nodeIndex, isPrimary);
@@ -188,7 +190,7 @@ export function NodeAccessCard({
               <div className="border-b border-slate-200 pb-1 text-[11px] font-black uppercase tracking-widest text-slate-500">
                 {formatKey(cat)}
               </div>
-              {Array.from(new Set([...Array.from(groupedRows.keys()), ...Array.from(groupedPrevRows.keys())])).map((roleSubCategory, i) => {
+              {Array.from(new Set([...Array.from(groupedRows.keys()), ...Array.from(groupedPrevRows.keys())])).map((roleSubCategory, i, allGroups) => {
                 const labels = groupedRows.get(roleSubCategory) ?? new Map<string, string>();
                 const previousLabels = groupedPrevRows.get(roleSubCategory) ?? new Map<string, string>();
                 const allActionLabels = Array.from(new Set([...Array.from(labels.keys()), ...Array.from(previousLabels.keys())]));
@@ -199,9 +201,16 @@ export function NodeAccessCard({
                     .sort((left, right) => left.localeCompare(right)),
                 ];
                 return (
-                  <div key={i} className="grid grid-cols-1 items-start gap-2 text-[15px] leading-[1.35] sm:grid-cols-[minmax(120px,1fr)_minmax(0,2fr)] sm:gap-x-5">
-                    <span className="min-w-0 break-words pt-0.5 pr-1 font-medium text-slate-600">{formatKey(roleSubCategory)}</span>
-                    <span className="flex min-w-0 flex-nowrap gap-2 sm:justify-end">
+                  <div
+                    key={i}
+                    className={cn(
+                      "grid grid-cols-1 items-start gap-2 text-[15px] leading-[1.35]",
+                      stackRows ? "rounded-lg border border-slate-200/80 bg-white/70 px-3 py-2.5" : "sm:grid-cols-[auto_1fr] sm:gap-x-5",
+                      !stackRows && i < allGroups.length - 1 && "border-b border-slate-200/80 pb-3",
+                    )}
+                  >
+                    <span className="shrink-0 whitespace-nowrap pt-0.5 pr-1 font-medium text-slate-600">{formatKey(roleSubCategory)}</span>
+                    <span className={cn("flex min-w-0 flex-wrap gap-2", stackRows ? "" : "sm:justify-end")}>
                       {orderedActionLabels.map((label) => {
                         const BadgeIcon = getBadgeIcon(label || "Viewer");
                         const currentScope = labels.get(label);

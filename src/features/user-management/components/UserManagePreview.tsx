@@ -484,17 +484,34 @@ export function UserManagePreview({
     previous: GroupedByNode,
   ): Array<[string, GroupedByNode[string]]> => {
     const previousKeys = canTogglePreviousUpdated ? Object.keys(previous) : [];
-    return Array.from(new Set([...Object.keys(current), ...previousKeys])).map((key) => {
-      const currentGroup = current[key];
-      const previousGroup = previous[key];
-      return [
-        key,
-        currentGroup ?? {
-          ...previousGroup,
-          categories: {},
-        },
-      ];
-    });
+    const getNodeDepth = (nodeKey: string) =>
+      nodeKey
+        .split(".")
+        .map((segment) => segment.trim())
+        .filter(Boolean).length;
+
+    return Array.from(new Set([...Object.keys(current), ...previousKeys]))
+      .map((key) => {
+        const currentGroup = current[key];
+        const previousGroup = previous[key];
+        return [
+          key,
+          currentGroup ?? {
+            ...previousGroup,
+            categories: {},
+          },
+        ] as [string, GroupedByNode[string]];
+      })
+      .sort(([leftKey, leftGroup], [rightKey, rightGroup]) => {
+        const depthDiff = getNodeDepth(leftKey) - getNodeDepth(rightKey);
+        if (depthDiff !== 0) return depthDiff;
+
+        const leftPath = (leftKey || leftGroup.nodeName || "").trim().toUpperCase();
+        const rightPath = (rightKey || rightGroup.nodeName || "").trim().toUpperCase();
+        if (leftPath !== rightPath) return leftPath.localeCompare(rightPath);
+
+        return (leftGroup.nodeName || "").trim().localeCompare((rightGroup.nodeName || "").trim());
+      });
   };
   const serializeNodeCategories = (categories: GroupedByNode[string]["categories"]) =>
     JSON.stringify(
@@ -1115,22 +1132,25 @@ export function UserManagePreview({
                             No primary access configured.
                           </div>
                         ) : (
-                          primaryEntries.map(([key, group], idx) => {
-                            const changeState = getNodeChangeState(primaryByNode[key], previousPrimaryByNode[key]);
-                            return (
-                              <NodeAccessCard
-                                key={key}
-                                nodeName={group.nodeName}
-                                nodeType={group.nodeType}
-                                parentSubtitle={group.parentSubtitle}
-                                nodeIndex={idx}
-                                categories={group.categories}
-                                previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
-                                changeState={changeState}
-                                isPrimary
-                              />
-                            );
-                          })
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            {primaryEntries.map(([key, group], idx) => {
+                              const changeState = getNodeChangeState(primaryByNode[key], previousPrimaryByNode[key]);
+                              return (
+                                <div key={key} className={cn(primaryEntries.length === 1 && "md:col-span-2")}>
+                                  <NodeAccessCard
+                                    nodeName={group.nodeName}
+                                    nodeType={group.nodeType}
+                                    parentSubtitle={group.parentSubtitle}
+                                    nodeIndex={idx}
+                                    categories={group.categories}
+                                    previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
+                                    changeState={changeState}
+                                    isPrimary
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
                         )}
                       </div>
                     )}
@@ -1268,64 +1288,67 @@ export function UserManagePreview({
                       {primaryEntries.length === 0 ? (
                         <div className="text-xs text-slate-400">No primary access configured.</div>
                       ) : (
-                        primaryEntries.map(([key, group], idx) => {
-                          const focused = collapsedFocusedKey === `p:${key}`;
-                          const dismissed = collapsedDismissedKey === `p:${key}`;
-                          const changeState = getNodeChangeState(primaryByNode[key], previousPrimaryByNode[key]);
-                          const isRemovedNode = changeState === "removed";
-                          const shouldKeepExpanded = shouldPinChangedCardsInCollapsedPendingView && changeState !== "unchanged";
-                          const shouldShowExpandedCard =
-                            shouldKeepExpanded || (!dismissed && (focused || changeState !== "unchanged"));
-                          return (
-                            <div key={key}>
-                              {shouldShowExpandedCard ? (
-                                <NodeAccessCard
-                                  nodeName={group.nodeName}
-                                  nodeType={group.nodeType}
-                                  parentSubtitle={group.parentSubtitle}
-                                  nodeIndex={idx}
-                                  categories={group.categories}
-                                  previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
-                                  changeState={changeState}
-                                  isPrimary
-                                  onClose={shouldKeepExpanded
-                                    ? undefined
-                                    : () => {
-                                      setCollapsedFocusedKey(null);
-                                      setCollapsedDismissedKey(`p:${key}`);
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                          {primaryEntries.map(([key, group], idx) => {
+                            const focused = collapsedFocusedKey === `p:${key}`;
+                            const dismissed = collapsedDismissedKey === `p:${key}`;
+                            const changeState = getNodeChangeState(primaryByNode[key], previousPrimaryByNode[key]);
+                            const isRemovedNode = changeState === "removed";
+                            const shouldKeepExpanded = shouldPinChangedCardsInCollapsedPendingView && changeState !== "unchanged";
+                            const shouldShowExpandedCard =
+                              shouldKeepExpanded || (!dismissed && (focused || changeState !== "unchanged"));
+                            return (
+                              <div key={key} className={cn(primaryEntries.length === 1 && "md:col-span-2")}>
+                                {shouldShowExpandedCard ? (
+                                  <NodeAccessCard
+                                    nodeName={group.nodeName}
+                                    nodeType={group.nodeType}
+                                    parentSubtitle={group.parentSubtitle}
+                                    nodeIndex={idx}
+                                    categories={group.categories}
+                                    previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
+                                    changeState={changeState}
+                                    isPrimary
+                                    stackRows
+                                    onClose={shouldKeepExpanded
+                                      ? undefined
+                                      : () => {
+                                        setCollapsedFocusedKey(null);
+                                        setCollapsedDismissedKey(`p:${key}`);
+                                      }}
+                                  />
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCollapsedDismissedKey(null);
+                                      setCollapsedFocusedKey(`p:${key}`);
                                     }}
-                                />
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setCollapsedDismissedKey(null);
-                                    setCollapsedFocusedKey(`p:${key}`);
-                                  }}
-                                  className={cn(
-                                    "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
-                                    isRemovedNode
-                                      ? "border-rose-300 bg-rose-50/70 opacity-75"
-                                      : getNodeEdgeBorderClass(idx, true),
-                                    getNodeHoverClass(idx, true),
-                                    isRemovedNode && "border-dashed",
-                                  )}
-                                >
-                                  <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", getNodeBadgeClass(idx, true))}>
-                                    P{idx + 1}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className={cn("truncate text-sm font-semibold text-slate-700", isRemovedNode && "text-slate-500 line-through")}>
-                                      {getNodeTitleWithType(group.nodeName, group.nodeType)}
+                                    className={cn(
+                                      "flex w-full items-center gap-3 rounded-md border border-l-[4px] border-slate-200 bg-white px-3 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
+                                      isRemovedNode
+                                        ? "border-rose-300 bg-rose-50/70 opacity-75"
+                                        : getNodeEdgeBorderClass(idx, true),
+                                      getNodeHoverClass(idx, true),
+                                      isRemovedNode && "border-dashed",
+                                    )}
+                                  >
+                                    <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", getNodeBadgeClass(idx, true))}>
+                                      P{idx + 1}
                                     </div>
-                                    {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
-                                  </div>
-                                  <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })
+                                    <div className="min-w-0">
+                                      <div className={cn("truncate text-sm font-semibold text-slate-700", isRemovedNode && "text-slate-500 line-through")}>
+                                        {getNodeTitleWithType(group.nodeName, group.nodeType)}
+                                      </div>
+                                      {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
+                                    </div>
+                                    <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   ) : null}

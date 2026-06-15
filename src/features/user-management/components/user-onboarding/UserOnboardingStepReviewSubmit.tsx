@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { ChevronRight, Eye, Expand, Minimize2, Pencil, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { OrgNode } from "@/contexts/AppContext";
@@ -44,6 +44,7 @@ type SecondaryReviewEntry = {
   node: OrgNode;
   nodeId: string;
   diffStatus: NodeDiffStatus;
+  ignorePreviousState?: boolean;
 };
 
 const EMPTY_NODES: OrgNode[] = [];
@@ -259,6 +260,35 @@ const hasSelectedRights = (
   permissions: UserOnboardingPermissions,
   permissionScopes: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>,
 ) => getSelectedSections(permissions, permissionScopes).length > 0;
+
+const buildPermissionChangeSignature = (
+  permissions: UserOnboardingPermissions,
+  permissionScopes: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>,
+) =>
+  getSelectedSections(permissions, permissionScopes)
+    .flatMap((section) =>
+      section.selectedItems.flatMap((item) =>
+        getOrderedPermissionLabels(item.activeRights).map((label) => {
+          const action = getPermissionActionFromText(label);
+          const scope =
+            action && section.categoryKey.trim().toUpperCase() === "SYSTEM_ACCESS"
+              ? item.activeScopeByAction[action] ?? "NODE"
+              : "";
+          return `${section.categoryKey}|${item.itemKey}|${label}|${scope}`;
+        }),
+      ),
+    )
+    .sort()
+    .join("::");
+
+const havePermissionSelectionsChanged = (
+  currentPermissions: UserOnboardingPermissions,
+  currentScopes: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>,
+  previousPermissions: UserOnboardingPermissions,
+  previousScopes: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>,
+) =>
+  buildPermissionChangeSignature(currentPermissions, currentScopes) !==
+  buildPermissionChangeSignature(previousPermissions, previousScopes);
 
 const DiffValue = ({
   previousValue,
@@ -505,7 +535,9 @@ export function UserOnboardingStepReviewSubmit({
   nodePermissions,
   nodePermissionScopes,
   selectedWorkflow,
+  expandedAccessNodeIds,
   isReviewAccessExpanded,
+  reviewAccessNodeRefs,
   onSetExpandedAccessNodeIds,
   onSetIsReviewAccessExpanded,
 }: StepReviewSubmitProps) {
@@ -522,6 +554,7 @@ export function UserOnboardingStepReviewSubmit({
     "-";
   const branchMetaMap = buildBranchMetaMap(orgStructure);
   const breadcrumbByNodeId = useMemo(() => buildNodeBreadcrumbMap(orgStructure), [orgStructure]);
+  const hasAutoConfiguredEditExpansionRef = useRef(false);
   const [collapsedFocusedNodeId, setCollapsedFocusedNodeId] = useState<"primary" | string | null>(null);
   const primaryNode = primaryNodeId ? selectedNodes.find((node) => node.id === primaryNodeId) ?? null : null;
   const previousPrimaryNode = previousPrimaryNodeId
@@ -532,14 +565,8 @@ export function UserOnboardingStepReviewSubmit({
   const hasPrimaryChanged = Boolean(primaryNode?.id !== previousPrimaryNode?.id && (primaryNode || previousPrimaryNode));
   const currentPrimaryDiffStatus: NodeDiffStatus = hasPrimaryChanged && primaryNode ? "added" : null;
   const previousPrimaryReplacementNode = hasPrimaryChanged ? previousPrimaryNode : null;
-  const currentSecondaryNodeIds = selectedNodes
-    .filter((node) => hasSelectedRights(nodePermissions[node.id]?.secondary ?? {}, nodePermissionScopes[node.id]?.secondary ?? {}))
-    .map((node) => node.id);
-  const previousSecondaryNodeIds = previousSelectedNodes
-    .filter((node) =>
-      hasSelectedRights(previousNodePermissions[node.id]?.secondary ?? {}, previousNodePermissionScopes[node.id]?.secondary ?? {}),
-    )
-    .map((node) => node.id);
+  const currentSecondaryNodeIds = selectedNodes.map((node) => node.id);
+  const previousSecondaryNodeIds = previousSelectedNodes.map((node) => node.id);
   const currentSecondaryIndexById = useMemo(
     () => new Map(currentSecondaryNodeIds.map((nodeId, index) => [nodeId, index])),
     [currentSecondaryNodeIds],
@@ -561,8 +588,6 @@ export function UserOnboardingStepReviewSubmit({
         if (!node) return null;
         const currentSecondaryIndex = currentSecondaryIndexById.get(nodeId);
         const previousSecondaryIndex = previousSecondaryIndexById.get(nodeId);
-        const movedBetweenPrimaryAndSecondary =
-          currentNode && previousNode && (previousPrimaryNodeId === nodeId || primaryNodeId === nodeId);
         const reorderedWithinSecondary =
           currentNode &&
           previousNode &&
@@ -573,31 +598,56 @@ export function UserOnboardingStepReviewSubmit({
         return {
           node,
           nodeId,
+          ignorePreviousState: false,
           diffStatus:
-            currentNode && (!previousNode || movedBetweenPrimaryAndSecondary || reorderedWithinSecondary)
+            currentNode && (!previousNode || reorderedWithinSecondary)
               ? "added"
               : !currentNode && previousNode
                 ? "removed"
                 : null,
         };
       })
-      .filter(Boolean) as SecondaryReviewEntry[];
+      .filter(Boolean)
+      .sort((left, right) => {
+        const leftCurrentIndex = currentSecondaryIndexById.get(left.nodeId);
+        const rightCurrentIndex = currentSecondaryIndexById.get(right.nodeId);
+        if (leftCurrentIndex !== undefined && rightCurrentIndex !== undefined) {
+          return leftCurrentIndex - rightCurrentIndex;
+        }
+        if (leftCurrentIndex !== undefined) return -1;
+        if (rightCurrentIndex !== undefined) return 1;
+
+        const leftPreviousIndex = previousSecondaryIndexById.get(left.nodeId);
+        const rightPreviousIndex = previousSecondaryIndexById.get(right.nodeId);
+        if (leftPreviousIndex !== undefined && rightPreviousIndex !== undefined) {
+          return leftPreviousIndex - rightPreviousIndex;
+        }
+        if (leftPreviousIndex !== undefined) return -1;
+        if (rightPreviousIndex !== undefined) return 1;
+
+        return left.node.name.localeCompare(right.node.name);
+      }) as SecondaryReviewEntry[];
   }, [
     currentSecondaryIndexById,
     currentSecondaryNodeIds,
     previousSecondaryIndexById,
     previousSecondaryNodeIds,
-    previousPrimaryNodeId,
     previousSelectedNodes,
-    primaryNodeId,
     selectedNodes,
   ]);
   const secondaryBadgeByNodeId = useMemo(
-    () =>
-      new Map(
-        secondaryReviewEntries.map((entry, index) => [entry.nodeId, `S${index + 1}`]),
-      ),
-    [secondaryReviewEntries],
+    () => {
+      const currentIndexById = new Map(selectedNodes.map((node, index) => [node.id, index + 1]));
+      const previousIndexById = new Map(previousSelectedNodes.map((node, index) => [node.id, index + 1]));
+
+      return new Map(
+        secondaryReviewEntries.map((entry) => [
+          entry.nodeId,
+          `S${currentIndexById.get(entry.nodeId) ?? previousIndexById.get(entry.nodeId) ?? 1}`,
+        ]),
+      );
+    },
+    [previousSelectedNodes, secondaryReviewEntries, selectedNodes],
   );
   const collapsedSelectableIds = useMemo(() => {
     const ids: Array<"primary" | string> = [];
@@ -611,6 +661,64 @@ export function UserOnboardingStepReviewSubmit({
       setCollapsedFocusedNodeId(null);
     }
   }, [collapsedFocusedNodeId, collapsedSelectableIds]);
+
+  const primaryReviewIsEdited = Boolean(
+    primaryNode &&
+      (hasPrimaryChanged ||
+        havePermissionSelectionsChanged(
+          nodePermissions[primaryNode.id]?.primary ?? {},
+          nodePermissionScopes[primaryNode.id]?.primary ?? {},
+          previousPrimaryNode ? previousNodePermissions[previousPrimaryNode.id]?.primary ?? {} : {},
+          previousPrimaryNode ? previousNodePermissionScopes[previousPrimaryNode.id]?.primary ?? {} : {},
+        )),
+  );
+
+  const editedSecondaryNodeIds = useMemo(
+    () =>
+      secondaryReviewEntries
+        .filter((entry) => {
+          if (entry.diffStatus) return true;
+          return havePermissionSelectionsChanged(
+            nodePermissions[entry.nodeId]?.secondary ?? {},
+            nodePermissionScopes[entry.nodeId]?.secondary ?? {},
+            entry.ignorePreviousState ? {} : previousNodePermissions[entry.nodeId]?.secondary ?? {},
+            entry.ignorePreviousState ? {} : previousNodePermissionScopes[entry.nodeId]?.secondary ?? {},
+          );
+        })
+        .map((entry) => entry.nodeId),
+    [
+      nodePermissionScopes,
+      nodePermissions,
+      previousNodePermissionScopes,
+      previousNodePermissions,
+      secondaryReviewEntries,
+    ],
+  );
+
+  const defaultEditExpandedNodeIds = useMemo(
+    () => [
+      ...(primaryReviewIsEdited && primaryNode ? [primaryNode.id] : []),
+      ...editedSecondaryNodeIds,
+    ],
+    [editedSecondaryNodeIds, primaryNode, primaryReviewIsEdited],
+  );
+
+  const effectiveExpandedAccessNodeIds =
+    isEditMode && !hasAutoConfiguredEditExpansionRef.current
+      ? defaultEditExpandedNodeIds
+      : expandedAccessNodeIds;
+
+  useEffect(() => {
+    if (!isEditMode || !isReviewAccessExpanded || hasAutoConfiguredEditExpansionRef.current) return;
+
+    onSetExpandedAccessNodeIds(defaultEditExpandedNodeIds);
+    hasAutoConfiguredEditExpansionRef.current = true;
+  }, [
+    defaultEditExpandedNodeIds,
+    isEditMode,
+    isReviewAccessExpanded,
+    onSetExpandedAccessNodeIds,
+  ]);
 
   return (
     <div className="flex h-full min-h-0 flex-col space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -684,21 +792,53 @@ export function UserOnboardingStepReviewSubmit({
                         <span className="text-[12px] font-extrabold uppercase tracking-widest text-[#4F46E5]">Primary Access</span>
                       </div>
                       {primaryNode ? (
-                        <NodePermissionCard
-                          node={primaryNode}
-                          isDiffMode={isEditMode}
-                          diffStatus={currentPrimaryDiffStatus}
-                          badgeLabel="P1"
-                          permissions={primaryPermissions}
-                          previousPermissions={hasPrimaryChanged ? {} : previousPrimaryNode ? previousNodePermissions[previousPrimaryNode.id]?.primary ?? {} : {}}
-                          permissionScopes={nodePermissionScopes[primaryNode.id]?.primary ?? {}}
-                          previousPermissionScopes={
-                            hasPrimaryChanged ? {} : previousPrimaryNode ? previousNodePermissionScopes[previousPrimaryNode.id]?.primary ?? {} : {}
-                          }
-                          branchMetaMap={branchMetaMap}
-                          breadcrumbByNodeId={breadcrumbByNodeId}
-                          emptyText="No primary access configured."
-                        />
+                        isEditMode && !effectiveExpandedAccessNodeIds.includes(primaryNode.id) ? (
+                          <button
+                            type="button"
+                            onClick={() => onSetExpandedAccessNodeIds((current) => (current.includes(primaryNode.id) ? current : [...current, primaryNode.id]))}
+                            className={cn(
+                              "flex w-full items-center gap-2 rounded-md border border-l-[4px] px-2.5 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
+                              primaryReviewIsEdited ? "border-emerald-300 bg-white hover:border-emerald-300 hover:bg-emerald-50/70" : "border-slate-200 bg-white",
+                              getNodeBorderLeftClass(primaryNode, branchMetaMap),
+                              !primaryReviewIsEdited && getNodeHoverClass(primaryNode, branchMetaMap),
+                            )}
+                          >
+                            <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold", getNodeBadgeClass(primaryNode, branchMetaMap))}>
+                              P1
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold text-slate-700">{primaryNode.name}</div>
+                              {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(primaryNode.id) ? (
+                                <div className="break-words text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(primaryNode.id) || "")}</div>
+                              ) : null}
+                              {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" ? (
+                                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{primaryNode.nodeType}</div>
+                              ) : null}
+                            </div>
+                            <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          </button>
+                        ) : (
+                          <NodePermissionCard
+                            node={primaryNode}
+                            isDiffMode={isEditMode}
+                            diffStatus={currentPrimaryDiffStatus}
+                            badgeLabel="P1"
+                            permissions={primaryPermissions}
+                            previousPermissions={hasPrimaryChanged ? {} : previousPrimaryNode ? previousNodePermissions[previousPrimaryNode.id]?.primary ?? {} : {}}
+                            permissionScopes={nodePermissionScopes[primaryNode.id]?.primary ?? {}}
+                            previousPermissionScopes={
+                              hasPrimaryChanged ? {} : previousPrimaryNode ? previousNodePermissionScopes[previousPrimaryNode.id]?.primary ?? {} : {}
+                            }
+                            branchMetaMap={branchMetaMap}
+                            breadcrumbByNodeId={breadcrumbByNodeId}
+                            emptyText="No primary access configured."
+                            onClose={
+                              isEditMode
+                                ? () => onSetExpandedAccessNodeIds((current) => current.filter((id) => id !== primaryNode.id))
+                                : undefined
+                            }
+                          />
+                        )
                       ) : (
                         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-4 text-sm text-slate-400">
                           No primary access configured.
@@ -752,23 +892,67 @@ export function UserOnboardingStepReviewSubmit({
                     No secondary access assigned.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {secondaryReviewEntries.map((entry) => (
-                      <NodePermissionCard
-                        key={entry.nodeId}
-                        node={entry.node}
-                        isDiffMode={isEditMode}
-                        diffStatus={entry.diffStatus}
-                        badgeLabel={secondaryBadgeByNodeId.get(entry.nodeId) ?? "S1"}
-                        permissions={entry.diffStatus === "removed" ? {} : nodePermissions[entry.nodeId]?.secondary ?? {}}
-                        previousPermissions={previousNodePermissions[entry.nodeId]?.secondary ?? {}}
-                        permissionScopes={entry.diffStatus === "removed" ? {} : nodePermissionScopes[entry.nodeId]?.secondary ?? {}}
-                        previousPermissionScopes={previousNodePermissionScopes[entry.nodeId]?.secondary ?? {}}
-                        branchMetaMap={branchMetaMap}
-                        breadcrumbByNodeId={breadcrumbByNodeId}
-                        emptyText="No secondary access assigned."
-                      />
-                    ))}
+                  <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
+                    {secondaryReviewEntries.map((entry) =>
+                      isEditMode && !effectiveExpandedAccessNodeIds.includes(entry.nodeId) ? (
+                        <button
+                          key={`${entry.nodeId}-collapsed-edit`}
+                          type="button"
+                          onClick={() => onSetExpandedAccessNodeIds((current) => (current.includes(entry.nodeId) ? current : [...current, entry.nodeId]))}
+                          className={cn(
+                            "flex h-auto self-start w-full items-center gap-2 rounded-md border border-l-[4px] px-2.5 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
+                            entry.diffStatus ? getNodeDiffTheme(entry.diffStatus).wrapper : "border-slate-200 bg-white",
+                            entry.diffStatus === "removed" ? "border-l-rose-500 hover:border-rose-300 hover:bg-rose-50/70" : getNodeBorderLeftClass(entry.node, branchMetaMap),
+                            entry.diffStatus === "added"
+                              ? "hover:border-emerald-300 hover:bg-emerald-50/70"
+                              : entry.diffStatus === "removed"
+                                ? ""
+                                : getNodeHoverClass(entry.node, branchMetaMap),
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold",
+                              entry.diffStatus === "removed" ? "border-rose-300 bg-rose-50 text-rose-700" : getNodeBadgeClass(entry.node, branchMetaMap),
+                            )}
+                          >
+                            {secondaryBadgeByNodeId.get(entry.nodeId) ?? "S1"}
+                          </div>
+                          <div className="min-w-0">
+                            <div className={cn("text-xs font-semibold", entry.diffStatus === "removed" ? "text-rose-700" : "text-slate-700")}>
+                              {entry.node.name}
+                            </div>
+                            {entry.node.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(entry.node.id) ? (
+                              <div className="break-words text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(entry.node.id) || "")}</div>
+                            ) : null}
+                            {entry.node.nodeType.trim().toUpperCase() !== "ROOT" ? (
+                              <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{entry.node.nodeType}</div>
+                            ) : null}
+                          </div>
+                          <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        </button>
+                      ) : (
+                        <NodePermissionCard
+                          key={entry.nodeId}
+                          node={entry.node}
+                          isDiffMode={isEditMode}
+                          diffStatus={entry.diffStatus}
+                          badgeLabel={secondaryBadgeByNodeId.get(entry.nodeId) ?? "S1"}
+                          permissions={entry.diffStatus === "removed" ? {} : nodePermissions[entry.nodeId]?.secondary ?? {}}
+                          previousPermissions={entry.ignorePreviousState ? {} : previousNodePermissions[entry.nodeId]?.secondary ?? {}}
+                          permissionScopes={entry.diffStatus === "removed" ? {} : nodePermissionScopes[entry.nodeId]?.secondary ?? {}}
+                          previousPermissionScopes={entry.ignorePreviousState ? {} : previousNodePermissionScopes[entry.nodeId]?.secondary ?? {}}
+                          branchMetaMap={branchMetaMap}
+                          breadcrumbByNodeId={breadcrumbByNodeId}
+                          emptyText="No secondary access assigned."
+                          onClose={
+                            isEditMode
+                              ? () => onSetExpandedAccessNodeIds((current) => current.filter((id) => id !== entry.nodeId))
+                              : undefined
+                          }
+                        />
+                      ),
+                    )}
                   </div>
                 )}
                 </div>
@@ -938,9 +1122,9 @@ export function UserOnboardingStepReviewSubmit({
                           diffStatus={entry.diffStatus}
                           badgeLabel={secondaryBadgeByNodeId.get(entry.nodeId) ?? "S1"}
                           permissions={entry.diffStatus === "removed" ? {} : nodePermissions[entry.nodeId]?.secondary ?? {}}
-                          previousPermissions={previousNodePermissions[entry.nodeId]?.secondary ?? {}}
+                          previousPermissions={entry.ignorePreviousState ? {} : previousNodePermissions[entry.nodeId]?.secondary ?? {}}
                           permissionScopes={entry.diffStatus === "removed" ? {} : nodePermissionScopes[entry.nodeId]?.secondary ?? {}}
-                          previousPermissionScopes={previousNodePermissionScopes[entry.nodeId]?.secondary ?? {}}
+                          previousPermissionScopes={entry.ignorePreviousState ? {} : previousNodePermissionScopes[entry.nodeId]?.secondary ?? {}}
                           branchMetaMap={branchMetaMap}
                           breadcrumbByNodeId={breadcrumbByNodeId}
                           emptyText="No secondary access assigned."

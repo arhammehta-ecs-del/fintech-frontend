@@ -193,7 +193,7 @@ const mapApprovalSectionItemsFromApprovedBy = (record: RawHistoryRecord): Approv
         label: level !== null ? `Level ${level}` : undefined,
         levelCount: sortedApprovers[0]?.levelCount || null,
         rule,
-        people: sortedApprovers.map((a) => ({ name: a.name, email: a.email, date: a.date, time: a.time })),
+        people: sortedApprovers.map((a) => ({ name: a.name, email: a.email, levelCount: a.levelCount, date: a.date, time: a.time })),
       };
     })
     .filter((item): item is ApprovalSectionItem => item !== null);

@@ -501,6 +501,7 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
       next.splice(fromIndex, 1);
       next.splice(toIndex, 0, draggedNodeId);
 
+      const previousPrimaryNodeId = current[0] ?? null;
       const nextPrimaryNodeId = next[0] ?? null;
       setPrimaryNodeId(nextPrimaryNodeId);
 
@@ -508,29 +509,53 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
         return currentExpanded.filter(id => next.includes(id));
       });
 
-      // Reordering changes the semantic meaning of primary vs secondary.
-      // Reset all selected rights/scope selections to avoid stale payload entries.
-      setNodePermissions(() => {
-        const reset: Record<string, NodePermissionBuckets> = {};
-        next.forEach((nodeId) => {
-          reset[nodeId] = {
-            primary: createInitialPermissions(roles),
-            secondary: createInitialPermissions(roles),
-          };
-        });
-        return reset;
-      });
+      if (previousPrimaryNodeId !== nextPrimaryNodeId) {
+        const resetNodeIds = new Set(
+          [previousPrimaryNodeId, nextPrimaryNodeId].filter((nodeId): nodeId is string => Boolean(nodeId)),
+        );
 
-      setNodePermissionScopes(() => {
-        const reset: Record<string, NodePermissionScopeBuckets> = {};
-        next.forEach((nodeId) => {
-          reset[nodeId] = {
-            primary: createInitialPermissionScopes(roles),
-            secondary: createInitialPermissionScopes(roles),
-          };
+        setNodePermissions((currentPermissions) => {
+          const nextPermissions: Record<string, NodePermissionBuckets> = {};
+
+          next.forEach((nodeId) => {
+            if (resetNodeIds.has(nodeId)) {
+              nextPermissions[nodeId] = {
+                primary: createInitialPermissions(roles),
+                secondary: createInitialPermissions(roles),
+              };
+              return;
+            }
+
+            nextPermissions[nodeId] = currentPermissions[nodeId] ?? {
+              primary: createInitialPermissions(roles),
+              secondary: createInitialPermissions(roles),
+            };
+          });
+
+          return nextPermissions;
         });
-        return reset;
-      });
+
+        setNodePermissionScopes((currentScopes) => {
+          const nextScopes: Record<string, NodePermissionScopeBuckets> = {};
+
+          next.forEach((nodeId) => {
+            if (resetNodeIds.has(nodeId)) {
+              nextScopes[nodeId] = {
+                primary: createInitialPermissionScopes(roles),
+                secondary: createInitialPermissionScopes(roles),
+              };
+              return;
+            }
+
+            nextScopes[nodeId] = currentScopes[nodeId] ?? {
+              primary: createInitialPermissionScopes(roles),
+              secondary: createInitialPermissionScopes(roles),
+            };
+          });
+
+          return nextScopes;
+        });
+      }
 
       return next;
     });

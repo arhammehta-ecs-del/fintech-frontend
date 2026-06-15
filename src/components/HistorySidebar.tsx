@@ -36,6 +36,7 @@ export type HistoryEntry = {
         email: string;
         date?: string;
         time?: string;
+        levelCount?: string | null;
       }>;
     }>;
   }>;
@@ -125,13 +126,13 @@ function StatusHeader({
       ? "border-amber-200/50 bg-amber-50 text-amber-700"
       : tone === "initiation"
         ? "border-sky-200/60 bg-sky-50 text-sky-700"
-      : tone === "modified"
-        ? "border-orange-200/60 bg-orange-50 text-orange-700"
-      : tone === "rejected"
-        ? "border-rose-200/50 bg-rose-50 text-rose-700"
-        : tone === "inactive"
-          ? "border-rose-200/50 bg-rose-50 text-rose-700"
-          : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
+        : tone === "modified"
+          ? "border-orange-200/60 bg-orange-50 text-orange-700"
+          : tone === "rejected"
+            ? "border-rose-200/50 bg-rose-50 text-rose-700"
+            : tone === "inactive"
+              ? "border-rose-200/50 bg-rose-50 text-rose-700"
+              : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
 
   return (
     <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -176,6 +177,12 @@ const getChangeSummaryBadgeClassName = (tone?: "added" | "modified" | "removed")
   if (tone === "modified") return "border-amber-200 bg-amber-50 text-amber-700";
   if (tone === "removed") return "border-rose-200 bg-rose-50 text-rose-700";
   return "border-slate-200 bg-slate-50 text-slate-600";
+};
+
+const getApprovalRuleBadgeClassName = (rule?: string | null) => {
+  if (rule === "AND") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (rule === "OR") return "border-sky-200 bg-sky-50 text-sky-700 shadow-[0_6px_16px_rgba(14,165,233,0.12)]";
+  return "border-slate-200 bg-white text-slate-500";
 };
 
 function ActorFooter({ item }: { item: HistoryEntry }) {
@@ -245,14 +252,14 @@ function ApprovalSections({ item }: { item: HistoryEntry }) {
   const eligibleApproverSection =
     item.eligibleApprovers && item.eligibleApprovers.length > 0
       ? {
-          title: "Eligible Approvers",
-          tone: "warning" as const,
-          items: [
-            {
-              people: item.eligibleApprovers,
-            },
-          ],
-        }
+        title: "Eligible Approvers",
+        tone: "warning" as const,
+        items: [
+          {
+            people: item.eligibleApprovers,
+          },
+        ],
+      }
       : null;
 
   const sections = [
@@ -287,78 +294,98 @@ function ApprovalSections({ item }: { item: HistoryEntry }) {
             {section.items.map((group, groupIndex) => {
               const firstPerson = group.people[0];
               return (
-              <div key={`${section.title}-${group.label || "group"}-${groupIndex}`} className="rounded-md border border-white/70 bg-white/70 p-2">
-                <div className="mb-1.5 flex items-center justify-between gap-4">
-                  {(group.levelCount || group.label || group.rule) ? (
-                    <div className="flex min-w-0 items-center gap-2">
-                      {group.levelCount ? (
-                        <span className="inline-flex items-center rounded-sm border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none text-slate-600">
-                          {group.levelCount}
-                        </span>
-                      ) : null}
-                      {group.label ? (
+                <div key={`${section.title}-${group.label || "group"}-${groupIndex}`} className="rounded-md border border-white/70 bg-white/70 p-2">
+                  <div className="mb-1.5 flex items-center justify-between gap-4">
+                    {group.label ? (
+                      <div className="flex min-w-0 items-center gap-2">
                         <span className="text-[10px] font-semibold text-slate-700">{group.label}</span>
-                      ) : null}
-                      {group.rule ? (
-                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500">
-                          {group.rule}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : <div />}
-                  {(group.status || firstPerson?.date) ? (
-                    <div className="flex shrink-0 items-center gap-2">
-                      {group.status ? (
-                        <span
-                          className={[
-                            "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
-                            group.status === "APPROVED"
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : group.status === "REJECTED"
-                                ? "border-rose-200 bg-rose-50 text-rose-700"
-                                : "border-slate-200 bg-white text-slate-500",
-                          ].join(" ")}
-                        >
-                          {group.status}
-                        </span>
-                      ) : null}
-                      {firstPerson?.date ? (
-                        <span className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 ml-1">
-                          <Calendar className="h-3 w-3 text-slate-400" /> {firstPerson.date}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="space-y-2">
-                  {group.people.map((person, personIndex) => (
-                    <div key={`${person.email}-${personIndex}`} className="flex items-start justify-between gap-4 text-[11px] leading-tight">
-                      <div className="flex items-start gap-1.5 text-slate-700">
-                        <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-slate-400" />
-                        <div className="min-w-0">
-                          <span className="font-medium">{person.name}</span>
-                          <span className="text-slate-500"> ({person.email})</span>
+                      </div>
+                    ) : <div />}
+                    {(group.status || firstPerson?.date) ? (
+                      <div className="flex shrink-0 items-center gap-2">
+                        {group.status ? (
+                          <span
+                            className={[
+                              "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                              group.status === "APPROVED"
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : group.status === "REJECTED"
+                                  ? "border-rose-200 bg-rose-50 text-rose-700"
+                                  : "border-slate-200 bg-white text-slate-500",
+                            ].join(" ")}
+                          >
+                            {group.status}
+                          </span>
+                        ) : null}
+                        {firstPerson?.date ? (
+                          <span className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 ml-1">
+                            <Calendar className="h-3 w-3 text-slate-400" /> {firstPerson.date}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="space-y-2">
+                    {group.people.map((person, personIndex) => (
+                      <div key={`${person.email}-${personIndex}`} className="space-y-2">
+                        {personIndex > 0 && group.rule ? (
+                          <div className="my-1.5 flex items-center gap-1.5 pl-8 text-slate-700">
+                            <span
+                              className={[
+                                "inline-flex min-w-[54px] items-center justify-center rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em]",
+                                getApprovalRuleBadgeClassName(group.rule),
+                              ].join(" ")}
+                            >
+                              {group.rule}
+                            </span>
+                          </div>
+                        ) : null}
+                        <div className="flex items-start justify-between gap-4 text-[11px] leading-tight">
+                          <div className="flex items-start gap-1.5 text-slate-700">
+                            {person.levelCount ? (
+                              <span className="inline-flex items-center rounded-sm border border-slate-200 bg-white px-1 py-0.5 text-[8px] font-bold uppercase leading-none text-slate-500 shrink-0">
+                                {person.levelCount}
+                              </span>
+                            ) : (
+                              <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                            )}
+                            <div className="min-w-0">
+                              <span className="font-medium">{person.name}</span>
+                              <span className="text-slate-500"> ({person.email})</span>
+                            </div>
+                          </div>
+                          {person.time ? (
+                            <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-medium text-slate-500">
+                              <Clock className="h-3 w-3 text-slate-400" /> {person.time}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
-                      {person.time ? (
-                        <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-medium text-slate-500">
-                          <Clock className="h-3 w-3 text-slate-400" /> {person.time}
-                        </span>
-                      ) : null}
-                    </div>
-                  ))}
-                  {group.rule === "AND" && group.people.length === 1 && section.title === "Approved By" ? (
-                    <div className="flex items-start justify-between gap-4 text-[11px] leading-tight mt-2">
-                      <div className="flex items-center gap-1.5 text-slate-700">
-                        <span className="h-1 w-1 shrink-0 rounded-full bg-slate-300" />
-                        <span className="inline-flex items-center justify-center rounded-full border border-dashed border-amber-300 bg-amber-50 px-10 py-1 text-[10px] font-semibold text-amber-700 shadow-sm">
-                          2nd approver
-                        </span>
+                    ))}
+                    {group.rule === "AND" && group.people.length === 1 && section.title === "Approved By" ? (
+                      <div className="space-y-2">
+                        <div className="my-1.5 flex items-center gap-1.5 pl-8 text-slate-700">
+                          <span
+                            className={[
+                              "inline-flex min-w-[54px] items-center justify-center rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em]",
+                              getApprovalRuleBadgeClassName(group.rule),
+                            ].join(" ")}
+                          >
+                            {group.rule}
+                          </span>
+                        </div>
+                        <div className="flex items-start justify-between gap-4 text-[11px] leading-tight">
+                          <div className="flex items-center gap-1.5 text-slate-700">
+                            <span className="h-1 w-1 shrink-0 rounded-full bg-slate-300" />
+                            <span className="inline-flex items-center justify-center rounded-full border border-dashed border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 px-10 py-1 text-[10px] font-semibold text-amber-700 shadow-sm">
+                              2nd approver
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ) : null}
+                    ) : null}
+                  </div>
                 </div>
-              </div>
               );
             })}
           </div>
@@ -382,11 +409,9 @@ function MilestoneTimeline({
 
   useEffect(() => {
     setExpandedItems((current) => {
-      const next = { ...current };
+      const next: Record<string, boolean> = {};
       data.forEach((item) => {
-        if (!item.collapseToHeader && item.id in next) {
-          delete next[item.id];
-        }
+        next[item.id] = item.id in current ? current[item.id] : !item.collapseToHeader;
       });
       return next;
     });
@@ -398,125 +423,123 @@ function MilestoneTimeline({
         {data.map((item, index) => (
           <div key={item.id} className="relative pl-14">
             {(() => {
-              const isCollapsible = Boolean(item.collapseToHeader);
-              const isCollapsed = isCollapsible && !expandedItems[item.id];
+              const isExpanded = item.id in expandedItems ? expandedItems[item.id] : !item.collapseToHeader;
+              const isCollapsed = !isExpanded;
 
               return (
                 <>
-            {(() => {
-              const tone = getEventTone(item.action, item.status);
-              const dateBadgeClassName =
-                tone === "pending"
-                  ? "border-amber-300 text-amber-700 shadow-[0_0_10px_rgba(251,191,36,0.15)]"
-                  : tone === "initiation"
-                    ? "border-sky-300 text-sky-700 shadow-[0_0_10px_rgba(56,189,248,0.16)]"
-                    : tone === "modified"
-                      ? "border-orange-300 text-orange-700 shadow-[0_0_10px_rgba(249,115,22,0.18)]"
-                      : tone === "inactive"
-                        ? "border-rose-300 text-rose-700 shadow-[0_0_10px_rgba(244,63,94,0.16)]"
-                      : tone === "approved"
-                        ? "border-emerald-300 text-emerald-700 shadow-[0_0_10px_rgba(16,185,129,0.16)]"
-                        : "border-slate-200";
+                  {(() => {
+                    const tone = getEventTone(item.action, item.status);
+                    const dateBadgeClassName =
+                      tone === "pending"
+                        ? "border-amber-300 text-amber-700 shadow-[0_0_10px_rgba(251,191,36,0.15)]"
+                        : tone === "initiation"
+                          ? "border-sky-300 text-sky-700 shadow-[0_0_10px_rgba(56,189,248,0.16)]"
+                          : tone === "modified"
+                            ? "border-orange-300 text-orange-700 shadow-[0_0_10px_rgba(249,115,22,0.18)]"
+                            : tone === "inactive"
+                              ? "border-rose-300 text-rose-700 shadow-[0_0_10px_rgba(244,63,94,0.16)]"
+                              : tone === "approved"
+                                ? "border-emerald-300 text-emerald-700 shadow-[0_0_10px_rgba(16,185,129,0.16)]"
+                                : "border-slate-200";
 
-              return (
-                <div
-                  className={[
-                    "absolute left-0 top-0 z-10 flex h-9 w-[52px] flex-col items-center justify-center rounded-xl border bg-white font-bold text-slate-700 shadow-sm transition-all",
-                    dateBadgeClassName,
-                  ].join(" ")}
-                >
-                  <span className="text-[13px] leading-none tracking-tight">{item.day}</span>
-                  <span className="mt-0.5 text-[7px] uppercase tracking-widest opacity-70">{item.month.substring(0, 3)}</span>
-                </div>
-              );
-            })()}
-
-            {index < data.length - 1 ? (
-              <div
-                className="absolute left-[26px] top-[36px] w-[1.5px] bg-slate-200"
-                style={{ height: "calc(100% + 24px)" }}
-                aria-hidden="true"
-              />
-            ) : null}
-
-            <div
-              className={[
-                isCollapsed ? "rounded-2xl border bg-white px-4 py-3 shadow-sm transition-all" : "rounded-2xl border bg-white p-4 shadow-sm transition-all",
-                (() => {
-                  const tone = getEventTone(item.action, item.status);
-                  return tone === "pending"
-                    ? "border-amber-200/70 shadow-[0_2px_12px_rgba(251,191,36,0.08)]"
-                    : tone === "initiation"
-                      ? "border-sky-200/80 shadow-[0_2px_12px_rgba(56,189,248,0.08)]"
-                      : tone === "modified"
-                        ? "border-orange-200/80 shadow-[0_2px_12px_rgba(249,115,22,0.1)]"
-                        : tone === "inactive"
-                          ? "border-rose-200/80 shadow-[0_2px_12px_rgba(244,63,94,0.1)]"
-                        : tone === "approved"
-                          ? "border-emerald-200/80 shadow-[0_2px_12px_rgba(16,185,129,0.08)]"
-                          : "border-slate-200 hover:shadow-md";
-                })(),
-              ].join(" ")}
-            >
-              <StatusHeader
-                item={item}
-                headerAction={
-                  isCollapsible ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedItems((current) => ({
-                          ...current,
-                          [item.id]: !current[item.id],
-                        }))
-                      }
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
-                      aria-label={isCollapsed ? "Expand history card" : "Collapse history card"}
-                      aria-expanded={!isCollapsed}
-                    >
-                      <ChevronDown className={`h-4 w-4 transition-transform ${isCollapsed ? "" : "rotate-180"}`} />
-                    </button>
-                  ) : null
-                }
-              />
-              {!isCollapsed ? (
-                <>
-                  <div className="mb-2 flex items-start justify-between gap-3 px-1">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <h4 className="min-w-0 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
-                        <div className="flex shrink-0 items-center gap-2">
-                          {onViewMore && !item.disableViewMore ? (
-                            <button
-                              type="button"
-                              onClick={() => onViewMore(item)}
-                              className={[
-                                "shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
-                                activeViewMoreSourceId && getViewMoreSourceId(item) === activeViewMoreSourceId
-                                  ? "border border-blue-600 bg-blue-50 text-blue-700 shadow-[0_0_0_1px_rgba(37,99,235,0.08)]"
-                                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-                              ].join(" ")}
-                            >
-                              View More
-                            </button>
-                          ) : null}
-                        </div>
+                    return (
+                      <div
+                        className={[
+                          "absolute left-0 top-0 z-10 flex h-9 w-[52px] flex-col items-center justify-center rounded-xl border bg-white font-bold text-slate-700 shadow-sm transition-all",
+                          dateBadgeClassName,
+                        ].join(" ")}
+                      >
+                        <span className="text-[13px] leading-none tracking-tight">{item.day}</span>
+                        <span className="mt-0.5 text-[7px] uppercase tracking-widest opacity-70">{item.month.substring(0, 3)}</span>
                       </div>
-                    </div>
-                  </div>
-                  <div className="mb-2 px-1">
-                    <p className="text-[11.5px] leading-relaxed text-slate-600">{item.details}</p>
-                    {item.remarks ? (
-                      <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600">
-                        <span className="font-medium text-slate-700">Remarks:</span> {item.remarks}
-                      </p>
+                    );
+                  })()}
+
+                  {index < data.length - 1 ? (
+                    <div
+                      className="absolute left-[26px] top-[36px] w-[1.5px] bg-slate-200"
+                      style={{ height: "calc(100% + 24px)" }}
+                      aria-hidden="true"
+                    />
+                  ) : null}
+
+                  <div
+                    className={[
+                      isCollapsed ? "rounded-2xl border bg-white px-4 py-3 shadow-sm transition-all" : "rounded-2xl border bg-white p-4 shadow-sm transition-all",
+                      (() => {
+                        const tone = getEventTone(item.action, item.status);
+                        return tone === "pending"
+                          ? "border-amber-200/70 shadow-[0_2px_12px_rgba(251,191,36,0.08)]"
+                          : tone === "initiation"
+                            ? "border-sky-200/80 shadow-[0_2px_12px_rgba(56,189,248,0.08)]"
+                            : tone === "modified"
+                              ? "border-orange-200/80 shadow-[0_2px_12px_rgba(249,115,22,0.1)]"
+                              : tone === "inactive"
+                                ? "border-rose-200/80 shadow-[0_2px_12px_rgba(244,63,94,0.1)]"
+                                : tone === "approved"
+                                  ? "border-emerald-200/80 shadow-[0_2px_12px_rgba(16,185,129,0.08)]"
+                                  : "border-slate-200 hover:shadow-md";
+                      })(),
+                    ].join(" ")}
+                  >
+                    <StatusHeader
+                      item={item}
+                      headerAction={
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedItems((current) => ({
+                              ...current,
+                              [item.id]: !current[item.id],
+                            }))
+                          }
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                          aria-label={isCollapsed ? "Expand history card" : "Collapse history card"}
+                          aria-expanded={!isCollapsed}
+                        >
+                          <ChevronDown className={`h-4 w-4 transition-transform ${isCollapsed ? "" : "rotate-180"}`} />
+                        </button>
+                      }
+                    />
+                    {!isCollapsed ? (
+                      <>
+                        <div className="mb-2 flex items-start justify-between gap-3 px-1">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <h4 className="min-w-0 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
+                              <div className="flex shrink-0 items-center gap-2">
+                                {onViewMore && !item.disableViewMore ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => onViewMore(item)}
+                                    className={[
+                                      "shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                                      activeViewMoreSourceId && getViewMoreSourceId(item) === activeViewMoreSourceId
+                                        ? "border border-blue-600 bg-blue-50 text-blue-700 shadow-[0_0_0_1px_rgba(37,99,235,0.08)]"
+                                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                                    ].join(" ")}
+                                  >
+                                    View More
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mb-2 px-1">
+                          <p className="text-[11.5px] leading-relaxed text-slate-600">{item.details}</p>
+                          {item.remarks ? (
+                            <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600">
+                              <span className="font-medium text-slate-700">Remarks:</span> {item.remarks}
+                            </p>
+                          ) : null}
+                          <ApprovalSections item={item} />
+                        </div>
+                        <ActorFooter item={item} />
+                      </>
                     ) : null}
-                    <ApprovalSections item={item} />
                   </div>
-                  <ActorFooter item={item} />
-                </>
-              ) : null}
-            </div>
                 </>
               );
             })()}
@@ -692,11 +715,11 @@ export function HistorySidebar({
       style={
         splitView
           ? {
-              top: `${effectiveOffset.top}px`,
-              width: `${dockedWidth}px`,
-              height: `calc(100vh - ${effectiveOffset.top}px)`,
-              transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
-            }
+            top: `${effectiveOffset.top}px`,
+            width: `${dockedWidth}px`,
+            height: `calc(100vh - ${effectiveOffset.top}px)`,
+            transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
+          }
           : { top: `${effectiveOffset.top}px`, left: `${effectiveOffset.left}px`, transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)" }
       }
     >
@@ -784,51 +807,52 @@ export function HistorySidebar({
             .map(([year, months], index, array) => {
               const showYearLine = array.length > 1;
               return (
-              <div key={year} className="space-y-2">
-                <button
-                  onClick={() => toggleYear(year)}
-                  className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition-all hover:bg-slate-50"
-                >
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-slate-400" />
-                    <span className="text-[13px] font-bold text-slate-800">{year}</span>
-                  </div>
-                  <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${expandedYears.has(year) ? "rotate-180" : ""}`} />
-                </button>
+                <div key={year} className="space-y-2">
+                  <button
+                    onClick={() => toggleYear(year)}
+                    className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition-all hover:bg-slate-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Calendar className="h-4 w-4 text-slate-400" />
+                      <span className="text-[13px] font-bold text-slate-800">{year}</span>
+                    </div>
+                    <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${expandedYears.has(year) ? "rotate-180" : ""}`} />
+                  </button>
 
-                {expandedYears.has(year) ? (
-                  <div className={`ml-5 space-y-4 py-2 pl-3 ${showYearLine ? 'border-l-2 border-slate-200' : ''}`}>
-                    {Object.entries(months)
-                      .sort(([a], [b]) => (MONTH_INDEX.get(b) ?? -1) - (MONTH_INDEX.get(a) ?? -1))
-                      .map(([month, logs]) => {
-                      const monthKey = `${month} ${year}`;
-                      const isExpanded = expandedMonths.has(monthKey);
+                  {expandedYears.has(year) ? (
+                    <div className={`ml-5 space-y-4 py-2 pl-3 ${showYearLine ? 'border-l-2 border-slate-200' : ''}`}>
+                      {Object.entries(months)
+                        .sort(([a], [b]) => (MONTH_INDEX.get(b) ?? -1) - (MONTH_INDEX.get(a) ?? -1))
+                        .map(([month, logs]) => {
+                          const monthKey = `${month} ${year}`;
+                          const isExpanded = expandedMonths.has(monthKey);
 
-                      return (
-                        <div key={monthKey} className="space-y-3">
-                          <button
-                            onClick={() => toggleMonth(monthKey)}
-                            className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-2.5 shadow-sm transition-all hover:bg-slate-50"
-                          >
-                            <span className="text-[11px] font-bold text-slate-700">{month}</span>
-                            <div className="flex items-center gap-3">
-                              <span className="text-[10px] font-medium text-slate-400">{logs.length} entries</span>
-                              <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+                          return (
+                            <div key={monthKey} className="space-y-3">
+                              <button
+                                onClick={() => toggleMonth(monthKey)}
+                                className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-2.5 shadow-sm transition-all hover:bg-slate-50"
+                              >
+                                <span className="text-[11px] font-bold text-slate-700">{month}</span>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[10px] font-medium text-slate-400">{logs.length} entries</span>
+                                  <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+                                </div>
+                              </button>
+
+                              {isExpanded ? (
+                                <div className="animate-in slide-in-from-top-1 fade-in py-2 duration-200">
+                                  <MilestoneTimeline data={logs} onViewMore={onViewMore} activeViewMoreSourceId={activeViewMoreSourceId} />
+                                </div>
+                              ) : null}
                             </div>
-                          </button>
-
-                          {isExpanded ? (
-                            <div className="animate-in slide-in-from-top-1 fade-in py-2 duration-200">
-                          <MilestoneTimeline data={logs} onViewMore={onViewMore} activeViewMoreSourceId={activeViewMoreSourceId} />
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </div>
-            )})}
+                          );
+                        })}
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })}
         </div>
 
         <style
