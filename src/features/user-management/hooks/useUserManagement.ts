@@ -391,6 +391,12 @@ export function useUserManagement() {
     setPage(1);
   }, [effectiveStatusTab, debouncedSearch, pageSize, appliedFilters]);
 
+  useEffect(() => {
+    if (effectiveStatusTab !== "active" && getCountForTab(statusCounts, effectiveStatusTab) === 0) {
+      setStatusTab("active");
+    }
+  }, [effectiveStatusTab, getCountForTab, statusCounts]);
+
   const searchSuggestions = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return [];

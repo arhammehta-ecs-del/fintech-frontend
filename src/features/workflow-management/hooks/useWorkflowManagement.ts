@@ -17,7 +17,6 @@ import { mapWorkflowRecord } from "@/features/workflow-management/utils/workflow
 
 const WORKFLOW_SEARCH_DEBOUNCE_MS = 500;
 const APPROVER_FILTER_OPTIONS = ["Reporting Manager", "Node Approver", "Hierarchy Approver"] as const;
-const WORKFLOW_LEVEL_FILTER_OPTIONS = ["1", "2", "3", "4", "5"] as const;
 const LINKED_ORG_STRUCTURE_OPTIONS = ["Yes", "No"] as const;
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
@@ -47,7 +46,9 @@ const buildWorkflowAppliedFilters = (input: {
   linkedOrgStructureFilters: string[];
   approverCountFilters: string[];
 }): WorkflowAppliedFilters | null => {
-  const workflowLevels = Number(input.approverCountFilters[0] ?? input.workflowLevelFilters[0] ?? 0) || null;
+  const workflowLevels = input.workflowLevelFilters
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0);
   const approverLevel = Number(input.approverLevelFilters[0] ?? 0) || null;
   const approverType = input.approverTypeFilters.length > 0 ? input.approverTypeFilters : null;
   const levels =
@@ -83,7 +84,7 @@ const buildWorkflowAppliedFilters = (input: {
     workflowType: null,
     module: null,
     subModule: input.moduleFilters.length > 0 ? input.moduleFilters.map(toApiToken) : null,
-    workflowLevels,
+    workflowLevels: workflowLevels.length > 0 ? workflowLevels : null,
     levels,
     approverType,
     onboardingDate: null,
@@ -123,6 +124,7 @@ export function useWorkflowManagement() {
   const [filterNodeNameOptions, setFilterNodeNameOptions] = useState<Array<{ value: string; label: string; path: string; description?: string; level?: number }>>([]);
   const [filterNodeTypeOptions, setFilterNodeTypeOptions] = useState<Array<{ value: string; label: string; count?: number; description?: string }>>([]);
   const [filterModuleOptions, setFilterModuleOptions] = useState<Array<{ value: string; label: string; description?: string }>>([]);
+  const [filterWorkflowLevelOptions, setFilterWorkflowLevelOptions] = useState<Array<{ value: string; label: string; count: number }>>([]);
   const [filterApproverCountOptions, setFilterApproverCountOptions] = useState<Array<{ value: string; label: string; count: number }>>([]);
   const [isFilterLoading, setIsFilterLoading] = useState(false);
   const [isFilterRequestActive, setIsFilterRequestActive] = useState(false);
@@ -368,6 +370,7 @@ export function useWorkflowManagement() {
       setFilterNodeNameOptions(dropdowns.nodeName);
       setFilterNodeTypeOptions(dropdowns.nodeType);
       setFilterModuleOptions(dropdowns.module);
+      setFilterWorkflowLevelOptions(dropdowns.workflowLevel);
       setFilterApproverCountOptions(dropdowns.approverCount);
     } catch (error) {
       toast({
@@ -418,6 +421,23 @@ export function useWorkflowManagement() {
       ).sort((a, b) => a.label.localeCompare(b.label)),
     [filterNodeTypeOptions, workflows],
   );
+  const workflowLevelOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          filterWorkflowLevelOptions.map((option) => [option.value, option]),
+        ).values(),
+      ).sort((a, b) => Number(a.value) - Number(b.value)),
+    [filterWorkflowLevelOptions],
+  );
+  const approverLevelOptions = useMemo(() => {
+    const highestLevel = workflowLevelOptions.reduce((max, option) => {
+      const numericValue = Number(option.value);
+      return Number.isFinite(numericValue) ? Math.max(max, numericValue) : max;
+    }, 0);
+
+    return Array.from({ length: highestLevel }, (_, index) => String(index + 1));
+  }, [workflowLevelOptions]);
 
   const searchSuggestions = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -716,8 +736,8 @@ export function useWorkflowManagement() {
     nodeNameOptions,
     nodeTypeOptions,
     approverCountOptions: filterApproverCountOptions,
-    workflowLevelOptions: [...WORKFLOW_LEVEL_FILTER_OPTIONS],
-    approverLevelOptions: [...WORKFLOW_LEVEL_FILTER_OPTIONS],
+    workflowLevelOptions,
+    approverLevelOptions,
     approverTypeOptions: [...APPROVER_FILTER_OPTIONS],
     linkedOrgStructureOptions: [...LINKED_ORG_STRUCTURE_OPTIONS],
     loadWorkflowFilterOptions,

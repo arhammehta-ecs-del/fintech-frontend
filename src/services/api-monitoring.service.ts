@@ -60,6 +60,12 @@ type ApiMonitoringFetchAllResponse = {
       maxBytes?: number | null;
       count?: number | null;
     }>;
+    companies?: Array<{
+      companyId?: string | null;
+      companyName?: string | null;
+      companyCode?: string | null;
+      count?: number | null;
+    }>;
   };
 };
 
@@ -79,6 +85,7 @@ export type ApiMonitoringPaginatedRequest = {
     users: string[] | null;
     ips: string[] | null;
     urls: string[] | null;
+    companies: string[] | null;
     status: number[] | null;
     responseSize: string | null;
     responseSizeSort: "asc" | "desc" | null;
@@ -101,6 +108,7 @@ export type ApiMonitoringResponseSizeFilterOption = {
 };
 
 export type ApiMonitoringFilterMetadata = {
+  companies: ApiMonitoringFilterOption[];
   users: ApiMonitoringFilterOption[];
   ips: ApiMonitoringFilterOption[];
   urls: ApiMonitoringFilterOption[];
@@ -377,6 +385,13 @@ const toSafeCount = (value: unknown) => {
 };
 
 const mapFilterMetadata = (filter?: ApiMonitoringFetchAllResponse["filter"]): ApiMonitoringFilterMetadata => ({
+  companies: (filter?.companies ?? [])
+    .map((item) => ({
+      value: asString(item.companyCode),
+      label: [asString(item.companyName), asString(item.companyCode)].filter(Boolean).join(" • ") || "N/A",
+      count: toSafeCount(item.count),
+    }))
+    .filter((item) => item.value),
   users: (filter?.users ?? [])
     .map((item) => ({
       value: asString(item.userEmail),

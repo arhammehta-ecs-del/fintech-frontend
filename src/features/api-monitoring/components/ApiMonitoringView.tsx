@@ -50,6 +50,7 @@ const buildEmptyDraft = (): ApiMonitoringAppliedFiltersDraft => ({
   toDate: "",
   fromTime: "",
   toTime: "",
+  companies: [],
   users: [],
   ips: [],
   urls: [],
@@ -62,6 +63,7 @@ const buildEmptyDraft = (): ApiMonitoringAppliedFiltersDraft => ({
 const countFilters = (draft: ApiMonitoringAppliedFiltersDraft) =>
   (draft.date ? 1 : 0) +
   (draft.time ? 1 : 0) +
+  draft.companies.length +
   draft.users.length +
   draft.ips.length +
   draft.urls.length +
@@ -73,6 +75,58 @@ const countFilters = (draft: ApiMonitoringAppliedFiltersDraft) =>
   (draft.toDate ? 1 : 0) +
   (draft.fromTime ? 1 : 0) +
   (draft.toTime ? 1 : 0);
+
+const getCurrentTimeHourMinute = () => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+};
+
+const clipTimeIfToday = (timeStr: string, dateStr: string, todayIsoStr: string) => {
+  if (!timeStr) return timeStr;
+  const isToday = !dateStr || dateStr === todayIsoStr;
+  if (!isToday) return timeStr;
+  const currentMaxTime = getCurrentTimeHourMinute();
+  return timeStr > currentMaxTime ? currentMaxTime : timeStr;
+};
+
+const getValidationErrors = (draft: ApiMonitoringAppliedFiltersDraft, todayIso: string) => {
+  const errors: string[] = [];
+  
+  if (draft.date === "custom") {
+    if (!draft.fromDate || !draft.toDate) {
+      errors.push("Both From and To dates are required.");
+    } else if (draft.fromDate > draft.toDate) {
+      errors.push("From date cannot be after To date.");
+    } else if (draft.fromDate > todayIso || draft.toDate > todayIso) {
+      errors.push("Future dates are not allowed.");
+    }
+  }
+
+  if (draft.time === "custom") {
+    if (!draft.fromTime || !draft.toTime) {
+      errors.push("Both From and To times are required.");
+    } else {
+      const nowStr = getCurrentTimeHourMinute();
+      const effectiveFromDate = draft.fromDate || todayIso;
+      const effectiveToDate = draft.toDate || effectiveFromDate;
+      
+      const isFromToday = effectiveFromDate === todayIso;
+      const isToToday = effectiveToDate === todayIso;
+      
+      if (effectiveFromDate === effectiveToDate && draft.fromTime > draft.toTime) {
+        errors.push("From time cannot be after To time.");
+      }
+      if (isFromToday && draft.fromTime > nowStr) {
+        errors.push("From time cannot be in the future.");
+      }
+      if (isToToday && draft.toTime > nowStr) {
+        errors.push("To time cannot be in the future.");
+      }
+    }
+  }
+
+  return errors;
+};
 
 const dateLabel = (value: (typeof API_MONITORING_DATE_OPTIONS)[number]) =>
   value === "7days" ? "7 Days" : value === "15days" ? "15 Days" : value === "1month" ? "1 Month" : "Custom";
@@ -107,12 +161,13 @@ export default function ApiMonitoringView() {
     fetchDetailsForTrack,
     refreshLogs,
     fetchFilterPanelData,
-    todayIso,
   } = useApiMonitoring();
   const [selectedLog, setSelectedLog] = useState<ApiMonitoringLog | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [draft, setDraft] = useState<ApiMonitoringAppliedFiltersDraft>(buildEmptyDraft());
+  const todayIso = useMemo(() => new Date().toLocaleDateString("en-CA"), []); // Use local date, e.g. YYYY-MM-DD
+  const [draft, setDraft] = useState<ApiMonitoringAppliedFiltersDraft>(() => buildEmptyDraft());
+  const validationErrors = getValidationErrors(draft, todayIso);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
 
@@ -121,6 +176,7 @@ export default function ApiMonitoringView() {
   const syncDraft = () => {
     setDraft({
       ...appliedFilters,
+      companies: [...appliedFilters.companies],
       users: [...appliedFilters.users],
       ips: [...appliedFilters.ips],
       urls: [...appliedFilters.urls],
@@ -172,40 +228,62 @@ export default function ApiMonitoringView() {
 
   const setFromDate = (value: string) => {
     const normalized = value && value > todayIso ? todayIso : value;
-    setDraft((current) => ({
-      ...current,
-      fromDate: normalized,
-      toDate: current.toDate && normalized && normalized > current.toDate ? normalized : current.toDate,
-    }));
+    setDraft((current) => {
+      const nextToDate = current.toDate && normalized && normalized > current.toDate ? normalized : current.toDate;
+      const nextFromTime = clipTimeIfToday(current.fromTime, normalized, todayIso);
+      const nextToTime = clipTimeIfToday(current.toTime, nextToDate, todayIso);
+      return {
+        ...current,
+        fromDate: normalized,
+        fromTime: nextFromTime,
+        toDate: nextToDate,
+        toTime: nextToDate === normalized && nextToTime < nextFromTime ? nextFromTime : nextToTime,
+      };
+    });
   };
 
   const setToDate = (value: string) => {
     const normalized = value && value > todayIso ? todayIso : value;
-    setDraft((current) => ({
-      ...current,
-      toDate: normalized,
-      fromDate: current.fromDate && normalized && normalized < current.fromDate ? normalized : current.fromDate,
-    }));
+    setDraft((current) => {
+      const nextFromDate = current.fromDate && normalized && normalized < current.fromDate ? normalized : current.fromDate;
+      const nextToTime = clipTimeIfToday(current.toTime, normalized, todayIso);
+      const nextFromTime = clipTimeIfToday(current.fromTime, nextFromDate, todayIso);
+      return {
+        ...current,
+        toDate: normalized,
+        toTime: nextToTime,
+        fromDate: nextFromDate,
+        fromTime: nextFromDate === normalized && nextToTime < nextFromTime ? nextToTime : nextFromTime,
+      };
+    });
   };
 
   const setFromTime = (value: string) => {
-    setDraft((current) => ({
-      ...current,
-      fromTime: value,
-      toTime: current.fromDate && current.toDate && current.fromDate === current.toDate && current.toTime && value > current.toTime
-        ? value
-        : current.toTime,
-    }));
+    setDraft((current) => {
+      const clippedValue = clipTimeIfToday(value, current.fromDate, todayIso);
+      const nextToTime = clipTimeIfToday(current.toTime, current.toDate, todayIso);
+      return {
+        ...current,
+        fromTime: clippedValue,
+        toTime: current.fromDate && current.toDate && current.fromDate === current.toDate && nextToTime && clippedValue > nextToTime
+          ? clippedValue
+          : nextToTime,
+      };
+    });
   };
 
   const setToTime = (value: string) => {
-    setDraft((current) => ({
-      ...current,
-      toTime: value,
-      fromTime: current.fromDate && current.toDate && current.fromDate === current.toDate && current.fromTime && value < current.fromTime
-        ? value
-        : current.fromTime,
-    }));
+    setDraft((current) => {
+      const clippedValue = clipTimeIfToday(value, current.toDate, todayIso);
+      const nextFromTime = clipTimeIfToday(current.fromTime, current.fromDate, todayIso);
+      return {
+        ...current,
+        toTime: clippedValue,
+        fromTime: current.fromDate && current.toDate && current.fromDate === current.toDate && nextFromTime && clippedValue < nextFromTime
+          ? clippedValue
+          : nextFromTime,
+      };
+    });
   };
 
   return (
@@ -337,7 +415,13 @@ export default function ApiMonitoringView() {
                       <TimeDropdown
                         value={draft.time}
                         fromTime={draft.fromTime}
-                        toTime={draft.toTime}
+                        maxFromTime={
+                          (draft.fromDate === draft.toDate && draft.toTime) 
+                            ? ((!draft.fromDate || draft.fromDate === todayIso) ? (draft.toTime < getCurrentTimeHourMinute() ? draft.toTime : getCurrentTimeHourMinute()) : draft.toTime)
+                            : ((!draft.fromDate || draft.fromDate === todayIso) ? getCurrentTimeHourMinute() : undefined)
+                        }
+                        maxToTime={(!draft.toDate || draft.toDate === todayIso) ? getCurrentTimeHourMinute() : undefined}
+                        minToTime={draft.fromDate === draft.toDate ? draft.fromTime : undefined}
                         onClear={() =>
                           setDraft((current) => ({
                             ...current,
@@ -356,6 +440,20 @@ export default function ApiMonitoringView() {
                         }
                         onFromTimeChange={setFromTime}
                         onToTimeChange={setToTime}
+                      />
+                      <MultiSelectDropdown
+                        title="Company"
+                        placeholder="Select company"
+                        options={filterMetadata.companies}
+                        optionCount={filterMetadata.companies?.length ?? 0}
+                        selected={draft.companies}
+                        onClear={() => setDraft((current) => ({ ...current, companies: [] }))}
+                        onToggle={(value) =>
+                          setDraft((current) => ({
+                            ...current,
+                            companies: current.companies.includes(value) ? current.companies.filter((item) => item !== value) : [...current.companies, value],
+                          }))
+                        }
                       />
                       <MultiSelectDropdown
                         title="User"
@@ -435,30 +533,59 @@ export default function ApiMonitoringView() {
                         onClear={() => setDraft((current) => ({ ...current, responseSize: null }))}
                         onSelect={(value) => setDraft((current) => ({ ...current, responseSize: current.responseSize === value ? null : value as typeof current.responseSize }))}
                       />
-                      <SingleSelectDropdown
-                        title="Sort Response Size "
-                        placeholder="Select flow"
-                        options={API_MONITORING_RESPONSE_SORT_OPTIONS.map((sort) => ({ value: sort, label: sort === "asc" ? "Ascending" : "Descending" }))}
-                        optionCount={API_MONITORING_RESPONSE_SORT_OPTIONS.length}
-                        value={draft.responseSizeSort}
-                        emptySummary=""
-                        onClear={() => setDraft((current) => ({ ...current, responseSizeSort: null }))}
-                        onSelect={(value) => setDraft((current) => ({ ...current, responseSizeSort: current.responseSizeSort === value ? null : value as typeof current.responseSizeSort }))}
-                      />
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <SectionLabel title="Sort Response Size" count={API_MONITORING_RESPONSE_SORT_OPTIONS.length} />
+                          {draft.responseSizeSort ? (
+                            <button
+                              type="button"
+                              onClick={() => setDraft((current) => ({ ...current, responseSizeSort: null }))}
+                              className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600 transition hover:text-blue-700"
+                            >
+                              Clear
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {API_MONITORING_RESPONSE_SORT_OPTIONS.map((sort) => (
+                            <Button
+                              key={sort}
+                              type="button"
+                              variant={draft.responseSizeSort === sort ? "default" : "outline"}
+                              size="sm"
+                              className={cn("h-11 justify-start px-3.5 text-left text-[15px] font-normal rounded-xl border-slate-200 bg-white", draft.responseSizeSort === sort && "border-primary bg-primary text-white font-medium")}
+                              onClick={() => setDraft((current) => ({ ...current, responseSizeSort: current.responseSizeSort === sort ? null : sort }))}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className={cn("flex h-4 w-4 items-center justify-center rounded-full border border-slate-300", draft.responseSizeSort === sort && "border-white")}>
+                                  {draft.responseSizeSort === sort && <div className="h-2 w-2 rounded-full bg-white" />}
+                                </div>
+                                <span>{sort === "asc" ? "Ascending" : "Descending"}</span>
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
-                    <Button variant="ghost" size="sm" onClick={() => setFiltersOpen(false)}>Cancel</Button>
-                    <Button
-                      size="sm"
-                      onClick={async () => {
-                        applyFilters(draft);
-                        setFiltersOpen(false);
-                      }}
-                    >
-                      Apply
-                    </Button>
+                  <div className="flex items-center justify-between border-t px-4 py-3">
+                    <div className="text-xs font-medium text-red-500">
+                      {validationErrors.length > 0 ? validationErrors[0] : ""}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setFiltersOpen(false)}>Cancel</Button>
+                      <Button
+                        size="sm"
+                        disabled={validationErrors.length > 0}
+                        onClick={async () => {
+                          applyFilters(draft);
+                          setFiltersOpen(false);
+                        }}
+                      >
+                        Apply
+                      </Button>
+                    </div>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -819,6 +946,9 @@ function TimeDropdown({
   value,
   fromTime,
   toTime,
+  maxFromTime,
+  maxToTime,
+  minToTime,
   onClear,
   onValueChange,
   onFromTimeChange,
@@ -827,6 +957,9 @@ function TimeDropdown({
   value: (typeof API_MONITORING_TIME_OPTIONS)[number] | null;
   fromTime: string;
   toTime: string;
+  maxFromTime?: string;
+  maxToTime?: string;
+  minToTime?: string;
   onClear?: () => void;
   onValueChange: (value: (typeof API_MONITORING_TIME_OPTIONS)[number]) => void;
   onFromTimeChange: (value: string) => void;
@@ -862,11 +995,11 @@ function TimeDropdown({
             <div className="mt-3 grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <SectionHint>From</SectionHint>
-                <Input type="time" value={fromTime} onChange={(event) => onFromTimeChange(event.target.value)} className="h-10" aria-label="From time" />
+                <Input type="time" max={maxFromTime} value={fromTime} onChange={(event) => onFromTimeChange(event.target.value)} className="h-10" aria-label="From time" />
               </div>
               <div className="space-y-2">
                 <SectionHint>To</SectionHint>
-                <Input type="time" value={toTime} onChange={(event) => onToTimeChange(event.target.value)} className="h-10" aria-label="To time" />
+                <Input type="time" min={minToTime} max={maxToTime} value={toTime} onChange={(event) => onToTimeChange(event.target.value)} className="h-10" aria-label="To time" />
               </div>
             </div>
           ) : null}

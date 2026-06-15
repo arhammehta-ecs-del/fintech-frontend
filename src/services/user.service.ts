@@ -590,6 +590,7 @@ export async function fetchUserFilterDropdowns(
           levelCount: typeof item?.levelCount === "string" ? item.levelCount.trim() : undefined,
         }))
         .filter((item) => item.value && item.path)
+        .sort((a, b) => a.path.localeCompare(b.path))
       : [],
     nodeType: Array.isArray(dropdowns.nodeType)
       ? dropdowns.nodeType

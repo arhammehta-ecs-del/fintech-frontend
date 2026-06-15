@@ -48,6 +48,8 @@ const STATUS_TABS: Array<{ id: MemberStatusTab; label: string }> = [
   { id: "inactive", label: "Inactive" },
 ];
 
+const shouldShowStatusTab = (tab: MemberStatusTab, count: number) => tab === "active" || count > 0;
+
 const FILTER_STATUS_OPTIONS: FilterStatusValue[] = ["Active", "Pending", "Inactive"];
 const DEFAULT_FILTER_ROLE_OPTIONS: FilterRoleValue[] = ["Maker", "Checker", "User"];
 const DATE_RANGE_OPTIONS: Array<Exclude<OnboardingDateRange, "CUSTOM" | null>> = ["7DAYS", "1MONTH", "1YEAR"];
@@ -272,8 +274,8 @@ export default function UserFilters(props: UserFiltersProps) {
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-full border border-slate-200 bg-white p-1.5 shadow-sm">
-            {STATUS_TABS.map((tab) => {
-              const isDisabled = statusCounts[tab.id] === 0;
+            {STATUS_TABS.filter((tab) => shouldShowStatusTab(tab.id, statusCounts[tab.id])).map((tab) => {
+              const isDisabled = tab.id !== "active" && statusCounts[tab.id] === 0;
               return (
                 <button
                   key={tab.id}
@@ -586,15 +588,36 @@ export default function UserFilters(props: UserFiltersProps) {
                         </div>
                       </div>
                     </div>
-                    <SingleSelectDropdown
-                      title="Has Pending Action"
-                      placeholder="Select pending action"
-                      options={["Yes", "No"]}
-                      itemCount={2}
-                      value={draft.pendingActionFilter}
-                      onSelect={(value) => updateDraft("pendingActionFilter", value as PendingActionValue)}
-                      onClear={() => clearDraftField("pendingActionFilter")}
-                    />
+                    <div className="space-y-2">
+                      <FieldHeader title="Has pending action" count={2} onClear={() => clearDraftField("pendingActionFilter")} canClear={draft.pendingActionFilter !== null} />
+                      <div className="rounded-lg border border-slate-200 px-3 py-2">
+                        <div className="flex items-center gap-4">
+                          {[
+                            { id: "pending-action-yes", value: "Yes", label: "Yes" },
+                            { id: "pending-action-no", value: "No", label: "No" },
+                          ].map((option) => {
+                            const isChecked = draft.pendingActionFilter === option.value;
+                            return (
+                              <label key={option.id} htmlFor={option.id} className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700 whitespace-nowrap">
+                                <input
+                                  id={option.id}
+                                  type="radio"
+                                  name="has-pending-action"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      updateDraft("pendingActionFilter", option.value as PendingActionValue);
+                                    }
+                                  }}
+                                  className="h-4 w-4 rounded-full border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                                />
+                                <span>{option.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
                     <RoleFilterDropdown
                       permissionSummary={permissionSummary}
                       selected={draft.roleFilters}
@@ -1147,7 +1170,7 @@ function NodeNameDropdown({
         <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", open && "rotate-180")} />
       </Button>
       {open ? (
-        <div className="absolute right-0 top-full z-30 mt-2 w-[380px] max-w-[min(92vw,380px)] rounded-lg border border-slate-200 bg-white p-3 shadow-[0_16px_34px_rgba(15,23,42,0.12)]">
+        <div className="absolute right-0 top-full z-30 mt-2 min-w-[380px] max-w-[min(95vw,500px)] rounded-lg border border-slate-200 bg-white p-3 shadow-[0_16px_34px_rgba(15,23,42,0.12)]">
           <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search node name" className="mb-3 h-9" />
           <div className="max-h-[220px] space-y-2 overflow-auto">
             {filteredOptions.map((option) => {
@@ -1156,29 +1179,27 @@ function NodeNameDropdown({
                 .filter((candidate) => isDescendantNodePath(option.path, candidate.path))
               const selectableChildOptions = childOptions.filter((candidate) => !selectedPaths.includes(candidate.path));
               return (
-                <div key={`${option.path}-${option.value}`} className={cn("rounded-lg border p-2", isSelected ? "border-blue-200 bg-blue-50/40" : "border-slate-100")}>
+                <div key={`${option.path}-${option.value}`} className={cn("rounded-lg border p-2", isSelected ? "border-blue-200 bg-blue-50/40" : "border-slate-100")} style={{ marginLeft: `${((option.level ?? 1) - 1) * 16}px` }}>
+                  <div className="flex flex-col gap-1.5">
                   <div className="flex items-start justify-between gap-2">
-                    <label className="flex cursor-pointer items-start gap-2">
+                    <label className="flex cursor-pointer items-start gap-2 flex-1 min-w-0">
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => onToggle(option)}
-                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
                       />
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-sm font-medium text-slate-800">{option.value}</p>
+                      <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-800 break-words">{option.value}</p>
                           {typeof option.level === "number" ? (
-                            <span className="inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-indigo-700 ring-1 ring-indigo-200/60">
+                            <span className="shrink-0 inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-indigo-700 ring-1 ring-indigo-200/60">
                               L{option.level}
                             </span>
                           ) : null}
                         </div>
-                        <p className="text-[11px] text-slate-500">{option.path}</p>
-                      </div>
-                    </label>
-                    <TooltipProvider delayDuration={0}>
-                      <div className="flex items-center gap-2">
+                      </label>
+                      <TooltipProvider delayDuration={0}>
+                        <div className="flex items-center gap-2 shrink-0">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <button
@@ -1225,8 +1246,12 @@ function NodeNameDropdown({
                           </TooltipTrigger>
                           <TooltipContent>{isSelected ? "Secondary node access" : "Select node first"}</TooltipContent>
                         </Tooltip>
-                      </div>
-                    </TooltipProvider>
+                        </div>
+                      </TooltipProvider>
+                    </div>
+                    <div className="pl-6">
+                      <p className="text-[10px] text-slate-500 break-all">{option.path}</p>
+                    </div>
                   </div>
                   {isSelected && childOptions.length > 0 ? (
                     <div className="mt-2 flex items-center justify-between rounded-lg border border-blue-100 bg-white/80 px-2.5 py-1.5">

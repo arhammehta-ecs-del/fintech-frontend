@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ApiMonitoringDetailsData, ApiMonitoringLog } from "@/features/api-monitoring/types";
 import { getApiErrorMessage } from "@/services/client";
+import { useToast } from "@/hooks/use-toast";
 import {
   fetchApiMonitoringDetails,
   fetchApiMonitoringListPaginated,
@@ -50,6 +51,7 @@ export type ApiMonitoringAppliedFiltersDraft = {
   toDate: string;
   fromTime: string;
   toTime: string;
+  companies: string[];
   users: string[];
   ips: string[];
   urls: string[];
@@ -60,6 +62,7 @@ export type ApiMonitoringAppliedFiltersDraft = {
 };
 
 const EMPTY_FILTER_METADATA: ApiMonitoringFilterMetadata = {
+  companies: [],
   users: [],
   ips: [],
   urls: [],
@@ -74,6 +77,7 @@ const buildEmptyDraft = (): ApiMonitoringAppliedFiltersDraft => ({
   toDate: "",
   fromTime: "",
   toTime: "",
+  companies: [],
   users: [],
   ips: [],
   urls: [],
@@ -91,6 +95,7 @@ const hasFiltersApplied = (draft: ApiMonitoringAppliedFiltersDraft) =>
     draft.toDate ||
     draft.fromTime ||
     draft.toTime ||
+    draft.companies.length > 0 ||
     draft.users.length > 0 ||
     draft.ips.length > 0 ||
     draft.urls.length > 0 ||
@@ -107,9 +112,9 @@ const toResponseSizeByteRange = (value: ResponseSizeRange): string | null => {
   return `${minRaw * 1024} - ${maxRaw * 1024}`;
 };
 
-const toApiDateRange = (value: DateFilterValue): "7day" | "15day" | "1month" | "custom" | null => {
-  if (value === "7days") return "7day";
-  if (value === "15days") return "15day";
+const toApiDateRange = (value: DateFilterValue): "7days" | "15days" | "1month" | "custom" | null => {
+  if (value === "7days") return "7days";
+  if (value === "15days") return "15days";
   if (value === "1month") return "1month";
   if (value === "custom") return "custom";
   return null;
@@ -185,6 +190,7 @@ const buildAppliedRequest = (draft: ApiMonitoringAppliedFiltersDraft): ApiMonito
     date: resolvedDate,
     formDate,
     toDate,
+    companies: draft.companies.length > 0 ? draft.companies : null,
     users: draft.users.length > 0 ? draft.users : null,
     ips: draft.ips.length > 0 ? draft.ips : null,
     urls: draft.urls.length > 0 ? draft.urls : null,
@@ -196,6 +202,7 @@ const buildAppliedRequest = (draft: ApiMonitoringAppliedFiltersDraft): ApiMonito
 };
 
 export function useApiMonitoring() {
+  const { toast } = useToast();
   const [logs, setLogs] = useState<ApiMonitoringLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -281,12 +288,12 @@ export function useApiMonitoring() {
         }
       } catch (err) {
         setFilterMetadata(EMPTY_FILTER_METADATA);
-        if (!shouldPreserveListState) {
-          setLogs([]);
-          setTotalCount(0);
-          setResolvedTotalPages(1);
-        }
-        setError(getApiErrorMessage(err, "Unable to load API monitoring logs"));
+        const errorMessage = getApiErrorMessage(err, "Unable to load API monitoring logs");
+        toast({
+          title: "Error fetching logs",
+          description: errorMessage,
+          variant: "destructive",
+        });
       } finally {
         if (showLoader && !shouldPreserveListState) setLoading(false);
       }

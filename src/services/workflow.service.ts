@@ -65,13 +65,15 @@ type WorkflowFilterDropdownsResponse = WorkflowApiResponse & {
     nodeType?: Array<{ value?: string; count?: number } | string>;
     category?: string[];
     subCategory?: string[];
-    levels?: Array<{ value: string; level: number; count: number }>;
+    workflowLevel?: Array<{ value?: number | string; count?: number }>;
+    checker?: Array<{ value?: number | string; count?: number }>;
   };
   nodeName?: Array<{ value?: string; path?: string; levelCount?: number } | string>;
   nodeType?: Array<{ value?: string; count?: number } | string>;
   category?: string[];
   subCategory?: string[];
-  levels?: Array<{ value: string; level: number; count: number }>;
+  workflowLevel?: Array<{ value?: number | string; count?: number }>;
+  checker?: Array<{ value?: number | string; count?: number }>;
 };
 
 export type WorkflowFetchType = "active" | "pending" | "inactive";
@@ -93,7 +95,7 @@ export type WorkflowAppliedFilters = {
   workflowType: string[] | null;
   module: string[] | null;
   subModule: string[] | null;
-  workflowLevels: number | null;
+  workflowLevels: number[] | null;
   levels: Array<{ count: number; approverType: string | null }> | null;
   approverType: string[] | null;
   onboardingDate: {
@@ -123,6 +125,7 @@ export type WorkflowFilterDropdowns = {
   nodeName: Array<{ value: string; label: string; path: string; description?: string; level?: number }>;
   nodeType: Array<{ value: string; label: string; count?: number; description?: string }>;
   module: Array<{ value: string; label: string; description?: string }>;
+  workflowLevel: Array<{ value: string; label: string; count: number }>;
   approverCount: Array<{ value: string; label: string; count: number }>;
 };
 
@@ -133,6 +136,14 @@ const readString = (value: unknown) => (typeof value === "string" ? value.trim()
 const toNullableString = (value: unknown): string | null => {
   const parsed = readString(value);
   return parsed || null;
+};
+const toNullableNumber = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 };
 const formatFilterLabel = (value: string) =>
   value
@@ -261,7 +272,8 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilte
     nodeType: response.nodeType,
     category: response.category,
     subCategory: response.subCategory,
-    levels: response.levels,
+    workflowLevel: response.workflowLevel,
+    checker: response.checker,
   };
 
   if (!dropdowns.nodeName && !dropdowns.nodeType && !dropdowns.subCategory) {
@@ -289,7 +301,7 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilte
           level: typeof item?.levelCount === "number" ? item.levelCount : undefined,
         });
         return accumulator;
-      }, [])
+      }, []).sort((a, b) => (a.path || "").localeCompare(b.path || ""))
     : [];
 
   const nodeTypeOptions: WorkflowNodeTypeOption[] = Array.isArray(dropdowns.nodeType)
@@ -327,12 +339,30 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilte
           label: formatFilterLabel(value),
         }))
       : [],
-    approverCount: Array.isArray(dropdowns.levels)
-      ? dropdowns.levels
-          .filter((item) => typeof item.level === "number" && typeof item.count === "number")
+    workflowLevel: Array.isArray(dropdowns.workflowLevel)
+      ? dropdowns.workflowLevel
           .map((item) => ({
-            value: String(item.level),
-            label: String(item.level),
+            value: toNullableNumber(item?.value),
+            count: toNullableNumber(item?.count),
+          }))
+          .filter((item): item is { value: number; count: number } => item.value !== null && item.count !== null)
+          .map((item) => ({
+            value: String(item.value),
+            label: String(item.value),
+            count: item.count,
+          }))
+          .sort((a, b) => Number(a.value) - Number(b.value))
+      : [],
+    approverCount: Array.isArray(dropdowns.checker)
+      ? dropdowns.checker
+          .map((item) => ({
+            value: toNullableNumber(item?.value),
+            count: toNullableNumber(item?.count),
+          }))
+          .filter((item): item is { value: number; count: number } => item.value !== null && item.count !== null)
+          .map((item) => ({
+            value: String(item.value),
+            label: String(item.value),
             count: item.count,
           }))
           .sort((a, b) => Number(a.value) - Number(b.value))

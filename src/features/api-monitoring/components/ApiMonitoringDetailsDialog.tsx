@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, CircleCheck, X, XCircle } from "lucide-react";
+import { AlertTriangle, CircleCheck, X, XCircle, ChevronRight } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ApiMonitoringLog, ApiMonitoringStep } from "@/features/api-monitoring/types";
 import { cn } from "@/lib/utils";
 
@@ -59,13 +60,29 @@ function StepPathText({ path }: { path: string }) {
     return <span className="max-w-[165px] truncate font-mono text-[11px]">{text}</span>;
   }
 
+  const parts = text.split("/");
+  let lastPart = "";
+  let firstPart = text;
+  if (parts.length > 1) {
+    lastPart = `/${parts.pop()}`;
+    firstPart = parts.join("/");
+  }
+
   return (
-    <span className="api-marquee-wrap max-w-[165px] font-mono text-[11px]">
-      <span className="api-marquee-track">
-        <span>{text}</span>
-        <span className="px-6">{text}</span>
+    <div className="relative flex w-full max-w-[165px] items-center overflow-hidden font-mono text-[11px]">
+      <span className="flex w-full items-center transition-opacity duration-300 group-hover:opacity-0">
+        <span className="truncate">{firstPart}</span>
+        <span className="shrink-0">{lastPart}</span>
       </span>
-    </span>
+      <div className="absolute inset-0 flex items-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+        <span className="api-marquee-wrap w-full">
+          <span className="api-marquee-track group-hover:animate-[api-marquee_9s_linear_infinite]">
+            <span>{text}</span>
+            <span className="px-6">{text}</span>
+          </span>
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -75,19 +92,43 @@ function PayloadCard({ title, headers, body, bodyTone = "text-emerald-300" }: {
   body: Record<string, unknown> | null;
   bodyTone?: string;
 }) {
+  const [isHeadersExpanded, setIsHeadersExpanded] = useState(false);
+
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       <div className="border-b border-border bg-muted/50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-foreground">{title}</div>
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-muted/20 p-4">
-        <div>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Headers</p>
-          <pre className="max-h-44 overflow-auto rounded-lg border border-slate-700 bg-slate-900 p-3 text-[11px] leading-relaxed text-green-400">
-            {Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join("\n") || "-"}
-          </pre>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Headers</p>
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setIsHeadersExpanded((value) => !value)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 shadow-sm transition hover:border-[rgb(53,83,233)] hover:text-[rgb(53,83,233)]"
+                    aria-label={isHeadersExpanded ? "Collapse Headers" : "Expand Headers"}
+                    aria-expanded={isHeadersExpanded}
+                  >
+                    {isHeadersExpanded ? <X className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {isHeadersExpanded ? "Collapse" : "Expand"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          {isHeadersExpanded ? (
+            <pre className="max-h-44 overflow-auto rounded-lg border border-slate-700 bg-slate-900 p-3 text-[11px] leading-relaxed text-green-400">
+              {Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join("\n") || "-"}
+            </pre>
+          ) : null}
         </div>
-        <div>
+        <div className="flex flex-col min-h-0">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Body (JSON)</p>
-          <pre className={cn("max-h-56 overflow-auto rounded-lg border border-slate-700 bg-slate-900 p-3 text-[11px]", bodyTone)}>
+          <pre className={cn("max-h-56 flex-1 overflow-auto rounded-lg border border-slate-700 bg-slate-900 p-3 text-[11px]", bodyTone)}>
             {JSON.stringify(body ?? {}, null, 2)}
           </pre>
         </div>
@@ -232,14 +273,14 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-md border border-border bg-white p-2.5">
+          <div className="overflow-x-auto rounded-md border border-border bg-white p-2.5 pb-3 [&::-webkit-scrollbar-thumb]:bg-slate-400 hover:[&::-webkit-scrollbar-thumb]:bg-slate-500 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar]:h-2">
             <div className="flex min-w-max items-stretch">
             {steps.map((step, index) => (
               <button
                 key={`${step.id}-${index}`}
                 onClick={() => setActiveIndex(index)}
                 className={cn(
-                  "relative -ml-4 h-[54px] min-w-[180px] shrink-0 px-6 text-white transition first:ml-0 focus:outline-none",
+                  "group relative -ml-4 h-[54px] min-w-[180px] shrink-0 px-6 text-white transition first:ml-0 focus:outline-none",
                   activeIndex === index ? "z-20 saturate-110 brightness-[1.02]" : "z-10 hover:brightness-95",
                 )}
               >
@@ -260,7 +301,7 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
                 ) : null}
                 <span className="relative z-10 flex h-full items-center justify-center px-2 text-[12px] font-bold tracking-[0.02em]">
                   <span className="flex max-w-[170px] flex-col items-center leading-tight">
-                    <span className="text-[9px] uppercase opacity-90">
+                    <span className="pb-0.5 text-[11px] font-extrabold uppercase tracking-wide opacity-100">
                       {(step.spanType || "UNKNOWN")}({step.method || "UNKNOWN"})
                     </span>
                     <StepPathText path={step.path || "-"} />
