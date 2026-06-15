@@ -12,7 +12,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/" },
   { label: "Company List", icon: List, path: "/companies" },
-  { label: "API Monitoring", icon: Activity, path: "/api-monitoring" },
+  { label: "API Monitoring", icon: Activity, path: "/monitoring" },
 ];
 
 const settingsNavItem: NavItem = {

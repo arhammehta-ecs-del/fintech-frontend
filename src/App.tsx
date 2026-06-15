@@ -9,8 +9,6 @@ import CompanyList from "@/pages/CompanyList";
 import ApiMonitoring from "@/pages/ApiMonitoring";
 import CompanySettings from "@/pages/CompanySettings";
 import Profile from "@/pages/Profile";
-import Onboarding from "@/pages/Onboarding";
-import SaasOrganisation from "@/pages/SaasOrganisation";
 
 
 function AppRoutes() {
@@ -29,14 +27,11 @@ function AppRoutes() {
       <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} />
       <Route element={isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" replace />}>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/saas-organisation" element={<SaasOrganisation />} />
         <Route path="/companies" element={<CompanyList />} />
-        <Route path="/api-monitoring" element={<ApiMonitoring />} />
-        <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/monitoring" element={<ApiMonitoring />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/settings" element={<CompanySettings />} />
       </Route>
-      
     </Routes>
   );
 }
