@@ -34,6 +34,7 @@ export const getPermissionActionLabelFromRoleName = (roleName: string) => {
   if (normalized.endsWith("manager") || normalized.endsWith("checker")) return getPermissionActionLabel("manager");
   if (normalized.endsWith("user") || normalized.endsWith("maker")) return getPermissionActionLabel("user");
   if (normalized.endsWith("viewer")) return getPermissionActionLabel("viewer");
+  if (normalized === "corpadmin") return "Corp Admin";
 
   return roleName;
 };

@@ -250,6 +250,15 @@ const toRecord = (value: unknown): RawUserRecord =>
   typeof value === "object" && value !== null ? (value as RawUserRecord) : {};
 
 const readString = (value: unknown) => (typeof value === "string" ? value : "");
+const normalizeRoleDisplayName = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const compact = trimmed.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (compact === "corpadmin") return "Corp Admin";
+
+  return trimmed;
+};
 const normalizeAccessCategory = (value: unknown): "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null => {
   const normalized = readString(value).trim().toUpperCase();
   if (!normalized) return null;
@@ -341,7 +350,7 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   const newData = Object.keys(pendingNewData).length > 0 ? pendingNewData : toRecord(record.newData);
   const name = readString(basicDetails.name).trim();
   const email = readString(basicDetails.email).trim();
-  const designation = readString(basicDetails.designation).trim();
+  const designation = normalizeRoleDisplayName(readString(basicDetails.designation));
   const phone = readString(basicDetails.phone).trim();
   const onboardingDate = readString(basicDetails.createdAt) || readString(basicDetails.companyOnboardingDate);
   const reportingManagerName = readString(basicDetails.reportingManagerName).trim();
@@ -575,7 +584,7 @@ export async function fetchUserFilterDropdowns(
     designation: Array.isArray(dropdowns.designation)
       ? dropdowns.designation
         .map((item) => ({
-          value: readString(item?.value).trim(),
+          value: normalizeRoleDisplayName(readString(item?.value)),
           count: typeof item?.count === "number" ? item.count : undefined,
         }))
         .filter((item) => item.value)

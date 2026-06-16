@@ -28,6 +28,7 @@ import { useEditLockSession } from "@/hooks/useEditLockSession";
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 import PaginationFooter from "@/components/PaginationFooter";
+import { formatCollapsedNodePath } from "@/features/user-management/utils";
 import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
 import { getApiErrorMessage } from "@/services/client";
 import { fetchWorkflowDetails, fetchWorkflowsPaginated } from "@/services/workflow.service";
@@ -62,7 +63,6 @@ function NodePathMarquee({ text }: { text: string }) {
   const viewportRef = useRef<HTMLSpanElement | null>(null);
   const textRef = useRef<HTMLSpanElement | null>(null);
   const [isHovered, setIsHovered] = useState(false);
-  const [isActivated, setIsActivated] = useState(false);
   const [overflowPx, setOverflowPx] = useState(0);
   const [textWidthPx, setTextWidthPx] = useState(0);
 
@@ -94,41 +94,33 @@ function NodePathMarquee({ text }: { text: string }) {
     };
   }, [text]);
 
-  const shouldAnimate = (isHovered || isActivated) && overflowPx > 0;
+  const shouldAnimate = isHovered && overflowPx > 0;
   const marqueeTravelPx = textWidthPx + MARQUEE_GAP_PX;
 
   return (
     <span className="mt-1 inline-flex max-w-full items-center gap-1.5">
       {overflowPx > 0 ? (
-        <button
-          type="button"
-          onClick={() => setIsActivated((current) => !current)}
-          className={cn(
-            "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border transition",
-            isActivated
-              ? "border-sky-300 bg-sky-100 text-sky-700"
-              : "border-sky-200 bg-sky-50 text-sky-600 hover:border-sky-300 hover:bg-sky-100",
-          )}
-          aria-label={isActivated ? "Stop node path marquee" : "Start node path marquee"}
+        <span
+          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-600 transition hover:border-sky-300 hover:bg-sky-100"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          aria-label="Preview full node path"
+          role="img"
         >
           <Info className="h-3 w-3" />
-        </button>
+        </span>
       ) : null}
-      <span
-        className="inline-flex min-w-0 max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      >
+      <span className="inline-flex min-w-0 max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700">
         <span ref={viewportRef} className="block max-w-full overflow-hidden whitespace-nowrap">
           <span
             className="inline-flex items-center whitespace-nowrap will-change-transform"
             style={
               shouldAnimate
                 ? {
-                    animation: `workflow-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
-                    ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
-                    transform: "translate3d(0,0,0)",
-                  }
+                  animation: `workflow-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
+                  ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
+                  transform: "translate3d(0,0,0)",
+                }
                 : undefined
             }
           >
@@ -1061,12 +1053,18 @@ export default function WorkflowManagementView() {
                     >
                       {workflow.nodeName || "—"}
                     </p>
-                    {workflow.nodePath && !isRootWorkflowNode(workflow.nodePath, workflow.nodeType) ? (() => {
-                      const pathPreview = getWorkflowPathPreview(workflow.nodePath, 3);
-                      return pathPreview ? (
-                        <NodePathMarquee text={pathPreview} />
-                      ) : null;
-                    })() : null}
+                    {(() => {
+                      const nodePath = workflow.nodePath || "";
+                      const nodeType = (workflow.nodeType || "").toUpperCase();
+                      const nodeDepth = nodePath.split(".").map((part) => part.trim()).filter(Boolean).length;
+                      const isRootByType = nodeType === "ROOT";
+                      const isRootByPath = nodeDepth <= 1;
+                      const showPath = Boolean(nodePath) && !isRootByType && !isRootByPath;
+                      if (!showPath) return null;
+                      
+                      const pathPreview = formatCollapsedNodePath(nodePath, 3);
+                      return pathPreview ? <NodePathMarquee text={pathPreview} /> : null;
+                    })()}
                   </div>
                   <div className="truncate whitespace-nowrap text-sm text-slate-700">{workflow.nodeType}</div>
                   <div>

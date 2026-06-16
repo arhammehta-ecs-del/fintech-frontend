@@ -149,7 +149,8 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
   const nodePath =
     readString(record.nodePath) ||
     readString(orgStructure.nodePath) ||
-    readString(payload.nodePath);
+    readString(payload.nodePath) ||
+    readString(pendingNewData.nodePath);
 
   const id =
     readString(record.id) ||
