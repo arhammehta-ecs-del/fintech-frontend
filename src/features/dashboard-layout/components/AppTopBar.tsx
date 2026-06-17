@@ -1,22 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell, ChevronDown, LogOut, Menu, Settings, ShieldCheck, User } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Menu, Settings, ShieldCheck, User, X } from "lucide-react";
 import type { NavigateFunction } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { AppSidebar } from "@/features/dashboard-layout/components/AppSidebar";
+import { getBranchAppearance, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
 import { cn } from "@/lib/utils";
 import {
   connectNotificationStream,
   fetchNotificationPage,
+  fetchNotificationSettings,
   type NotificationFetchDateRange,
   type NotificationFetchRefType,
   type NotificationFetchStatus,
+  type NotificationSettingsCompany,
+  type NotificationSettingsModule,
   type NotificationSsePacket,
   updateNotificationReadStatus,
 } from "@/services/notification.service";
+import { getApiErrorMessage } from "@/services/client";
 import { setNotificationsPanelOpenFlag } from "@/hooks/useNotificationsPanelOpen";
 
 type AppTopBarProps = {
@@ -62,6 +69,26 @@ type NotificationItem = {
   affectedHeading: string;
   extractedEmail: string;
   extractedEntityName: string;
+};
+
+type NotificationSettingsTreeNode = {
+  nodePath: string;
+  nodeName: string;
+  levelCount: number;
+  settings: NotificationSettingsModule[];
+  children: NotificationSettingsTreeNode[];
+};
+
+type NotificationSettingsCompanyState = Omit<NotificationSettingsCompany, "nodes"> & {
+  nodes: NotificationSettingsTreeNode[];
+};
+
+type NotificationSettingsFlowNode = {
+  node: NotificationSettingsTreeNode;
+  depth: number;
+  branchIndex: number | null;
+  branchDepth: number;
+  isRoot: boolean;
 };
 
 const COMPACT_NOTIFICATIONS_LIMIT = 10;
@@ -234,6 +261,128 @@ const statusStyles: Record<
   },
 };
 
+const formatModuleLabel = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase()) || "Module";
+
+const getNodePathSegments = (nodePath: string) =>
+  nodePath
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+const getParentNodePath = (nodePath: string) => {
+  const segments = getNodePathSegments(nodePath);
+  return segments.length > 1 ? segments.slice(0, -1).join(".") : null;
+};
+
+const sortNotificationSettingsTree = (nodes: NotificationSettingsTreeNode[]) => {
+  nodes.sort((left, right) => left.nodePath.localeCompare(right.nodePath, undefined, { numeric: true, sensitivity: "base" }));
+  nodes.forEach((node) => sortNotificationSettingsTree(node.children));
+};
+
+const buildNotificationSettingsTree = (nodes: NotificationSettingsCompany["nodes"]): NotificationSettingsTreeNode[] => {
+  const byPath = new Map<string, NotificationSettingsTreeNode>();
+  nodes.forEach((node) => {
+    const nodePath = String(node.nodePath ?? "").trim();
+    if (!nodePath) return;
+    byPath.set(nodePath, {
+      nodePath,
+      nodeName: String(node.nodeName ?? "").trim() || "Unnamed Node",
+      levelCount: Number(node.levelCount ?? Math.max(getNodePathSegments(nodePath).length - 1, 0)),
+      settings: Array.isArray(node.settings)
+        ? node.settings.map((setting) => ({
+            module: String(setting.module ?? "").trim(),
+            isEnabled: Boolean(setting.isEnabled),
+          }))
+        : [],
+      children: [],
+    });
+  });
+
+  const roots: NotificationSettingsTreeNode[] = [];
+  byPath.forEach((node, nodePath) => {
+    const parentPath = getParentNodePath(nodePath);
+    const parent = parentPath ? byPath.get(parentPath) : null;
+    if (parent) {
+      parent.children.push(node);
+      return;
+    }
+    roots.push(node);
+  });
+
+  sortNotificationSettingsTree(roots);
+  return roots;
+};
+
+const normalizeNotificationSettingsCompanies = (
+  companies: NotificationSettingsCompany[],
+): NotificationSettingsCompanyState[] =>
+  companies.map((company) => ({
+    companyName: String(company.companyName ?? "").trim() || "Company",
+    companyCode: String(company.companyCode ?? "").trim() || String(company.companyName ?? "").trim() || "COMPANY",
+    nodes: buildNotificationSettingsTree(Array.isArray(company.nodes) ? company.nodes : []),
+  }));
+
+const flattenNotificationSettingsTree = (nodes: NotificationSettingsTreeNode[]): NotificationSettingsFlowNode[] => {
+  const items: NotificationSettingsFlowNode[] = [];
+
+  const walk = (
+    node: NotificationSettingsTreeNode,
+    depth: number,
+    branchIndex: number | null,
+    branchDepth: number,
+    isRoot: boolean,
+  ) => {
+    items.push({ node, depth, branchIndex, branchDepth, isRoot });
+    node.children.forEach((child, childIndex) => {
+      walk(child, depth + 1, isRoot ? childIndex : branchIndex, isRoot ? 0 : branchDepth + 1, false);
+    });
+  };
+
+  nodes.forEach((node) => walk(node, 0, null, 0, true));
+  return items;
+};
+
+const findNotificationSettingsNode = (
+  nodes: NotificationSettingsTreeNode[],
+  nodePath: string,
+): NotificationSettingsTreeNode | null => {
+  for (const node of nodes) {
+    if (node.nodePath === nodePath) return node;
+    const childMatch = findNotificationSettingsNode(node.children, nodePath);
+    if (childMatch) return childMatch;
+  }
+  return null;
+};
+
+const mapNotificationSettingsNodes = (
+  nodes: NotificationSettingsTreeNode[],
+  nodePath: string,
+  updater: (node: NotificationSettingsTreeNode) => NotificationSettingsTreeNode,
+): NotificationSettingsTreeNode[] =>
+  nodes.map((node) => {
+    if (node.nodePath === nodePath) {
+      return updater({
+        ...node,
+        settings: node.settings.map((setting) => ({ ...setting })),
+        children: node.children.map((child) => child),
+      });
+    }
+
+    if (node.children.length === 0) return node;
+    return {
+      ...node,
+      children: mapNotificationSettingsNodes(node.children, nodePath, updater),
+    };
+  });
+
+const getNotificationSettingsNodeToggleState = (node: NotificationSettingsTreeNode | null) =>
+  Boolean(node && node.settings.length > 0 && node.settings.every((setting) => setting.isEnabled));
+
 export function AppTopBar({
   mobileNavOpen,
   onMobileNavOpenChange,
@@ -259,6 +408,12 @@ export function AppTopBar({
   const [customFromDate, setCustomFromDate] = useState("");
   const [customToDate, setCustomToDate] = useState("");
   const [expandedNotificationIds, setExpandedNotificationIds] = useState<string[]>([]);
+  const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
+  const [notificationSettingsLoading, setNotificationSettingsLoading] = useState(false);
+  const [notificationSettingsError, setNotificationSettingsError] = useState("");
+  const [notificationSettingsCompanies, setNotificationSettingsCompanies] = useState<NotificationSettingsCompanyState[]>([]);
+  const [selectedNotificationSettingsCompanyCode, setSelectedNotificationSettingsCompanyCode] = useState("");
+  const [selectedNotificationSettingsNodePath, setSelectedNotificationSettingsNodePath] = useState("");
 
   const resetNotificationFilters = useCallback(() => {
     setNotificationStatusFilters([]);
@@ -286,6 +441,52 @@ export function AppTopBar({
     [dialogNotifications, notificationModuleFilters, notificationStatusFilters],
   );
   const hasAnyNotificationFilter = notificationStatusFilters.length > 0 || notificationModuleFilters.length > 0;
+  const selectedNotificationSettingsCompany = useMemo(
+    () =>
+      notificationSettingsCompanies.find((company) => company.companyCode === selectedNotificationSettingsCompanyCode)
+      ?? notificationSettingsCompanies[0]
+      ?? null,
+    [notificationSettingsCompanies, selectedNotificationSettingsCompanyCode],
+  );
+  const notificationSettingsFlowNodes = useMemo(
+    () => flattenNotificationSettingsTree(selectedNotificationSettingsCompany?.nodes ?? []),
+    [selectedNotificationSettingsCompany],
+  );
+  const selectedNotificationSettingsNode = useMemo(
+    () =>
+      selectedNotificationSettingsCompany
+        ? findNotificationSettingsNode(selectedNotificationSettingsCompany.nodes, selectedNotificationSettingsNodePath)
+        : null,
+    [selectedNotificationSettingsCompany, selectedNotificationSettingsNodePath],
+  );
+
+  useEffect(() => {
+    if (!selectedNotificationSettingsCompany) {
+      if (selectedNotificationSettingsCompanyCode) setSelectedNotificationSettingsCompanyCode("");
+      if (selectedNotificationSettingsNodePath) setSelectedNotificationSettingsNodePath("");
+      return;
+    }
+
+    if (selectedNotificationSettingsCompany.companyCode !== selectedNotificationSettingsCompanyCode) {
+      setSelectedNotificationSettingsCompanyCode(selectedNotificationSettingsCompany.companyCode);
+      return;
+    }
+
+    const currentSelection = selectedNotificationSettingsNodePath
+      ? findNotificationSettingsNode(selectedNotificationSettingsCompany.nodes, selectedNotificationSettingsNodePath)
+      : null;
+    if (currentSelection) return;
+
+    const firstNodePath = notificationSettingsFlowNodes[0]?.node.nodePath ?? "";
+    if (firstNodePath !== selectedNotificationSettingsNodePath) {
+      setSelectedNotificationSettingsNodePath(firstNodePath);
+    }
+  }, [
+    notificationSettingsFlowNodes,
+    selectedNotificationSettingsCompany,
+    selectedNotificationSettingsCompanyCode,
+    selectedNotificationSettingsNodePath,
+  ]);
 
   const mapPacketToNotification = useCallback((packet: NotificationSsePacket): NotificationItem => {
     const badge = mapTypeToBadge(packet.type);
@@ -577,6 +778,84 @@ export function AppTopBar({
     }
   };
 
+  const loadNotificationSettings = useCallback(async () => {
+    setNotificationSettingsOpen(true);
+    setNotificationSettingsLoading(true);
+    setNotificationSettingsError("");
+
+    try {
+      const response = await fetchNotificationSettings();
+      const normalizedCompanies = normalizeNotificationSettingsCompanies(response);
+      setNotificationSettingsCompanies(normalizedCompanies);
+
+      const nextCompanyCode =
+        normalizedCompanies.find((company) => company.companyCode === selectedNotificationSettingsCompanyCode)?.companyCode
+        ?? normalizedCompanies[0]?.companyCode
+        ?? "";
+      setSelectedNotificationSettingsCompanyCode(nextCompanyCode);
+      setSelectedNotificationSettingsNodePath(
+        flattenNotificationSettingsTree(
+          normalizedCompanies.find((company) => company.companyCode === nextCompanyCode)?.nodes ?? [],
+        )[0]?.node.nodePath ?? "",
+      );
+    } catch (error) {
+      setNotificationSettingsCompanies([]);
+      setSelectedNotificationSettingsCompanyCode("");
+      setSelectedNotificationSettingsNodePath("");
+      setNotificationSettingsError(getApiErrorMessage(error, "Unable to load notification settings."));
+    } finally {
+      setNotificationSettingsLoading(false);
+    }
+  }, [selectedNotificationSettingsCompanyCode]);
+
+  const updateNotificationSettingsNode = useCallback(
+    (nodePath: string, updater: (node: NotificationSettingsTreeNode) => NotificationSettingsTreeNode) => {
+      if (!selectedNotificationSettingsCompany) return;
+
+      setNotificationSettingsCompanies((current) =>
+        current.map((company) =>
+          company.companyCode !== selectedNotificationSettingsCompany.companyCode
+            ? company
+            : {
+                ...company,
+                nodes: mapNotificationSettingsNodes(company.nodes, nodePath, updater),
+              },
+        ),
+      );
+    },
+    [selectedNotificationSettingsCompany],
+  );
+
+  const handleNotificationSettingsNodeToggle = useCallback(
+    (nodePath: string, checked: boolean) => {
+      updateNotificationSettingsNode(nodePath, (node) => ({
+        ...node,
+        settings: node.settings.map((setting) => ({
+          ...setting,
+          isEnabled: checked,
+        })),
+      }));
+    },
+    [updateNotificationSettingsNode],
+  );
+
+  const handleNotificationSettingsModuleToggle = useCallback(
+    (nodePath: string, moduleName: string, checked: boolean) => {
+      updateNotificationSettingsNode(nodePath, (node) => ({
+        ...node,
+        settings: node.settings.map((setting) =>
+          setting.module === moduleName
+            ? {
+                ...setting,
+                isEnabled: checked,
+              }
+            : setting,
+        ),
+      }));
+    },
+    [updateNotificationSettingsNode],
+  );
+
   const renderNotificationCard = (notification: NotificationItem, key: string, compact = false) => {
     const styles = statusStyles[notification.badgeTone];
     const isExpanded = expandedNotificationIds.includes(notification.id);
@@ -851,6 +1130,186 @@ export function AppTopBar({
     </div>
   );
 
+  const renderNotificationSettingsNodeTree = () => {
+    if (notificationSettingsLoading) {
+      return (
+        <div className="flex min-h-[20rem] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-4 text-center">
+          <p className="text-sm font-semibold text-slate-700">Loading notification settings...</p>
+        </div>
+      );
+    }
+
+    if (notificationSettingsError) {
+      return (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+          {notificationSettingsError}
+        </div>
+      );
+    }
+
+    if (notificationSettingsFlowNodes.length === 0) {
+      return (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
+          No notification settings were returned for this company.
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-h-[32rem] overflow-auto rounded-xl border border-slate-200 bg-white/80">
+        <div className="space-y-2 p-3">
+          {notificationSettingsFlowNodes.map((item) => {
+            const appearance = getBranchAppearance(item.branchIndex, item.branchDepth, item.isRoot);
+            const borderLeftClass = item.isRoot
+              ? "border-l-indigo-400"
+              : getNodeAccentBorderLeft(item.branchIndex, item.branchDepth, item.isRoot);
+            const isSelected = selectedNotificationSettingsNodePath === item.node.nodePath;
+            const isEnabled = getNotificationSettingsNodeToggleState(item.node);
+
+            return (
+              <div key={item.node.nodePath} style={{ paddingLeft: `${item.depth * 20}px` }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedNotificationSettingsNodePath(item.node.nodePath)}
+                  className={cn(
+                    "group relative w-full overflow-hidden rounded-xl border bg-white px-3 py-2.5 text-left transition",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                    isSelected
+                      ? item.isRoot
+                        ? "border border-indigo-200 bg-indigo-50/70 text-slate-800 shadow-[0_10px_22px_rgba(99,102,241,0.16)] border-l-[4px] border-l-indigo-400"
+                        : cn(
+                            "border-[rgb(53,83,233)] shadow-[0_0_0_3px_rgba(53,83,233,0.08)] bg-[rgb(53,83,233,0.02)] border-l-[4px]",
+                            borderLeftClass,
+                          )
+                      : cn(
+                          item.isRoot
+                            ? "border border-indigo-100 bg-indigo-50/35 text-slate-800 shadow-[0_6px_16px_rgba(99,102,241,0.1)]"
+                            : appearance.defaultSurfaceClass,
+                          appearance.hoverBorderClass,
+                          "border-l-[4px]",
+                          borderLeftClass,
+                        ),
+                  )}
+                >
+                  <span
+                    className={cn("absolute left-0 top-0 h-full w-[4px] rounded-r-full", item.isRoot ? "bg-indigo-400" : borderLeftClass)}
+                    aria-hidden="true"
+                  />
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        {!item.isRoot ? (
+                          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                            Level {Math.max(item.depth, 1)}
+                          </span>
+                        ) : null}
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                          {isEnabled ? "Enabled" : "Disabled"}
+                        </span>
+                      </div>
+                      <div className={cn("mt-2 truncate text-[13px] font-semibold", "text-slate-800")}>{item.node.nodeName}</div>
+                      <div className="truncate text-[10px] text-slate-500">{item.node.nodePath}</div>
+                    </div>
+                    <div
+                      className="shrink-0"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                      }}
+                    >
+                      <Switch
+                        checked={isEnabled}
+                        onCheckedChange={(checked) => handleNotificationSettingsNodeToggle(item.node.nodePath, checked)}
+                        aria-label={`Toggle notifications for ${item.node.nodeName}`}
+                      />
+                    </div>
+                  </div>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderNotificationSettingsDetails = () => {
+    if (notificationSettingsLoading) {
+      return (
+        <div className="flex min-h-[20rem] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-4 text-center">
+          <p className="text-sm font-semibold text-slate-700">Preparing node settings...</p>
+        </div>
+      );
+    }
+
+    if (!selectedNotificationSettingsNode) {
+      return (
+        <div className="flex min-h-[20rem] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-4 text-center">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Select a node</p>
+            <p className="mt-1 text-xs text-slate-500">Its module notification settings will appear here.</p>
+          </div>
+        </div>
+      );
+    }
+
+    const nodeEnabled = getNotificationSettingsNodeToggleState(selectedNotificationSettingsNode);
+
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Node Notifications</p>
+            <h3 className="mt-2 text-lg font-semibold text-slate-900">{selectedNotificationSettingsNode.nodeName}</h3>
+            <p className="mt-1 text-xs text-slate-500">{selectedNotificationSettingsNode.nodePath}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Node Level</p>
+            <div className="mt-2 flex items-center gap-3">
+              <Switch
+                checked={nodeEnabled}
+                onCheckedChange={(checked) => handleNotificationSettingsNodeToggle(selectedNotificationSettingsNode.nodePath, checked)}
+                aria-label={`Toggle notifications for ${selectedNotificationSettingsNode.nodeName}`}
+              />
+              <span className="text-sm font-semibold text-slate-700">{nodeEnabled ? "Enabled" : "Disabled"}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {selectedNotificationSettingsNode.settings.length > 0 ? (
+            selectedNotificationSettingsNode.settings.map((setting) => (
+              <div
+                key={`${selectedNotificationSettingsNode.nodePath}-${setting.module}`}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{formatModuleLabel(setting.module)}</p>
+                  <p className="mt-1 text-xs text-slate-500">Notification alerts for the {formatModuleLabel(setting.module).toLowerCase()} module.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={cn("text-xs font-semibold", setting.isEnabled ? "text-emerald-700" : "text-slate-500")}>
+                    {setting.isEnabled ? "On" : "Off"}
+                  </span>
+                  <Switch
+                    checked={setting.isEnabled}
+                    onCheckedChange={(checked) =>
+                      handleNotificationSettingsModuleToggle(selectedNotificationSettingsNode.nodePath, setting.module, checked)
+                    }
+                    aria-label={`Toggle ${formatModuleLabel(setting.module)} notifications`}
+                  />
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-8 text-center text-sm text-slate-500">
+              No module-level notification settings are available for this node.
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <header className="sticky top-0 z-20 flex min-h-14 items-center justify-between gap-3 border-b border-border bg-card px-3 sm:px-4 lg:px-6">
       <div className="flex items-center gap-2">
@@ -901,9 +1360,18 @@ export function AppTopBar({
                   {unreadCountLabel}
                 </span>
               </div>
-              <button type="button" onClick={() => void markAllAsRead()} className="text-xs font-medium text-slate-600 transition-colors hover:text-slate-900">
-                Mark all read
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void loadNotificationSettings()}
+                  className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                >
+                  Manage Notifications
+                </button>
+                <button type="button" onClick={() => void markAllAsRead()} className="text-xs font-medium text-slate-600 transition-colors hover:text-slate-900">
+                  Mark all read
+                </button>
+              </div>
             </div>
             {renderNotificationFilters(true)}
             <div className="flex h-[560px] flex-col bg-slate-50/60">
@@ -1014,6 +1482,79 @@ export function AppTopBar({
                 </button>
               </div>
             ) : null}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={notificationSettingsOpen} onOpenChange={setNotificationSettingsOpen}>
+          <DialogContent showCloseButton={false} className="h-[88vh] w-[min(96vw,1120px)] max-w-[1120px] overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-2xl">
+            <DialogHeader className="border-b border-slate-200 px-6 py-4">
+              <DialogTitle className="flex items-center justify-between gap-4 text-slate-900">
+                <div>
+                  <span>Manage Notifications</span>
+                  <p className="mt-1 text-sm font-normal text-slate-500">
+                    Select a node to review and toggle module-wise notification settings.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNotificationSettingsOpen(false)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Close notification settings"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="flex min-h-0 flex-1 flex-col bg-slate-50/60">
+              <div className="border-b border-slate-200 bg-white px-6 py-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Company</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {selectedNotificationSettingsCompany
+                        ? `${selectedNotificationSettingsCompany.companyName} (${selectedNotificationSettingsCompany.companyCode})`
+                        : "Choose a company to inspect its notification tree."}
+                    </p>
+                  </div>
+                  {notificationSettingsCompanies.length > 1 ? (
+                    <div className="w-full lg:w-[22rem]">
+                      <Select
+                        value={selectedNotificationSettingsCompany?.companyCode ?? ""}
+                        onValueChange={(value) => {
+                          setSelectedNotificationSettingsCompanyCode(value);
+                          const nextCompany = notificationSettingsCompanies.find((company) => company.companyCode === value);
+                          setSelectedNotificationSettingsNodePath(flattenNotificationSettingsTree(nextCompany?.nodes ?? [])[0]?.node.nodePath ?? "");
+                        }}
+                      >
+                        <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white">
+                          <SelectValue placeholder="Select company" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {notificationSettingsCompanies.map((company) => (
+                            <SelectItem key={company.companyCode} value={company.companyCode}>
+                              {company.companyName} ({company.companyCode})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 overflow-hidden p-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.15fr)]">
+                <div className="min-h-0 rounded-2xl border border-slate-200 bg-slate-50/40 p-5">
+                  <div className="mb-4">
+                    <h3 className="text-base font-semibold text-slate-800">Organization Nodes</h3>
+                    <p className="mt-1 text-xs text-slate-500">The left pane mirrors the existing node selection style and includes a node-level master toggle.</p>
+                  </div>
+                  {renderNotificationSettingsNodeTree()}
+                </div>
+
+                <div className="min-h-0 overflow-auto">{renderNotificationSettingsDetails()}</div>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
 

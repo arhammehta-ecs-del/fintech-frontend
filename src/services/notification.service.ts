@@ -3,6 +3,7 @@ import { apiFetch, buildApiUrl } from "@/services/client";
 const NOTIFICATION_SSE_PATH = "/api/v1/notifications/sse";
 const NOTIFICATION_READ_PATH = "/api/v1/notifications/read";
 const NOTIFICATION_FETCH_PATH = "/api/v1/notifications/fetch";
+const NOTIFICATION_SETTINGS_FETCH_PATH = "/api/notifications/fetch-settings";
 
 export type NotificationSseType = "INITIATE" | "APPROVE" | "REJECT";
 export type NotificationSseRefType = "USER" | "WORKFLOW" | "ORG" | "COMPANYLIST";
@@ -70,6 +71,29 @@ export type NotificationFetchResult = {
   cursorId: string | null;
   nextCursorId: string | null;
   hasNextPage: boolean;
+};
+
+export type NotificationSettingsModule = {
+  module: string;
+  isEnabled: boolean;
+};
+
+export type NotificationSettingsNode = {
+  nodePath: string;
+  nodeName: string;
+  levelCount?: number;
+  settings: NotificationSettingsModule[];
+};
+
+export type NotificationSettingsCompany = {
+  companyName: string;
+  companyCode: string;
+  nodes: NotificationSettingsNode[];
+};
+
+type NotificationSettingsResponse = {
+  success?: boolean;
+  data?: NotificationSettingsCompany[];
 };
 
 type NotificationSseCallbacks = {
@@ -144,4 +168,19 @@ export async function fetchNotificationPage(payload: NotificationFetchRequest) {
     nextCursorId: response.nextCursorId ?? null,
     hasNextPage: Boolean(response.hasNextPage),
   } as NotificationFetchResult;
+}
+
+export async function fetchNotificationSettings() {
+  const response = await apiFetch<NotificationSettingsResponse | NotificationSettingsCompany[]>(
+    NOTIFICATION_SETTINGS_FETCH_PATH,
+    {
+      method: "GET",
+    },
+  );
+
+  if (Array.isArray(response)) {
+    return response;
+  }
+
+  return Array.isArray(response.data) ? response.data : [];
 }
