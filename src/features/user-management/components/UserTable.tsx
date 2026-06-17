@@ -44,6 +44,7 @@ const getPrimaryNodeMeta = (member: AppUser) => {
   const nodeType = (preferredAccess?.nodeType || member.nodeType || member.basicDetails?.nodeType || "").trim().toUpperCase();
   const nodePath = (preferredAccess?.nodePath || fallbackNodePath).trim();
   const nodeName = (preferredAccess?.nodeName || member.nodeName || member.basicDetails?.nodeName || "").trim();
+  const levelCount = member.levelCount ?? (nodePath ? nodePath.split(".").map((part) => part.trim()).filter(Boolean).length : undefined);
   const nodeDepth = nodePath.split(".").map((part) => part.trim()).filter(Boolean).length;
   const isRootByType = nodeType === "ROOT";
   const isRootByPath = nodeDepth <= 1;
@@ -53,6 +54,7 @@ const getPrimaryNodeMeta = (member: AppUser) => {
     departmentLabel: nodeName || member.department || "",
     primaryNodePath: nodePath,
     nodeType,
+    levelCount,
     showPath,
   };
 };
@@ -95,6 +97,7 @@ const getMatchedAccessMeta = (
     nodeName,
     nodePath,
     nodeType,
+    levelCount: nodePath ? nodePath.split(".").map((part) => part.trim()).filter(Boolean).length : undefined,
     showPath,
     accessType: (matchedEntry.accessType || "").trim(),
     categoryLabel: formatRoleTokenLabel(matchedEntry.roleCategory || linkedAccessContext.category),
@@ -285,6 +288,7 @@ export default function UserTable({
                     primaryNodePath: matchedAccessMeta.nodePath,
                     showPath: matchedAccessMeta.showPath,
                     nodeType: matchedAccessMeta.nodeType,
+                    levelCount: matchedAccessMeta.levelCount,
                   }
                   : baseNodeMeta;
                 const formattedPath = activeNodeMeta.showPath ? formatCollapsedNodePath(activeNodeMeta.primaryNodePath) : "";
@@ -294,7 +298,12 @@ export default function UserTable({
                 
                 return (
                   <div className="min-w-0">
-                    <p className="truncate text-sm text-slate-700">
+                    <p className="flex items-center gap-1.5 truncate text-sm text-slate-700">
+                      {typeof activeNodeMeta.levelCount === "number" ? (
+                        <span className="shrink-0 rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-bold tracking-wider text-indigo-700">
+                          L{activeNodeMeta.levelCount}
+                        </span>
+                      ) : null}
                       {activeNodeMeta.departmentLabel || "—"}
                       {displayNodeType ? (
                         <span className="ml-1 text-[13px] text-slate-500">({displayNodeType})</span>

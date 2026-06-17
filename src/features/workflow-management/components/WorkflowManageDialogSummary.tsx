@@ -223,12 +223,13 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
     const rows = linkedRows.length > 0 ? linkedRows : fallbackRows;
     const deduped = rows
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry?.nodePath && entry?.nodeName))
-      .reduce<Array<{ nodePath: string; nodeName: string; nodeType: string }>>((acc, current) => {
+      .reduce<Array<{ nodePath: string; nodeName: string; nodeType: string; levelCount?: number }>>((acc, current) => {
         if (acc.some((row) => row.nodePath === current.nodePath)) return acc;
         acc.push({
           nodePath: current.nodePath,
           nodeName: current.nodeName,
           nodeType: current.nodeType,
+          levelCount: current.levelCount,
         });
         return acc;
       }, []);
@@ -242,6 +243,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
 
   const topNodeName = workflow.orgStructure?.nodeName?.trim() || workflow.nodeName || "-";
   const topNodePath = workflow.orgStructure?.nodePath?.trim() || workflow.nodePath || "";
+  const topNodeLevelCount = workflow.orgStructure?.levelCount ?? workflow.levelCount;
   const workflowTypeLabel = formatSnakeCaseLabel(workflow.workflowType || workflow.nodeType || "-");
   const moduleLabel = formatSnakeCaseLabel(workflow.subModule || workflow.module || "-");
   const previousWorkflowName = previousWorkflow?.name?.trim() || "";
@@ -334,7 +336,16 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
               <span className="text-slate-400">:</span>
             </div>
             <div className="min-w-0 space-y-1">
-              {renderInlineDiff(topNodeName, previousTopNodeName)}
+              <div className="flex flex-wrap items-center gap-2">
+                {typeof topNodeLevelCount === "number" ? (
+                  <span className="inline-flex shrink-0 items-center rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold leading-none tracking-wider text-indigo-700">
+                    L{topNodeLevelCount}
+                  </span>
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  {renderInlineDiff(topNodeName, previousTopNodeName)}
+                </div>
+              </div>
               {topNodePath && !isRootWorkflowNode(topNodePath, workflow.orgStructure?.nodeType || workflow.nodeType) ? (
                 renderOrgPathBadge(getWorkflowPathPreview(topNodePath, 3))
               ) : null}
@@ -489,8 +500,13 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
               const fullNodePath = entry.nodePath || getWorkflowPathPreview(entry.nodePath, 3);
               return (
                 <div key={`${entry.nodePath}-${index}`} className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-sm">
-                  <p className="truncate text-[15px] font-semibold text-slate-900">
-                    {entry.nodeName}
+                  <p className="flex items-center gap-2 truncate text-[15px] font-semibold text-slate-900">
+                    {typeof entry.levelCount === "number" ? (
+                      <span className="inline-flex shrink-0 items-center rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold leading-none tracking-wider text-indigo-700">
+                        L{entry.levelCount}
+                      </span>
+                    ) : null}
+                    <span className="truncate">{entry.nodeName}</span>
                     {formattedType ? <span className="ml-2 text-[13px] font-medium text-slate-500">({formattedType})</span> : null}
                   </p>
                   {renderOrgPathBadge(fullNodePath)}

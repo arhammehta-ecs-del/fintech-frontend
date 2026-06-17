@@ -250,6 +250,8 @@ const toRecord = (value: unknown): RawUserRecord =>
   typeof value === "object" && value !== null ? (value as RawUserRecord) : {};
 
 const readString = (value: unknown) => (typeof value === "string" ? value : "");
+const readNumber = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
 const normalizeRoleDisplayName = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return "";
@@ -341,6 +343,15 @@ const getNodePathFromAccessDetails = (record: RawUserRecord) => {
   return readString((basicDetails as Record<string, unknown>).nodePath).trim() || readString(record.nodePath).trim() || "";
 };
 
+const getLevelCountFromPath = (nodePath: string, nodeType?: string) => {
+  if ((nodeType || "").trim().toUpperCase() === "ROOT") return 1;
+  const segments = nodePath
+    .split(".")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return segments.length > 0 ? segments.length : undefined;
+};
+
 const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUser => {
   const basicDetails = toRecord(record.basicDetails);
   const pendingRequest = toRecord(record.pendingRequest);
@@ -384,18 +395,24 @@ const mapCompanyUser = (record: RawUserRecord, status: AppUser["status"]): AppUs
   const isPending = Boolean(record.isPending) || pendingRequestStatus === "PENDING";
   const pendingApprovalCount = typeof record.pendingApprovalCount === "number" ? record.pendingApprovalCount : undefined;
   const nodePath = getNodePathFromAccessDetails(record);
+  const levelCount =
+    readNumber(record.levelCount) ??
+    getLevelCountFromPath(nodePath, nodeTypeRaw);
 
   return {
     id: backendId || undefined,
     uuid: uuid || undefined,
     requestId: requestId || undefined,
     isPending,
+    levelCount,
     pendingApprovalCount,
     name,
     email,
     role: designation,
     designation,
     department: getDepartmentFromAccessDetails(record),
+    nodeName: nodeNameRaw || undefined,
+    nodeType: nodeTypeRaw || undefined,
     nodePath: nodePath || undefined,
     phone,
     companyId: companyId || undefined,

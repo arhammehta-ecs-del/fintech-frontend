@@ -1047,8 +1047,13 @@ export default function WorkflowManagementView() {
                   </div>
                   <div className="min-w-0 text-sm text-slate-700">
                     <p
-                      className="text-sm text-slate-700 [overflow-wrap:anywhere]"
+                      className={cn(
+                        "flex items-center gap-1.5 text-sm text-slate-700 [overflow-wrap:anywhere]",
+                        typeof workflow.levelCount === "number" &&
+                          "before:shrink-0 before:rounded before:bg-indigo-100 before:px-1 before:py-0.5 before:text-[9px] before:font-bold before:tracking-wider before:text-indigo-700 before:content-[attr(data-level)]",
+                      )}
                       style={{ maxWidth: `${NODE_NAME_TRUNCATE_THRESHOLD}ch` }}
+                      data-level={typeof workflow.levelCount === "number" ? `L${workflow.levelCount}` : undefined}
                       title={workflow.nodeName || "—"}
                     >
                       {workflow.nodeName || "—"}

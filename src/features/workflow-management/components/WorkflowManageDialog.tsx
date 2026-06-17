@@ -470,6 +470,7 @@ export default function WorkflowManageDialog({
   const initiatorName = workflow.initiatorName?.trim() || "";
   const initiatorEmail = workflow.initiatorEmail?.trim() || "";
   const initiatedOn = formatToIst(workflow.initiatedDate);
+  const shouldUseCompactInitiatorStrip = preventOutsideClose;
   const pendingWorkflowName = workflow.workflowName?.trim() || "";
   const previousWorkflowAlias = previousWorkflow?.alias?.trim() || "";
   const derivedDisplayWorkflowAlias = deriveWorkflowAliasFromLevels(displayWorkflow.levels);
@@ -837,44 +838,84 @@ export default function WorkflowManageDialog({
           </div>
           {canShowPendingActions ? (
             <div className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-1.5">
-              <div className="space-y-2 text-[12px]">
-                <div className="flex w-full flex-wrap items-center gap-2">
-                  {initiatorName ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                      <UserCheck size={12} className="text-slate-400" />
-                      <span className="shrink-0 text-slate-500">By</span>
-                      <span className="font-medium text-slate-700">{initiatorName}</span>
-                    </span>
-                  ) : null}
-                  {initiatorEmail ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                      <Mail size={12} className="text-slate-400" />
-                      <span className="shrink-0 text-slate-500">Email</span>
-                      <span className="font-medium text-slate-700">{initiatorEmail}</span>
-                    </span>
-                  ) : null}
-                  {initiatedOn ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                      <Calendar size={12} className="text-slate-400" />
-                      <span className="shrink-0 text-slate-500">Initiated</span>
-                      <span className="font-medium text-slate-700">{initiatedOn}</span>
-                    </span>
-                  ) : null}
-                </div>
-                <div className="flex w-full flex-wrap items-center gap-2">
-                  {pendingWorkflowName ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                      <span className="shrink-0 text-slate-500">Workflow</span>
-                      <span className="font-medium text-slate-700">{pendingWorkflowName}</span>
-                    </span>
-                  ) : null}
-                  {pendingWorkflowAlias ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70">
-                      <span className="shrink-0 text-slate-500">Alias</span>
-                      <span className="font-medium text-slate-700">{pendingWorkflowAlias}</span>
-                    </span>
-                  ) : null}
-                </div>
+              <div className={cn("text-[12px]", shouldUseCompactInitiatorStrip && "overflow-x-auto")}>
+                {shouldUseCompactInitiatorStrip ? (
+                  <div className="flex min-w-max flex-nowrap items-center gap-2">
+                    {initiatorName ? (
+                      <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] text-slate-600 ring-1 ring-slate-200/70">
+                        <UserCheck size={12} className="text-slate-400" />
+                        <span className="shrink-0 text-slate-500">By</span>
+                        <span className="font-medium text-slate-700">{initiatorName}</span>
+                      </span>
+                    ) : null}
+                    {initiatorEmail ? (
+                      <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] text-slate-600 ring-1 ring-slate-200/70">
+                        <Mail size={12} className="text-slate-400" />
+                        <span className="shrink-0 text-slate-500">Email</span>
+                        <span className="font-medium text-slate-700">{initiatorEmail}</span>
+                      </span>
+                    ) : null}
+                    {initiatedOn ? (
+                      <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] text-slate-600 ring-1 ring-slate-200/70">
+                        <Calendar size={12} className="text-slate-400" />
+                        <span className="shrink-0 text-slate-500">Initiated</span>
+                        <span className="font-medium text-slate-700">{initiatedOn}</span>
+                      </span>
+                    ) : null}
+                    {pendingWorkflowName ? (
+                      <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] text-slate-600 ring-1 ring-slate-200/70">
+                        <span className="shrink-0 text-slate-500">Workflow</span>
+                        <span className="font-medium text-slate-700">{pendingWorkflowName}</span>
+                      </span>
+                    ) : null}
+                    {pendingWorkflowAlias ? (
+                      <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] text-slate-600 ring-1 ring-slate-200/70">
+                        <span className="shrink-0 text-slate-500">Alias</span>
+                        <span className="font-medium text-slate-700">{pendingWorkflowAlias}</span>
+                      </span>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex flex-nowrap items-center gap-2">
+                      {initiatorName ? (
+                        <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] text-slate-600 ring-1 ring-slate-200/70">
+                          <UserCheck size={12} className="text-slate-400" />
+                          <span className="shrink-0 text-slate-500">By</span>
+                          <span className="font-medium text-slate-700">{initiatorName}</span>
+                        </span>
+                      ) : null}
+                      {initiatorEmail ? (
+                        <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] text-slate-600 ring-1 ring-slate-200/70">
+                          <Mail size={12} className="text-slate-400" />
+                          <span className="shrink-0 text-slate-500">Email</span>
+                          <span className="font-medium text-slate-700">{initiatorEmail}</span>
+                        </span>
+                      ) : null}
+                      {initiatedOn ? (
+                        <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] text-slate-600 ring-1 ring-slate-200/70">
+                          <Calendar size={12} className="text-slate-400" />
+                          <span className="shrink-0 text-slate-500">Initiated</span>
+                          <span className="font-medium text-slate-700">{initiatedOn}</span>
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-nowrap items-center gap-2">
+                      {pendingWorkflowName ? (
+                        <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] text-slate-600 ring-1 ring-slate-200/70">
+                          <span className="shrink-0 text-slate-500">Workflow</span>
+                          <span className="font-medium text-slate-700">{pendingWorkflowName}</span>
+                        </span>
+                      ) : null}
+                      {pendingWorkflowAlias ? (
+                        <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] text-slate-600 ring-1 ring-slate-200/70">
+                          <span className="shrink-0 text-slate-500">Alias</span>
+                          <span className="font-medium text-slate-700">{pendingWorkflowAlias}</span>
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : null}

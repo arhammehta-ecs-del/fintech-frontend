@@ -579,6 +579,9 @@ export function AppTopBar({
     const isExpanded = expandedNotificationIds.includes(notification.id);
     const messageToShow = isExpanded ? notification.message : notification.previewMessage;
     const normalizedTitle = notification.title.trim().toUpperCase();
+    const cardStateClassName = notification.unread
+      ? "border-slate-300 bg-slate-200/80"
+      : "border-slate-200 bg-white";
     const canShowViewDetails =
       !notification.isPending &&
       normalizedTitle !== "ORGANIZATION REMOVED" &&
@@ -591,7 +594,9 @@ export function AppTopBar({
         key={key}
         className={`w-full overflow-hidden rounded-xl border border-l-4 ${
           notification.unread ? styles.unreadBorder : styles.readBorder
-        } ${notification.unread ? "border-slate-300 bg-slate-200/80" : "border-slate-200 bg-white"} px-4 py-4 text-left shadow-sm transition-colors`}
+        } ${cardStateClassName} px-4 py-4 text-left shadow-sm transition-colors`}
+        onDoubleClick={() => void markAsRead(notification.id)}
+        title={notification.unread ? "Double-click to mark as read" : undefined}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">

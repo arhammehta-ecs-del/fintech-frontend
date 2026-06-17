@@ -107,6 +107,7 @@ const getEventTone = (action: string, fallbackStatus: HistoryStatus): EventTone 
   ) {
     return "modified";
   }
+  if (normalized.includes("auto delete")) return "inactive";
   if (normalized.includes("initiate")) return "initiation";
   if (normalized.includes("pending")) return "pending";
   if (normalized.includes("approve") || normalized.includes("active")) return "approved";

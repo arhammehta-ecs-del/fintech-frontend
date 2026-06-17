@@ -183,7 +183,6 @@ const mapWorkflowHistoryEntry = (
   const isPendingAction = normalizedAction.includes("initiate") || normalizedAction.includes("pending");
   const isApprovedAction = normalizedAction.includes("approve");
   const isAutoEvent = normalizedAction.includes("auto generate") || normalizedAction.includes("auto delete");
-  const disableViewMore = isAutoEvent;
   const remarks = readString(record.remarks);
   const levelCount = readString(record.levelCount);
   const timestampMissing = !createdAt;
@@ -200,7 +199,7 @@ const mapWorkflowHistoryEntry = (
   return {
     id: readString(record.id) || readString(record.workflowId) || `${createdAt || "history"}-${index}`,
     sourceId: readString(record.id) || readString(record.workflowId) || readString(record.requestId),
-    disableViewMore,
+    disableViewMore: isAutoEvent,
     collapseToHeader: isAutoEvent,
     sortEpochMs: Number.isFinite(sortEpochMs) ? sortEpochMs : undefined,
     year,

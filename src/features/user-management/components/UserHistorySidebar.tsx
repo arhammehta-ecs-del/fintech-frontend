@@ -385,7 +385,6 @@ const mapUserHistoryEntry = (
   const eligibleApproversDetail = formatEligibleApproversDetail(record);
   const eligibleApprovers = mapEligibleApprovers(record);
   const approvalSections = mapApprovalSections(record);
-  const disableViewMore = isAutoEvent;
   const levelCount = readString(record.levelCount);
   const approvalSummaryDetail = formatApprovalSummaryDetail(record, targetEmail);
   const defaultDetails =
@@ -406,7 +405,6 @@ const mapUserHistoryEntry = (
       readString(record.userId) ||
       readString(record.requestId) ||
       readString(record.email),
-    disableViewMore,
     collapseToHeader: isAutoEvent,
     sortEpochMs: Number.isFinite(sortEpochMs) ? sortEpochMs : undefined,
     year,

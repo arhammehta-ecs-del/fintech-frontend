@@ -193,10 +193,10 @@ export default function ApiMonitoringView() {
   }, [loading, error, searchText]);
 
   const currentRangeSummary = useMemo(() => {
-    if (totalCount <= 0 || paginatedLogs.length === 0) return "Range: 0-0/0";
+    if (totalCount <= 0 || paginatedLogs.length === 0) return "Range: 0-0 of 0";
     const start = Math.max(1, (safePage - 1) * pageSize + 1);
     const end = Math.min(totalCount, start + paginatedLogs.length - 1);
-    return `Range: ${start}-${end}/${totalCount}`;
+    return `Range: ${start}-${end} of ${totalCount}`;
   }, [pageSize, paginatedLogs.length, safePage, totalCount]);
 
   useEffect(() => {

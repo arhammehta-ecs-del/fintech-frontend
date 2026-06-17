@@ -1217,11 +1217,14 @@ function NodeNameDropdown({
                                   : "border-slate-200 bg-white text-slate-400 hover:border-sky-200 hover:text-sky-700",
                               )}
                               aria-label="Set primary node access"
+                              title={isSelected ? "Primary node access" : "Select node first"}
                             >
                               P
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent>{isSelected ? "Primary node access" : "Select node first"}</TooltipContent>
+                          <TooltipContent side="top" align="center">
+                            {isSelected ? "Primary node access" : "Select node first"}
+                          </TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -1240,11 +1243,14 @@ function NodeNameDropdown({
                                   : "border-slate-200 bg-white text-slate-400 hover:border-violet-200 hover:text-violet-700",
                               )}
                               aria-label="Set secondary node access"
+                              title={isSelected ? "Secondary node access" : "Select node first"}
                             >
                               S
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent>{isSelected ? "Secondary node access" : "Select node first"}</TooltipContent>
+                          <TooltipContent side="top" align="center">
+                            {isSelected ? "Secondary node access" : "Select node first"}
+                          </TooltipContent>
                         </Tooltip>
                         </div>
                       </TooltipProvider>

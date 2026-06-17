@@ -87,6 +87,14 @@ export function NodeAccessCard({
     const base = getBadgeStyle(label);
     return `${base} border border-rose-200 bg-rose-50 text-rose-600 line-through`;
   };
+  const getAddedBadgeStyle = (label: string) => {
+    const base = getBadgeStyle(label);
+    return `${base} border border-emerald-200 bg-emerald-50 text-emerald-700`;
+  };
+  const getChangedBadgeStyle = (label: string) => {
+    const base = getBadgeStyle(label);
+    return `${base} border border-amber-200 bg-amber-50 text-amber-700`;
+  };
 
   const getBadgeIcon = (label: string) => {
     if (label === "Global Access") return ShieldCheck;
@@ -170,6 +178,14 @@ export function NodeAccessCard({
               <span className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-rose-600">
                 Removed
               </span>
+            ) : isAddedNode ? (
+              <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                Added
+              </span>
+            ) : isChangedNode ? (
+              <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-700">
+                Modified
+              </span>
             ) : null}
           </div>
           {parentSubtitle ? <div className="mt-0.5 truncate text-[11px] font-medium text-slate-500">{parentSubtitle}</div> : null}
@@ -224,23 +240,38 @@ export function NodeAccessCard({
                           <span
                             key={`${roleSubCategory}-${label}`}
                             className={cn(
-                              "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium whitespace-nowrap",
+                              "inline-flex max-w-full items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium",
                               isRemoved
                                 ? getRemovedBadgeStyle(label || "Viewer")
-                                : isAdded || isChanged
-                                  ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : isAdded
+                                  ? getAddedBadgeStyle(label || "Viewer")
+                                  : isChanged
+                                    ? getChangedBadgeStyle(label || "Viewer")
                                   : getBadgeStyle(label || "Viewer"),
                             )}
                           >
+                            {isRemoved ? (
+                              <span className="shrink-0 rounded-full border border-rose-200 bg-white/80 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-rose-600">
+                                -
+                              </span>
+                            ) : isAdded ? (
+                              <span className="shrink-0 rounded-full border border-emerald-200 bg-white/80 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700">
+                                +
+                              </span>
+                            ) : isChanged ? (
+                              <span className="shrink-0 rounded-full border border-amber-200 bg-white/80 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-700">
+                                Modified
+                              </span>
+                            ) : null}
                             <BadgeIcon className="h-3.5 w-3.5 shrink-0" />
                             {isChanged ? (
-                              <span className="inline-flex items-center gap-1">
-                                <span className="line-through text-rose-500">{`${label || "Viewer"} - ${previousScope || "Node"}`}</span>
+                              <span className="inline-flex min-w-0 flex-wrap items-center gap-1">
+                                <span className="break-words line-through text-rose-500">{`${label || "Viewer"} - ${previousScope || "Node"}`}</span>
                                 <ChevronRight className="h-3 w-3 shrink-0 text-slate-400" />
-                                <span>{`${label || "Viewer"} - ${currentScope || "Node"}`}</span>
+                                <span className="break-words">{`${label || "Viewer"} - ${currentScope || "Node"}`}</span>
                               </span>
                             ) : (
-                              <span>{`${label || "Viewer"} - ${currentScope || previousScope || "Node"}`}</span>
+                              <span className="break-words">{`${label || "Viewer"} - ${currentScope || previousScope || "Node"}`}</span>
                             )}
                           </span>
                         );

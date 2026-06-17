@@ -4,6 +4,7 @@ export type WorkflowOrgStructure = {
   nodePath: string;
   nodeName: string;
   nodeType: string;
+  levelCount?: number;
 };
 
 export type WorkflowRecord = {
@@ -11,6 +12,7 @@ export type WorkflowRecord = {
   referenceId?: string;
   workflowId?: string;
   levelsHash?: string;
+  levelCount?: number;
   name: string;
   alias: string;
   isPending?: boolean;

@@ -77,12 +77,15 @@ export interface AppUser {
   uuid?: string;
   requestId?: string;
   isPending?: boolean;
+  levelCount?: number;
   pendingApprovalCount?: number;
   name: string;
   email: string;
   role: string;
   designation: string;
   department: string;
+  nodeName?: string;
+  nodeType?: string;
   nodePath?: string;
   phone?: string;
   companyId?: string;
