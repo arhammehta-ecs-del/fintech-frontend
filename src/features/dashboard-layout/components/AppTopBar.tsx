@@ -42,6 +42,7 @@ type NotificationModuleFilterValue = Exclude<NotificationRefTypeFilter, "ALL">;
 
 type NotificationItem = {
   id: string;
+  status: string;
   badgeLabel: string;
   badgeTone: NotificationTone;
   title: string;
@@ -72,6 +73,7 @@ const DATE_RANGE_OPTIONS: NotificationFetchDateRange[] = ["7DAYS", "15DAYS", "1M
 const STATUS_FILTER_OPTIONS: Array<{ value: NotificationStatusFilterValue; label: string }> = [
   { value: "READ", label: "Read" },
   { value: "UNREAD", label: "Unread" },
+  { value: "HIDDEN", label: "Hidden" },
 ];
 const MODULE_FILTER_OPTIONS: Array<{ value: NotificationModuleFilterValue; label: string }> = [
   { value: "USER", label: "User" },
@@ -97,7 +99,7 @@ const filterNotificationsBySelection = (
   selectedModuleFilters: NotificationModuleFilterValue[],
 ) =>
   items.filter((item) => {
-    const itemStatus = item.unread ? "UNREAD" : "READ";
+    const itemStatus = item.status;
     const itemModule = (item.refType || "").trim().toUpperCase() as NotificationModuleFilterValue;
     const matchesStatus = selectedStatusFilters.length === 0 || selectedStatusFilters.includes(itemStatus);
     const matchesModule = selectedModuleFilters.length === 0 || selectedModuleFilters.includes(itemModule);
@@ -296,6 +298,7 @@ export function AppTopBar({
 
     return {
       id: String(packet.id ?? `${createdAt}-${Math.random().toString(36).slice(2, 10)}`),
+      status: String(packet.status ?? "").trim().toUpperCase() || "READ",
       badgeLabel: badge.label,
       badgeTone: badge.tone,
       title: title || `${mapRefTypeToEntity(packet.refType)} ${badge.label}`,
@@ -899,7 +902,7 @@ export function AppTopBar({
                 </span>
               </div>
               <button type="button" onClick={() => void markAllAsRead()} className="text-xs font-medium text-slate-600 transition-colors hover:text-slate-900">
-                Mark all as read
+                Mark all read
               </button>
             </div>
             {renderNotificationFilters(true)}
@@ -946,7 +949,7 @@ export function AppTopBar({
                 <span>All Notifications ({hasAnyNotificationFilter ? visibleDialogNotifications.length : (allNotificationCount || dialogNotifications.length)})</span>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => void markAllAsRead()} className="rounded-md px-2 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
-                    Mark all as read
+                    Mark all read
                   </button>
                   <button type="button" onClick={() => {
                     setAllNotificationsOpen(false);

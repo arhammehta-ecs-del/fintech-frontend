@@ -1,16 +1,20 @@
 import { useMemo, useRef, useState } from "react";
-import { ShieldCheck, X } from "lucide-react";
+import { Eye, ShieldCheck, Users, X } from "lucide-react";
 import { useAppContext } from "@/contexts/AppContext";
 import type { AppUser } from "@/contexts/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { getInitials } from "@/lib/userIdentity.utils";
-import { getAccessRights } from "@/services/auth.service";
+import { getApiErrorMessage } from "@/services/client";
+import { getAccessRights, getReporteeAccessRights, type AccessRightsUser } from "@/services/auth.service";
+import { fetchUserDetails } from "@/services/user.service";
 import { NodeAccessCard } from "@/features/user-management/components/UserManagePreview.NodeAccessCard";
 import { groupByNode } from "@/features/user-management/components/UserManagePreview.utils";
+import { UserManagePreview } from "@/features/user-management/components/UserManagePreview";
 
 const fieldLabelClassName = "text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground";
 const fieldValueClassName = "mt-1 text-base font-semibold text-foreground";
@@ -28,9 +32,15 @@ export default function Profile() {
 const { currentUser } = useAppContext();
 const { toast } = useToast();
 const [isAccessLoading, setIsAccessLoading] = useState(false);
+const [isReportsLoading, setIsReportsLoading] = useState(false);
+const [isReporteeDetailsLoading, setIsReporteeDetailsLoading] = useState(false);
 const [accessDetails, setAccessDetails] = useState<NonNullable<AppUser["accessDetails"]>>([]);
 const [hasLoadedAccessRights, setHasLoadedAccessRights] = useState(false);
+const [reportees, setReportees] = useState<AccessRightsUser[]>([]);
+const [hasLoadedReports, setHasLoadedReports] = useState(false);
+const [selectedReportee, setSelectedReportee] = useState<AppUser | null>(null);
 const accessRightsSectionRef = useRef<HTMLDivElement | null>(null);
+const reportsSectionRef = useRef<HTMLDivElement | null>(null);
 const stickyProfileRef = useRef<HTMLDivElement | null>(null);
 
 const base = currentUser?.name || currentUser?.email || "User";
@@ -64,6 +74,15 @@ const globalAccessTitle = (globalAccessNode?.roleName || "").trim();
 
 const scrollToAccessRights = () => {
   const section = accessRightsSectionRef.current;
+  if (!section) return;
+  const stickyHeight = stickyProfileRef.current?.getBoundingClientRect().height ?? 0;
+  const topBar = document.querySelector("header");
+  const topBarHeight = topBar ? topBar.getBoundingClientRect().height : 0;
+  const targetTop = window.scrollY + section.getBoundingClientRect().top - stickyHeight - topBarHeight - 12;
+  window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+};
+
+const scrollToSection = (section: HTMLDivElement | null) => {
   if (!section) return;
   const stickyHeight = stickyProfileRef.current?.getBoundingClientRect().height ?? 0;
   const topBar = document.querySelector("header");
@@ -112,6 +131,61 @@ const handleViewAccessRights = async () => {
     });
   } finally {
     setIsAccessLoading(false);
+  }
+};
+
+const handleViewReports = async () => {
+  setIsReportsLoading(true);
+  setHasLoadedReports(true);
+  setSelectedReportee(null);
+
+  try {
+    const response = await getReporteeAccessRights();
+    setReportees(response.users);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToSection(reportsSectionRef.current));
+    });
+  } catch (error) {
+    setReportees([]);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToSection(reportsSectionRef.current));
+    });
+    toast({
+      title: "Unable to load reportees",
+      description: getApiErrorMessage(error, "Failed to fetch reportees."),
+      variant: "destructive",
+    });
+  } finally {
+    setIsReportsLoading(false);
+  }
+};
+
+const handleViewReporteeAccessRights = async (reportee: AccessRightsUser) => {
+  const email = reportee.email.trim();
+  if (!email) {
+    toast({
+      title: "Missing reportee email",
+      description: "The selected reportee does not have an email address.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  setIsReporteeDetailsLoading(true);
+  try {
+    const detailedMember = await fetchUserDetails("active", {
+      email,
+      reportee: true,
+    });
+    setSelectedReportee(detailedMember);
+  } catch (error) {
+    toast({
+      title: "Unable to load reportee access rights",
+      description: getApiErrorMessage(error, "Failed to fetch the selected reportee details."),
+      variant: "destructive",
+    });
+  } finally {
+    setIsReporteeDetailsLoading(false);
   }
 };
 
@@ -182,7 +256,11 @@ const handleViewAccessRights = async () => {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end pt-1">
+      <div className="flex flex-wrap justify-end gap-3 pt-1">
+        <Button variant="outline" onClick={() => void handleViewReports()} disabled={isReportsLoading}>
+          <Users className="mr-2 h-4 w-4" />
+          {isReportsLoading ? "Loading Reports..." : "View Reports"}
+        </Button>
         <Button onClick={() => void handleViewAccessRights()} disabled={isAccessLoading}>
           {isAccessLoading ? "Loading Access Rights..." : "View Access Rights"}
         </Button>
@@ -279,6 +357,93 @@ const handleViewAccessRights = async () => {
           </CardContent>
         </Card>
       ) : null}
+
+      {hasLoadedReports ? (
+        <Card ref={reportsSectionRef} className="rounded-3xl border-slate-200/80 bg-white shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+          <CardHeader className="border-b border-slate-200/80 bg-white p-5 pb-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg">View Reports</CardTitle>
+                <p className="mt-1 text-sm text-slate-500">Select a reportee to view access rights.</p>
+              </div>
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                aria-label="Close reports"
+                onClick={() => {
+                  setHasLoadedReports(false);
+                  setReportees([]);
+                  setSelectedReportee(null);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4 p-5">
+            {isReportsLoading ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                Loading reportees...
+              </div>
+            ) : reportees.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                No reportees found.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {reportees.map((user, index) => (
+                  <div
+                    key={`${user.email || user.name || "reportee"}-${index}`}
+                    className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)] sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-semibold text-slate-900">{user.name || "Unnamed User"}</p>
+                      <p className="mt-1 truncate text-sm text-slate-500">{user.email || "No email provided"}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      className="sm:shrink-0"
+                      onClick={() => void handleViewReporteeAccessRights(user)}
+                      disabled={isReporteeDetailsLoading}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      {isReporteeDetailsLoading ? "Loading..." : "View Access Rights"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Dialog open={Boolean(selectedReportee) || isReporteeDetailsLoading} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedReportee(null);
+        }
+      }}>
+        <DialogContent
+          showCloseButton={false}
+          className="flex h-[92vh] w-[96vw] max-w-[1200px] flex-col overflow-hidden p-0 transition-[transform,opacity] duration-350 data-[state=open]:animate-none data-[state=closed]:animate-none"
+          style={{ transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)" }}
+        >
+          <DialogTitle className="sr-only">Manage Reportee</DialogTitle>
+          <DialogDescription className="sr-only">
+            Review the selected reportee details and access rights.
+          </DialogDescription>
+          {selectedReportee ? (
+            <UserManagePreview
+              member={selectedReportee}
+              currentTab="active"
+              onClose={() => setSelectedReportee(null)}
+            />
+          ) : (
+            <div className="flex flex-1 items-center justify-center bg-white text-sm text-slate-500">
+              Loading reportee access rights...
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

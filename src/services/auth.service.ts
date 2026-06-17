@@ -45,6 +45,15 @@ export type AccessRightsResponse = {
   secondary: AccessRight[];
 };
 
+export type AccessRightsUser = {
+  name: string;
+  email: string;
+};
+
+export type ReporteeAccessRightsResponse = {
+  users: AccessRightsUser[];
+};
+
 const getPacketString = (value: string | null | undefined) => (typeof value === "string" ? value.trim() : "");
 const toUpperValue = (value: string) => value.toUpperCase();
 
@@ -152,6 +161,7 @@ export async function getAccessRights(email: string, companyCode: string): Promi
     body: JSON.stringify({
       email,
       companyCode,
+      reportee: false,
     }),
   });
 
@@ -161,5 +171,36 @@ export async function getAccessRights(email: string, companyCode: string): Promi
   return {
     primary: mapAccessRights(data.primary),
     secondary: mapAccessRights(data.secondary),
+  };
+}
+
+const mapAccessRightsUsers = (value: unknown): AccessRightsUser[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const row = (item && typeof item === "object") ? (item as Record<string, unknown>) : {};
+      return {
+        name: getPacketString(String(row.name ?? "")),
+        email: getPacketString(String(row.email ?? "")),
+      };
+    })
+    .filter((row) => row.name || row.email);
+};
+
+export async function getReporteeAccessRights(): Promise<ReporteeAccessRightsResponse> {
+  const payload = await apiFetch<unknown>(ACCESS_RIGHTS_PATH, {
+    method: "POST",
+    body: JSON.stringify({
+      companyCode: null,
+      email: null,
+      reportee: true,
+    }),
+  });
+
+  const root = (payload && typeof payload === "object") ? (payload as Record<string, unknown>) : {};
+  const data = (root.data && typeof root.data === "object") ? (root.data as Record<string, unknown>) : root;
+
+  return {
+    users: mapAccessRightsUsers(data.users),
   };
 }

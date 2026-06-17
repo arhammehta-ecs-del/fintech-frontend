@@ -32,7 +32,7 @@ type NotificationReadResponse = {
   message?: string;
 };
 
-export type NotificationFetchStatus = "UNREAD" | "READ" | "ALL";
+export type NotificationFetchStatus = "UNREAD" | "READ" | "HIDDEN" | "ALL";
 export type NotificationFetchRefType = "USER" | "WORKFLOW" | "ORG" | null;
 export type NotificationFetchDateRange = "7DAYS" | "15DAYS" | "1MONTH" | "CUSTOM";
 

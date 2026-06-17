@@ -143,6 +143,7 @@ export type UserPaginatedResult = {
 export type FetchUserDetailsInput = {
   id?: string | null;
   email?: string | null;
+  reportee?: boolean;
 };
 
 type CompanyNodeWorkflow = {
@@ -763,10 +764,13 @@ export async function fetchUserDetails(
 ): Promise<AppUser> {
   const id = readString(payload.id).trim();
   const email = readString(payload.email).trim();
+  const reportee = Boolean(payload.reportee);
   const requestBody =
     statusTab === "pending"
       ? { id }
-      : { email };
+      : reportee
+        ? { email, reportee: true }
+        : { email };
 
   const response = await apiFetch<UserDetailsResponse>(USER_DETAILS_PATH, {
     method: "POST",
