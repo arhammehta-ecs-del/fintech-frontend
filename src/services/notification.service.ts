@@ -3,7 +3,8 @@ import { apiFetch, buildApiUrl } from "@/services/client";
 const NOTIFICATION_SSE_PATH = "/api/v1/notifications/sse";
 const NOTIFICATION_READ_PATH = "/api/v1/notifications/read";
 const NOTIFICATION_FETCH_PATH = "/api/v1/notifications/fetch";
-const NOTIFICATION_SETTINGS_FETCH_PATH = "/api/notifications/fetch-settings";
+const NOTIFICATION_SETTINGS_FETCH_PATH = "/api/v1/notifications/fetch-settings";
+const NOTIFICATION_SETTINGS_UPDATE_PATH = "/api/v1/notifications/settings";
 
 export type NotificationSseType = "INITIATE" | "APPROVE" | "REJECT";
 export type NotificationSseRefType = "USER" | "WORKFLOW" | "ORG" | "COMPANYLIST";
@@ -96,6 +97,20 @@ type NotificationSettingsResponse = {
   data?: NotificationSettingsCompany[];
 };
 
+export type NotificationSettingsUpdateRequest = Array<{
+  companyCode: string;
+  settings: Array<{
+    nodePath: string;
+    module: string;
+    isEnabled: boolean;
+  }>;
+}>;
+
+type NotificationSettingsUpdateResponse = {
+  success?: boolean;
+  message?: string;
+};
+
 type NotificationSseCallbacks = {
   onNotification: (packet: NotificationSsePacket) => void;
   onError?: (error: Event) => void;
@@ -174,7 +189,8 @@ export async function fetchNotificationSettings() {
   const response = await apiFetch<NotificationSettingsResponse | NotificationSettingsCompany[]>(
     NOTIFICATION_SETTINGS_FETCH_PATH,
     {
-      method: "GET",
+      method: "POST",
+      body: JSON.stringify({}),
     },
   );
 
@@ -183,4 +199,11 @@ export async function fetchNotificationSettings() {
   }
 
   return Array.isArray(response.data) ? response.data : [];
+}
+
+export async function updateNotificationSettings(payload: NotificationSettingsUpdateRequest) {
+  return apiFetch<NotificationSettingsUpdateResponse>(NOTIFICATION_SETTINGS_UPDATE_PATH, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
