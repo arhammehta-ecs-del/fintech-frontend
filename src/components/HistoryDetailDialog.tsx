@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export type HistoryDetailRecord = Record<string, unknown>;
 export type HistoryDetailPreviewEvent = {
@@ -228,6 +228,9 @@ export function HistoryDetailDialog({ isOpen, onClose, title, sourceId, loading,
     }}>
       <DialogContent className="max-h-[90vh] w-[min(92vw,920px)] overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-2xl">
         <DialogHeader className="border-b border-slate-200 px-6 py-4">
+          <DialogDescription className="sr-only">
+            View the full details for the selected history record.
+          </DialogDescription>
           <DialogTitle className="flex flex-col gap-1 text-slate-900">
             <span>{title}</span>
             <span className="text-xs font-medium text-slate-500">Record ID: {sourceId || "—"}</span>

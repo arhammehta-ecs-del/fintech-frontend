@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import type { Company } from "@/contexts/AppContext";
 import { Building2, Check, Clock3, Mail, UserRound, X } from "lucide-react";
@@ -128,12 +128,15 @@ export function CompanyPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="flex h-[100dvh] w-[100vw] max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-auto sm:max-h-[88vh] sm:w-[min(92vw,64rem)] sm:max-w-[64rem] sm:rounded-lg"
-        showCloseButton={false}
-      >
-        <DialogHeader className="border-b border-border bg-muted/20 px-4 py-4 sm:px-6 sm:py-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <DialogContent
+          className="flex h-[100dvh] w-[100vw] max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-auto sm:max-h-[88vh] sm:w-[min(92vw,64rem)] sm:max-w-[64rem] sm:rounded-lg"
+          showCloseButton={false}
+        >
+          <DialogHeader className="border-b border-border bg-muted/20 px-4 py-4 sm:px-6 sm:py-5">
+            <DialogDescription className="sr-only">
+              Review company details, status, and signatories.
+            </DialogDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="flex items-start gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Building2 className="h-6 w-6" />
@@ -153,9 +156,9 @@ export function CompanyPreviewDialog({
                 <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm">
                   <button
                     type="button"
-                    onClick={() => onToggleActive?.(company.id, true)}
+                    disabled
                     className={cn(
-                      "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
+                      "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors disabled:pointer-events-none",
                       isActive
                         ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
                         : "text-slate-500 hover:text-slate-700",
@@ -166,9 +169,9 @@ export function CompanyPreviewDialog({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onToggleActive?.(company.id, false)}
+                    disabled
                     className={cn(
-                      "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors",
+                      "rounded-full px-5 py-1.5 text-sm font-semibold transition-colors disabled:pointer-events-none",
                       !isActive
                         ? "bg-[#3b5bdb] text-white shadow-[0_4px_12px_rgba(59,91,219,0.35)]"
                         : "text-slate-500 hover:text-slate-700",

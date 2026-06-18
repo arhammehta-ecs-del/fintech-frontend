@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { ArrowRight, Bell, Check, ChevronDown, LogOut, Menu, Pencil, Settings, ShieldCheck, User, X } from "lucide-react";
 import type { NavigateFunction } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1599,7 +1599,7 @@ export function AppTopBar({
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
           <div>
             <div className="inline-flex flex-col">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Node Notifications</p>
+              <p className="text-sm font-semibold text-slate-800">Node Notifications</p>
               <span className="mt-1 h-px w-16 rounded-full bg-slate-300" aria-hidden="true" />
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1632,7 +1632,7 @@ export function AppTopBar({
 
         <div className="mt-5 space-y-3">
           <div className="inline-flex flex-col">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Module Notifications</p>
+            <p className="text-sm font-semibold text-slate-800">Module Notifications</p>
             <span className="mt-1 h-px w-16 rounded-full bg-slate-300" aria-hidden="true" />
           </div>
           {selectedNotificationSettingsNode.settings.length > 0 ? (
@@ -1782,10 +1782,28 @@ export function AppTopBar({
         >
           <DialogContent showCloseButton={false} className="flex flex-col gap-0 max-h-[88vh] w-[min(94vw,760px)] max-w-[760px] overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-2xl">
             <DialogHeader className="border-b border-slate-200 px-6 py-4">
+              <DialogDescription className="sr-only">
+                Review, filter, and manage all notifications.
+              </DialogDescription>
               <DialogTitle className="flex items-center justify-between text-slate-900">
                 <span>All Notifications ({hasAnyNotificationFilter ? visibleDialogNotifications.length : (allNotificationCount || dialogNotifications.length)})</span>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => void markAllAsRead()} className="rounded-md px-2 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAllNotificationsOpen(false);
+                      resetNotificationFilters();
+                      void loadNotificationSettings();
+                    }}
+                    className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                  >
+                    Manage Notifications
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void markAllAsRead()}
+                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200"
+                  >
                     Mark all read
                   </button>
                   <button type="button" onClick={() => {
@@ -1857,6 +1875,9 @@ export function AppTopBar({
         <Dialog open={notificationSettingsOpen} onOpenChange={handleNotificationSettingsDialogChange}>
           <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} showCloseButton={false} className={cn("flex flex-col gap-0 w-[min(96vw,1120px)] max-w-[1120px] overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-2xl", (selectedNotificationSettingsCompany && flattenNotificationSettingsTree(selectedNotificationSettingsCompany.nodes, []).length > 3) ? "h-[88vh]" : "max-h-[88vh]")}>
             <DialogHeader className="border-b border-slate-200 px-6 py-5">
+              <DialogDescription className="sr-only">
+                Configure notification settings for companies, nodes, and modules.
+              </DialogDescription>
               <DialogTitle className="flex flex-col gap-4 text-slate-900 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 flex-1">
                   <span className="block text-[1.05rem] font-semibold">Manage Notifications</span>
@@ -1886,14 +1907,9 @@ export function AppTopBar({
 
             <div className="flex min-h-0 flex-1 flex-col bg-slate-50/60">
               <div className="border-b border-slate-200 bg-white px-6 py-3">
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="min-w-0 flex-1">
+                <div className="flex flex-col gap-3">
+                  <div className="min-w-0">
                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Company</p>
-                    <p className="mt-1 truncate text-sm text-slate-600">
-                      {selectedNotificationSettingsCompany
-                        ? `${selectedNotificationSettingsCompany.companyName} (${selectedNotificationSettingsCompany.companyCode})`
-                        : "Choose a company to inspect its notification tree."}
-                    </p>
                   </div>
                   {notificationSettingsCompanies.length > 1 ? (
                     <div className="w-full xl:w-[22rem]">
@@ -1918,6 +1934,10 @@ export function AppTopBar({
                         </SelectContent>
                       </Select>
                     </div>
+                  ) : selectedNotificationSettingsCompany ? (
+                    <p className="truncate text-sm font-medium text-slate-900">
+                      {selectedNotificationSettingsCompany.companyName} ({selectedNotificationSettingsCompany.companyCode})
+                    </p>
                   ) : null}
                 </div>
               </div>

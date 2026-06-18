@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -138,10 +139,10 @@ export default function Login() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>User already logged in</DialogTitle>
+            <DialogDescription>
+              Confirm whether you want to force login for a user who is already logged in elsewhere.
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            This user is already logged in. Do you want to force login and continue?
-          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowForceLoginDialog(false)} disabled={isSubmitting}>
               Cancel

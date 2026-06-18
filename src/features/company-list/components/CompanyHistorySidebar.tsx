@@ -48,13 +48,21 @@ const mapCompanyHistoryEntry = (item: unknown, index: number): HistoryEntry => {
   const showActor = Boolean(readString(user.name) || readString(user.email));
   const companyCode = readString(record.companyCode) || readString(record.code);
   const levelCount = readString(record.levelCount);
+  const sourceId = readString(record.id) || companyCode || `${createdAt || "history"}-${index}`;
+  const uniqueEntryId = [
+    sourceId || "history",
+    createdAt || "no-date",
+    action || "UPDATE",
+    String(index),
+  ].join("::");
 
   const normalizedAction = action.toLowerCase();
   const isPendingAction = normalizedAction.includes("initiate") || normalizedAction.includes("pending");
   const isApprovedAction = normalizedAction.includes("approve");
 
   return {
-    id: readString(record.id) || companyCode || `${createdAt || "history"}-${index}`,
+    id: uniqueEntryId,
+    sourceId,
     year,
     month,
     day,

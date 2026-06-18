@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Calendar, ChevronDown, CircleX, Clock, History, ShieldCheck, X } from "lucide-react";
 import { getInitials } from "@/lib/userIdentity.utils";
 
@@ -707,7 +708,7 @@ export function HistorySidebar({
   if (!isOpen && !splitView) return null;
   const dockedWidth = splitView ? (isOpen ? panelWidth : 0) : panelWidth;
 
-  return (
+  const content = (
     <div
       className={[
         "fixed bottom-0 right-0 z-[60] flex min-h-0 justify-end overflow-hidden font-sans transition-[width,height,top] duration-300",
@@ -864,6 +865,12 @@ export function HistorySidebar({
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") {
+    return content;
+  }
+
+  return createPortal(content, document.body);
 }
 
 export default HistorySidebar;

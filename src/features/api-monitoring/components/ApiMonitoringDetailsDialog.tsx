@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, CircleCheck, X, XCircle, ChevronRight } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ApiMonitoringLog, ApiMonitoringStep } from "@/features/api-monitoring/types";
@@ -194,6 +194,9 @@ export default function ApiMonitoringDetailsDialog({ log, open, onOpenChange }: 
     >
       <DialogContent showCloseButton={false} className="h-[88vh] w-[min(96vw,1200px)] max-w-none overflow-hidden p-0">
         <DialogHeader className="flex-row items-center justify-between border-b border-border bg-muted/40 px-6 py-3.5">
+          <DialogDescription className="sr-only">
+            Inspect request, response, and processing details for the selected API monitoring log.
+          </DialogDescription>
           <DialogTitle className="flex items-start gap-2">
             <span className="mt-0.5">{getStatusIcon(log.status)}</span>
             <span className="flex flex-col">

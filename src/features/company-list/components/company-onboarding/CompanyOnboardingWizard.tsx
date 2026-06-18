@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { CompanyOnboardingStepCompanyDetails } from "./CompanyOnboardingStepCompanyDetails";
 import { CompanyOnboardingStepGroupCompany } from "./CompanyOnboardingStepGroupCompany";
 import { CompanyOnboardingStepPreviewSubmit } from "./CompanyOnboardingStepPreviewSubmit";
@@ -290,6 +290,10 @@ export function CompanyOnboardingWizardContent({
       }}
     >
       <DialogContent className="flex h-[100dvh] w-[100vw] max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[88vh] sm:w-[min(95vw,72rem)] sm:max-w-[72rem] sm:rounded-lg">
+        <DialogTitle className="sr-only">New Onboarding</DialogTitle>
+        <DialogDescription className="sr-only">
+          Complete the steps below to onboard a new company.
+        </DialogDescription>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
           {content}
         </div>

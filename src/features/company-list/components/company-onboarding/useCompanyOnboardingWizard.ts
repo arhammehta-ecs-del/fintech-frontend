@@ -7,6 +7,14 @@ import { createCompanyOnboarding, getAllCompanies, type OnboardingPayload } from
 import type { GroupSelectionMode, CompanyOnboardingWizardContentProps, SignatoryForm, SignatoryWithId } from "./types";
 import { emptySignatoryForm, getTodayDateInputValue, companyOnboardingSteps } from "./utils";
 
+const generateSignatoryId = () => {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `sig-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 export function useCompanyOnboardingWizard({
   embedded = false,
   open = true,
@@ -337,7 +345,7 @@ export function useCompanyOnboardingWizard({
       ...current,
       {
         ...newSig,
-        id: crypto.randomUUID(),
+        id: generateSignatoryId(),
         source: "new",
       },
     ]);
