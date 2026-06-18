@@ -518,6 +518,7 @@ export function AppTopBar({
   const notificationSettingsLeftPanelRef = useRef<HTMLDivElement | null>(null);
   const notificationSettingsRightPanelRef = useRef<HTMLDivElement | null>(null);
   const notificationSettingsNodeButtonRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const notificationSettingsSelectedNodeRef = useRef<HTMLDivElement | null>(null);
 
   const resetNotificationFilters = useCallback(() => {
     setNotificationStatusFilters([]);
@@ -621,7 +622,8 @@ export function AppTopBar({
     const container = notificationSettingsPanelsRef.current;
     const leftPanel = notificationSettingsLeftPanelRef.current;
     const rightPanel = notificationSettingsRightPanelRef.current;
-    const selectedButton = notificationSettingsNodeButtonRefs.current[selectedNotificationSettingsNodePath];
+    const selectedButton = notificationSettingsSelectedNodeRef.current
+      ?? notificationSettingsNodeButtonRefs.current[selectedNotificationSettingsNodePath];
 
     if (!container || !leftPanel || !rightPanel || !selectedButton) {
       setNotificationSettingsArrowPosition(null);
@@ -669,7 +671,27 @@ export function AppTopBar({
 
   useLayoutEffect(() => {
     updateNotificationSettingsArrowPosition();
-  }, [updateNotificationSettingsArrowPosition, notificationSettingsFlowNodes]);
+    let frameTwo = 0;
+    const frameOne = window.requestAnimationFrame(() => {
+      updateNotificationSettingsArrowPosition();
+      frameTwo = window.requestAnimationFrame(() => {
+        updateNotificationSettingsArrowPosition();
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameOne);
+      if (frameTwo) {
+        window.cancelAnimationFrame(frameTwo);
+      }
+    };
+  }, [
+    notificationSettingsFlowNodes,
+    notificationSettingsLoading,
+    notificationSettingsOpen,
+    selectedNotificationSettingsNodePath,
+    updateNotificationSettingsArrowPosition,
+  ]);
 
   useEffect(() => {
     if (!notificationSettingsOpen) return undefined;
@@ -678,15 +700,51 @@ export function AppTopBar({
       updateNotificationSettingsArrowPosition();
     };
 
+    const resizeObserver = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => {
+        updateNotificationSettingsArrowPosition();
+      })
+      : null;
     const nodesScrollElement = notificationSettingsNodesScrollRef.current;
+    const selectedButton = notificationSettingsSelectedNodeRef.current
+      ?? notificationSettingsNodeButtonRefs.current[selectedNotificationSettingsNodePath];
+    const container = notificationSettingsPanelsRef.current;
+    const leftPanel = notificationSettingsLeftPanelRef.current;
+    const rightPanel = notificationSettingsRightPanelRef.current;
+
+    if (container) resizeObserver?.observe(container);
+    if (leftPanel) resizeObserver?.observe(leftPanel);
+    if (rightPanel) resizeObserver?.observe(rightPanel);
+    if (nodesScrollElement) resizeObserver?.observe(nodesScrollElement);
+    if (selectedButton) resizeObserver?.observe(selectedButton);
     window.addEventListener("resize", handleArrowPositionChange);
     nodesScrollElement?.addEventListener("scroll", handleArrowPositionChange);
 
     return () => {
+      resizeObserver?.disconnect();
       window.removeEventListener("resize", handleArrowPositionChange);
       nodesScrollElement?.removeEventListener("scroll", handleArrowPositionChange);
     };
-  }, [notificationSettingsOpen, updateNotificationSettingsArrowPosition]);
+  }, [notificationSettingsOpen, selectedNotificationSettingsNodePath, updateNotificationSettingsArrowPosition]);
+
+  useEffect(() => {
+    if (!notificationSettingsOpen || notificationSettingsLoading || !selectedNotificationSettingsNodePath) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      updateNotificationSettingsArrowPosition();
+    }, 80);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    notificationSettingsLoading,
+    notificationSettingsOpen,
+    selectedNotificationSettingsNodePath,
+    updateNotificationSettingsArrowPosition,
+  ]);
 
   const mapPacketToNotification = useCallback((packet: NotificationSsePacket): NotificationItem => {
     const badge = mapTypeToBadge(packet.type);
@@ -840,8 +898,10 @@ export function AppTopBar({
   }, [visibleDialogNotifications]);
 
   const unreadCountBadgeLabel = unreadTotalCount > 99 ? "99+" : String(unreadTotalCount);
+  const visibleHiddenNotificationsCount = visibleNotifications.filter((item) => item.status === "HIDDEN").length;
+  const hiddenStatusSelected = notificationStatusFilters.includes("HIDDEN");
   const notificationCountLabel = hasAnyNotificationFilter
-    ? String(visibleNotifications.length)
+    ? String(hiddenStatusSelected ? visibleHiddenNotificationsCount : visibleNotifications.length)
     : allNotificationCount > 99
       ? "99+"
       : String(allNotificationCount || notifications.length);
@@ -1416,7 +1476,14 @@ export function AppTopBar({
             return (
               <div key={item.node.nodePath} className="w-full" style={{ paddingLeft: `${item.depth * 20}px` }}>
                 <div
-                  ref={registerNotificationSettingsNodeButton(item.node.nodePath)}
+                  ref={(node) => {
+                    registerNotificationSettingsNodeButton(item.node.nodePath)(node);
+                    if (isSelected) {
+                      notificationSettingsSelectedNodeRef.current = node;
+                    } else if (notificationSettingsSelectedNodeRef.current === node) {
+                      notificationSettingsSelectedNodeRef.current = null;
+                    }
+                  }}
                   role="button"
                   tabIndex={0}
                   onClick={() => focusNotificationSettingsNode(item.node.nodePath)}
@@ -1531,7 +1598,10 @@ export function AppTopBar({
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Node Notifications</p>
+            <div className="inline-flex flex-col">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Node Notifications</p>
+              <span className="mt-1 h-px w-16 rounded-full bg-slate-300" aria-hidden="true" />
+            </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-600">
                 {formatNodeLevelLabel(selectedNotificationSettingsNode.levelCount)}
@@ -1561,6 +1631,10 @@ export function AppTopBar({
         </div>
 
         <div className="mt-5 space-y-3">
+          <div className="inline-flex flex-col">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Module Notifications</p>
+            <span className="mt-1 h-px w-16 rounded-full bg-slate-300" aria-hidden="true" />
+          </div>
           {selectedNotificationSettingsNode.settings.length > 0 ? (
             selectedNotificationSettingsNode.settings.map((setting) => (
               <div
@@ -1569,7 +1643,6 @@ export function AppTopBar({
               >
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{formatModuleLabel(setting.module)}</p>
-                  <p className="mt-1 text-xs text-slate-500">Notification alerts for the {formatModuleLabel(setting.module).toLowerCase()} module.</p>
                 </div>
                 <div className="flex items-center">
                   <Tooltip>
@@ -1635,7 +1708,7 @@ export function AppTopBar({
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5 text-muted-foreground" />
-              {unreadTotalCount > 0 ? (
+              {!hiddenStatusSelected && unreadTotalCount > 0 ? (
                 <span className="absolute -right-1 -top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
                   {unreadCountBadgeLabel}
                 </span>
@@ -1646,11 +1719,13 @@ export function AppTopBar({
             <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
               <div className="flex items-center gap-2">
                 <p className="text-[1.05rem] font-semibold tracking-tight text-slate-900">Notifications ({notificationCountLabel})</p>
-                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                  {unreadCountLabel}
-                </span>
+                {!hiddenStatusSelected ? (
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                    {unreadCountLabel}
+                  </span>
+                ) : null}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col items-end gap-2">
                 <button
                   type="button"
                   onClick={() => void loadNotificationSettings()}
@@ -1658,7 +1733,11 @@ export function AppTopBar({
                 >
                   Manage Notifications
                 </button>
-                <button type="button" onClick={() => void markAllAsRead()} className="text-xs font-medium text-slate-600 transition-colors hover:text-slate-900">
+                <button
+                  type="button"
+                  onClick={() => void markAllAsRead()}
+                  className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200"
+                >
                   Mark all read
                 </button>
               </div>
