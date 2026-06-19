@@ -489,6 +489,7 @@ export function AppTopBar({
   const [allNotificationCount, setAllNotificationCount] = useState(0);
   const [allNotificationsOpen, setAllNotificationsOpen] = useState(false);
   const [notificationsPopoverOpen, setNotificationsPopoverOpen] = useState(false);
+  const [profilePopoverOpen, setProfilePopoverOpen] = useState(false);
   const [notificationStatusFilters, setNotificationStatusFilters] = useState<NotificationStatusFilterValue[]>([]);
   const [notificationModuleFilters, setNotificationModuleFilters] = useState<NotificationModuleFilterValue[]>([]);
   const [notificationDateRange, setNotificationDateRange] = useState<NotificationFetchDateRange>(DEFAULT_DATE_RANGE);
@@ -526,6 +527,10 @@ export function AppTopBar({
     setNotificationsPanelOpenFlag(allNotificationsOpen || notificationsPopoverOpen || notificationSettingsOpen);
     return () => setNotificationsPanelOpenFlag(false);
   }, [allNotificationsOpen, notificationSettingsOpen, notificationsPopoverOpen]);
+
+  useEffect(() => {
+    setProfilePopoverOpen(false);
+  }, [locationPathname]);
 
   const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -1727,13 +1732,15 @@ export function AppTopBar({
                 >
                   Manage Notifications
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void markAllAsRead()}
-                  className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200"
-                >
-                  Mark all read
-                </button>
+                {!hiddenStatusSelected ? (
+                  <button
+                    type="button"
+                    onClick={() => void markAllAsRead()}
+                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200"
+                  >
+                    Mark all read
+                  </button>
+                ) : null}
               </div>
             </div>
             {renderNotificationFilters(true)}
@@ -1793,13 +1800,15 @@ export function AppTopBar({
                   >
                     Manage Notifications
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => void markAllAsRead()}
-                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200"
-                  >
-                    Mark all read
-                  </button>
+                  {!hiddenStatusSelected ? (
+                    <button
+                      type="button"
+                      onClick={() => void markAllAsRead()}
+                      className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200"
+                    >
+                      Mark all read
+                    </button>
+                  ) : null}
                   <button type="button" onClick={() => {
                     setAllNotificationsOpen(false);
                     resetNotificationFilters();
@@ -1993,7 +2002,7 @@ export function AppTopBar({
           </DialogContent>
         </Dialog>
 
-        <Popover>
+        <Popover open={profilePopoverOpen} onOpenChange={setProfilePopoverOpen}>
           <PopoverTrigger asChild>
             <button
               type="button"
@@ -2038,10 +2047,12 @@ export function AppTopBar({
                   className="rounded-2xl border border-border bg-white px-3 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-md"
                   onClick={() => {
                     if (item.label === "My profile") {
+                      setProfilePopoverOpen(false);
                       navigate("/profile");
                       return;
                     }
                     if (item.label === "Company Settings") {
+                      setProfilePopoverOpen(false);
                       navigate("/settings");
                     }
                   }}
@@ -2055,10 +2066,6 @@ export function AppTopBar({
             </div>
 
             <div className="space-y-2 px-4 pb-4">
-              <Button variant="outline" className="w-full justify-start rounded-xl border-slate-200 text-slate-700" onClick={() => navigate("/profile")}>
-                <User className="mr-2 h-4 w-4" />
-                View Profile
-              </Button>
               <Button variant="destructive" className="w-full justify-start rounded-xl" onClick={onLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Logout

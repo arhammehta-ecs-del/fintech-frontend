@@ -159,27 +159,24 @@ function NodePathMarquee({ text }: { text: string }) {
           <Info className="h-3 w-3" />
         </span>
       ) : null}
-      <span className="inline-flex min-w-0 max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700">
+      <span className="inline-flex min-w-0 max-w-full rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-semibold leading-none tracking-normal text-sky-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
         <span ref={viewportRef} className="block max-w-full overflow-hidden whitespace-nowrap">
           <span
-            className="inline-flex items-center whitespace-nowrap will-change-transform"
-            style={
-              shouldAnimate
-                ? {
-                  animation: `user-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
-                  ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
-                  transform: "translate3d(0,0,0)",
-                }
-                : undefined
-            }
+            className={shouldAnimate ? "inline-flex items-center whitespace-nowrap will-change-transform" : "inline-flex items-center whitespace-nowrap"}
+            style={shouldAnimate
+              ? {
+                animation: `user-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
+                ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
+              }
+              : undefined}
           >
-            <span ref={textRef} className="inline-block whitespace-nowrap">
+            <span ref={textRef} className="inline-block whitespace-nowrap antialiased">
               {text}
             </span>
             {overflowPx > 0 ? (
               <span aria-hidden className="inline-flex items-center whitespace-nowrap">
                 <span className="inline-block" style={{ width: `${MARQUEE_GAP_PX}px` }} />
-                <span className="inline-block whitespace-nowrap">{text}</span>
+                <span className="inline-block whitespace-nowrap antialiased">{text}</span>
               </span>
             ) : null}
           </span>

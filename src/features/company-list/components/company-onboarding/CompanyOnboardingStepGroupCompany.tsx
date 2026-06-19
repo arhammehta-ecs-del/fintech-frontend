@@ -156,6 +156,7 @@ export function CompanyOnboardingStepGroupCompany({
                 </Command>
               </PopoverContent>
             </Popover>
+            {errors.selectedGroupId ? <p className="text-sm text-destructive">{errors.selectedGroupId}</p> : null}
           </div>
 
           {selectedGroupData ? (

@@ -5,6 +5,7 @@ type RawLoginCompany = {
   legalName?: string | null;
   brandName?: string | null;
   companyCode?: string | null;
+  reporteeCount?: number | null;
 };
 
 type RawLoginGroup = {
@@ -38,6 +39,7 @@ export type AccessRight = {
   nodePath: string;
   nodeType: string;
   accessCategory: string;
+  sourceTag?: string;
 };
 
 export type AccessRightsResponse = {
@@ -71,10 +73,13 @@ const mapUserGroups = (groups?: RawLoginGroup[] | null): CurrentUserGroup[] =>
       const companyName = getPacketString(company.legalName);
       const brandName = getPacketString(company.brandName);
       const companyCode = toUpperValue(getPacketString(company.companyCode));
+      const reporteeCount = typeof company.reporteeCount === "number" && Number.isFinite(company.reporteeCount)
+        ? company.reporteeCount
+        : 0;
       if (!companyName || !brandName || !companyCode) {
         throw new Error("Invalid auth/me response: company legalName, brandName and companyCode are required");
       }
-      return { companyName, brandName, companyCode };
+      return { companyName, brandName, companyCode, reporteeCount };
     });
     return { groupName, groupCode, companies };
   });
@@ -101,6 +106,7 @@ const mapUser = (record?: RawLoginUser | null): CurrentUser => {
     company: firstCompany?.companyName,
     brand: firstCompany?.brandName,
     companyCode: firstCompany?.companyCode,
+    reporteeCount: firstCompany?.reporteeCount ?? 0,
     groupName: firstGroup?.groupName,
     groupCode: firstGroup?.groupCode,
     groups,
@@ -151,6 +157,7 @@ const mapAccessRights = (value: unknown): AccessRight[] => {
       nodePath: getPacketString(String(row.nodePath ?? "")),
       nodeType: getPacketString(String(row.nodeType ?? "")),
       accessCategory: getPacketString(String(row.accessCategory ?? "")),
+      sourceTag: getPacketString(String(row.sourceTag ?? "")) || undefined,
     };
   });
 };

@@ -61,6 +61,7 @@ export type CompanyListToolbarProps = {
   onOpenOnboarding: () => void;
   hasNewCompanyListEvent: boolean;
   suppressAutoEventTooltip?: boolean;
+  isRefreshing?: boolean;
   onRefresh: () => void | Promise<void>;
   refreshInitializedAt?: number | null;
 };

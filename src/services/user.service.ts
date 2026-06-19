@@ -10,6 +10,7 @@ export type UserOnboardingPermission = {
   nodeType?: string;
   accessCategory?: "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null;
   accessType?: "PRIMARY" | "SECONDARY";
+  sourceTag?: string;
   remove?: boolean;
 };
 
@@ -297,6 +298,7 @@ const mapAccessDetails = (record: RawUserRecord): NonNullable<AppUser["accessDet
     nodeType: readString(entry.nodeType).trim(),
     accessCategory: normalizeAccessCategory(entry.accessCategory),
     accessType: detectedType,
+    sourceTag: readString(entry.sourceTag).trim() || undefined,
   }));
 
   return mappedEntries;

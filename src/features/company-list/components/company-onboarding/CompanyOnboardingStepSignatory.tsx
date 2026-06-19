@@ -56,6 +56,9 @@ export function CompanyOnboardingStepSignatory({
   onSaveSignatoryEditing,
   onRequestSignatoryRemove,
 }: StepSignatoryProps) {
+  const isFirstSignatoryState = signatories.length === 0;
+  const shouldShowSignatoryForm = showNewSignatoryForm || isFirstSignatoryState;
+
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -78,9 +81,14 @@ export function CompanyOnboardingStepSignatory({
         <p className="text-sm text-destructive">Details can&apos;t be same</p>
       ) : null}
 
-      {showNewSignatoryForm ? (
+      {shouldShowSignatoryForm ? (
         <Card className="p-4 shadow-sm">
-          <div className="mb-3 text-sm font-semibold text-foreground">Add Signatory</div>
+          <div className="mb-4">
+            <div className="text-sm font-semibold text-foreground">
+              {isFirstSignatoryState ? "Add your first signatory" : "Add Signatory"}
+            </div>
+           
+          </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Name</Label>
@@ -137,26 +145,28 @@ export function CompanyOnboardingStepSignatory({
             </div>
             <div className="flex gap-2 sm:col-span-2">
               <Button onClick={onAddSignatory} className="w-full sm:w-auto">
-                Add Signatory
+                {isFirstSignatoryState ? "Save First Signatory" : "Add Signatory"}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full sm:w-auto"
-                onClick={() => {
-                  onSetShowNewSignatoryForm(false);
-                  onSetNewSigErrors({});
-                }}
-              >
-                Cancel
-              </Button>
+              {!isFirstSignatoryState ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={() => {
+                    onSetShowNewSignatoryForm(false);
+                    onSetNewSigErrors({});
+                  }}
+                >
+                  Cancel
+                </Button>
+              ) : null}
             </div>
           </div>
         </Card>
       ) : null}
 
       {signatoryValidationAttempted &&
-      !showNewSignatoryForm &&
+      !shouldShowSignatoryForm &&
       errors.signatories &&
       (totalSignatories < 2 || totalSignatories > 3) ? (
         <p className="text-sm text-destructive">{errors.signatories}</p>

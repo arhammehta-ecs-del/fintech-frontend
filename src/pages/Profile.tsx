@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Eye, ShieldCheck, Users, X } from "lucide-react";
 import { useAppContext } from "@/contexts/AppContext";
 import type { AppUser } from "@/contexts/AppContext";
@@ -42,6 +42,7 @@ const [selectedReportee, setSelectedReportee] = useState<AppUser | null>(null);
 const accessRightsSectionRef = useRef<HTMLDivElement | null>(null);
 const reportsSectionRef = useRef<HTMLDivElement | null>(null);
 const stickyProfileRef = useRef<HTMLDivElement | null>(null);
+const [topBarOffset, setTopBarOffset] = useState(56);
 
 const base = currentUser?.name || currentUser?.email || "User";
 const initials = getInitials(base);
@@ -71,27 +72,55 @@ const globalAccessScopeLabel = ((globalAccessNode?.accessCategory || "").trim().
     ? "Immediate Child"
     : "Node");
 const globalAccessTitle = (globalAccessNode?.roleName || "").trim();
+const reporteeCount = currentUser?.reporteeCount ?? 0;
+const shouldShowReporteesButton = reporteeCount > 1;
+
+useLayoutEffect(() => {
+  const updateTopBarOffset = () => {
+    const topBar = document.querySelector("header");
+    const topBarHeight = topBar ? Math.ceil(topBar.getBoundingClientRect().height) : 56;
+    setTopBarOffset(topBarHeight);
+  };
+
+  updateTopBarOffset();
+  window.addEventListener("resize", updateTopBarOffset);
+
+  return () => {
+    window.removeEventListener("resize", updateTopBarOffset);
+  };
+}, []);
 
 const scrollToAccessRights = () => {
   const section = accessRightsSectionRef.current;
   if (!section) return;
   const stickyHeight = stickyProfileRef.current?.getBoundingClientRect().height ?? 0;
-  const topBar = document.querySelector("header");
-  const topBarHeight = topBar ? topBar.getBoundingClientRect().height : 0;
-  const targetTop = window.scrollY + section.getBoundingClientRect().top - stickyHeight - topBarHeight - 12;
+  const targetTop = window.scrollY + section.getBoundingClientRect().top - stickyHeight - topBarOffset - 12;
   window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
 };
 
 const scrollToSection = (section: HTMLDivElement | null) => {
   if (!section) return;
   const stickyHeight = stickyProfileRef.current?.getBoundingClientRect().height ?? 0;
-  const topBar = document.querySelector("header");
-  const topBarHeight = topBar ? topBar.getBoundingClientRect().height : 0;
-  const targetTop = window.scrollY + section.getBoundingClientRect().top - stickyHeight - topBarHeight - 12;
+  const targetTop = window.scrollY + section.getBoundingClientRect().top - stickyHeight - topBarOffset - 12;
   window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
 };
 
+useEffect(() => {
+  if (!hasLoadedAccessRights || isAccessLoading) return;
+  requestAnimationFrame(() => scrollToAccessRights());
+}, [hasLoadedAccessRights, isAccessLoading]);
+
+useEffect(() => {
+  if (!hasLoadedReports || isReportsLoading) return;
+  requestAnimationFrame(() => scrollToSection(reportsSectionRef.current));
+}, [hasLoadedReports, isReportsLoading]);
+
 const handleViewAccessRights = async () => {
+  if (hasLoadedAccessRights && accessDetails.length > 0) {
+    scrollToAccessRights();
+    return;
+  }
+
   const email = currentUser?.email?.trim();
   const companyCode = currentUser?.companyCode?.trim().toUpperCase();
   if (!email || !companyCode) {
@@ -110,17 +139,16 @@ const handleViewAccessRights = async () => {
       ...row,
       accessType: "PRIMARY",
       accessCategory: (row.accessCategory?.trim().toUpperCase() as "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE") || "NODE",
+      sourceTag: row.sourceTag?.trim() || undefined,
     }));
     const mappedSecondary: NonNullable<AppUser["accessDetails"]> = response.secondary.map((row) => ({
       ...row,
       accessType: "SECONDARY",
       accessCategory: (row.accessCategory?.trim().toUpperCase() as "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE") || "NODE",
+      sourceTag: row.sourceTag?.trim() || undefined,
     }));
     setAccessDetails([...mappedPrimary, ...mappedSecondary]);
     setHasLoadedAccessRights(true);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(scrollToAccessRights);
-    });
   } catch (error) {
     setAccessDetails([]);
     setHasLoadedAccessRights(false);
@@ -135,21 +163,21 @@ const handleViewAccessRights = async () => {
 };
 
 const handleViewReports = async () => {
+  if (hasLoadedReports) {
+    scrollToSection(reportsSectionRef.current);
+    return;
+  }
+
   setIsReportsLoading(true);
-  setHasLoadedReports(true);
   setSelectedReportee(null);
 
   try {
     const response = await getReporteeAccessRights();
     setReportees(response.users);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollToSection(reportsSectionRef.current));
-    });
+    setHasLoadedReports(true);
   } catch (error) {
     setReportees([]);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollToSection(reportsSectionRef.current));
-    });
+    setHasLoadedReports(true);
     toast({
       title: "Unable to load reportees",
       description: getApiErrorMessage(error, "Failed to fetch reportees."),
@@ -192,10 +220,14 @@ const handleViewReporteeAccessRights = async (reportee: AccessRightsUser) => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 pb-4">
-      <div ref={stickyProfileRef} className="sticky top-[56px] z-30 space-y-4 rounded-2xl bg-white/95 px-1 pb-3 pt-2 backdrop-blur supports-[backdrop-filter]:bg-white/85">
+      <div
+        ref={stickyProfileRef}
+        className="sticky z-10 space-y-4 rounded-2xl bg-white/95 px-1 pb-3 pt-2 backdrop-blur supports-[backdrop-filter]:bg-white/85"
+        style={{ top: `${topBarOffset}px` }}
+      >
         <div>
           <h1 className="text-2xl font-semibold text-foreground">My Profile</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Profile details for your current account</p>
+         
         </div>
 
         <Card className="overflow-hidden rounded-3xl border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
@@ -257,10 +289,12 @@ const handleViewReporteeAccessRights = async (reportee: AccessRightsUser) => {
       </Card>
 
       <div className="flex flex-wrap justify-end gap-3 pt-1">
-        <Button variant="outline" onClick={() => void handleViewReports()} disabled={isReportsLoading}>
-          <Users className="mr-2 h-4 w-4" />
-          {isReportsLoading ? "Loading Reports..." : "View Reports"}
-        </Button>
+        {shouldShowReporteesButton ? (
+          <Button variant="outline" onClick={() => void handleViewReports()} disabled={isReportsLoading}>
+            <Users className="mr-2 h-4 w-4" />
+            {isReportsLoading ? "Loading Reportees..." : `View Reportees (${reporteeCount})`}
+          </Button>
+        ) : null}
         <Button onClick={() => void handleViewAccessRights()} disabled={isAccessLoading}>
           {isAccessLoading ? "Loading Access Rights..." : "View Access Rights"}
         </Button>
@@ -288,7 +322,7 @@ const handleViewReporteeAccessRights = async (reportee: AccessRightsUser) => {
             {isAccessLoading ? (
               <div className="py-4 text-sm text-muted-foreground">Loading access rights...</div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div>
                   <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Primary Access</p>
                   {globalAccessNode && globalAccessTitle ? (
@@ -325,6 +359,7 @@ const handleViewReporteeAccessRights = async (reportee: AccessRightsUser) => {
                           nodeIndex={index}
                           categories={node.categories}
                           isPrimary
+                          showChangeIndicators={false}
                         />
                       ))}
                     </div>
@@ -337,7 +372,7 @@ const handleViewReporteeAccessRights = async (reportee: AccessRightsUser) => {
                     {secondaryEntries.length === 0 ? (
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No secondary access found.</div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         {secondaryEntries.map(([nodeKey, node], index) => (
                           <NodeAccessCard
                             key={`s-${nodeKey}`}
@@ -346,6 +381,8 @@ const handleViewReporteeAccessRights = async (reportee: AccessRightsUser) => {
                             nodeIndex={index}
                             categories={node.categories}
                             isPrimary={false}
+                            addedLabel={node.hasAutoGeneratedAccess && !node.hasUserManagedAccess ? "Auto Generated" : "Added"}
+                            showChangeIndicators={false}
                           />
                         ))}
                       </div>
@@ -363,7 +400,7 @@ const handleViewReporteeAccessRights = async (reportee: AccessRightsUser) => {
           <CardHeader className="border-b border-slate-200/80 bg-white p-5 pb-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-lg">View Reports</CardTitle>
+                <CardTitle className="text-lg">Reportees</CardTitle>
                 <p className="mt-1 text-sm text-slate-500">Select a reportee to view access rights.</p>
               </div>
               <button
@@ -380,7 +417,7 @@ const handleViewReporteeAccessRights = async (reportee: AccessRightsUser) => {
               </button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4 p-5">
+          <CardContent className="space-y-4 p-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
             {isReportsLoading ? (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
                 Loading reportees...
@@ -436,6 +473,7 @@ const handleViewReporteeAccessRights = async (reportee: AccessRightsUser) => {
               member={selectedReportee}
               currentTab="active"
               onClose={() => setSelectedReportee(null)}
+              showStatusToggle={false}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center bg-white text-sm text-slate-500">

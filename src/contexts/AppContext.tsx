@@ -129,6 +129,7 @@ export interface AppUser {
     nodeType?: string;
     accessCategory?: "ALL_CHILD" | "IMMEDIATE_CHILD" | "NODE" | null;
     accessType?: "PRIMARY" | "SECONDARY";
+    sourceTag?: string;
   }>;
 }
 
@@ -136,6 +137,7 @@ export interface CurrentUserCompany {
   companyName: string;
   brandName: string;
   companyCode: string;
+  reporteeCount: number;
 }
 
 export interface CurrentUserGroup {
@@ -155,6 +157,7 @@ export interface CurrentUser {
   groupCode?: string;
   role?: string;
   location?: string;
+  reporteeCount?: number;
   groups: CurrentUserGroup[];
 }
 

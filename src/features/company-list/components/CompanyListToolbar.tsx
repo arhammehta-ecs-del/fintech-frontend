@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { ChevronDown, Filter, Plus, RefreshCw, Search, X } from "lucide-react";
+import { Check, ChevronDown, Filter, Loader2, Plus, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -63,6 +63,7 @@ export default function CompanyListToolbar({
   onOpenOnboarding,
   hasNewCompanyListEvent,
   suppressAutoEventTooltip = false,
+  isRefreshing = false,
   onRefresh,
   refreshInitializedAt,
 }: CompanyListToolbarProps) {
@@ -75,7 +76,19 @@ export default function CompanyListToolbar({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draft, setDraft] = useState<CompanyListAppliedFiltersDraft>(buildEmptyDraft());
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isApplyingFilters, setIsApplyingFilters] = useState(false);
   const { refreshLabel, markRefreshed } = useRefreshTimestamp({ initializedAt: refreshInitializedAt });
+
+  useEffect(() => {
+    if (!isApplyingFilters) return;
+    if (isRefreshing) {
+      setFiltersOpen(false);
+      return;
+    }
+    if (!filtersOpen) {
+      setIsApplyingFilters(false);
+    }
+  }, [filtersOpen, isApplyingFilters, isRefreshing]);
 
   const syncDraft = () => {
     setDraft({
@@ -315,6 +328,7 @@ export default function CompanyListToolbar({
                   <Button
                     variant="ghost"
                     size="sm"
+                    disabled={isApplyingFilters}
                     onClick={() => {
                       syncDraft();
                       setFiltersOpen(false);
@@ -324,12 +338,23 @@ export default function CompanyListToolbar({
                   </Button>
                   <Button
                     size="sm"
+                    disabled={isApplyingFilters}
                     onClick={() => {
+                      setIsApplyingFilters(true);
                       onApplyFilters(draft);
-                      setFiltersOpen(false);
                     }}
                   >
-                    Apply
+                    {isApplyingFilters ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Applying...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="mr-2 h-4 w-4" />
+                        Apply
+                      </>
+                    )}
                   </Button>
                 </div>
               </PopoverContent>
@@ -349,12 +374,13 @@ export default function CompanyListToolbar({
                         markRefreshed();
                       }}
                       className={cn(
-                        "h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm",
+                        "h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm transition-all duration-200",
+                        isRefreshing && "scale-[1.03] border-[#3553e9]/35 shadow-[0_10px_24px_rgba(53,83,233,0.16)]",
                         hasNewCompanyListEvent &&
                           "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
                       )}
                     >
-                      <RefreshCw className="h-4 w-4" />
+                      <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top">

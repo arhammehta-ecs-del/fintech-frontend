@@ -294,7 +294,7 @@ export default function ApiMonitoringView() {
       </Card>
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm md:flex md:h-[760px] md:flex-col">
-        <div className="border-b border-slate-200 p-4">
+        <div className="border-b border-slate-200 px-4 pt-4 pb-[10px]">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="relative w-full lg:flex-1 lg:pr-4">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -303,7 +303,7 @@ export default function ApiMonitoringView() {
                 onFocus={() => setShowSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
                 onChange={(event) => setSearchInput(event.target.value)}
-                className="pl-9 pr-9"
+                className="pl-9 pr-14"
                 placeholder="Search by company name/code, user name/email, IP, URL, track ID..."
               />
               {searchInput ? (
@@ -313,7 +313,7 @@ export default function ApiMonitoringView() {
                     clearSearch();
                     setShowSuggestions(false);
                   }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
+                  className="absolute right-4 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center text-muted-foreground transition hover:text-foreground"
                   aria-label="Clear search"
                 >
                   <X className="h-4 w-4" />
@@ -337,36 +337,37 @@ export default function ApiMonitoringView() {
                 </div>
               ) : null}
             </div>
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              <Popover
-                open={filtersOpen}
-                onOpenChange={(nextOpen) => {
-                  if (nextOpen) syncDraft();
-                  if (nextOpen) {
-                    void fetchFilterPanelData().then(() => {
-                      markRefreshed();
-                    });
-                  }
-                  setFiltersOpen(nextOpen);
-                }}
-              >
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("gap-1.5", activeFilterCount > 0 && "border-primary/40 text-primary")}>
-                    <Filter className="h-4 w-4" />
-                    Filters
-                    {activeFilterCount > 0 ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs">{activeFilterCount}</span> : null}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-[640px] p-0">
-                  <div className="border-b px-5 py-3.5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-[14px] font-semibold tracking-[0.01em] text-slate-900">Filter Logs</p>
-                        <p className="mt-0.5 text-[12px] text-slate-500">
-                          {activeFilterCount > 0 ? `${activeFilterCount} filters applied` : "No filters applied"}
-                        </p>
-                      </div>
-                      <Button
+            <div className="ml-auto flex shrink-0 flex-col items-end gap-0.5 pb-px">
+              <div className="flex items-center gap-2">
+                <Popover
+                  open={filtersOpen}
+                  onOpenChange={(nextOpen) => {
+                    if (nextOpen) syncDraft();
+                    if (nextOpen) {
+                      void fetchFilterPanelData().then(() => {
+                        markRefreshed();
+                      });
+                    }
+                    setFiltersOpen(nextOpen);
+                  }}
+                >
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("gap-1.5", activeFilterCount > 0 && "border-primary/40 text-primary")}>
+                      <Filter className="h-4 w-4" />
+                      Filters
+                      {activeFilterCount > 0 ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs">{activeFilterCount}</span> : null}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-[640px] p-0">
+                    <div className="border-b px-5 py-3.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[14px] font-semibold tracking-[0.01em] text-slate-900">Filter Logs</p>
+                          <p className="mt-0.5 text-[12px] text-slate-500">
+                            {activeFilterCount > 0 ? `${activeFilterCount} filters applied` : "No filters applied"}
+                          </p>
+                        </div>
+                        <Button
                         variant="ghost"
                         size="sm"
                         className="h-7 rounded-lg px-2.5 text-[12px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
@@ -587,28 +588,25 @@ export default function ApiMonitoringView() {
                       </Button>
                     </div>
                   </div>
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
 
-              <div className="relative flex h-11 w-10 items-center justify-center">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => {
-                    void refreshLogs().then(() => {
-                      markRefreshed();
-                    });
-                  }}
-                  aria-label="Refresh API monitor"
-                >
-                  <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-                </Button>
-                {refreshLabel ? (
-                  <p className="pointer-events-none absolute top-full right-0 mt-1 whitespace-nowrap text-right text-xs font-medium text-muted-foreground">
-                    {refreshLabel}
-                  </p>
-                ) : null}
+                <div className="flex h-11 w-10 items-center justify-center">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      void refreshLogs().then(() => {
+                        markRefreshed();
+                      });
+                    }}
+                    aria-label="Refresh API monitor"
+                  >
+                    <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+                  </Button>
+                </div>
               </div>
+              {refreshLabel ? <p className="text-right text-xs font-medium leading-none text-muted-foreground">{refreshLabel}</p> : null}
             </div>
           </div>
         </div>

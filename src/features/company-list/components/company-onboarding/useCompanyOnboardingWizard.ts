@@ -15,6 +15,42 @@ const generateSignatoryId = () => {
   return `sig-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 };
 
+const dedupeGroupsByCode = (groups: GroupCompany[]): GroupCompany[] => {
+  const groupsByCode = new Map<string, GroupCompany>();
+
+  groups.forEach((group) => {
+    const normalizedCode = group.code.trim().toUpperCase();
+    if (!normalizedCode) return;
+
+    const existingGroup = groupsByCode.get(normalizedCode);
+    if (!existingGroup) {
+      groupsByCode.set(normalizedCode, {
+        ...group,
+        code: normalizedCode,
+        subsidiaries: [...group.subsidiaries],
+      });
+      return;
+    }
+
+    const subsidiaryIds = new Set(existingGroup.subsidiaries.map((subsidiary) => subsidiary.id));
+    const mergedSubsidiaries = [...existingGroup.subsidiaries];
+
+    group.subsidiaries.forEach((subsidiary) => {
+      if (subsidiaryIds.has(subsidiary.id)) return;
+      subsidiaryIds.add(subsidiary.id);
+      mergedSubsidiaries.push(subsidiary);
+    });
+
+    groupsByCode.set(normalizedCode, {
+      ...existingGroup,
+      groupName: existingGroup.groupName || group.groupName,
+      subsidiaries: mergedSubsidiaries,
+    });
+  });
+
+  return Array.from(groupsByCode.values());
+};
+
 export function useCompanyOnboardingWizard({
   embedded = false,
   open = true,
@@ -98,7 +134,7 @@ export function useCompanyOnboardingWizard({
       try {
         const companyGroups = await getAllCompanies();
         if (!ignore) {
-          setGroups(companyGroups);
+          setGroups(dedupeGroupsByCode(companyGroups));
         }
       } catch (error) {
         if (!ignore) {
@@ -156,6 +192,14 @@ export function useCompanyOnboardingWizard({
     } else if (groupName === "Independent") {
       setGroupName("");
     }
+
+    setErrors((current) => {
+      const nextErrors = { ...current };
+      delete nextErrors.groupSelectionMode;
+      delete nextErrors.selectedGroupId;
+      delete nextErrors.groupName;
+      return nextErrors;
+    });
   };
 
   const handleGroupSelection = (value: string) => {
@@ -164,6 +208,12 @@ export function useCompanyOnboardingWizard({
     setEditingSignatoryIds(new Set());
     setEditingSignatoryDrafts({});
     setSignatories([]);
+    setErrors((current) => {
+      if (!current.selectedGroupId) return current;
+      const nextErrors = { ...current };
+      delete nextErrors.selectedGroupId;
+      return nextErrors;
+    });
   };
 
   const toggleLinkedSig = (sig: SignatoryWithId) => {
@@ -304,7 +354,6 @@ export function useCompanyOnboardingWizard({
         if (!sig.fullName.trim()) nextErrors[`${prefix}-fullName`] = "Name is required";
         if (!sig.email.trim()) nextErrors[`${prefix}-email`] = "Email is required";
         if (!sig.phone.trim()) nextErrors[`${prefix}-phone`] = "Phone is required";
-        if (!sig.designation.trim()) nextErrors[`${prefix}-designation`] = "Designation is required";
       });
     }
 
@@ -334,7 +383,6 @@ export function useCompanyOnboardingWizard({
     if (!newSig.fullName.trim()) nextErrors.fullName = "Required";
     if (!newSig.email.trim()) nextErrors.email = "Required";
     if (!newSig.phone.trim()) nextErrors.phone = "Required";
-    if (!newSig.designation.trim()) nextErrors.designation = "Required";
 
     if (Object.keys(nextErrors).length > 0) {
       setNewSigErrors(nextErrors);

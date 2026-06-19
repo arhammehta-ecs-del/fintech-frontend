@@ -11,13 +11,28 @@ const toRecord = (value: unknown): Record<string, unknown> =>
 
 const readBoolean = (value: unknown): boolean | null => (typeof value === "boolean" ? value : null);
 const readString = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+const ISO_DATE_TIME_PATTERN = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z/g;
+
+const formatToIstDateTime = (value: string) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return `${new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Kolkata",
+  }).format(parsed)} IST`;
+};
+
+const normalizeLockMessage = (message: string) =>
+  message.replace(ISO_DATE_TIME_PATTERN, (match) => formatToIstDateTime(match));
 
 const ensureLockAcquired = (response: unknown) => {
   const root = toRecord(response);
   const data = toRecord(root.data);
   const lockAcquired = readBoolean(root.lockAcquired) ?? readBoolean(data.lockAcquired);
   if (lockAcquired === false) {
-    const message = readString(root.message) || readString(data.message) || "Unable to acquire edit lock.";
+    const message = normalizeLockMessage(readString(root.message) || readString(data.message) || "Unable to acquire edit lock.");
     throw new Error(message);
   }
 };

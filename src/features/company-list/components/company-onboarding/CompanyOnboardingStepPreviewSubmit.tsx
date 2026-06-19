@@ -98,30 +98,59 @@ export function CompanyOnboardingStepPreviewSubmit({
               <h3 className="inline-block border-b border-slate-300 pb-1 text-sm font-semibold text-slate-700">New Signatory</h3>
             </div>
             <div className="space-y-3">
-              {payloadPreview.signatories.map((sig, index) => (
-                <div key={`${sig.email}-${sig.name}`} className="rounded-lg border border-slate-200 bg-white p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Signatory {index + 1}</p>
-                  <div className="grid grid-cols-1 gap-y-1.5 text-sm text-foreground sm:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] sm:gap-x-4">
-                    <p className="min-w-0">
-                      <span className="font-medium tracking-wide text-slate-500">Name:</span> <span className="font-semibold text-slate-900">{sig.name}</span>
-                    </p>
-                    <p className="min-w-0">
-                      <span className="font-medium tracking-wide text-slate-500">Email:</span> <span className="break-all font-semibold text-slate-900">{sig.email}</span>
-                    </p>
-                    <p className="min-w-0">
-                      <span className="font-medium tracking-wide text-slate-500">Phone:</span> <span className="font-semibold text-slate-900">{sig.phone}</span>
-                    </p>
-                    <p className="min-w-0">
-                      <span className="font-medium tracking-wide text-slate-500">Designation:</span> <span className="font-semibold text-slate-900">{sig.designation}</span>
-                    </p>
-                    {sig.employeeId.trim() ? (
-                      <p className="min-w-0 sm:col-span-2">
-                        <span className="font-medium tracking-wide text-slate-500">Employee ID:</span> <span className="font-semibold text-slate-900">{sig.employeeId}</span>
-                      </p>
-                    ) : null}
+              {payloadPreview.signatories.map((sig, index) => {
+                const shouldWrapEmailRow =
+                  sig.email.trim().length > 24 || `${sig.name} ${sig.email}`.trim().length > 42;
+
+                return (
+                  <div key={`${sig.email}-${sig.name}`} className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Signatory {index + 1}</p>
+                    {shouldWrapEmailRow ? (
+                      <div className="space-y-1.5 text-sm text-foreground">
+                        <p className="min-w-0">
+                          <span className="font-medium tracking-wide text-slate-500">Name:</span> <span className="font-semibold text-slate-900">{sig.name || "-"}</span>
+                        </p>
+                        <p className="min-w-0">
+                          <span className="font-medium tracking-wide text-slate-500">Email:</span> <span className="break-all font-semibold text-slate-900">{sig.email || "-"}</span>
+                        </p>
+                        <div className="grid grid-cols-1 gap-y-1.5 sm:grid-cols-2 sm:gap-x-4">
+                          <p className="min-w-0">
+                            <span className="font-medium tracking-wide text-slate-500">Phone:</span> <span className="font-semibold text-slate-900">{sig.phone || "-"}</span>
+                          </p>
+                          <p className="min-w-0">
+                            <span className="font-medium tracking-wide text-slate-500">Designation:</span> <span className="font-semibold text-slate-900">{sig.designation.trim() || "-"}</span>
+                          </p>
+                          {sig.employeeId.trim() ? (
+                            <p className="min-w-0 sm:col-span-2">
+                              <span className="font-medium tracking-wide text-slate-500">Employee ID:</span> <span className="font-semibold text-slate-900">{sig.employeeId}</span>
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-y-1.5 text-sm text-foreground sm:grid-cols-2 sm:gap-x-4">
+                        <p className="min-w-0">
+                          <span className="font-medium tracking-wide text-slate-500">Name:</span> <span className="font-semibold text-slate-900">{sig.name || "-"}</span>
+                        </p>
+                        <p className="min-w-0">
+                          <span className="font-medium tracking-wide text-slate-500">Email:</span> <span className="break-all font-semibold text-slate-900">{sig.email || "-"}</span>
+                        </p>
+                        <p className="min-w-0">
+                          <span className="font-medium tracking-wide text-slate-500">Phone:</span> <span className="font-semibold text-slate-900">{sig.phone || "-"}</span>
+                        </p>
+                        <p className="min-w-0">
+                          <span className="font-medium tracking-wide text-slate-500">Designation:</span> <span className="font-semibold text-slate-900">{sig.designation.trim() || "-"}</span>
+                        </p>
+                        {sig.employeeId.trim() ? (
+                          <p className="min-w-0 sm:col-span-2">
+                            <span className="font-medium tracking-wide text-slate-500">Employee ID:</span> <span className="font-semibold text-slate-900">{sig.employeeId}</span>
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </Card>
         </div>
