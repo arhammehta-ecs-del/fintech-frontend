@@ -210,20 +210,14 @@ const getAffectedSegments = (message: string) => {
 
 const mapTypeToBadge = (value?: string): { label: string; tone: NotificationTone } => {
   const normalized = String(value ?? "").trim().toUpperCase();
-  if (normalized.includes("INACTIV")) return { label: "Inactive", tone: "red" };
-  if (normalized.includes("ACTIV")) return { label: "Active", tone: "green" };
-  if (normalized.includes("APPROV") || normalized.includes("ONBOARD")) return { label: "Approved", tone: "green" };
-  if (normalized.includes("INITIAT")) return { label: "Initiated", tone: "blue" };
-  if (normalized.includes("MODIF")) return { label: "Modify", tone: "orange" };
-  if (normalized.includes("REJECT")) return { label: "Rejected", tone: "red" };
-  if (normalized) {
-    const fallbackLabel = normalized
-      .replace(/[_-]+/g, " ")
-      .toLowerCase()
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-    return { label: fallbackLabel, tone: "slate" };
-  }
-  return { label: "Initiated", tone: "blue" };
+  const rawLabel = normalized || "INITIATED";
+  if (normalized.includes("INACTIV")) return { label: rawLabel, tone: "red" };
+  if (normalized.includes("ACTIV")) return { label: rawLabel, tone: "green" };
+  if (normalized.includes("APPROV") || normalized.includes("ONBOARD")) return { label: rawLabel, tone: "green" };
+  if (normalized.includes("INITIAT")) return { label: rawLabel, tone: "blue" };
+  if (normalized.includes("MODIF")) return { label: rawLabel, tone: "orange" };
+  if (normalized.includes("REJECT")) return { label: rawLabel, tone: "red" };
+  return { label: rawLabel, tone: normalized ? "slate" : "blue" };
 };
 
 const mapRefTypeToEntity = (value?: string | null): NotificationEntity => {

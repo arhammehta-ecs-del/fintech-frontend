@@ -21,10 +21,15 @@ import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
 
 const getPendingHistoryContext = (node: OrgNode) => {
+  const pendingNodePath =
+    typeof node.pendingNewData?.nodePath === "string" && node.pendingNewData.nodePath.trim()
+      ? node.pendingNewData.nodePath.trim()
+      : "";
   const targetNodePath =
-    typeof node.pendingNewData?.targetNodePath === "string" && node.pendingNewData.targetNodePath.trim()
+    pendingNodePath ||
+    (typeof node.pendingNewData?.targetNodePath === "string" && node.pendingNewData.targetNodePath.trim()
       ? node.pendingNewData.targetNodePath.trim()
-      : (node.nodePath || "").trim();
+      : (node.nodePath || "").trim());
   const parentNodePath = targetNodePath.includes(".")
     ? targetNodePath.split(".").slice(0, -1).join(".").trim()
     : targetNodePath;

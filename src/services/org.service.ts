@@ -249,6 +249,14 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
     typeof record.data === "object" && record.data !== null
       ? (record.data as RawOrgRecord)
       : record;
+  const pendingNewData =
+    typeof requestData.newData === "object" && requestData.newData !== null
+      ? (requestData.newData as Record<string, unknown>)
+      : undefined;
+  const pendingOldData =
+    typeof requestData.oldData === "object" && requestData.oldData !== null
+      ? (requestData.oldData as Record<string, unknown>)
+      : undefined;
 
   const parentNode =
     typeof requestData.parentNode === "object" && requestData.parentNode !== null
@@ -259,6 +267,7 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
   const newNodeName = getString(requestData, ["newNodeName"], "");
   const nodeType = getString(requestData, ["nodeType"], "");
   const requestId = getString(record, ["id"], "");
+  const requestType = getString(requestData, ["type"], getString(record, ["type"], ""));
   const requestedByName =
     getString(record, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"], "") ||
     getString(requestData, ["requestedByName", "requestedBy", "initiatorName", "requesterName", "createdByName"], "");
@@ -295,15 +304,17 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
   const affectedUserAccessCount = getNumber(record, ["affectedUserAccessCount"]) ?? getNumber(requestData, ["affectedUserAccessCount"]);
   const affectedWorkflowCount = getNumber(record, ["affectedWorkflowCount"]) ?? getNumber(requestData, ["affectedWorkflowCount"]);
   const impactSummary = mapImpactSummary(record) ?? mapImpactSummary(requestData) ?? mapImpactSummary(requestData.newData);
+  const responseNodePath = getString(pendingNewData, ["nodePath"], "").trim();
 
   if (!newNodeName || !nodeType) return null;
 
   const derivedNodePath =
-    nodeType.trim().toUpperCase() === "ROOT"
+    responseNodePath ||
+    (nodeType.trim().toUpperCase() === "ROOT"
       ? `${normalizePathSegment(getString(record, ["companyCode"], parentNodePath.split(".")[0] ?? ""))}.ROOT`
       : parentNodePath
         ? `${parentNodePath}.${normalizePathSegment(newNodeName)}`
-        : "";
+        : "");
 
   return {
     id: requestId || derivedNodePath || `pending-${normalizePathSegment(newNodeName)}`,
@@ -321,6 +332,9 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
     alias: alias || undefined,
     status: "Pending",
     requestedStatus,
+    pendingRequestType: requestType || undefined,
+    pendingOldData,
+    pendingNewData,
     affectedUserAccessCount: affectedUserAccessCount ?? impactSummary?.userAccess.length,
     affectedWorkflowCount: affectedWorkflowCount ?? impactSummary?.workflow.length,
     children: [],
