@@ -14,9 +14,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import WorkflowOnboardingView from "@/features/workflow-management/components/WorkflowOnboardingView";
 import WorkflowHistorySidebar from "./WorkflowHistorySidebar";
+import WorkflowPreferenceDialog from "./WorkflowPreferenceDialog";
 import { History } from "lucide-react";
 import WorkflowManageDialog from "./WorkflowManageDialog";
 import type { HistoryDetailPreviewEvent, HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
@@ -250,6 +252,7 @@ export default function WorkflowManagementView() {
   const [deleteRemarkError, setDeleteRemarkError] = useState("");
   const [isOpeningWorkflowPreview, setIsOpeningWorkflowPreview] = useState(false);
   const [isRefreshTooltipOpen, setIsRefreshTooltipOpen] = useState(false);
+  const [workflowPreferenceDialogOpen, setWorkflowPreferenceDialogOpen] = useState(false);
   const isNotificationsPanelOpen = useNotificationsPanelOpen();
   const isAnyWorkflowDialogOpen = addDialogOpen || Boolean(manageWorkflow);
   const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
@@ -271,7 +274,6 @@ export default function WorkflowManagementView() {
       : activeStatus === "Inactive"
         ? statusCounts.inactive
         : statusCounts.active;
-
   const clearNotificationIntentParams = (params: URLSearchParams) => {
     const nextParams = new URLSearchParams(params);
     [
@@ -988,22 +990,34 @@ export default function WorkflowManagementView() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm md:flex md:h-[calc(100dvh-21rem)] md:min-h-[420px] md:flex-col">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
-          <h3 className="text-xl font-semibold text-slate-800">
-            {activeStatus} Workflows ({filteredWorkflows.length})
-          </h3>
-          <Button
-            className="w-full lg:w-auto"
-            onClick={() => {
-              setOnboardingMode("create");
-              setWorkflowSeedForEdit(null);
-              void handleOpenAddWorkflowDialog();
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Workflow
-          </Button>
-        </div>
+        <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <h3 className="text-xl font-semibold text-slate-800">
+              {activeStatus} Workflows ({filteredWorkflows.length})
+            </h3>
+           
+          </div>
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end lg:w-auto">
+              <Button
+                variant="outline"
+                className="w-full border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 sm:w-auto"
+                onClick={() => setWorkflowPreferenceDialogOpen(true)}
+              >
+                Set Preference
+              </Button>
+              <Button
+                className="w-full lg:w-auto"
+                onClick={() => {
+                  setOnboardingMode("create");
+                  setWorkflowSeedForEdit(null);
+                  void handleOpenAddWorkflowDialog();
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Workflow
+              </Button>
+            </div>
+          </div>
 
         {filteredWorkflows.length === 0 ? (
           <div className="p-8 text-sm text-slate-500">No {activeStatus.toLowerCase()} workflows available.</div>
@@ -1373,6 +1387,11 @@ export default function WorkflowManagementView() {
         }
         preventOutsideClose={canUseSplitManageHistory}
         initialAction={manageInitialAction}
+      />
+      <WorkflowPreferenceDialog
+        open={workflowPreferenceDialogOpen}
+        onOpenChange={setWorkflowPreferenceDialogOpen}
+        onPreferencesSaved={() => void loadWorkflows()}
       />
       <EditLockWarningDialog
         open={workflowLockSession.warningOpen}

@@ -19,8 +19,8 @@ import { login } from "@/services/auth.service";
 import { ApiRequestError } from "@/services/client";
 
 export default function Login() {
-  const [email, setEmail] = useState("admin@globaltech.com");
-  const [password, setPassword] = useState("Admin@123");
+  const [email, setEmail] = useState("s1@nexora.com");
+  const [password, setPassword] = useState("Welcome@123");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForceLoginDialog, setShowForceLoginDialog] = useState(false);

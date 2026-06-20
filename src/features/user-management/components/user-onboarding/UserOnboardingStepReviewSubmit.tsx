@@ -290,6 +290,34 @@ const havePermissionSelectionsChanged = (
   buildPermissionChangeSignature(currentPermissions, currentScopes) !==
   buildPermissionChangeSignature(previousPermissions, previousScopes);
 
+const getPermissionCount = (
+  permissions: UserOnboardingPermissions,
+  permissionScopes: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>,
+) =>
+  getSelectedSections(permissions, permissionScopes).reduce(
+    (count, section) => count + section.selectedItems.reduce((sectionCount, item) => sectionCount + getOrderedPermissionLabels(item.activeRights).length, 0),
+    0,
+  );
+
+const getCollapsedPermissionPreview = (
+  permissions: UserOnboardingPermissions,
+  permissionScopes: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>,
+) =>
+  getSelectedSections(permissions, permissionScopes)
+    .flatMap((section) =>
+      section.selectedItems.flatMap((item) =>
+        getOrderedPermissionLabels(item.activeRights).map((label) => {
+          const action = getPermissionActionFromText(label);
+          const scopeLabel =
+            action && section.categoryKey.trim().toUpperCase() === "SYSTEM_ACCESS"
+              ? formatScopeLabel(item.activeScopeByAction[action] ?? "NODE")
+              : null;
+          return scopeLabel ? `${label} - ${scopeLabel}` : label;
+        }),
+      ),
+    )
+    .slice(0, 2);
+
 const DiffValue = ({
   previousValue,
   currentValue,
@@ -524,6 +552,76 @@ function BasicDetailRow({
   );
 }
 
+function CollapsedNodeSummaryCard({
+  node,
+  badgeLabel,
+  diffStatus = null,
+  permissions,
+  permissionScopes,
+  branchMetaMap,
+  breadcrumbByNodeId,
+  onClick,
+  highlightEdited = false,
+}: {
+  node: OrgNode;
+  badgeLabel: string;
+  diffStatus?: NodeDiffStatus;
+  permissions: UserOnboardingPermissions;
+  permissionScopes: Record<string, Record<string, Partial<Record<PermissionAction, string>>>>;
+  branchMetaMap: Map<string, BranchMeta>;
+  breadcrumbByNodeId: Map<string, string>;
+  onClick: () => void;
+  highlightEdited?: boolean;
+}) {
+  const diffTheme = getNodeDiffTheme(diffStatus);
+  const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
+  const breadcrumb = isRoot ? "" : formatCollapsedNodePath(breadcrumbByNodeId.get(node.id) || "");
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-md border border-l-[4px] px-2.5 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
+        diffStatus
+          ? diffTheme.wrapper
+          : highlightEdited
+            ? "border-emerald-300 bg-white hover:border-emerald-300 hover:bg-emerald-50/70"
+            : "border-slate-200 bg-white",
+        diffStatus === "removed" ? "border-l-rose-500 hover:border-rose-300 hover:bg-rose-50/70" : getNodeBorderLeftClass(node, branchMetaMap),
+        diffStatus === "added"
+          ? "hover:border-emerald-300 hover:bg-emerald-50/70"
+          : diffStatus === "removed"
+            ? ""
+            : !highlightEdited
+              ? getNodeHoverClass(node, branchMetaMap)
+              : "",
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold",
+          diffStatus === "removed" ? "border-rose-300 bg-rose-50 text-rose-700" : getNodeBadgeClass(node, branchMetaMap),
+        )}
+      >
+        {badgeLabel}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className={cn("truncate text-xs font-semibold", diffStatus === "removed" ? "text-rose-700" : "text-slate-700")}>
+          {node.name}
+        </div>
+        {!isRoot && breadcrumb ? (
+          <div className="break-words text-[10px] font-medium text-slate-500">{breadcrumb}</div>
+        ) : null}
+        {!isRoot ? (
+          <div className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{node.nodeType}</div>
+        ) : null}
+      </div>
+      <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
+    </button>
+  );
+}
+
 export function UserOnboardingStepReviewSubmit({
   orgStructure,
   basic,
@@ -555,6 +653,7 @@ export function UserOnboardingStepReviewSubmit({
   const branchMetaMap = buildBranchMetaMap(orgStructure);
   const breadcrumbByNodeId = useMemo(() => buildNodeBreadcrumbMap(orgStructure), [orgStructure]);
   const hasAutoConfiguredEditExpansionRef = useRef(false);
+  const [isBasicDetailsExpanded, setIsBasicDetailsExpanded] = useState(false);
   const [collapsedFocusedNodeId, setCollapsedFocusedNodeId] = useState<"primary" | string | null>(null);
   const primaryNode = primaryNodeId ? selectedNodes.find((node) => node.id === primaryNodeId) ?? null : null;
   const previousPrimaryNode = previousPrimaryNodeId
@@ -586,6 +685,13 @@ export function UserOnboardingStepReviewSubmit({
         const previousNode = previousNodeById.get(nodeId) ?? null;
         const node = currentNode ?? previousNode;
         if (!node) return null;
+        const currentSecondaryPermissions = nodePermissions[nodeId]?.secondary ?? {};
+        const currentSecondaryScopes = nodePermissionScopes[nodeId]?.secondary ?? {};
+        const previousSecondaryPermissions = previousNodePermissions[nodeId]?.secondary ?? {};
+        const previousSecondaryScopes = previousNodePermissionScopes[nodeId]?.secondary ?? {};
+        const currentHasAccess = hasSelectedRights(currentSecondaryPermissions, currentSecondaryScopes);
+        const previousHasAccess = hasSelectedRights(previousSecondaryPermissions, previousSecondaryScopes);
+        if (!currentHasAccess && !previousHasAccess) return null;
         const currentSecondaryIndex = currentSecondaryIndexById.get(nodeId);
         const previousSecondaryIndex = previousSecondaryIndexById.get(nodeId);
         const reorderedWithinSecondary =
@@ -630,7 +736,11 @@ export function UserOnboardingStepReviewSubmit({
   }, [
     currentSecondaryIndexById,
     currentSecondaryNodeIds,
+    nodePermissionScopes,
+    nodePermissions,
     previousSecondaryIndexById,
+    previousNodePermissionScopes,
+    previousNodePermissions,
     previousSecondaryNodeIds,
     previousSelectedNodes,
     selectedNodes,
@@ -649,12 +759,14 @@ export function UserOnboardingStepReviewSubmit({
     },
     [previousSelectedNodes, secondaryReviewEntries, selectedNodes],
   );
+  const previousPrimaryCollapsedNodeId = "previous-primary";
   const collapsedSelectableIds = useMemo(() => {
     const ids: Array<"primary" | string> = [];
     if (primaryNode) ids.push("primary");
+    if (previousPrimaryReplacementNode) ids.push(previousPrimaryCollapsedNodeId);
     secondaryReviewEntries.forEach((entry) => ids.push(entry.nodeId));
     return ids;
-  }, [primaryNode, secondaryReviewEntries]);
+  }, [previousPrimaryReplacementNode, primaryNode, secondaryReviewEntries]);
 
   useEffect(() => {
     if (collapsedSelectableIds.length === 0 || (collapsedFocusedNodeId && !collapsedSelectableIds.includes(collapsedFocusedNodeId))) {
@@ -694,6 +806,7 @@ export function UserOnboardingStepReviewSubmit({
       secondaryReviewEntries,
     ],
   );
+  const secondaryEditedNodeIdSet = useMemo(() => new Set(editedSecondaryNodeIds), [editedSecondaryNodeIds]);
 
   const defaultEditExpandedNodeIds = useMemo(
     () => [
@@ -959,72 +1072,99 @@ export function UserOnboardingStepReviewSubmit({
               ) : null}
             </div>
           ) : (
-            <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
-              <div className="rounded-2xl border border-indigo-200 bg-[#DDE6FF] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
-                <div
-                  className={cn(
-                    "grid items-stretch gap-2.5",
-                    isGlobalSignatory ? "grid-cols-1 lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]" : "grid-cols-1",
-                  )}
-                >
-                  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm ring-1 ring-slate-100/70">
-                    <div className="mb-2 border-b border-slate-200 pb-1.5 text-[11px] font-black uppercase tracking-widest text-slate-600">
-                      Basic Details
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <BasicDetailRow label="Name" value={basic.name} previousValue={isEditMode ? previousBasic?.name : undefined} highlightAdded={isEditMode} />
-                      <BasicDetailRow label="Email" value={basic.email} previousValue={isEditMode ? previousBasic?.email : undefined} highlightAdded={isEditMode} />
-                      <BasicDetailRow label="Phone" value={basic.phone} previousValue={isEditMode ? previousBasic?.phone : undefined} highlightAdded={isEditMode} />
-                      <BasicDetailRow label="Designation" value={basic.designation} previousValue={isEditMode ? previousBasic?.designation : undefined} highlightAdded={isEditMode} />
-                      <BasicDetailRow label="Employee ID" value={basic.employeeId || "-"} previousValue={isEditMode ? previousBasic?.employeeId : undefined} highlightAdded={isEditMode} />
-                      <BasicDetailRow label="Workflow" value={selectedWorkflow || "-"} previousValue={isEditMode ? previousSelectedWorkflow : undefined} highlightAdded={isEditMode} />
-                    </div>
+            <div className="space-y-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-3.5">
+              <div className="rounded-2xl border border-indigo-200 bg-[#DDE6FF] px-3 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm ring-1 ring-slate-100/70">
+                  <div className="mb-2 flex items-center justify-between border-b border-slate-200 pb-1.5">
+                    <span className="text-[11px] font-black uppercase tracking-widest text-slate-600">Basic Details</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsBasicDetailsExpanded((value) => !value)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-400 transition hover:text-[rgb(53,83,233)]"
+                      aria-label={isBasicDetailsExpanded ? "Collapse Basic Details" : "Expand Basic Details"}
+                      aria-expanded={isBasicDetailsExpanded}
+                    >
+                      {isBasicDetailsExpanded ? <X className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </button>
                   </div>
-                  {isGlobalSignatory ? (
-                    <div className="flex h-full min-h-[220px] flex-col rounded-xl border border-emerald-200 bg-white p-3 shadow-sm ring-1 ring-emerald-100/70">
-                      <div className="flex h-full flex-col rounded-2xl border border-emerald-200 bg-white p-4">
-                        <div className="mb-3 flex h-20 w-20 items-center justify-center rounded-3xl border border-emerald-200 bg-white/80 text-emerald-700">
-                          <ShieldCheck className="h-9 w-9" />
-                        </div>
-                        <div className="mb-3 border-b border-emerald-200 pb-2 text-[12px] font-extrabold uppercase tracking-[0.22em] text-emerald-700">
-                          Global Access
-                        </div>
-                        <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3">
-                          <div className="flex items-center gap-2 text-[14px]">
-                            <span className="text-slate-500">Node Name</span>
-                            <span className="text-slate-400">:</span>
-                            <span className="font-extrabold text-slate-900">{globalNodeName}</span>
+                  {isBasicDetailsExpanded ? (
+                    <div className="space-y-1.5 text-sm">
+                      <div className="flex items-start gap-2.5">
+                        <span className="min-w-[92px] shrink-0 text-slate-500">Name</span>
+                        <span className="text-slate-400">:</span>
+                        <span className="min-w-0 flex-1 font-semibold text-slate-900">{basic.name || "-"}</span>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <span className="min-w-[92px] shrink-0 text-slate-500">Email</span>
+                        <span className="text-slate-400">:</span>
+                        <span className="min-w-0 flex-1 truncate font-semibold text-slate-900">{basic.email || "-"}</span>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <span className="min-w-[92px] shrink-0 text-slate-500">Phone</span>
+                        <span className="text-slate-400">:</span>
+                        <span className="min-w-0 flex-1 font-semibold text-slate-900">{basic.phone || "-"}</span>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <span className="min-w-[92px] shrink-0 text-slate-500">Designation</span>
+                        <span className="text-slate-400">:</span>
+                        <span className="min-w-0 flex-1 font-semibold text-slate-900">{basic.designation || "-"}</span>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <span className="min-w-[92px] shrink-0 text-slate-500">Workflow</span>
+                        <span className="text-slate-400">:</span>
+                        <span className="min-w-0 flex-1 font-semibold text-slate-900">{selectedWorkflow || "-"}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2">
+                      <div className={cn("grid gap-3 text-sm", !isGlobalSignatory ? "grid-cols-1 md:grid-cols-2" : "grid-cols-2")}>
+                        <div className="min-w-0">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="min-w-0">
+                              <div className="text-slate-500">Name</div>
+                              <div className="truncate font-semibold text-slate-900">{basic.name || "-"}</div>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-slate-500">Email</div>
+                              <div className="truncate font-semibold text-slate-900">{basic.email || "-"}</div>
+                            </div>
                           </div>
-                          <div className="mt-2 flex items-center gap-2 text-[14px]">
-                            <span className="text-slate-500">Access Category</span>
-                            <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
-                              All Child
-                            </span>
-                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {!isGlobalSignatory && isBasicDetailsExpanded ? (
+                    <div className="mt-2 border-t border-slate-200 pt-2">
+                      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-6">
+                        <div className="flex min-w-0 items-center gap-1 text-sm">
+                          <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
+                          <span className="shrink-0 text-slate-400">:</span>
+                          <span className="min-w-0 break-words font-semibold text-slate-900">{reportingManagerName}</span>
+                        </div>
+                        <div className="flex min-w-0 items-center gap-1 text-sm">
+                          <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
+                          <span className="shrink-0 text-slate-400">:</span>
+                          <span className="min-w-0 break-all font-semibold text-slate-900">{reportingManagerEmail}</span>
                         </div>
                       </div>
                     </div>
                   ) : null}
                 </div>
-
-                {!isGlobalSignatory ? (
-                  <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100/70">
-                    <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-6">
-                      <div className="flex min-w-0 items-center gap-1">
-                        <span className="shrink-0 whitespace-nowrap text-slate-500">Reporting Manager</span>
-                        <span className="shrink-0 text-slate-400">:</span>
-                        <span className="min-w-0 break-words font-semibold text-slate-900">{reportingManagerName}</span>
-                      </div>
-                      <div className="flex min-w-0 items-center gap-1">
-                        <span className="shrink-0 whitespace-nowrap text-slate-500">Manager Email</span>
-                        <span className="shrink-0 text-slate-400">:</span>
-                        <span className="min-w-0 break-all font-semibold text-slate-900">{reportingManagerEmail}</span>
-                      </div>
-                    </div>
+              {isGlobalSignatory ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-emerald-700" />
+                    <span className="text-[12px] font-extrabold uppercase tracking-widest text-emerald-700">Global Access</span>
                   </div>
-                ) : null}
-
-                {!isGlobalSignatory ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-slate-500">Node Name:</span>
+                    <span className="font-semibold text-slate-900">{globalNodeName}</span>
+                    <span className="inline-flex items-center rounded-full border border-emerald-300 bg-white px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                      All Child
+                    </span>
+                  </div>
+                </div>
+              ) : (
                 <div className="mt-3 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-blue-500" />
@@ -1050,55 +1190,57 @@ export function UserOnboardingStepReviewSubmit({
                           onClose={() => setCollapsedFocusedNodeId(null)}
                         />
                       ) : (
-                        <button
-                          type="button"
+                        <CollapsedNodeSummaryCard
+                          node={primaryNode}
+                          badgeLabel="P1"
+                          diffStatus={currentPrimaryDiffStatus}
+                          permissions={primaryPermissions}
+                          permissionScopes={nodePermissionScopes[primaryNode.id]?.primary ?? {}}
+                          branchMetaMap={branchMetaMap}
+                          breadcrumbByNodeId={breadcrumbByNodeId}
+                          highlightEdited={primaryReviewIsEdited && !currentPrimaryDiffStatus}
                           onClick={() => {
                             setCollapsedFocusedNodeId("primary");
                             onSetExpandedAccessNodeIds([primaryNode.id]);
                           }}
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded-md border border-l-[4px] px-2.5 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
-                            currentPrimaryDiffStatus ? "border-emerald-300 bg-white hover:border-emerald-300 hover:bg-emerald-50/70" : "border-slate-200 bg-white",
-                            getNodeBorderLeftClass(primaryNode, branchMetaMap),
-                            !currentPrimaryDiffStatus && getNodeHoverClass(primaryNode, branchMetaMap),
-                          )}
-                        >
-                          <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold", getNodeBadgeClass(primaryNode, branchMetaMap))}>
-                            P1
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xs font-semibold text-slate-700">{primaryNode.name}</div>
-                            {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(primaryNode.id) ? (
-                              <div className="break-words text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(primaryNode.id) || "")}</div>
-                            ) : null}
-                            {primaryNode.nodeType.trim().toUpperCase() !== "ROOT" ? (
-                              <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{primaryNode.nodeType}</div>
-                            ) : null}
-                          </div>
-                          <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        </button>
+                        />
                       )}
                       {previousPrimaryReplacementNode ? (
-                        <NodePermissionCard
-                          node={previousPrimaryReplacementNode}
-                          isDiffMode
-                          diffStatus="removed"
-                          badgeLabel="P1"
-                          permissions={{}}
-                          previousPermissions={previousNodePermissions[previousPrimaryReplacementNode.id]?.primary ?? {}}
-                          permissionScopes={{}}
-                          previousPermissionScopes={previousNodePermissionScopes[previousPrimaryReplacementNode.id]?.primary ?? {}}
-                          branchMetaMap={branchMetaMap}
-                          breadcrumbByNodeId={breadcrumbByNodeId}
-                          emptyText="No primary access configured."
-                        />
+                        collapsedFocusedNodeId === previousPrimaryCollapsedNodeId ? (
+                          <NodePermissionCard
+                            node={previousPrimaryReplacementNode}
+                            isDiffMode
+                            diffStatus="removed"
+                            badgeLabel="P1"
+                            permissions={{}}
+                            previousPermissions={previousNodePermissions[previousPrimaryReplacementNode.id]?.primary ?? {}}
+                            permissionScopes={{}}
+                            previousPermissionScopes={previousNodePermissionScopes[previousPrimaryReplacementNode.id]?.primary ?? {}}
+                            branchMetaMap={branchMetaMap}
+                            breadcrumbByNodeId={breadcrumbByNodeId}
+                            emptyText="No primary access configured."
+                            onClose={() => setCollapsedFocusedNodeId(null)}
+                          />
+                        ) : (
+                          <CollapsedNodeSummaryCard
+                            node={previousPrimaryReplacementNode}
+                            badgeLabel="P1"
+                            diffStatus="removed"
+                            permissions={previousNodePermissions[previousPrimaryReplacementNode.id]?.primary ?? {}}
+                            permissionScopes={previousNodePermissionScopes[previousPrimaryReplacementNode.id]?.primary ?? {}}
+                            branchMetaMap={branchMetaMap}
+                            breadcrumbByNodeId={breadcrumbByNodeId}
+                            onClick={() => setCollapsedFocusedNodeId(previousPrimaryCollapsedNodeId)}
+                          />
+                        )
                       ) : null}
                     </>
                   ) : (
                     <div className="text-xs text-slate-500">No primary access configured.</div>
                   )}
                 </div>
-                ) : null}
+              )}
+
               </div>
 
               {!isGlobalSignatory ? (
@@ -1110,9 +1252,20 @@ export function UserOnboardingStepReviewSubmit({
                 {secondaryReviewEntries.length === 0 ? (
                   <div className="text-xs text-slate-500">No secondary access assigned.</div>
                 ) : (
-                  secondaryReviewEntries.map((entry) =>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {secondaryReviewEntries.map((entry) =>
                     (() => {
-                      const diffTheme = getNodeDiffTheme(entry.diffStatus);
+                      const currentSecondaryPermissions = entry.diffStatus === "removed" ? {} : nodePermissions[entry.nodeId]?.secondary ?? {};
+                      const previousSecondaryPermissions = entry.ignorePreviousState ? {} : previousNodePermissions[entry.nodeId]?.secondary ?? {};
+                      const currentSecondaryScopes = entry.diffStatus === "removed" ? {} : nodePermissionScopes[entry.nodeId]?.secondary ?? {};
+                      const previousSecondaryScopes = entry.ignorePreviousState ? {} : previousNodePermissionScopes[entry.nodeId]?.secondary ?? {};
+                      const isSecondaryPermissionEdited = secondaryEditedNodeIdSet.has(entry.nodeId) && !entry.diffStatus;
+                      const collapsedPermissionSource = entry.diffStatus === "removed"
+                        ? previousSecondaryPermissions
+                        : currentSecondaryPermissions;
+                      const collapsedScopeSource = entry.diffStatus === "removed"
+                        ? previousSecondaryScopes
+                        : currentSecondaryScopes;
 
                       return collapsedFocusedNodeId === entry.nodeId ? (
                         <NodePermissionCard
@@ -1121,58 +1274,35 @@ export function UserOnboardingStepReviewSubmit({
                           isDiffMode={isEditMode}
                           diffStatus={entry.diffStatus}
                           badgeLabel={secondaryBadgeByNodeId.get(entry.nodeId) ?? "S1"}
-                          permissions={entry.diffStatus === "removed" ? {} : nodePermissions[entry.nodeId]?.secondary ?? {}}
-                          previousPermissions={entry.ignorePreviousState ? {} : previousNodePermissions[entry.nodeId]?.secondary ?? {}}
-                          permissionScopes={entry.diffStatus === "removed" ? {} : nodePermissionScopes[entry.nodeId]?.secondary ?? {}}
-                          previousPermissionScopes={entry.ignorePreviousState ? {} : previousNodePermissionScopes[entry.nodeId]?.secondary ?? {}}
+                          permissions={currentSecondaryPermissions}
+                          previousPermissions={previousSecondaryPermissions}
+                          permissionScopes={currentSecondaryScopes}
+                          previousPermissionScopes={previousSecondaryScopes}
                           branchMetaMap={branchMetaMap}
                           breadcrumbByNodeId={breadcrumbByNodeId}
                           emptyText="No secondary access assigned."
                           onClose={() => setCollapsedFocusedNodeId(null)}
                         />
                       ) : (
-                        <button
+                        <CollapsedNodeSummaryCard
                           key={`${entry.nodeId}-collapsed`}
-                          type="button"
+                          node={entry.node}
+                          badgeLabel={secondaryBadgeByNodeId.get(entry.nodeId) ?? "S1"}
+                          diffStatus={entry.diffStatus}
+                          permissions={collapsedPermissionSource}
+                          permissionScopes={collapsedScopeSource}
+                          branchMetaMap={branchMetaMap}
+                          breadcrumbByNodeId={breadcrumbByNodeId}
+                          highlightEdited={isSecondaryPermissionEdited}
                           onClick={() => {
                             setCollapsedFocusedNodeId(entry.nodeId);
                             onSetExpandedAccessNodeIds([entry.nodeId]);
                           }}
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded-md border border-l-[4px] px-2.5 py-2.5 text-left transition-all duration-150 hover:shadow-[0_6px_14px_rgba(15,23,42,0.06)]",
-                            entry.diffStatus ? diffTheme.wrapper : "border-slate-200 bg-white",
-                            entry.diffStatus === "removed" ? "border-l-rose-500 hover:border-rose-300 hover:bg-rose-50/70" : getNodeBorderLeftClass(entry.node, branchMetaMap),
-                            entry.diffStatus === "added"
-                              ? "hover:border-emerald-300 hover:bg-emerald-50/70"
-                              : entry.diffStatus === "removed"
-                                ? ""
-                                : getNodeHoverClass(entry.node, branchMetaMap),
-                          )}
-                        >
-                          <div
-                            className={cn(
-                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold",
-                              entry.diffStatus === "removed" ? "border-rose-300 bg-rose-50 text-rose-700" : getNodeBadgeClass(entry.node, branchMetaMap),
-                            )}
-                          >
-                            {secondaryBadgeByNodeId.get(entry.nodeId) ?? "S1"}
-                          </div>
-                          <div className="min-w-0">
-                            <div className={cn("text-xs font-semibold", entry.diffStatus === "removed" ? "text-rose-700" : "text-slate-700")}>
-                              {entry.node.name}
-                            </div>
-                            {entry.node.nodeType.trim().toUpperCase() !== "ROOT" && breadcrumbByNodeId.get(entry.node.id) ? (
-                              <div className="break-words text-[10px] font-medium text-slate-500">{formatCollapsedNodePath(breadcrumbByNodeId.get(entry.node.id) || "")}</div>
-                            ) : null}
-                            {entry.node.nodeType.trim().toUpperCase() !== "ROOT" ? (
-                              <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">{entry.node.nodeType}</div>
-                            ) : null}
-                          </div>
-                          <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        </button>
+                        />
                       );
                     })()
-                  )
+                  )}
+                  </div>
                 )}
               </div>
               ) : null}

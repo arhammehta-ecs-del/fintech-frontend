@@ -711,7 +711,7 @@ export function HistorySidebar({
   const content = (
     <div
       className={[
-        "fixed bottom-0 right-0 z-[60] flex min-h-0 justify-end overflow-hidden font-sans transition-[width,height,top] duration-300",
+        "fixed bottom-0 right-0 z-[60] flex min-h-0 justify-end overflow-hidden font-sans",
         splitView && !isOpen ? "pointer-events-none" : "pointer-events-auto",
       ].join(" ")}
       style={
@@ -720,9 +720,8 @@ export function HistorySidebar({
             top: `${effectiveOffset.top}px`,
             width: `${dockedWidth}px`,
             height: `calc(100vh - ${effectiveOffset.top}px)`,
-            transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
           }
-          : { top: `${effectiveOffset.top}px`, left: `${effectiveOffset.left}px`, transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)" }
+          : { top: `${effectiveOffset.top}px`, left: `${effectiveOffset.left}px` }
       }
     >
       {!splitView ? <div className="absolute inset-0" onClick={onClose} /> : null}
@@ -730,9 +729,9 @@ export function HistorySidebar({
       <div
         ref={panelRef}
         className={[
-          "relative flex h-full w-full min-h-0 flex-col overflow-hidden bg-white transition-[transform,opacity] duration-300 will-change-[transform,opacity]",
+          "relative flex h-full w-full min-h-0 flex-col overflow-hidden bg-white transition-[transform,opacity] duration-200 will-change-[transform,opacity]",
           splitView ? "border-l border-slate-200 shadow-none" : "max-w-[560px] border-l border-slate-200 shadow-2xl",
-          splitView && !isOpen ? "translate-x-3 opacity-0" : "translate-x-0 opacity-100",
+          splitView && !isOpen ? "translate-x-4 opacity-0" : "translate-x-0 opacity-100",
         ].join(" ")}
         style={{ transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)" }}
       >

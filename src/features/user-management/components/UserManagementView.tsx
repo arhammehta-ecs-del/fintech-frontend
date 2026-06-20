@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { EyeOff, Users, UserPlus } from "lucide-react";
 import type { AppUser } from "@/contexts/AppContext";
@@ -123,6 +123,7 @@ export function UserManagementView() {
   const [historyPreviewDetail, setHistoryPreviewDetail] = useState<HistoryDetailViewModel | null>(null);
   const [historyPreviewEvent, setHistoryPreviewEvent] = useState<HistoryDetailPreviewEvent | null>(null);
   const [isOpeningMemberPreview, setIsOpeningMemberPreview] = useState(false);
+  const [isManagePreviewReady, setIsManagePreviewReady] = useState(false);
   const [onboardingSeedMember, setOnboardingSeedMember] = useState<AppUser | null>(null);
   const [showDeleteActions, setShowDeleteActions] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState("__none__");
@@ -199,6 +200,7 @@ export function UserManagementView() {
   ) => {
     const effectiveTab = tabOverride ?? statusTab;
     try {
+      setIsManagePreviewReady(false);
       setIsOpeningMemberPreview(true);
       const detailedMember = await fetchUserDetails(effectiveTab, {
         id: member.id || member.requestId || member.uuid || null,
@@ -206,7 +208,9 @@ export function UserManagementView() {
       });
       setHistoryPreviewDetail(null);
       setHistoryPreviewEvent(null);
-      setViewingMember(detailedMember);
+      startTransition(() => {
+        setViewingMember(detailedMember);
+      });
     } catch (error) {
       toast({
         title: "Unable to load user details",
@@ -220,10 +224,30 @@ export function UserManagementView() {
 
   useEffect(() => {
     if (!viewingMember) {
+      setIsManagePreviewReady(false);
       setHistoryPreviewDetail(null);
       setHistoryPreviewEvent(null);
     }
   }, [viewingMember]);
+
+  useEffect(() => {
+    if (!viewingMember) return;
+
+    let frameOne = 0;
+    let frameTwo = 0;
+    setIsManagePreviewReady(false);
+
+    frameOne = requestAnimationFrame(() => {
+      frameTwo = requestAnimationFrame(() => {
+        setIsManagePreviewReady(true);
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(frameOne);
+      cancelAnimationFrame(frameTwo);
+    };
+  }, [viewingMember, historyOpenForMember]);
 
   useEffect(() => {
     const activeTab = (searchParams.get("tab") || "").trim();
@@ -847,15 +871,18 @@ export function UserManagementView() {
               onOpenHistoryDetail={(member, detail) => {
                 void (async () => {
                   try {
+                    setIsManagePreviewReady(false);
                     setIsOpeningMemberPreview(true);
                     const detailedMember = await fetchUserDetails(statusTab, {
                       id: member.id || member.requestId || member.uuid || null,
                       email: member.email || member.basicDetails?.email || null,
                     });
-                    setViewingMember(detailedMember);
-                    setHistoryOpenForMember(true);
-                    setHistoryPreviewDetail(detail);
-                    setHistoryPreviewEvent(null);
+                    startTransition(() => {
+                      setViewingMember(detailedMember);
+                      setHistoryOpenForMember(true);
+                      setHistoryPreviewDetail(detail);
+                      setHistoryPreviewEvent(null);
+                    });
                   } catch (error) {
                     toast({
                       title: "Unable to load user details",
@@ -916,7 +943,7 @@ export function UserManagementView() {
       {(viewingMember || isOpeningMemberPreview) && typeof document !== "undefined"
         ? createPortal(
             <div
-              className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm transition-[top,left,width,height,opacity] duration-300"
+              className="fixed z-[49] bg-slate-900/40 transition-opacity duration-200"
               style={
                 canUseSplitHistory
                   ? {
@@ -924,14 +951,12 @@ export function UserManagementView() {
                       left: `${shellOffset.left}px`,
                       width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
                       height: `calc(100vh - ${shellOffset.top}px)`,
-                      transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
                     }
                   : {
                       top: "0px",
                       left: "0px",
                       width: "100vw",
                       height: "100vh",
-                      transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
                     }
               }
             />,
@@ -962,8 +987,8 @@ export function UserManagementView() {
           }}
           className={
             canUseSplitHistory
-              ? "flex flex-col overflow-hidden rounded-none p-0 max-w-none transition-[top,left,width,height,transform] duration-300 will-change-[width] data-[state=open]:animate-none data-[state=closed]:animate-none"
-              : "flex h-[92vh] w-[96vw] max-w-[1200px] flex-col overflow-hidden p-0 transition-[transform,opacity] duration-350 data-[state=open]:animate-none data-[state=closed]:animate-none"
+              ? "flex flex-col overflow-hidden rounded-none p-0 max-w-none transition-none data-[state=open]:animate-none data-[state=closed]:animate-none"
+              : "flex h-[92vh] w-[96vw] max-w-[1200px] flex-col overflow-hidden p-0 transition-[transform,opacity] duration-200 data-[state=open]:animate-none data-[state=closed]:animate-none"
           }
           style={
             canUseSplitHistory
@@ -973,7 +998,6 @@ export function UserManagementView() {
                   width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
                   height: `calc(100vh - ${shellOffset.top}px)`,
                   transform: "translate(0, 0)",
-                  transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
                 }
               : { transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)" }
           }
@@ -982,7 +1006,7 @@ export function UserManagementView() {
           <DialogDescription className="sr-only">
             Review and manage selected user details, permissions, and status actions.
           </DialogDescription>
-          {viewingMember ? (
+          {viewingMember && isManagePreviewReady ? (
             <UserManagePreview
               member={viewingMember}
               currentTab={statusTab}
@@ -1098,7 +1122,7 @@ export function UserManagementView() {
               historyDetailOverride={historyPreviewDetail}
               historyPreviewEvent={statusTab === "pending" ? historyPreviewEvent : null}
             />
-          ) : isOpeningMemberPreview ? (
+          ) : isOpeningMemberPreview || viewingMember ? (
             <div className="flex h-full min-h-[280px] items-center justify-center text-sm font-medium text-slate-500">
               Loading user details...
             </div>

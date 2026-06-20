@@ -1049,17 +1049,8 @@ export function UserManagePreview({
                     )}
                   >
                     <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm ring-1 ring-slate-100/70">
-                      <div className="mb-3 flex items-center justify-between border-b border-slate-200 pb-2">
+                      <div className="mb-3 flex items-center border-b border-slate-200 pb-2">
                         <span className="text-[12px] font-black uppercase tracking-widest text-slate-600">Basic Details</span>
-                        <button
-                          type="button"
-                          onClick={() => setIsBasicDetailsExpanded((value) => !value)}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 shadow-sm transition hover:border-[rgb(53,83,233)] hover:text-[rgb(53,83,233)]"
-                          aria-label={isBasicDetailsExpanded ? "Collapse Basic Details" : "Expand Basic Details"}
-                          aria-expanded={isBasicDetailsExpanded}
-                        >
-                          {isBasicDetailsExpanded ? <X className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        </button>
                       </div>
                       <div className="space-y-2.5 text-sm">
                         <div className="flex items-start gap-3">
@@ -1242,32 +1233,67 @@ export function UserManagePreview({
                       </button>
                     </div>
                     {isBasicDetailsExpanded ? (
-                      <div className="space-y-1.5 text-sm">
-                        <div className="flex items-start gap-2.5">
-                          <span className="min-w-[92px] shrink-0 text-slate-500">Name</span>
-                          <span className="text-slate-400">:</span>
-                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.name || "-"}</span>
+                      <div className={cn("grid gap-3", !shouldShowGlobalManagerBadge ? "md:grid-cols-[minmax(0,1.05fr)_minmax(260px,0.95fr)]" : "grid-cols-1")}>
+                        <div className="space-y-1.5 text-sm">
+                          <div className="flex items-start gap-2.5">
+                            <span className="min-w-[92px] shrink-0 text-slate-500">Name</span>
+                            <span className="text-slate-400">:</span>
+                            <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.name || "-"}</span>
+                          </div>
+                          <div className="flex items-start gap-2.5">
+                            <span className="min-w-[92px] shrink-0 text-slate-500">Email</span>
+                            <span className="text-slate-400">:</span>
+                            <span className="min-w-0 flex-1 truncate font-semibold text-slate-900">{userData.email || "-"}</span>
+                          </div>
+                          <div className="flex items-start gap-2.5">
+                            <span className="min-w-[92px] shrink-0 text-slate-500">Phone</span>
+                            <span className="text-slate-400">:</span>
+                            <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.phone || "-"}</span>
+                          </div>
+                          <div className="flex items-start gap-2.5">
+                            <span className="min-w-[92px] shrink-0 text-slate-500">Onboarding Date</span>
+                            <span className="text-slate-400">:</span>
+                            <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.joiningDate || "-"}</span>
+                          </div>
+                          <div className="flex items-start gap-2.5">
+                            <span className="min-w-[92px] shrink-0 text-slate-500">Designation</span>
+                            <span className="text-slate-400">:</span>
+                            <span className="min-w-0 flex-1 font-semibold text-slate-900">{formattedDesignation || "-"}</span>
+                          </div>
                         </div>
-                        <div className="flex items-start gap-2.5">
-                          <span className="min-w-[92px] shrink-0 text-slate-500">Email</span>
-                          <span className="text-slate-400">:</span>
-                          <span className="min-w-0 flex-1 truncate font-semibold text-slate-900">{userData.email || "-"}</span>
-                        </div>
-                        <div className="flex items-start gap-2.5">
-                          <span className="min-w-[92px] shrink-0 text-slate-500">Phone</span>
-                          <span className="text-slate-400">:</span>
-                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.phone || "-"}</span>
-                        </div>
-                        <div className="flex items-start gap-2.5">
-                          <span className="min-w-[92px] shrink-0 text-slate-500">Onboarding Date</span>
-                          <span className="text-slate-400">:</span>
-                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.joiningDate || "-"}</span>
-                        </div>
-                        <div className="flex items-start gap-2.5">
-                          <span className="min-w-[92px] shrink-0 text-slate-500">Designation</span>
-                          <span className="text-slate-400">:</span>
-                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{formattedDesignation || "-"}</span>
-                        </div>
+                        {!shouldShowGlobalManagerBadge ? (
+                          <div className="rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-2.5">
+                            <div className="mb-2 border-b border-slate-200 pb-1 text-[11px] font-black uppercase tracking-widest text-slate-600">
+                              Reporting Manager
+                            </div>
+                            <div className="space-y-2 text-sm">
+                              <div>
+                                <div className="text-slate-500">Name</div>
+                                <div className="min-w-0 break-words">
+                                  {canTogglePreviousUpdated
+                                    ? renderDiffValue(
+                                      userData.reportingManager || "-",
+                                      previousReportingManager,
+                                      hasOldBasicField("reportingManager") || hasOldBasicField("reportingManagerName"),
+                                    )
+                                    : <span className="font-semibold text-slate-900">{userData.reportingManager || "-"}</span>}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-slate-500">Email</div>
+                                <div className="min-w-0 break-all">
+                                  {canTogglePreviousUpdated
+                                    ? renderDiffValue(
+                                      userData.reportingManagerEmail || "-",
+                                      previousReportingManagerEmail,
+                                      hasOldBasicField("reportingManagerEmail") || hasOldBasicField("reportingManager"),
+                                    )
+                                    : <span className="font-semibold text-slate-900">{userData.reportingManagerEmail || "-"}</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     ) : (
                       <div className="rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2">
