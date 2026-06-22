@@ -162,8 +162,20 @@ const truncateMessage = (value: string, limit = MESSAGE_PREVIEW_LIMIT) => {
 const toUtcDayStart = (value: string) => (value ? `${value}T00:00:00.000Z` : null);
 const toUtcDayEnd = (value: string) => (value ? `${value}T23:59:59.999Z` : null);
 
+const getMessageLines = (message: string) =>
+  message
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
 const buildNotificationPreview = (message: string) => {
-  const normalizedMessage = message.replace(/\s+/g, " ").trim();
+  const messageLines = getMessageLines(message);
+  if (messageLines.length > 1) {
+    const firstLine = messageLines[0];
+    return truncateMessage(`${firstLine}...`);
+  }
+
+  const normalizedMessage = messageLines[0]?.replace(/\s+/g, " ").trim() ?? "";
   if (!normalizedMessage) return "";
 
   const impactedIndex = normalizedMessage.indexOf("Impacted:");
@@ -201,10 +213,15 @@ const extractEntityName = (name: string, message: string, refType?: string | nul
 };
 
 const getAffectedSegments = (message: string) => {
+  const messageLines = getMessageLines(message);
+  if (messageLines.length > 1) {
+    return messageLines.slice(1);
+  }
+
   const base = message.includes(":") ? message.slice(message.indexOf(":") + 1) : message;
   return base
     .split(",")
-    .map((segment) => segment.replace(/\n/g, " ").trim())
+    .map((segment) => segment.trim())
     .filter(Boolean);
 };
 
@@ -773,7 +790,7 @@ export function AppTopBar({
       unread: String(packet.status ?? "").trim().toUpperCase() === "UNREAD",
       isPending: Boolean(packet.isPending),
       affectedSegments,
-      affectedHeading: affectedSegments.length > 1 ? `${affectedSegments.length} tracks affected` : "",
+      affectedHeading: affectedSegments.length > 0 ? `${affectedSegments.length} item${affectedSegments.length > 1 ? "s" : ""} affected` : "",
       extractedEmail,
       extractedEntityName,
     };

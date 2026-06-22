@@ -362,7 +362,6 @@ const mapMainRequest = (value: unknown, fallbackId: string): ApiMonitoringStep =
 
 export async function fetchApiMonitoringList(): Promise<ApiMonitoringLog[]> {
   const response = await apiFetch<ApiMonitoringFetchAllResponse>(API_MONITORING_FETCH_ALL_PATH, {
-    method: "POST",
     body: JSON.stringify({}),
   });
 
@@ -435,7 +434,6 @@ export async function fetchApiMonitoringListPaginated(
   payload: ApiMonitoringPaginatedRequest,
 ): Promise<ApiMonitoringPaginatedResult> {
   const response = await apiFetch<ApiMonitoringFetchAllResponse>(API_MONITORING_FETCH_ALL_PATH, {
-    method: "POST",
     body: JSON.stringify({
       limit: payload.limit,
       cursor: payload.cursor ?? null,
@@ -463,7 +461,6 @@ export async function fetchApiMonitoringListPaginated(
 
 export async function fetchApiMonitoringDetails(trackId: string): Promise<ApiMonitoringDetailsData> {
   const response = await apiFetch<ApiMonitoringDetailsResponse>(API_MONITORING_DETAILS_PATH, {
-    method: "POST",
     body: JSON.stringify({ trackingId: trackId }),
   });
 

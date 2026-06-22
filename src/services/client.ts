@@ -61,6 +61,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
 
   const response = await fetch(url, {
     ...options,
+    method: options.method ?? "POST",
     credentials: "include",
     headers,
   });

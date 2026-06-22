@@ -330,7 +330,6 @@ const countCompaniesByStatus = (groups: GroupCompany[]) =>
 
 export async function fetchCompaniesPaginated(request: CompanyPaginatedRequest): Promise<CompanyPaginatedResult> {
   const payload = await apiFetch<CompanyListApiResponse>(COMPANY_LIST_PATH, {
-    method: "POST",
     body: JSON.stringify({
       filter: Boolean(request.filter),
       pagination: {
@@ -405,13 +404,11 @@ export async function createCompanyOnboarding(payload: OnboardingPayload, file?:
     formData.append("payload", JSON.stringify(finalPayload));
 
     return apiFetch<OnboardingResponse>(COMPANY_CREATE_PATH, {
-      method: "POST",
       body: formData,
     });
   }
 
   return apiFetch<OnboardingResponse>(COMPANY_CREATE_PATH, {
-    method: "POST",
     body: JSON.stringify(finalPayload),
   });
 }
@@ -422,7 +419,6 @@ export async function updateCompanyOnboardingAction(
   remark: string,
 ) {
   return apiFetch<OnboardingActionResponse>(COMPANY_ACTION_PATH, {
-    method: "POST",
     body: JSON.stringify({
       id,
       action,
@@ -433,7 +429,6 @@ export async function updateCompanyOnboardingAction(
 
 export async function fetchCompanyHistory(companyCode: string) {
   return apiFetch<CompanyHistoryResponse>(COMPANY_HISTORY_PATH, {
-    method: "POST",
     body: JSON.stringify({ companyCode })
   });
 }
@@ -468,7 +463,6 @@ export async function fetchCompanyDetails(companyCode: string) {
       }>;
     };
   }>(COMPANY_DETAILS_PATH, {
-    method: "POST",
     body: JSON.stringify({ companyCode }),
   });
 }

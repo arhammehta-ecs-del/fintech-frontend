@@ -9,7 +9,7 @@ const WORKFLOW_DETAILS_PATH = "/api/v1/company-settings/workflow/details";
 const WORKFLOW_ACTION_PATH = "/api/v1/company-settings/workflow/action";
 const WORKFLOW_HISTORY_PATH = "/api/v1/company-settings/workflow/fetch-history";
 const COMPANY_NODES_PATH = "/api/v1/company-settings/user/fetch-company-nodes";
-const WORKFLOW_USER_PREFERENCE_PATH = "/api/v1/workflow/user-preference";
+const WORKFLOW_USER_PREFERENCE_PATH = "/api/v1/user-preference";
 const WORKFLOW_PREFERENCE_UPDATE_PATH = "/api/v1/workflow-preference";
 
 export type CreateWorkflowPayload = {
@@ -167,71 +167,10 @@ export type WorkflowPreferenceUpdatePayload = {
   type?: "ADDED" | "REMOVED" | string;
 };
 
-const WORKFLOW_PREFERENCE_MOCK_STORAGE_KEY = "workflow-preference-mock-response";
-
-const DEFAULT_WORKFLOW_PREFERENCE_MOCK_RESPONSE: WorkflowPreferenceRecordResponse = {
-  message: "User workflow preferences fetched successfully!",
-  code: 200,
-  data: [
-    {
-      nodeName: "TEST Tech Solutions Pvt Ltd",
-      nodePath: "TEST28042026",
-      nodeType: "ROOT",
-      modules: {
-        USER: {
-          workflows: [
-            {
-              levelsHash: "DEFAULT_ORG_STR_1M_1C_1",
-              name: "ORG_STR_WORKFLOW_DEFAULT",
-              alias: "1M_1C_D",
-              selected: false,
-            },
-            {
-              levelsHash: "1f5a8efc581a1c5a1bd054764bd2b642",
-              name: "sadfsdfsdf",
-              alias: "1M_3C_3",
-              selected: true,
-            },
-          ],
-        },
-        ORG: {
-          workflows: [
-            {
-              levelsHash: "DEFAULT_ORG_STR_1M_1C_1",
-              name: "ORG_STR_WORKFLOW_DEFAULT",
-              alias: "1M_1C_D",
-              selected: true,
-            },
-            {
-              levelsHash: "1f5a8efc581a1c5a1bd054764bd2b642",
-              name: "sadfsdfsdf",
-              alias: "1M_3C_3",
-              selected: false,
-            },
-          ],
-        },
-        WORKFLOW: {
-          workflows: [
-            {
-              levelsHash: "DEFAULT_ORG_STR_1M_1C_1",
-              name: "ORG_STR_WORKFLOW_DEFAULT",
-              alias: "1M_1C_D",
-              selected: false,
-            },
-          ],
-        },
-      },
-    },
-  ],
-};
-
 type WorkflowNodeNameOption = WorkflowFilterDropdowns["nodeName"][number];
 type WorkflowNodeTypeOption = WorkflowFilterDropdowns["nodeType"][number];
 
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
-const cloneWorkflowPreferenceMockResponse = (): WorkflowPreferenceRecordResponse =>
-  JSON.parse(JSON.stringify(DEFAULT_WORKFLOW_PREFERENCE_MOCK_RESPONSE)) as WorkflowPreferenceRecordResponse;
-const isWorkflowPreferenceMockEnabled = () => import.meta.env.VITE_ENABLE_WORKFLOW_PREFERENCE_MOCK === "true";
 const toNullableString = (value: unknown): string | null => {
   const parsed = readString(value);
   return parsed || null;
@@ -266,100 +205,14 @@ const mapWorkflowPageInfo = (pageInfo?: Partial<WorkflowPageInfo>): WorkflowPage
   hasPrev: Boolean(pageInfo?.hasPrev),
 });
 
-const readWorkflowPreferenceMockResponse = (): WorkflowPreferenceRecordResponse => {
-  if (typeof window === "undefined") return cloneWorkflowPreferenceMockResponse();
-
-  const stored = window.localStorage.getItem(WORKFLOW_PREFERENCE_MOCK_STORAGE_KEY);
-  if (!stored) {
-    const initialValue = cloneWorkflowPreferenceMockResponse();
-    window.localStorage.setItem(WORKFLOW_PREFERENCE_MOCK_STORAGE_KEY, JSON.stringify(initialValue));
-    return initialValue;
-  }
-
-  try {
-    const parsed = JSON.parse(stored) as WorkflowPreferenceRecordResponse;
-    if (Array.isArray(parsed.data)) return parsed;
-  } catch {
-    // Fall back to the seeded mock payload when storage becomes invalid.
-  }
-
-  const fallback = cloneWorkflowPreferenceMockResponse();
-  window.localStorage.setItem(WORKFLOW_PREFERENCE_MOCK_STORAGE_KEY, JSON.stringify(fallback));
-  return fallback;
-};
-
-const writeWorkflowPreferenceMockResponse = (response: WorkflowPreferenceRecordResponse) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(WORKFLOW_PREFERENCE_MOCK_STORAGE_KEY, JSON.stringify(response));
-};
-
-const updateWorkflowPreferenceMockState = (payload: WorkflowPreferenceUpdatePayload): WorkflowApiResponse => {
-  const response = readWorkflowPreferenceMockResponse();
-  const nextData = Array.isArray(response.data) ? [...response.data] : [];
-  const targetModule = payload.module.trim().toUpperCase();
-  const targetNodePath = payload.nodePath.trim().toUpperCase();
-  const targetLevelsHash = payload.levelsHash.trim();
-  const targetType = readString(payload.type).toUpperCase();
-
-  nextData.forEach((node) => {
-    const nodeRecord = typeof node === "object" && node !== null ? (node as Record<string, unknown>) : null;
-    if (!nodeRecord) return;
-    const currentNodePath = readString(nodeRecord.nodePath).toUpperCase();
-    if (currentNodePath !== targetNodePath) return;
-
-    const modulesRecord =
-      typeof nodeRecord.modules === "object" && nodeRecord.modules !== null
-        ? (nodeRecord.modules as Record<string, unknown>)
-        : null;
-    const moduleRecord =
-      modulesRecord && typeof modulesRecord[targetModule] === "object" && modulesRecord[targetModule] !== null
-        ? (modulesRecord[targetModule] as Record<string, unknown>)
-        : null;
-    if (!moduleRecord || !Array.isArray(moduleRecord.workflows)) return;
-
-    moduleRecord.workflows = moduleRecord.workflows.map((workflowValue) => {
-      const workflowRecord =
-        typeof workflowValue === "object" && workflowValue !== null ? { ...(workflowValue as Record<string, unknown>) } : null;
-      if (!workflowRecord) return workflowValue;
-      const currentLevelsHash = readString(workflowRecord.levelsHash);
-
-      if (targetType === "ADDED") {
-        workflowRecord.selected = currentLevelsHash === targetLevelsHash;
-        return workflowRecord;
-      }
-
-      if (targetType === "REMOVED" && currentLevelsHash === targetLevelsHash) {
-        workflowRecord.selected = false;
-      }
-
-      return workflowRecord;
-    });
-  });
-
-  writeWorkflowPreferenceMockResponse({
-    ...response,
-    message: "Workflow preference updated successfully!",
-    code: 200,
-    data: nextData,
-  });
-
-  return {
-    message: "Workflow preference updated successfully!",
-    code: 200,
-    success: true,
-  };
-};
-
 export async function createWorkflow(payload: CreateWorkflowPayload) {
   return apiFetch<WorkflowApiResponse>(WORKFLOW_INITIATE_PATH, {
-    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function fetchWorkflows() {
   return apiFetch<WorkflowApiResponse>(WORKFLOW_FETCH_PATH, {
-    method: "POST",
     body: JSON.stringify({}),
   });
 }
@@ -369,7 +222,6 @@ export async function fetchWorkflowsPaginated(
   payload: WorkflowPaginatedRequest,
 ): Promise<WorkflowPaginatedResult> {
   const response = await apiFetch<WorkflowPaginatedApiResponse>(WORKFLOW_FETCH_PATH, {
-    method: "POST",
     body: JSON.stringify({
       filter: Boolean(payload.filter),
       pagination: {
@@ -408,7 +260,6 @@ export async function fetchWorkflowsPaginated(
 
 export async function updateWorkflowAction(levelsHash: string, action: string, remark: string) {
   return apiFetch<WorkflowApiResponse>(WORKFLOW_ACTION_PATH, {
-    method: "POST",
     body: JSON.stringify({
       levelsHash,
       action,
@@ -423,14 +274,12 @@ export type FetchWorkflowHistoryPayload = {
 
 export async function fetchWorkflowHistory(payload: FetchWorkflowHistoryPayload) {
   return apiFetch<WorkflowApiResponse>(WORKFLOW_HISTORY_PATH, {
-    method: "POST",
     body: JSON.stringify({ id: payload.id.trim() }),
   });
 }
 
 export async function fetchWorkflowDetails(payload: FetchWorkflowDetailsInput): Promise<WorkflowRecord> {
   const response = await apiFetch<WorkflowDetailsApiResponse>(WORKFLOW_DETAILS_PATH, {
-    method: "POST",
     body: JSON.stringify({ id: payload.id.trim() }),
   });
 
@@ -512,19 +361,7 @@ const mapWorkflowPreferenceNode = (value: unknown): WorkflowPreferenceNode | nul
 };
 
 export async function fetchWorkflowUserPreferences(): Promise<WorkflowPreferenceNode[]> {
-  let response: WorkflowPreferenceRecordResponse;
-  if (isWorkflowPreferenceMockEnabled()) {
-    response = readWorkflowPreferenceMockResponse();
-  } else {
-    try {
-      response = await apiFetch<WorkflowPreferenceRecordResponse>(WORKFLOW_USER_PREFERENCE_PATH, {
-        method: "GET",
-      });
-    } catch (error) {
-      if (!import.meta.env.DEV) throw error;
-      response = readWorkflowPreferenceMockResponse();
-    }
-  }
+  const response = await apiFetch<WorkflowPreferenceRecordResponse>(WORKFLOW_USER_PREFERENCE_PATH);
 
   if (!Array.isArray(response.data)) {
     throw new Error("Invalid workflow preference response: data must be an array");
@@ -536,31 +373,32 @@ export async function fetchWorkflowUserPreferences(): Promise<WorkflowPreference
     .sort((left, right) => left.nodePath.localeCompare(right.nodePath, undefined, { numeric: true, sensitivity: "base" }));
 }
 
-export async function updateWorkflowPreference(payload: WorkflowPreferenceUpdatePayload) {
-  const requestBody = {
-    module: payload.module,
-    nodePath: payload.nodePath,
-    levelsHash: payload.levelsHash,
-    type: payload.type,
-  };
+type WorkflowPreferenceUpdateResponse = WorkflowApiResponse & {
+  data?: Array<{
+    type?: string;
+    module?: string;
+    nodePath?: string;
+    levelsHash?: string;
+    workflowId?: string | null;
+    preferenceId?: string | null;
+  }>;
+};
 
-  if (isWorkflowPreferenceMockEnabled()) {
-    return updateWorkflowPreferenceMockState(payload);
-  }
-  try {
-    return await apiFetch<WorkflowApiResponse>(WORKFLOW_PREFERENCE_UPDATE_PATH, {
-      method: "POST",
-      body: JSON.stringify(requestBody),
-    });
-  } catch (error) {
-    if (!import.meta.env.DEV) throw error;
-    return updateWorkflowPreferenceMockState(payload);
-  }
+export async function updateWorkflowPreference(payload: WorkflowPreferenceUpdatePayload | WorkflowPreferenceUpdatePayload[]) {
+  const requestBody = (Array.isArray(payload) ? payload : [payload]).map((entry) => ({
+    module: entry.module,
+    nodePath: entry.nodePath,
+    levelsHash: entry.levelsHash,
+    type: entry.type,
+  }));
+
+  return apiFetch<WorkflowPreferenceUpdateResponse>(WORKFLOW_PREFERENCE_UPDATE_PATH, {
+    body: JSON.stringify(requestBody),
+  });
 }
 
 export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilters | null = null): Promise<WorkflowFilterDropdowns> {
   const response = await apiFetch<WorkflowFilterDropdownsResponse>(COMPANY_NODES_PATH, {
-    method: "POST",
     body: JSON.stringify({
       filter: true,
       subCategory: "WORK_FLOW",

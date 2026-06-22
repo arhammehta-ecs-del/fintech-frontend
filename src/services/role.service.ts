@@ -29,7 +29,6 @@ const getPacketString = (value: string | null | undefined) => (typeof value === 
 
 export async function getCompanyRoles(companyCode: string): Promise<RoleRecord[]> {
   const payload = await apiFetch<RolesApiResponse>(ROLES_PATH, {
-    method: "POST",
     body: JSON.stringify({
       companyCode: companyCode.trim().toUpperCase(),
     }),

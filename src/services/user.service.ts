@@ -467,21 +467,18 @@ const mapUserPageInfo = (pageInfo?: Partial<UserPageInfo>): UserPageInfo => ({
 
 export async function createUserOnboarding(payload: UserOnboardingPayload) {
   return apiFetch<UserOnboardingResponse>(NEW_USER_ONBOARD_PATH, {
-    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function createGlobalSignatoryOnboarding(payload: GlobalSignatoryOnboardingPayload) {
   return apiFetch<UserOnboardingResponse>(NEW_GLOBAL_SIGNATORY_ONBOARD_PATH, {
-    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function updateUserStatus(id: string, action: string, remark: string) {
   return apiFetch<UserStatusUpdateResponse>(USER_STATUS_UPDATE_PATH, {
-    method: "POST",
     body: JSON.stringify({
       id,
       action,
@@ -492,7 +489,6 @@ export async function updateUserStatus(id: string, action: string, remark: strin
 
 export async function fetchUserHistory(email: string) {
   return apiFetch<UserHistoryResponse>(USER_HISTORY_PATH, {
-    method: "POST",
     body: JSON.stringify({
       email,
     }),
@@ -514,7 +510,6 @@ export async function fetchCompanyNodesWithAccess(subCategory: string, filter = 
 
   const requestPromise = (async () => {
     const payload = await apiFetch<CompanyNodesResponse>(COMPANY_NODES_PATH, {
-      method: "POST",
       body: JSON.stringify({
         subCategory,
         filter,
@@ -587,7 +582,6 @@ export async function fetchUserFilterDropdowns(
   applied: UserAppliedFilters | null = null,
 ): Promise<UserFilterDropdowns> {
   const payload = await apiFetch<CompanyNodesFilterResponse>(COMPANY_NODES_PATH, {
-    method: "POST",
     body: JSON.stringify({
       subCategory,
       filter: true,
@@ -666,7 +660,6 @@ export async function getCompanyUsers(_companyCode: string): Promise<AppUser[]> 
   // Backward compatibility: older backends may still expose the unified endpoint.
   try {
     const payload = await apiFetch<CompanyUsersResponse>(COMPANY_USERS_PATH, {
-      method: "POST",
       body: JSON.stringify({ companyCode }),
     });
 
@@ -740,7 +733,6 @@ export async function fetchCompanyUsersPaginated(
     applied: payload.filter ? payload.applied ?? null : null,
   };
   const response = await apiFetch<UserPaginatedResponse>(COMPANY_USERS_PATH, {
-    method: "POST",
     body: JSON.stringify(requestBody),
   });
 
@@ -775,7 +767,6 @@ export async function fetchUserDetails(
         : { email };
 
   const response = await apiFetch<UserDetailsResponse>(USER_DETAILS_PATH, {
-    method: "POST",
     body: JSON.stringify(requestBody),
   });
 

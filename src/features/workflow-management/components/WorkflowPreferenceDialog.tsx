@@ -17,7 +17,7 @@ type WorkflowPreferenceDialogProps = {
   onPreferencesSaved?: () => void;
 };
 
-type WorkflowPreferenceDialogNode = WorkflowPreferenceNode & { isPreview?: boolean };
+type WorkflowPreferenceDialogNode = WorkflowPreferenceNode;
 type WorkflowPreferenceTreeNode = WorkflowPreferenceDialogNode & { children: WorkflowPreferenceTreeNode[] };
 type WorkflowPreferenceFlowNode = {
   node: WorkflowPreferenceTreeNode;
@@ -28,11 +28,6 @@ type WorkflowPreferenceFlowNode = {
 };
 type NodeSelectionMap = Record<string, Record<string, string>>;
 const NO_WORKFLOW_VALUE = "__no_workflow__";
-const WORKFLOW_PREFERENCE_PREVIEW_SUFFIXES = [
-  { name: "Finance Preview", segment: "PREVIEW_FINANCE" },
-  { name: "Surat Preview", segment: "SURAT_PREVIEW" },
-  { name: "Operations Preview", segment: "OPS_PREVIEW" },
-] as const;
 
 const formatModuleLabel = (module: string) =>
   module
@@ -56,51 +51,6 @@ const hasPendingChanges = (draft: NodeSelectionMap, baseline: NodeSelectionMap) 
   Object.entries(draft).some(([nodePath, modules]) =>
     Object.entries(modules).some(([moduleName, value]) => (baseline[nodePath]?.[moduleName] ?? "") !== value),
   );
-
-const getWorkflowPreferenceNodeDepth = (nodePath: string) =>
-  nodePath
-    .split(".")
-    .map((segment) => segment.trim())
-    .filter(Boolean).length;
-
-const buildWorkflowPreferencePreviewNodes = (nodes: WorkflowPreferenceNode[]): WorkflowPreferenceDialogNode[] => {
-  const baseNodes = nodes.map((node) => ({ ...node }));
-  if (!import.meta.env.DEV || baseNodes.length === 0) return baseNodes;
-
-  const rootNode =
-    baseNodes.find((node) => node.nodeType.trim().toUpperCase() === "ROOT")
-    ?? [...baseNodes].sort((left, right) => getWorkflowPreferenceNodeDepth(left.nodePath) - getWorkflowPreferenceNodeDepth(right.nodePath))[0];
-  const rootPath = rootNode?.nodePath?.trim();
-  if (!rootPath) return baseNodes;
-
-  const previewModules = rootNode.modules.map((moduleEntry) => ({
-    ...moduleEntry,
-    workflows: moduleEntry.workflows.map((workflow) => ({ ...workflow, selected: false })),
-    selectedWorkflow: null,
-  }));
-
-  const previewNodes: WorkflowPreferenceDialogNode[] = [];
-  let currentPath = rootPath;
-  for (const previewNode of WORKFLOW_PREFERENCE_PREVIEW_SUFFIXES) {
-    currentPath = `${currentPath}.${previewNode.segment}`;
-    if (baseNodes.some((node) => node.nodePath.trim().toUpperCase() === currentPath.toUpperCase())) continue;
-    previewNodes.push({
-      nodeName: previewNode.name,
-      nodePath: currentPath,
-      nodeType: "NODE",
-      levelCount: getWorkflowPreferenceNodeDepth(currentPath),
-      modules: previewModules.map((moduleEntry) => ({
-        ...moduleEntry,
-        workflows: moduleEntry.workflows.map((workflow) => ({ ...workflow })),
-      })),
-      isPreview: true,
-    });
-  }
-
-  return [...baseNodes, ...previewNodes].sort((left, right) =>
-    left.nodePath.localeCompare(right.nodePath, undefined, { numeric: true, sensitivity: "base" }),
-  );
-};
 
 const getWorkflowPreferenceParentPath = (nodePath: string) => {
   const segments = nodePath.split(".").map((segment) => segment.trim()).filter(Boolean);
@@ -202,7 +152,7 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
       try {
         const response = await fetchWorkflowUserPreferences();
         if (!isMounted) return;
-        const nextNodes = buildWorkflowPreferencePreviewNodes(response);
+        const nextNodes = response;
         const nextSelection = buildSelectionMap(nextNodes);
         setNodes(nextNodes);
         setCollapsedNodePaths([]);
@@ -313,16 +263,14 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     if (saving) return;
 
     const changedEntries = nodes.flatMap((node) =>
-      node.isPreview
-        ? []
-        : node.modules
-            .map((moduleEntry) => ({
-              module: moduleEntry.module,
-              nodePath: node.nodePath,
-              levelsHash: selectionDraft[node.nodePath]?.[moduleEntry.module] ?? "",
-              initialLevelsHash: initialSelection[node.nodePath]?.[moduleEntry.module] ?? "",
-            }))
-            .filter((entry) => entry.levelsHash !== entry.initialLevelsHash),
+      node.modules
+        .map((moduleEntry) => ({
+          module: moduleEntry.module,
+          nodePath: node.nodePath,
+          levelsHash: selectionDraft[node.nodePath]?.[moduleEntry.module] ?? "",
+          initialLevelsHash: initialSelection[node.nodePath]?.[moduleEntry.module] ?? "",
+        }))
+        .filter((entry) => entry.levelsHash !== entry.initialLevelsHash),
     );
 
     if (changedEntries.length === 0) {
@@ -333,42 +281,42 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     setSubmitError("");
 
     try {
-      await Promise.all(
-        changedEntries.flatMap((entry) => {
-          const requests = [];
-          if (entry.initialLevelsHash) {
-            requests.push(
-              updateWorkflowPreference({
-                module: entry.module,
-                nodePath: entry.nodePath,
-                levelsHash: entry.initialLevelsHash,
-                type: "REMOVED",
-              }),
-            );
-          }
-          if (entry.levelsHash) {
-            requests.push(
-              updateWorkflowPreference({
-                module: entry.module,
-                nodePath: entry.nodePath,
-                levelsHash: entry.levelsHash,
-                type: "ADDED",
-              }),
-            );
-          }
-          return requests;
-        }),
-      );
+      const preferenceUpdates = changedEntries.flatMap((entry) => {
+        const updates: Array<{
+          module: string;
+          nodePath: string;
+          levelsHash: string;
+          type: "ADDED" | "REMOVED";
+        }> = [];
+        if (entry.initialLevelsHash) {
+          updates.push({
+            module: entry.module,
+            nodePath: entry.nodePath,
+            levelsHash: entry.initialLevelsHash,
+            type: "REMOVED" as const,
+          });
+        }
+        if (entry.levelsHash) {
+          updates.push({
+            module: entry.module,
+            nodePath: entry.nodePath,
+            levelsHash: entry.levelsHash,
+            type: "ADDED" as const,
+          });
+        }
+        return updates;
+      });
 
-      const nextBaseline = changedEntries.reduce<NodeSelectionMap>((accumulator, entry) => {
-        accumulator[entry.nodePath] = {
-          ...(accumulator[entry.nodePath] ?? {}),
-          [entry.module]: entry.levelsHash,
-        };
-        return accumulator;
-      }, { ...initialSelection });
-      setInitialSelection(nextBaseline);
-      setSelectionDraft(nextBaseline);
+      await updateWorkflowPreference(preferenceUpdates);
+
+      const refreshedNodes = await fetchWorkflowUserPreferences();
+      const refreshedSelection = buildSelectionMap(refreshedNodes);
+      setNodes(refreshedNodes);
+      setInitialSelection(refreshedSelection);
+      setSelectionDraft(refreshedSelection);
+      setSelectedNodePath((current) =>
+        refreshedNodes.some((node) => node.nodePath === current) ? current : (refreshedNodes[0]?.nodePath ?? ""),
+      );
       onPreferencesSaved?.();
     } catch (error) {
       setSubmitError(getApiErrorMessage(error, "Unable to save workflow preferences."));
@@ -527,23 +475,24 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
             {selectedNode ? (
               <div className="space-y-5">
                 <div className="border-b border-slate-200 pb-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#5b6f9c]">Node Preference</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {typeof selectedNode.levelCount === "number" ? (
-                          <span className="inline-flex rounded-md bg-[#eef2ff] px-2 py-1 text-[11px] font-bold tracking-[0.16em] text-[#4f46e5]">
-                            L{selectedNode.levelCount}
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#5b6f9c]">Node Preference</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {typeof selectedNode.levelCount === "number" ? (
+                        <span className="inline-flex rounded-md bg-[#eef2ff] px-2 py-1 text-[11px] font-bold tracking-[0.16em] text-[#4f46e5]">
+                          L{selectedNode.levelCount}
+                        </span>
+                      ) : null}
+                      <h3 className="text-2xl font-semibold text-slate-900">
+                        {selectedNode.nodeName}
+                        {selectedNode.nodeType ? (
+                          <span className="ml-1 text-lg font-medium capitalize text-slate-500">
+                            ({selectedNode.nodeType.toLowerCase()})
                           </span>
                         ) : null}
-                        <h3 className="text-2xl font-semibold text-slate-900">{selectedNode.nodeName}</h3>
-                      </div>
-                      <p className="mt-2 break-all text-sm text-slate-500">{selectedNode.nodePath}</p>
+                      </h3>
                     </div>
-                    <div className="rounded-2xl border border-[#dbe4ff] bg-white px-4 py-3 text-right">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#5b6f9c]">Node Type</p>
-                      <p className="mt-2 text-sm font-semibold text-slate-900">{selectedNode.nodeType || "-"}</p>
-                    </div>
+                    <p className="mt-2 break-all text-sm text-slate-500">{selectedNode.nodePath}</p>
                   </div>
                 </div>
 
@@ -562,24 +511,27 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                       const matchedWorkflow = moduleEntry.workflows.find((workflow) => workflow.levelsHash === selectedValue) ?? null;
                       return (
                         <div key={`${selectedNode.nodePath}-${moduleEntry.module}`} className="rounded-2xl border border-[#dbe4ff] bg-white px-4 py-4 shadow-sm">
-                          <div className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(260px,1.1fr)] lg:items-center">
+                          <div className="grid gap-3 md:grid-cols-[110px_minmax(0,1fr)] md:items-center">
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-slate-900">{formatModuleLabel(moduleEntry.module)}</p>
-                              {!matchedWorkflow ? <p className="mt-1 text-xs font-medium text-amber-600">No workflow selected</p> : null}
                             </div>
                             <div>
                               <Select
                                 value={selectedValue || NO_WORKFLOW_VALUE}
                                 onValueChange={(value) => handleSelectWorkflow(selectedNode.nodePath, moduleEntry.module, value)}
-                                disabled={saving || moduleEntry.workflows.length === 0 || Boolean(selectedNode.isPreview)}
+                                disabled={saving || moduleEntry.workflows.length === 0}
                               >
-                                <SelectTrigger className="h-11 rounded-xl border-[#dbe4ff] bg-white shadow-sm">
+                                <SelectTrigger className="h-auto min-h-[3.5rem] w-full items-start rounded-xl border-[#dbe4ff] bg-white py-3 pl-3 pr-2 text-left shadow-sm [&>span]:block [&>span]:pr-3 [&>span]:text-left [&>span]:whitespace-normal [&>span]:break-words [&>span]:line-clamp-none [&>svg]:ml-1 [&>svg]:shrink-0">
                                   <SelectValue placeholder="Select workflow" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="min-w-[22rem] max-w-[30rem]">
                                   <SelectItem value={NO_WORKFLOW_VALUE}>No workflow selected</SelectItem>
                                   {moduleEntry.workflows.map((workflow) => (
-                                    <SelectItem key={workflow.levelsHash} value={workflow.levelsHash}>
+                                    <SelectItem
+                                      key={workflow.levelsHash}
+                                      value={workflow.levelsHash}
+                                      className="whitespace-normal break-words py-2 leading-5"
+                                    >
                                       {workflow.name}{workflow.alias ? ` (${workflow.alias})` : ""}
                                     </SelectItem>
                                   ))}

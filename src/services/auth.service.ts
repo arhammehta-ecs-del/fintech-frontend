@@ -115,7 +115,6 @@ const mapUser = (record?: RawLoginUser | null): CurrentUser => {
 
 export async function login(email: string, password: string, action = false, forceLogToken?: string) {
   const payload = await apiFetch<{ message: string; user: RawLoginUser }>(LOGIN_PATH, {
-    method: "POST",
     body: JSON.stringify({ email, password, action: action ? 1 : 0, forceLogToken }),
   });
 
@@ -126,15 +125,11 @@ export async function login(email: string, password: string, action = false, for
 }
 
 export async function logout() {
-  return apiFetch<{ message: string }>(LOGOUT_PATH, {
-    method: "POST",
-  });
+  return apiFetch<{ message: string }>(LOGOUT_PATH);
 }
 
 export async function getCurrentUser() {
-  const payload = await apiFetch<{ message?: string; user?: RawLoginUser | null }>(ME_PATH, {
-    method: "POST",
-  });
+  const payload = await apiFetch<{ message?: string; user?: RawLoginUser | null }>(ME_PATH);
   if (!payload.user) {
     throw new Error("Invalid auth/me response: missing user");
   }
@@ -164,7 +159,6 @@ const mapAccessRights = (value: unknown): AccessRight[] => {
 
 export async function getAccessRights(email: string, companyCode: string): Promise<AccessRightsResponse> {
   const payload = await apiFetch<unknown>(ACCESS_RIGHTS_PATH, {
-    method: "POST",
     body: JSON.stringify({
       email,
       companyCode,
@@ -196,7 +190,6 @@ const mapAccessRightsUsers = (value: unknown): AccessRightsUser[] => {
 
 export async function getReporteeAccessRights(): Promise<ReporteeAccessRightsResponse> {
   const payload = await apiFetch<unknown>(ACCESS_RIGHTS_PATH, {
-    method: "POST",
     body: JSON.stringify({
       companyCode: null,
       email: null,

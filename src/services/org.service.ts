@@ -542,7 +542,6 @@ export async function createNewOrgNode(payload: CreateOrgNodePayload) {
   if (typeof payload.status !== "undefined") normalizedPayload.status = payload.status;
 
   return apiFetch<CreateOrgNodeResponse>(NEW_NODE_PATH, {
-    method: "POST",
     body: JSON.stringify(normalizedPayload),
   });
 }
@@ -550,7 +549,6 @@ export async function createNewOrgNode(payload: CreateOrgNodePayload) {
 export async function updateOrgNodeAction(id: string, action: OrgNodeAction, remark: string) {
 
   return apiFetch<OrgNodeActionResponse>(NODE_ACTION_PATH, {
-    method: "POST",
     body: JSON.stringify({
       action,
       remark,
@@ -561,7 +559,6 @@ export async function updateOrgNodeAction(id: string, action: OrgNodeAction, rem
 
 export async function getCompanyOrgStructure(companyCode: string): Promise<OrgNode | null> {
   const payload = await apiFetch<OrgApiResponse>(COMPANY_ORG_PATH, {
-    method: "POST",
     body: JSON.stringify({}),
   });
 
@@ -597,7 +594,6 @@ export async function fetchOrgHistory(
 ) {
 
   return apiFetch<OrgHistoryResponse>(ORG_HISTORY_PATH, {
-    method: "POST",
     body: JSON.stringify({
       
       nodeName: nodeName.trim(),
@@ -610,7 +606,6 @@ export async function fetchOrgHistory(
 
 export async function fetchUsersByNodePathCount(nodePath: string) {
   const payload = await apiFetch<NodePathCountResponse>(USERS_BY_NODEPATH_COUNT_PATH, {
-    method: "POST",
     body: JSON.stringify({
       nodePath: nodePath.trim(),
     }),

@@ -38,7 +38,6 @@ export async function acquireEditLock(payload: EditLockPayload) {
   };
 
   return apiFetch<EditLockResponse>(EDIT_LOCK_PATH, {
-    method: "POST",
     body: JSON.stringify(requestBody),
   });
 }

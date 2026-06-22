@@ -145,14 +145,12 @@ export function connectNotificationStream(callbacks: NotificationSseCallbacks) {
 
 export async function updateNotificationReadStatus(payload: NotificationReadRequest) {
   return apiFetch<NotificationReadResponse>(NOTIFICATION_READ_PATH, {
-    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function fetchNotificationPage(payload: NotificationFetchRequest) {
   const response = await apiFetch<NotificationFetchResponse | NotificationSsePacket[]>(NOTIFICATION_FETCH_PATH, {
-    method: "POST",
     body: JSON.stringify(payload),
   });
 
@@ -189,7 +187,6 @@ export async function fetchNotificationSettings() {
   const response = await apiFetch<NotificationSettingsResponse | NotificationSettingsCompany[]>(
     NOTIFICATION_SETTINGS_FETCH_PATH,
     {
-      method: "POST",
       body: JSON.stringify({}),
     },
   );
@@ -203,7 +200,6 @@ export async function fetchNotificationSettings() {
 
 export async function updateNotificationSettings(payload: NotificationSettingsUpdateRequest) {
   return apiFetch<NotificationSettingsUpdateResponse>(NOTIFICATION_SETTINGS_UPDATE_PATH, {
-    method: "POST",
     body: JSON.stringify(payload),
   });
 }

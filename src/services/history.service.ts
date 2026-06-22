@@ -20,7 +20,6 @@ export type HistoryDetailRequest = {
 
 export async function fetchHistoryDetail(payload: HistoryDetailRequest) {
   return apiFetch<HistoryDetailResponse>(HISTORY_DETAIL_PATH, {
-    method: "POST",
     body: JSON.stringify({
       id: payload.id.trim(),
       type: payload.type,
