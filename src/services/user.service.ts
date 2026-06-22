@@ -151,6 +151,7 @@ type CompanyNodeWorkflow = {
   levelsHash: string;
   name: string;
   alias?: string;
+  selected?: boolean;
 };
 
 type CompanyNodeWithWorkflows = {
@@ -159,6 +160,7 @@ type CompanyNodeWithWorkflows = {
   nodeType: string;
   roleCode?: string;
   roleName?: string;
+  selectedWorkflow?: CompanyNodeWorkflow | null;
   workflows: CompanyNodeWorkflow[];
 };
 
@@ -270,6 +272,58 @@ const normalizeAccessCategory = (value: unknown): "ALL_CHILD" | "IMMEDIATE_CHILD
   if (normalized === "IMMEDIATE_CHILD") return "IMMEDIATE_CHILD";
   if (normalized === "NODE") return "NODE";
   return null;
+};
+
+const normalizeModuleKey = (value: string) =>
+  value
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+
+const getCompanyNodeModuleCandidates = (subCategory: string) => {
+  const normalized = normalizeModuleKey(subCategory);
+  const candidates = new Set<string>([normalized]);
+
+  if (normalized === "USER_ACC" || normalized === "USER_ACCESS" || normalized === "USER_MANAGEMENT") {
+    candidates.add("USER");
+  }
+
+  if (normalized === "ORG_STR" || normalized === "ORG_STRUCTURE") {
+    candidates.add("ORG");
+  }
+
+  if (normalized === "WORK_FLOW") {
+    candidates.add("WORKFLOW");
+  }
+
+  return Array.from(candidates);
+};
+
+const readCompanyNodeWorkflows = (record: RawUserRecord, subCategory: string) => {
+  const workflowsRaw = record.workflows;
+  if (Array.isArray(workflowsRaw)) {
+    return workflowsRaw;
+  }
+
+  const modulesRecord =
+    typeof record.modules === "object" && record.modules !== null ? (record.modules as Record<string, unknown>) : null;
+  if (!modulesRecord) {
+    return [];
+  }
+
+  const moduleCandidates = getCompanyNodeModuleCandidates(subCategory);
+  for (const candidate of moduleCandidates) {
+    const matchedEntry = Object.entries(modulesRecord).find(([key]) => normalizeModuleKey(key) === candidate)?.[1];
+    const moduleRecord = typeof matchedEntry === "object" && matchedEntry !== null ? (matchedEntry as Record<string, unknown>) : null;
+    if (!moduleRecord) continue;
+
+    const moduleWorkflows = moduleRecord.workflows;
+    if (Array.isArray(moduleWorkflows)) {
+      return moduleWorkflows;
+    }
+  }
+
+  return [];
 };
 
 
@@ -522,15 +576,14 @@ export async function fetchCompanyNodesWithAccess(subCategory: string, filter = 
 
     const nodes = payload.data.map((row) => {
       const record = toRecord(row);
-      const workflowsRaw = record.workflows;
-      if (!Array.isArray(workflowsRaw)) {
-        throw new Error("Invalid company nodes response: workflows must be an array");
-      }
+      const workflowsRaw = readCompanyNodeWorkflows(record, subCategory);
       const workflows = workflowsRaw.map((workflow) => ({
         levelsHash: readString((workflow as RawUserRecord).levelsHash).trim(),
         name: readString(workflow.name).trim(),
         alias: readString(workflow.alias).trim() || undefined,
-      }));
+        selected: Boolean((workflow as RawUserRecord).selected),
+      })).filter((workflow) => workflow.levelsHash && workflow.name);
+      const selectedWorkflow = workflows.find((workflow) => workflow.selected) ?? null;
 
       return {
         nodeName: readString(record.nodeName).trim(),
@@ -538,6 +591,7 @@ export async function fetchCompanyNodesWithAccess(subCategory: string, filter = 
         nodeType: readString(record.nodeType).trim(),
         roleCode: readString(record.roleCode).trim().toUpperCase() || undefined,
         roleName: readString(record.roleName).trim() || undefined,
+        selectedWorkflow,
         workflows,
       };
     });

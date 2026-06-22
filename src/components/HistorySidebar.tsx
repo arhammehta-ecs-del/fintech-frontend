@@ -38,6 +38,7 @@ export type HistoryEntry = {
         date?: string;
         time?: string;
         levelCount?: string | null;
+        badges?: string[];
       }>;
     }>;
   }>;
@@ -354,6 +355,18 @@ function ApprovalSections({ item }: { item: HistoryEntry }) {
                             <div className="min-w-0">
                               <span className="font-medium">{person.name}</span>
                               <span className="text-slate-500"> ({person.email})</span>
+                              {person.badges && person.badges.length > 0 ? (
+                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                  {person.badges.map((badge) => (
+                                    <span
+                                      key={`${person.email}-${badge}`}
+                                      className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold text-sky-700"
+                                    >
+                                      {badge}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                           {person.time ? (

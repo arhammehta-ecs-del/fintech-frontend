@@ -19,7 +19,10 @@ type WorkflowManageDialogProps = {
   currentTab?: "Active" | "Pending" | "Inactive";
   onClose: () => void;
   onSubmitAction: (workflow: WorkflowRecord, action: "approve" | "reject", remark: string) => Promise<void>;
-  onRequestStatusWorkflowOptions?: (workflow: WorkflowRecord) => Promise<Array<{ id: string; label: string }>>;
+  onRequestStatusWorkflowOptions?: (workflow: WorkflowRecord) => Promise<{
+    options: Array<{ id: string; label: string }>;
+    selectedLevelsHash: string;
+  }>;
   onSubmitStatusUpdate?: (input: {
     workflow: WorkflowRecord;
     nextStatus: "active" | "inactive";
@@ -624,10 +627,10 @@ export default function WorkflowManageDialog({
         ? "active"
         : nextStatus;
     try {
-      const options = await onRequestStatusWorkflowOptions(workflow);
+      const { options, selectedLevelsHash } = await onRequestStatusWorkflowOptions(workflow);
       setPendingStatus(resolvedNextStatus);
       setStatusRemark("");
-      setStatusWorkflowHash("");
+      setStatusWorkflowHash(selectedLevelsHash);
       setStatusWorkflowOptions(options);
     } catch (error) {
       setStatusWorkflowOptions([]);

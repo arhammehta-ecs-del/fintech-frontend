@@ -53,6 +53,44 @@ const mapEligibleApprovers = (record: RawHistoryRecord) => {
     .filter((approver) => approver.name || approver.email);
 };
 
+const formatAccessLabel = (value: string) =>
+  value
+    .trim()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const mapImpactedAccessUsers = (record: RawHistoryRecord) => {
+  const sources = [record, toRecord(record.impactSummary), toRecord(record.newData), toRecord(record.data)];
+
+  for (const source of sources) {
+    const nestedImpactSummary = toRecord(source.impactSummary);
+    const userAccessRaw = Array.isArray(source.userAccess)
+      ? source.userAccess
+      : (Array.isArray(nestedImpactSummary.userAccess) ? nestedImpactSummary.userAccess : []);
+
+    if (!Array.isArray(userAccessRaw) || userAccessRaw.length === 0) continue;
+
+    const users = userAccessRaw
+      .map((item) => toRecord(item))
+      .map((user) => ({
+        name: readString(user.name) || "Unknown",
+        email: readString(user.email) || "no-email@example.com",
+        badges: Object.entries(toRecord(user.access))
+          .flatMap(([module, rawPermissions]) =>
+            (Array.isArray(rawPermissions) ? rawPermissions : [])
+              .map((permission) => (typeof permission === "string" ? permission.trim() : ""))
+              .filter(Boolean)
+              .map((permission) => `${formatAccessLabel(module)} ${formatAccessLabel(permission)}`),
+          ),
+      }))
+      .filter((user) => user.name || user.email);
+
+    if (users.length > 0) return users;
+  }
+
+  return [];
+};
+
 const findNearestTimestamp = (records: RawHistoryRecord[], index: number) => {
   for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
     const candidate = records[cursor];
@@ -125,6 +163,7 @@ const mapOrgHistoryEntry = (
   const isApprovedAction = normalizedAction.includes("approve");
   const isAutoEvent = normalizedAction.includes("auto generate") || normalizedAction.includes("auto delete");
   const eligibleApprovers = mapEligibleApprovers(record);
+  const impactedAccessUsers = mapImpactedAccessUsers(record);
   const disableViewMore = isAutoEvent;
   const remarks = readString(record.remarks);
   const levelCount = readString(record.levelCount);
@@ -150,23 +189,21 @@ const mapOrgHistoryEntry = (
     : nodeName
       ? `event recorded for node ${nodeName} in ${parentNodeName || subtitle || "organisation structure"}.`
       : `event recorded for ${subtitle || "organisation structure"}.`;
-
-  return {
-    id: readString(record.id) || readString(record.requestId) || `${createdAt || "history"}-${index}`,
-    sourceId: readString(record.id) || readString(record.requestId),
-    disableViewMore,
-    collapseToHeader: isAutoEvent,
-    sortEpochMs: Number.isFinite(sortEpochMs) ? sortEpochMs : undefined,
-    year,
-    month,
-    day,
-    action,
-    levelCount: levelCount || undefined,
-    details,
-    remarks: remarks || undefined,
-    timestampMissing: !hasCreatedAt,
-    eligibleApprovers: eligibleApprovers.length > 0 ? eligibleApprovers : undefined,
-    approvalSections: approvedByLevels.length > 0
+  const approvalSections = [
+    ...(impactedAccessUsers.length > 0
+      ? [{
+          title: "Impacted User Access",
+          tone: "warning" as const,
+          items: impactedAccessUsers.map((user) => ({
+            people: [{
+              name: user.name,
+              email: user.email,
+              badges: user.badges,
+            }],
+          })),
+        }]
+      : []),
+    ...(approvedByLevels.length > 0
       ? [{
           title: "Approved By",
           tone: "success" as const,
@@ -186,7 +223,25 @@ const mapOrgHistoryEntry = (
             }),
           })),
         }]
-      : undefined,
+      : []),
+  ];
+
+  return {
+    id: readString(record.id) || readString(record.requestId) || `${createdAt || "history"}-${index}`,
+    sourceId: readString(record.id) || readString(record.requestId),
+    disableViewMore,
+    collapseToHeader: isAutoEvent,
+    sortEpochMs: Number.isFinite(sortEpochMs) ? sortEpochMs : undefined,
+    year,
+    month,
+    day,
+    action,
+    levelCount: levelCount || undefined,
+    details,
+    remarks: remarks || undefined,
+    timestampMissing: !hasCreatedAt,
+    eligibleApprovers: eligibleApprovers.length > 0 ? eligibleApprovers : undefined,
+    approvalSections: approvalSections.length > 0 ? approvalSections : undefined,
     initiator: {
       name: initiatorName,
       email: initiatorEmail,

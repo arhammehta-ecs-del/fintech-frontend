@@ -98,7 +98,11 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
   const [moduleGroups, setModuleGroups] = useState<ModuleGroup[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string; nodeType?: string }>>([]);
   const [companyNodesWithWorkflows, setCompanyNodesWithWorkflows] = useState<
-    Array<{ nodePath: string; workflows: Array<{ levelsHash: string; name: string; alias?: string }> }>
+    Array<{
+      nodePath: string;
+      selectedWorkflow?: { levelsHash: string; name: string; alias?: string; selected?: boolean } | null;
+      workflows: Array<{ levelsHash: string; name: string; alias?: string; selected?: boolean }>;
+    }>
   >([]);
   const [workflowOptions, setWorkflowOptions] = useState<Array<{ levelsHash: string; label: string }>>([]);
   const [selectedWorkflowLevelsHash, setSelectedWorkflowLevelsHash] = useState("");
@@ -214,6 +218,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
         setCompanyNodesWithWorkflows(
           nodes.map((node) => ({
             nodePath: node.nodePath.trim(),
+            selectedWorkflow: node.selectedWorkflow,
             workflows: node.workflows,
           })),
         );
@@ -236,6 +241,8 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
 
   useEffect(() => {
     const selectedNodePath = wfNode.trim().toUpperCase();
+    const matchedNode =
+      companyNodesWithWorkflows.find((node) => node.nodePath.trim().toUpperCase() === selectedNodePath) ?? null;
     const options = companyNodesWithWorkflows
       .flatMap((node) =>
         node.workflows.filter((workflow) => {
@@ -260,6 +267,14 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
       const normalizedCurrent = current.trim();
       if (normalizedCurrent) {
         return nextWorkflowOptions.some((option) => option.levelsHash === normalizedCurrent) ? normalizedCurrent : "";
+      }
+
+      const selectedFromNode =
+        matchedNode?.selectedWorkflow?.levelsHash?.trim() ||
+        matchedNode?.workflows.find((workflow) => workflow.selected)?.levelsHash?.trim() ||
+        "";
+      if (selectedFromNode && nextWorkflowOptions.some((option) => option.levelsHash === selectedFromNode)) {
+        return selectedFromNode;
       }
 
       const seededLevelsHash = mode === "edit" ? (seedWorkflow?.levelsHash || "").trim() : "";

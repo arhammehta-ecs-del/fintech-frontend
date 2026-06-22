@@ -264,6 +264,7 @@ export function useWorkflowManagement() {
   const requestStatusWorkflowOptions = async (workflow: WorkflowRecord) => {
     const selectedNodePath = (workflow.nodePath || "").trim().toUpperCase();
     const nodes = await fetchCompanyNodes("WORK_FLOW");
+    const matchedNode = nodes.find((item) => (item.nodePath || "").trim().toUpperCase() === selectedNodePath) ?? null;
     const options = nodes
       .flatMap((item) =>
         item.workflows.filter((entry) => {
@@ -281,7 +282,10 @@ export function useWorkflowManagement() {
         return { id, label: alias ? `${name} (${alias})` : name };
       })
       .filter((item): item is { id: string; label: string } => Boolean(item));
-    return Array.from(new Map(options.map((option) => [option.id, option])).values());
+    return {
+      options: Array.from(new Map(options.map((option) => [option.id, option])).values()),
+      selectedLevelsHash: matchedNode?.selectedWorkflow?.levelsHash?.trim() || "",
+    };
   };
 
   const submitWorkflowStatusUpdate = async (input: {

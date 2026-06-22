@@ -112,9 +112,27 @@ const mapImpactSummary = (value: unknown): OrgNode["impactSummary"] | undefined 
         const name = typeof record.name === "string" ? record.name.trim() : "";
         const email = typeof record.email === "string" ? record.email.trim() : "";
         if (!name && !email) return null;
-        return { name, email };
+        const accessRecord =
+          typeof record.access === "object" && record.access !== null
+            ? Object.entries(record.access as Record<string, unknown>).reduce<Record<string, string[]>>((accumulator, [key, rawValue]) => {
+              const values = Array.isArray(rawValue)
+                ? rawValue
+                  .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+                  .filter(Boolean)
+                : [];
+              if (values.length > 0) {
+                accumulator[key.trim()] = values;
+              }
+              return accumulator;
+            }, {})
+            : undefined;
+        return {
+          name,
+          email,
+          access: accessRecord && Object.keys(accessRecord).length > 0 ? accessRecord : undefined,
+        };
       })
-      .filter((item): item is { name: string; email: string } => item !== null)
+      .filter((item): item is { name: string; email: string; access?: Record<string, string[]> } => item !== null)
     : [];
 
   const workflow = Array.isArray(impactSource.workflow)

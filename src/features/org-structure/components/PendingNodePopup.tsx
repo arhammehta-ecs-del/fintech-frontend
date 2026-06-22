@@ -50,6 +50,19 @@ const toRecord = (value: unknown): Record<string, unknown> =>
 
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
+const formatAccessLabel = (value: string) =>
+  value
+    .trim()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const getAccessBadges = (access?: Record<string, string[]>) =>
+  Object.entries(access ?? {}).flatMap(([module, permissions]) =>
+    permissions
+      .map((permission) => `${formatAccessLabel(module)} ${formatAccessLabel(permission)}`)
+      .filter(Boolean),
+  );
+
 const formatDiffValue = (value: unknown) => {
   if (value === null || value === undefined || value === "") return "";
   if (typeof value === "string") return value.trim();
@@ -480,24 +493,40 @@ export function PendingNodePopup({
                   </div>
                   {impactedUsers.length > 0 ? (
                     <>
-                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-b border-slate-200/80 bg-white/80 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      <div className="grid grid-cols-[minmax(9rem,0.95fr)_minmax(11rem,1fr)_minmax(16rem,1.45fr)] border-b border-slate-200/80 bg-white/80 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                         <span>Name</span>
-                        <span className="text-right">Email</span>
+                        <span>Email</span>
+                        <span className="text-right">Access</span>
                       </div>
                       <div className="divide-y divide-slate-100/80 bg-white">
-                        {impactedUsers.map((user, index) => (
-                          <div
-                            key={`${user.email || user.name || "user"}-${index}`}
-                            className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 px-4 py-3 text-sm hover:bg-slate-50/70"
-                          >
-                            <span className="truncate font-medium text-slate-800" title={user.name || "—"}>
-                              {user.name || "—"}
-                            </span>
-                            <span className="truncate text-right text-slate-500" title={user.email || "—"}>
-                              {user.email || "—"}
-                            </span>
-                          </div>
-                        ))}
+                        {impactedUsers.map((user, index) => {
+                          const accessBadges = getAccessBadges(user.access);
+                          return (
+                            <div
+                              key={`${user.email || user.name || "user"}-${index}`}
+                              className="grid grid-cols-[minmax(9rem,0.95fr)_minmax(11rem,1fr)_minmax(16rem,1.45fr)] gap-3 px-4 py-3 text-sm hover:bg-slate-50/70"
+                            >
+                              <span className="truncate font-medium text-slate-800" title={user.name || "—"}>
+                                {user.name || "—"}
+                              </span>
+                              <span className="truncate text-slate-500" title={user.email || "—"}>
+                                {user.email || "—"}
+                              </span>
+                              <div className="flex justify-end overflow-x-auto whitespace-nowrap gap-1.5 scrollbar-thin scrollbar-thumb-sky-200 scrollbar-track-transparent">
+                                {accessBadges.length > 0 ? accessBadges.map((badge) => (
+                                  <span
+                                    key={`${user.email || user.name || "user"}-${badge}`}
+                                    className="inline-flex shrink-0 items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700"
+                                  >
+                                    {badge}
+                                  </span>
+                                )) : (
+                                  <span className="text-[11px] text-slate-400">—</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </>
                   ) : null}

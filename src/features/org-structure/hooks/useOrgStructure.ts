@@ -269,6 +269,7 @@ export function useOrgStructure() {
   const fetchNodeWorkflowOptions = async (nodePath: string) => {
     const selectedNodePath = nodePath.trim().toUpperCase();
     const nodes = await fetchCompanyNodes("ORG_STR");
+    const matchedNode = nodes.find((item) => item.nodePath.trim().toUpperCase() === selectedNodePath) ?? null;
     const options = nodes
       .flatMap((item) =>
         item.workflows.filter((workflow) => {
@@ -286,7 +287,10 @@ export function useOrgStructure() {
         return { id, label: alias ? `${name} (${alias})` : name };
       })
       .filter((option): option is { id: string; label: string } => Boolean(option));
-    return Array.from(new Map(options.map((option) => [option.id, option])).values());
+    return {
+      options: Array.from(new Map(options.map((option) => [option.id, option])).values()),
+      selectedLevelsHash: matchedNode?.selectedWorkflow?.levelsHash?.trim() || "",
+    };
   };
 
   const handleCreateNode = async (name: string, nodeType: NewNodeType, selectedLevelsHash?: string) => {
@@ -414,7 +418,7 @@ export function useOrgStructure() {
     if (currentStatus === targetStatus) return;
 
     try {
-      const options = await fetchNodeWorkflowOptions(nodePath);
+      const { options, selectedLevelsHash } = await fetchNodeWorkflowOptions(nodePath);
       await orgLockSession.startSession(
         {
           type: "org",
@@ -433,7 +437,7 @@ export function useOrgStructure() {
         },
       );
       setStatusUpdateWorkflowOptions(options);
-      setStatusUpdateWorkflowHash("");
+      setStatusUpdateWorkflowHash(selectedLevelsHash);
       setStatusUpdateRemarks("");
       setStatusUpdateTargetStatus(targetStatus);
       setStatusUpdateNode(department);

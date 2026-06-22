@@ -191,6 +191,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
 
     const notificationAction = (searchParams.get("notif_action") || "").trim().toLowerCase();
     const referenceId = (searchParams.get("notif_ref_id") || "").trim();
+    const notificationTarget = (searchParams.get("notif_target") || "").trim().toLowerCase();
     const entityName = (searchParams.get("notif_entity_name") || "").trim().toLowerCase();
     const notificationType = (searchParams.get("notif_type") || "").trim().toUpperCase();
     const nodes: OrgNode[] = [];
@@ -210,23 +211,45 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     });
     const candidateNodes = notificationAction === "approve" ? pendingNodes : nodes;
 
+    const matchesNodeByPath = (node: OrgNode) => {
+      const nodePath = (node.nodePath || "").trim().toLowerCase();
+      return Boolean(notificationTarget) && nodePath === notificationTarget;
+    };
+
+    const matchesNodeByIdentity = (node: OrgNode) => {
+      const nodeId = (node.id || "").trim();
+      const nodeUuid = (node.uuid || "").trim();
+      return Boolean(referenceId) && (nodeId === referenceId || nodeUuid === referenceId);
+    };
+
+    const matchesNodeByEntityName = (node: OrgNode) => {
+      if (!entityName) return false;
+      const nodeName = (node.name || "").trim().toLowerCase();
+      const nodePath = (node.nodePath || "").trim().toLowerCase();
+      const nodePathLeaf = nodePath.split(".").filter(Boolean).pop() || "";
+      return (
+        nodeName === entityName ||
+        nodePath === entityName ||
+        nodePath.endsWith(`.${entityName}`) ||
+        nodePathLeaf === entityName
+      );
+    };
+
+    const pendingTargetMatch =
+      notificationAction !== "approve" && notificationTarget
+        ? candidateNodes.find((node) => matchesNodeByPath(node) && (Boolean(node.isPending) || (node.pendingRequestType || "").trim().toUpperCase() === "UPDATE")) ?? null
+        : null;
+
     const matchedNode =
+      pendingTargetMatch ??
       candidateNodes.find((node) => {
-        const nodeId = (node.id || "").trim();
-        const nodeUuid = (node.uuid || "").trim();
-        if (referenceId && (nodeId === referenceId || nodeUuid === referenceId)) return true;
+        if (matchesNodeByIdentity(node)) return true;
+        if (matchesNodeByPath(node)) return true;
         if (notificationAction === "approve" && referenceId) return false;
-        if (!entityName) return false;
-        const nodeName = (node.name || "").trim().toLowerCase();
-        const nodePath = (node.nodePath || "").trim().toLowerCase();
-        const nodePathLeaf = nodePath.split(".").filter(Boolean).pop() || "";
-        return (
-          nodeName === entityName ||
-          nodePath === entityName ||
-          nodePath.endsWith(`.${entityName}`) ||
-          nodePathLeaf === entityName
-        );
-      }) ?? null;
+        if (!entityName && !notificationTarget) return false;
+        return matchesNodeByEntityName(node);
+      }) ??
+      null;
 
     if (!matchedNode) return;
 
@@ -235,7 +258,13 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
 
     if (notificationAction === "approve") {
       handleDepartmentClick(matchedNode);
-    } else if (isModificationNotification || matchedNode.status === "Pending" || matchedNode.isPending) {
+    } else if (
+      notificationTarget ||
+      isModificationNotification ||
+      matchedNode.status === "Pending" ||
+      matchedNode.isPending ||
+      (matchedNode.pendingRequestType || "").trim().toUpperCase() === "UPDATE"
+    ) {
       setPendingNodeForReview(matchedNode);
     } else {
       handleDepartmentClick(matchedNode);
@@ -246,6 +275,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
       "notif_action",
       "notif_ref_type",
       "notif_ref_id",
+      "notif_target",
       "notif_type",
       "notif_email",
       "notif_entity_name",

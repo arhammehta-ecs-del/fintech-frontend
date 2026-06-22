@@ -97,8 +97,8 @@ type NotificationSettingsFlowNode = {
 
 const COMPACT_NOTIFICATIONS_LIMIT = 10;
 const DIALOG_PAGE_SIZE = 50;
-const MESSAGE_PREVIEW_LIMIT = 150;
-const MAX_VISIBLE_TRACKS = 8;
+const MESSAGE_PREVIEW_LIMIT = 120;
+const EXPANDED_TRACK_BATCH_SIZE = 10;
 const DEFAULT_DATE_RANGE: NotificationFetchDateRange = "7DAYS";
 const DATE_RANGE_OPTIONS: NotificationFetchDateRange[] = ["7DAYS", "15DAYS", "1MONTH"];
 const STATUS_FILTER_OPTIONS: Array<{ value: NotificationStatusFilterValue; label: string }> = [
@@ -513,6 +513,7 @@ export function AppTopBar({
   const [customFromDate, setCustomFromDate] = useState("");
   const [customToDate, setCustomToDate] = useState("");
   const [expandedNotificationIds, setExpandedNotificationIds] = useState<string[]>([]);
+  const [expandedNotificationTrackCounts, setExpandedNotificationTrackCounts] = useState<Record<string, number>>({});
   const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
   const [notificationSettingsLoading, setNotificationSettingsLoading] = useState(false);
   const [notificationSettingsError, setNotificationSettingsError] = useState("");
@@ -927,9 +928,29 @@ export function AppTopBar({
   const shouldShowSeeAll = allNotificationCount > notifications.length;
 
   const toggleNotificationExpansion = (id: string) => {
-    setExpandedNotificationIds((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
-    );
+    setExpandedNotificationIds((current) => {
+      if (current.includes(id)) {
+        setExpandedNotificationTrackCounts((counts) => {
+          const next = { ...counts };
+          delete next[id];
+          return next;
+        });
+        return current.filter((item) => item !== id);
+      }
+
+      setExpandedNotificationTrackCounts((counts) => ({
+        ...counts,
+        [id]: EXPANDED_TRACK_BATCH_SIZE,
+      }));
+      return [...current, id];
+    });
+  };
+
+  const showMoreNotificationTracks = (id: string, totalTrackCount: number) => {
+    setExpandedNotificationTrackCounts((counts) => ({
+      ...counts,
+      [id]: Math.min((counts[id] ?? EXPANDED_TRACK_BATCH_SIZE) + EXPANDED_TRACK_BATCH_SIZE, totalTrackCount),
+    }));
   };
 
   const clearNotificationIntentParams = useCallback((search: URLSearchParams) => {
@@ -1182,6 +1203,8 @@ export function AppTopBar({
   const renderNotificationCard = (notification: NotificationItem, key: string, compact = false) => {
     const styles = statusStyles[notification.badgeTone];
     const isExpanded = expandedNotificationIds.includes(notification.id);
+    const messageLines = getMessageLines(notification.message);
+    const summaryLine = messageLines[0]?.replace(/\s+/g, " ").trim() ?? "";
     const messageToShow = isExpanded ? notification.message : notification.previewMessage;
     const normalizedTitle = notification.title.trim().toUpperCase();
     const cardStateClassName = notification.unread
@@ -1192,7 +1215,11 @@ export function AppTopBar({
       normalizedTitle !== "ORGANIZATION REMOVED" &&
       normalizedTitle !== "WORKFLOW ARCHIVE APPROVED" &&
       normalizedTitle !== "USER ARCHIVE APPROVED";
-    const expandedTrackListMaxHeight = `${MAX_VISIBLE_TRACKS * 28}px`;
+    const hasAffectedSegments = notification.affectedSegments.length > 0;
+    const visibleTrackCount = expandedNotificationTrackCounts[notification.id] ?? EXPANDED_TRACK_BATCH_SIZE;
+    const visibleSegments = notification.affectedSegments.slice(0, visibleTrackCount);
+    const hasMoreSegmentsToShow = visibleSegments.length < notification.affectedSegments.length;
+    const canExpand = notification.message.length > MESSAGE_PREVIEW_LIMIT || notification.affectedSegments.length > 1;
 
     return (
       <div
@@ -1223,32 +1250,43 @@ export function AppTopBar({
         </div>
         <div className="mt-2 w-full">
           {notification.affectedSegments.length > 1 && isExpanded ? (
-            <div
-              className="w-full space-y-1 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300"
-              style={{ maxHeight: expandedTrackListMaxHeight }}
-            >
-              {notification.affectedSegments.map((segment, index) => (
-                <p key={`${notification.id}-segment-${index}`} className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
-                  {segment}
-                </p>
-              ))}
+            <div className="space-y-2">
+              {summaryLine ? (
+                <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">{summaryLine}</p>
+              ) : null}
+              <div className="space-y-1">
+                {visibleSegments.map((segment, index) => (
+                  <p key={`${notification.id}-segment-${index}`} className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">
+                    {segment}
+                  </p>
+                ))}
+              </div>
             </div>
           ) : (
             <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">{messageToShow}</p>
           )}
           <p className="mt-1 text-xs leading-[1.35] text-slate-500">
-            Initiated by {notification.initiatedByName} ({notification.initiatedByEmail})
+            Action by {notification.initiatedByName} ({notification.initiatedByEmail})
           </p>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            {notification.message.length > MESSAGE_PREVIEW_LIMIT || notification.affectedSegments.length > 1 ? (
+            {canExpand ? (
               <button
                 type="button"
                 onClick={() => toggleNotificationExpansion(notification.id)}
                 className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
               >
                 {isExpanded ? "See less" : "See more"}
+              </button>
+            ) : null}
+            {isExpanded && hasAffectedSegments && hasMoreSegmentsToShow ? (
+              <button
+                type="button"
+                onClick={() => showMoreNotificationTracks(notification.id, notification.affectedSegments.length)}
+                className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                View more
               </button>
             ) : null}
             {notification.isPending ? (

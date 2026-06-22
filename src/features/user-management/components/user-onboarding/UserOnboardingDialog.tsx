@@ -260,7 +260,9 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
                     onValueChange={(value) => setSelectedWorkflow(value === "__none__" ? "" : value)}
                   >
                     <SelectTrigger className="h-11 w-full min-w-[240px] border-[rgb(53,83,233)]/30 text-[rgb(53,83,233)] sm:w-[280px]">
-                      <SelectValue placeholder="Select Workflow" />
+                      <SelectValue placeholder="Select Workflow">
+                        {formData.selectedWorkflow || "Select Workflow"}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent side="top" align="end">
                       <SelectItem value="__none__">No Workflow</SelectItem>

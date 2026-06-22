@@ -20,7 +20,12 @@ import {
   findOrgNode,
   validateUserOnboardingStep,
 } from "@/features/user-management/utils";
-import { buildOrgTreeFromCompanyNodes, buildWorkflowOptions } from "./useUserOnboardingForm.utils";
+import {
+  buildOrgTreeFromCompanyNodes,
+  buildWorkflowOptions,
+  findSelectedWorkflowOption,
+  mergeOrgTreeWithAccessNodes,
+} from "./useUserOnboardingForm.utils";
 
 const isSignatorySeedMember = (seedMember: AppUser) => {
   const designation = (seedMember.designation || seedMember.basicDetails?.designation || "").trim().toLowerCase();
@@ -47,7 +52,11 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
   const companyCode = currentUser?.companyCode ?? "";
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [companyNodesWithWorkflows, setCompanyNodesWithWorkflows] = useState<
-    Array<{ nodePath: string; workflows: Array<{ levelsHash: string; name: string; alias?: string }> }>
+    Array<{
+      nodePath: string;
+      selectedWorkflow?: { levelsHash: string; name: string; alias?: string; selected?: boolean } | null;
+      workflows: Array<{ levelsHash: string; name: string; alias?: string; selected?: boolean }>;
+    }>
   >([]);
   const [workflowOptions, setWorkflowOptions] = useState<Array<{ levelsHash: string; label: string }>>([]);
   const [localOrgStructure, setLocalOrgStructure] = useState<OrgNode | null>(null);
@@ -73,7 +82,10 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
   } | null>(null);
   const reviewAccessNodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const orgStructure = localOrgStructure;
+  const orgStructure = useMemo(() => {
+    const accessRows = seedMember?.accessDetails ?? [];
+    return mergeOrgTreeWithAccessNodes(localOrgStructure, accessRows);
+  }, [localOrgStructure, seedMember]);
   const parsePermissionAction = (roleName: string): PermissionAction => {
     const normalized = roleName.trim().toLowerCase();
     if (normalized.includes("viewer")) return "viewer";
@@ -214,18 +226,33 @@ export function useUserOnboardingForm({ open, onOpenChange, onSubmit, seedMember
       }),
     }));
     const nextWorkflowOptions = buildWorkflowOptions(scopedNodes);
+    const nextSelectedWorkflow = findSelectedWorkflowOption(scopedNodes);
     setWorkflowOptions(nextWorkflowOptions);
 
     setFormData((current) => {
-      if (!current.selectedWorkflowLevelsHash) return current;
+      if (!current.selectedWorkflowLevelsHash) {
+        if (!nextSelectedWorkflow) return current;
+        if (current.selectedWorkflow === nextSelectedWorkflow.label) {
+          return {
+            ...current,
+            selectedWorkflowLevelsHash: nextSelectedWorkflow.levelsHash,
+          };
+        }
+        if (current.selectedWorkflow.trim()) return current;
+        return {
+          ...current,
+          selectedWorkflowLevelsHash: nextSelectedWorkflow.levelsHash,
+          selectedWorkflow: nextSelectedWorkflow.label,
+        };
+      }
       const stillAvailable = nextWorkflowOptions.some(
         (option) => option.levelsHash === current.selectedWorkflowLevelsHash,
       );
-      if (stillAvailable) return current;
+      if (stillAvailable || current.selectedWorkflowLevelsHash === nextSelectedWorkflow?.levelsHash) return current;
       return {
         ...current,
-        selectedWorkflowLevelsHash: "",
-        selectedWorkflow: "",
+        selectedWorkflowLevelsHash: nextSelectedWorkflow?.levelsHash ?? "",
+        selectedWorkflow: nextSelectedWorkflow?.label ?? "",
       };
     });
   }, [companyNodesWithWorkflows, selectedNodeIds]);

@@ -14,7 +14,7 @@ import {
 type WorkflowPreferenceDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onPreferencesSaved?: () => void;
+  onPreferencesSaved?: () => void | Promise<void>;
 };
 
 type WorkflowPreferenceDialogNode = WorkflowPreferenceNode;
@@ -317,7 +317,8 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
       setSelectedNodePath((current) =>
         refreshedNodes.some((node) => node.nodePath === current) ? current : (refreshedNodes[0]?.nodePath ?? ""),
       );
-      onPreferencesSaved?.();
+      await onPreferencesSaved?.();
+      onOpenChange(false);
     } catch (error) {
       setSubmitError(getApiErrorMessage(error, "Unable to save workflow preferences."));
     } finally {

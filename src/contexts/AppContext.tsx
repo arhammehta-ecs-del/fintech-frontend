@@ -46,6 +46,7 @@ export interface OrgNode {
     userAccess: Array<{
       name: string;
       email: string;
+      access?: Record<string, string[]>;
     }>;
     workflow: Array<{
       workflowName: string;
