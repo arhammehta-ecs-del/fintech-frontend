@@ -166,7 +166,6 @@ export function PendingNodePopup({
   onClose,
   onApprove,
   onReject,
-  onNavigateToImpactedUsers,
   onOpenHistory,
   onToggleHistory,
   isHistoryOpen = false,
@@ -470,18 +469,17 @@ export function PendingNodePopup({
           </div>
 
           {(affectedUsersCount > 0 || affectedWorkflowsCount > 0) ? (
-            <div className={cn("grid items-start gap-4", isStandaloneDialog ? "lg:grid-cols-2" : "xl:grid-cols-2")}>
+            <div
+              className={cn(
+                "grid items-start gap-4",
+                isStandaloneDialog ? "lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]" : "xl:grid-cols-[minmax(0,1.28fr)_minmax(260px,0.72fr)]",
+              )}
+            >
               {affectedUsersCount > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => onNavigateToImpactedUsers?.(node)}
-                  disabled={!onNavigateToImpactedUsers}
+                <div
                   className={cn(
                     "h-fit self-start overflow-hidden rounded-2xl border text-left transition",
                     "border-sky-200/80 bg-sky-50/80",
-                    onNavigateToImpactedUsers
-                      ? "cursor-pointer hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/40"
-                      : "cursor-default",
                   )}
                 >
                   <div className="border-b border-sky-100 bg-sky-100/70 px-4 py-3">
@@ -493,10 +491,11 @@ export function PendingNodePopup({
                   </div>
                   {impactedUsers.length > 0 ? (
                     <>
-                      <div className="grid grid-cols-[minmax(9rem,0.95fr)_minmax(11rem,1fr)_minmax(16rem,1.45fr)] border-b border-slate-200/80 bg-white/80 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      <div className="grid grid-cols-[minmax(8rem,0.9fr)_minmax(10rem,1fr)_minmax(14rem,1.4fr)_88px] border-b border-slate-200/80 bg-white/80 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                         <span>Name</span>
                         <span>Email</span>
                         <span className="text-right">Access</span>
+                        <span className="text-right">Access Count</span>
                       </div>
                       <div className="divide-y divide-slate-100/80 bg-white">
                         {impactedUsers.map((user, index) => {
@@ -504,7 +503,7 @@ export function PendingNodePopup({
                           return (
                             <div
                               key={`${user.email || user.name || "user"}-${index}`}
-                              className="grid grid-cols-[minmax(9rem,0.95fr)_minmax(11rem,1fr)_minmax(16rem,1.45fr)] gap-3 px-4 py-3 text-sm hover:bg-slate-50/70"
+                              className="grid grid-cols-[minmax(8rem,0.9fr)_minmax(10rem,1fr)_minmax(14rem,1.4fr)_88px] gap-3 px-4 py-3 text-sm hover:bg-slate-50/70"
                             >
                               <span className="truncate font-medium text-slate-800" title={user.name || "—"}>
                                 {user.name || "—"}
@@ -524,13 +523,14 @@ export function PendingNodePopup({
                                   <span className="text-[11px] text-slate-400">—</span>
                                 )}
                               </div>
+                              <span className="text-right text-sm font-semibold text-slate-700">{accessBadges.length}</span>
                             </div>
                           );
                         })}
                       </div>
                     </>
                   ) : null}
-                </button>
+                </div>
               ) : null}
 
               {affectedWorkflowsCount > 0 ? (
@@ -549,7 +549,7 @@ export function PendingNodePopup({
                   </div>
                   {impactedWorkflows.length > 0 ? (
                     <>
-                      <div className="grid grid-cols-[minmax(0,1fr)_140px] border-b border-slate-200/80 bg-white/80 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      <div className="grid grid-cols-[minmax(0,1fr)_96px] border-b border-slate-200/80 bg-white/80 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                         <span>Workflow Name</span>
                         <span className="text-right">Alias</span>
                       </div>
@@ -557,7 +557,7 @@ export function PendingNodePopup({
                         {impactedWorkflows.map((item, index) => (
                           <div
                             key={`${item.workflowName || item.alias || "workflow"}-${index}`}
-                            className="grid grid-cols-[minmax(0,1fr)_140px] gap-3 px-4 py-3 text-sm hover:bg-slate-50/70"
+                            className="grid grid-cols-[minmax(0,1fr)_96px] gap-3 px-4 py-3 text-sm hover:bg-slate-50/70"
                           >
                             <span className="truncate font-medium text-slate-800" title={item.workflowName || "—"}>
                               {item.workflowName || "—"}

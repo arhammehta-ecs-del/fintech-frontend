@@ -138,6 +138,13 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     [collapsedNodePaths, workflowPreferenceTree],
   );
   const pendingChanges = useMemo(() => hasPendingChanges(selectionDraft, initialSelection), [initialSelection, selectionDraft]);
+  const getSelectedModuleCountForNode = (nodePath: string, modules: WorkflowPreferenceDialogNode["modules"]) =>
+    modules.filter((moduleEntry) => Boolean(selectionDraft[nodePath]?.[moduleEntry.module] ?? "")).length;
+  const selectedModuleCount = useMemo(
+    () => selectedNode?.modules.filter((moduleEntry) => Boolean(selectionDraft[selectedNode.nodePath]?.[moduleEntry.module] ?? "")).length ?? 0,
+    [selectedNode, selectionDraft],
+  );
+  const totalModuleCount = selectedNode?.modules.length ?? 0;
 
   useEffect(() => {
     if (!open) return;
@@ -254,7 +261,7 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     setSubmitError("");
   };
 
-  const handleCancelEdit = () => {
+  const handleResetSelections = () => {
     setSelectionDraft(initialSelection);
     setSubmitError("");
   };
@@ -355,12 +362,22 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
           </div>
         </div>
 
-        <div className="border-b border-[#dbe4ff] bg-white px-6 py-4">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#5b6f9c]">Company</p>
-          <p className="mt-2 truncate text-sm font-medium text-slate-900">
-            {companyNode?.nodeName || "-"}
-            {companyNode?.nodePath ? ` (${companyNode.nodePath})` : ""}
-          </p>
+        <div className="flex items-start justify-between gap-4 border-b border-[#dbe4ff] bg-white px-6 py-4">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#5b6f9c]">Company</p>
+            <p className="mt-2 truncate text-sm font-medium text-slate-900">
+              {companyNode?.nodeName || "-"}
+              {companyNode?.nodePath ? ` (${companyNode.nodePath})` : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleResetSelections}
+            disabled={!pendingChanges || saving || loading}
+            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Reset
+          </button>
         </div>
 
         <div ref={panelsRef} className="relative grid min-h-0 flex-1 grid-cols-1 gap-5 overflow-hidden bg-white p-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
@@ -393,6 +410,8 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                   const isSelected = selectedNode?.nodePath === item.node.nodePath;
                   const hasChildren = item.node.children.length > 0;
                   const isCollapsed = collapsedNodePaths.includes(item.node.nodePath);
+                  const selectedModuleCountForNode = getSelectedModuleCountForNode(item.node.nodePath, item.node.modules);
+                  const totalModuleCountForNode = item.node.modules.length;
                   return (
                     <div key={item.node.nodePath} className="w-full" style={{ paddingLeft: `${item.depth * 20}px` }}>
                       <button
@@ -457,6 +476,9 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                             </div>
                             <p className="mt-2 break-all pl-8 text-xs text-slate-500">{item.node.nodePath}</p>
                           </div>
+                          <span className="shrink-0 rounded-full border border-[#dbe4ff] bg-[#f7f9ff] px-2.5 py-1 text-[11px] font-semibold text-[#4f6fd9]">
+                            {selectedModuleCountForNode}/{totalModuleCountForNode}
+                          </span>
                         </div>
                       </button>
                     </div>
@@ -497,8 +519,11 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                   </div>
                 </div>
 
-                <div>
+                <div className="flex items-center justify-between gap-3">
                   <h4 className="text-base font-semibold text-slate-800">Module Preferences</h4>
+                  <span className="rounded-full border border-[#dbe4ff] bg-[#f7f9ff] px-3 py-1 text-xs font-semibold text-[#4f6fd9]">
+                    {selectedModuleCount}/{totalModuleCount}
+                  </span>
                 </div>
 
                 {selectedNode.modules.length === 0 ? (
@@ -509,12 +534,13 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                   <div className="space-y-3">
                     {selectedNode.modules.map((moduleEntry) => {
                       const selectedValue = selectionDraft[selectedNode.nodePath]?.[moduleEntry.module] ?? "";
-                      const matchedWorkflow = moduleEntry.workflows.find((workflow) => workflow.levelsHash === selectedValue) ?? null;
+                      const selectedCount = selectedValue ? 1 : 0;
                       return (
                         <div key={`${selectedNode.nodePath}-${moduleEntry.module}`} className="rounded-2xl border border-[#dbe4ff] bg-white px-4 py-4 shadow-sm">
                           <div className="grid gap-3 md:grid-cols-[110px_minmax(0,1fr)] md:items-center">
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-slate-900">{formatModuleLabel(moduleEntry.module)}</p>
+                              <p className="mt-1 text-xs font-medium text-slate-500">{selectedCount} selected</p>
                             </div>
                             <div>
                               <Select
@@ -558,11 +584,11 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
           <div className="flex items-center justify-end gap-3 border-t border-[#dbe4ff] bg-white px-6 py-4">
             <button
               type="button"
-              onClick={handleCancelEdit}
+              onClick={() => onOpenChange(false)}
               disabled={saving}
               className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Cancel
+              Close
             </button>
             <button
               type="button"

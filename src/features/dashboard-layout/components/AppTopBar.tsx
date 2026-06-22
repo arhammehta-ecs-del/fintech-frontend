@@ -62,6 +62,7 @@ type NotificationItem = {
   target: string | null;
   rawType: string;
   message: string;
+  summaryMessage: string;
   previewMessage: string;
   initiatedByName: string;
   initiatedByEmail: string;
@@ -212,17 +213,42 @@ const extractEntityName = (name: string, message: string, refType?: string | nul
   return name.trim();
 };
 
-const getAffectedSegments = (message: string) => {
+const parseNotificationMessage = (message: string) => {
   const messageLines = getMessageLines(message);
   if (messageLines.length > 1) {
-    return messageLines.slice(1);
+    return {
+      summaryMessage: messageLines[0] ?? "",
+      affectedSegments: messageLines.slice(1),
+    };
   }
 
-  const base = message.includes(":") ? message.slice(message.indexOf(":") + 1) : message;
-  return base
+  const normalizedMessage = messageLines[0]?.replace(/\s+/g, " ").trim() ?? "";
+  if (!normalizedMessage) {
+    return {
+      summaryMessage: "",
+      affectedSegments: [],
+    };
+  }
+
+  if (!normalizedMessage.includes(":")) {
+    return {
+      summaryMessage: normalizedMessage,
+      affectedSegments: [],
+    };
+  }
+
+  const separatorIndex = normalizedMessage.indexOf(":");
+  const summaryMessage = normalizedMessage.slice(0, separatorIndex).trim();
+  const affectedSegments = normalizedMessage
+    .slice(separatorIndex + 1)
     .split(",")
     .map((segment) => segment.trim())
     .filter(Boolean);
+
+  return {
+    summaryMessage,
+    affectedSegments,
+  };
 };
 
 const mapTypeToBadge = (value?: string): { label: string; tone: NotificationTone } => {
@@ -766,7 +792,7 @@ export function AppTopBar({
   const mapPacketToNotification = useCallback((packet: NotificationSsePacket): NotificationItem => {
     const badge = mapTypeToBadge(packet.type);
     const message = String(packet.message ?? "").trim();
-    const affectedSegments = getAffectedSegments(message);
+    const { summaryMessage, affectedSegments } = parseNotificationMessage(message);
     const title = String(packet.name ?? "").trim();
     const createdAt = String(packet.createat_timestamp ?? "").trim() || new Date().toISOString();
     const extractedEmail = extractEmailFromText(message);
@@ -784,7 +810,8 @@ export function AppTopBar({
       target: packet.target?.trim() || null,
       rawType: String(packet.type ?? "").trim().toUpperCase(),
       message,
-      previewMessage: buildNotificationPreview(message),
+      summaryMessage: summaryMessage || message,
+      previewMessage: buildNotificationPreview(summaryMessage || message),
       initiatedByName: String(packet.createdByname ?? "").trim() || "-",
       initiatedByEmail: String(packet.createdByemail ?? "").trim() || "-",
       occurredAt: createdAt,
@@ -1203,8 +1230,7 @@ export function AppTopBar({
   const renderNotificationCard = (notification: NotificationItem, key: string, compact = false) => {
     const styles = statusStyles[notification.badgeTone];
     const isExpanded = expandedNotificationIds.includes(notification.id);
-    const messageLines = getMessageLines(notification.message);
-    const summaryLine = messageLines[0]?.replace(/\s+/g, " ").trim() ?? "";
+    const summaryLine = notification.summaryMessage.replace(/\s+/g, " ").trim();
     const messageToShow = isExpanded ? notification.message : notification.previewMessage;
     const normalizedTitle = notification.title.trim().toUpperCase();
     const cardStateClassName = notification.unread
@@ -1249,7 +1275,7 @@ export function AppTopBar({
           </div>
         </div>
         <div className="mt-2 w-full">
-          {notification.affectedSegments.length > 1 && isExpanded ? (
+          {hasAffectedSegments && isExpanded ? (
             <div className="space-y-2">
               {summaryLine ? (
                 <p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-800">{summaryLine}</p>
