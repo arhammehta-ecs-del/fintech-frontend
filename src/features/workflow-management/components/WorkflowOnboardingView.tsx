@@ -42,6 +42,7 @@ export default function WorkflowOnboardingView({
     levels,
     isRMUsedGlobally,
     currentLevelComplete,
+    hasNoApproverSelected,
     selectedModuleLabel,
     selectedNodeNameLabel,
     seedSnapshot,
@@ -96,13 +97,14 @@ export default function WorkflowOnboardingView({
           visibleLevels={visibleLevels}
           errorMsg={errorMsg}
           isRMUsedGlobally={isRMUsedGlobally}
+          hasNoApproverSelected={hasNoApproverSelected}
           onUpdateApprover={updateLevelApprover}
           onAddApprover={addApproverToLevel}
           onRemoveApprover={removeApproverFromLevel}
           onToggleLogic={toggleLogic}
           onAddLevel={addNewLevel}
           onRemoveLevel={removeLastLevel}
-          canAddLevel={currentLevelComplete && visibleLevels < 5}
+          canAddLevel={!hasNoApproverSelected && currentLevelComplete && visibleLevels < 5}
           canRemoveLevel={visibleLevels > 1}
         />
       ) : null}
@@ -177,7 +179,11 @@ export default function WorkflowOnboardingView({
 
         <div className="flex items-center gap-2">
           {step === 3 ? (
-            <Select value={selectedWorkflowLevelsHash || "__none__"} onValueChange={(value) => setSelectedWorkflowLevelsHash(value === "__none__" ? "" : value)}>
+            <Select
+              value={selectedWorkflowLevelsHash || "__none__"}
+              onValueChange={(value) => setSelectedWorkflowLevelsHash(value === "__none__" ? "" : value)}
+              disabled={hasNoApproverSelected}
+            >
               <SelectTrigger className="h-11 w-[220px] border-blue-200 text-blue-700">
                 <SelectValue placeholder="Select Workflow" />
               </SelectTrigger>

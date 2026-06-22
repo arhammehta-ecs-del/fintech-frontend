@@ -34,6 +34,7 @@ const fromApiApprover = (value: string) => {
   if (normalized === "REPORTING_MANAGER") return "reporting_manager";
   if (normalized === "NODE_APPROVER") return "node_approver";
   if (normalized === "HIERARCHY_APPROVER") return "hierarchy_approver";
+  if (normalized === "NO_APPROVER") return "no_approver";
   return value.trim().toLowerCase();
 };
 

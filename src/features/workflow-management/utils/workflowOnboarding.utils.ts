@@ -28,8 +28,11 @@ export const toApiApprover = (value: string) => {
   if (normalized === "reporting_manager") return "REPORTING_MANAGER";
   if (normalized === "node_approver") return "NODE_APPROVER";
   if (normalized === "hierarchy_approver") return "HIERARCHY_APPROVER";
+  if (normalized === "no_approver") return "NO_APPROVER";
   return value.trim().toUpperCase();
 };
+
+export const toApiWorkflowType = (value: string) => value.trim().replace(/\s+/g, "_").toUpperCase();
 
 export const collectNodeOptions = (node: OrgNode | null): Array<{ label: string; value: string }> => {
   if (!node) return [];

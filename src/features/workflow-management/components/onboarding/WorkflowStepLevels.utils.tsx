@@ -35,6 +35,10 @@ export function getOptionState({
   currentIndex: number;
   isRMUsedGlobally: boolean;
 }) {
+  if (optionId === "no_approver") {
+    const usedByPeer = level.approvals.some((approval, idx) => idx !== currentIndex && approval.option === optionId);
+    return { disabled: usedByPeer };
+  }
   if (optionId === "reporting_manager") {
     return { disabled: isRMUsedGlobally && currentValue !== "reporting_manager" };
   }

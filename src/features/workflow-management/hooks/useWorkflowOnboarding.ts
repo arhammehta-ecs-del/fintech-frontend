@@ -7,7 +7,7 @@ import { fetchCompanyNodes } from "@/services/user.service";
 import { createWorkflow } from "@/services/workflow.service";
 import { acquireEditLock } from "@/services/edit-lock.service";
 import type { ModuleGroup, WorkflowStep, WorkflowTypeScope } from "@/features/workflow-management/components/onboarding/types";
-import { createResetLevels, getCategoryLabel, INITIAL_LEVELS, formatTokenLabel, toApiApprover } from "@/features/workflow-management/utils/workflowOnboarding.utils";
+import { createResetLevels, getCategoryLabel, INITIAL_LEVELS, formatTokenLabel, toApiApprover, toApiWorkflowType } from "@/features/workflow-management/utils/workflowOnboarding.utils";
 import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 
 type UseWorkflowOnboardingOptions = {
@@ -22,8 +22,11 @@ const fromApiApprover = (value: string) => {
   if (normalized === "REPORTING_MANAGER") return "reporting_manager";
   if (normalized === "NODE_APPROVER") return "node_approver";
   if (normalized === "HIERARCHY_APPROVER") return "hierarchy_approver";
+  if (normalized === "NO_APPROVER") return "no_approver";
   return normalized.toLowerCase();
 };
+
+const isNoApproverOption = (value: string) => value.trim().toLowerCase() === "no_approver";
 
 const parseSeedLevels = (source: unknown) => {
   const reset = createResetLevels();
@@ -126,6 +129,8 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     const current = levels[visibleLevels - 1];
     return Boolean(current) && current.approvals.every((approval) => approval.option);
   }, [levels, visibleLevels]);
+
+  const hasNoApproverSelected = useMemo(() => isNoApproverOption(levels[0]?.approvals[0]?.option || ""), [levels]);
 
   const selectedModuleLabel = useMemo(
     () => moduleGroups.flatMap((group) => group.options).find((option) => option.value === wfModule)?.label || "-",
@@ -335,19 +340,49 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
 
   const updateLevelApprover = (levelId: number, index: number, value: string) => {
     setErrorMsg("");
-    setLevels((previous) =>
-      previous.map((level) =>
-        level.id === levelId
-          ? {
-            ...level,
-            approvals: level.approvals.map((approval, approvalIdx) => (approvalIdx === index ? { ...approval, option: value } : approval)),
+    if (levelId === 1 && index === 0 && isNoApproverOption(value)) {
+      setLevels((previous) =>
+        previous.map((level, levelIndex) => {
+          if (level.id === 1) {
+            return {
+              ...level,
+              approvals: [{ option: "no_approver" }],
+              type: "AND" as const,
+            };
           }
-          : level,
-      ),
+
+          if (levelIndex > 0) {
+            return {
+              ...level,
+              approvals: [{ option: "" }],
+              type: "AND" as const,
+            };
+          }
+
+          return level;
+        }),
+      );
+      setVisibleLevels(1);
+      setSelectedWorkflowLevelsHash("");
+      return;
+    }
+
+    setLevels((previous) =>
+      previous.map((level) => {
+        if (level.id !== levelId) return level;
+
+        const nextApprovals = level.approvals.map((approval, approvalIdx) => (approvalIdx === index ? { ...approval, option: value } : approval));
+        const nextLevel =
+          levelId === 1 && index === 0 && isNoApproverOption(level.approvals[0]?.option || "")
+            ? { ...level, approvals: nextApprovals, type: "AND" as const }
+            : { ...level, approvals: nextApprovals };
+        return nextLevel;
+      }),
     );
   };
 
   const addApproverToLevel = (levelId: number) => {
+    if (levelId === 1 && hasNoApproverSelected) return;
     setLevels((previous) =>
       previous.map((level) =>
         level.id === levelId && level.approvals.length < 2
@@ -368,12 +403,17 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
   };
 
   const toggleLogic = (levelId: number) => {
+    if (levelId === 1 && hasNoApproverSelected) return;
     setLevels((previous) =>
       previous.map((level) => (level.id === levelId ? { ...level, type: level.type === "AND" ? "OR" : "AND" } : level)),
     );
   };
 
   const addNewLevel = () => {
+    if (hasNoApproverSelected) {
+      setErrorMsg("No Approver can only be used in Level 1 and does not allow more levels.");
+      return;
+    }
     if (!currentLevelComplete) {
       setErrorMsg(`Please select an approver for Level ${visibleLevels} first.`);
       return;
@@ -472,10 +512,10 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
         ...(wfAlias.trim() ? { alias: wfAlias.trim() } : {}),
         module: normalizedModule,
         subModule: normalizedSubModule,
-        workflowType,
+        workflowType: toApiWorkflowType(workflowType),
         ...(normalizedNodePath ? { nodePath: normalizedNodePath } : {}),
         levels: payloadLevels,
-        levelsHash: selectedWorkflowLevelsHash.trim() || null,
+        levelsHash: hasNoApproverSelected ? null : selectedWorkflowLevelsHash.trim() || null,
       });
       await onPublished?.();
     } catch (error) {
@@ -510,6 +550,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     levels,
     isRMUsedGlobally,
     currentLevelComplete,
+    hasNoApproverSelected,
     selectedModuleLabel,
     selectedNodeNameLabel,
     seedSnapshot,

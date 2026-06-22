@@ -1,5 +1,5 @@
 export type ApprovalOption = {
-  id: "reporting_manager" | "node_approver" | "hierarchy_approver";
+  id: "reporting_manager" | "node_approver" | "hierarchy_approver" | "no_approver";
   label: string;
   global: boolean;
 };
@@ -17,6 +17,7 @@ export const APPROVAL_OPTIONS: ApprovalOption[] = [
   { id: "reporting_manager", label: "Reporting Manager", global: true },
   { id: "node_approver", label: "Node Approver", global: false },
   { id: "hierarchy_approver", label: "All Hierarchy Approver", global: false },
+  { id: "no_approver", label: "No Approver", global: false },
 ];
 
 export const MOCK_USERS: MockUser[] = [

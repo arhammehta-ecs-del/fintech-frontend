@@ -453,6 +453,7 @@ export function UserManagePreview({
 
   const formattedDesignation = formatDesignation(userData.designation);
   const formattedDepartment = cleanDisplayValue(userData.department);
+  const previousName = readString(requestOldBasicDetails.name).trim();
   const previousDesignationRaw = readString(requestOldBasicDetails.designation).trim();
   const previousDesignationLabel = previousDesignationRaw ? formatDesignation(previousDesignationRaw) : "";
   const previousReportingManager = readString(requestOldBasicDetails.reportingManagerName || requestOldBasicDetails.reportingManager).trim();
@@ -832,7 +833,9 @@ export function UserManagePreview({
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2.5">
-                <h2 className="text-xl font-bold tracking-tight text-slate-900">{userData.name}</h2>
+                <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                  {canTogglePreviousUpdated && previousName ? previousName : userData.name}
+                </h2>
                 {isInactiveMember ? (
                   <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-rose-700">
                     Inactive
@@ -1056,7 +1059,11 @@ export function UserManagePreview({
                         <div className="flex items-start gap-3">
                           <span className="min-w-[132px] shrink-0 text-slate-500">Name</span>
                           <span className="text-slate-400">:</span>
-                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.name || "-"}</span>
+                          <span className="min-w-0 flex-1">
+                            {canTogglePreviousUpdated
+                              ? renderDiffValue(userData.name || "-", previousName, hasAnyBasicField("name"))
+                              : <span className="font-semibold text-slate-900">{userData.name || "-"}</span>}
+                          </span>
                         </div>
                         <div className="flex items-start gap-3">
                           <span className="min-w-[132px] shrink-0 text-slate-500">Email</span>
@@ -1238,7 +1245,11 @@ export function UserManagePreview({
                           <div className="flex items-start gap-2.5">
                             <span className="min-w-[92px] shrink-0 text-slate-500">Name</span>
                             <span className="text-slate-400">:</span>
-                            <span className="min-w-0 flex-1 font-semibold text-slate-900">{userData.name || "-"}</span>
+                            <span className="min-w-0 flex-1">
+                              {canTogglePreviousUpdated
+                                ? renderDiffValue(userData.name || "-", previousName, hasAnyBasicField("name"))
+                                : <span className="font-semibold text-slate-900">{userData.name || "-"}</span>}
+                            </span>
                           </div>
                           <div className="flex items-start gap-2.5">
                             <span className="min-w-[92px] shrink-0 text-slate-500">Email</span>
@@ -1300,7 +1311,9 @@ export function UserManagePreview({
                         <div className="grid grid-cols-2 gap-3 text-sm">
                           <div className="min-w-0">
                             <div className="text-slate-500">Name</div>
-                            <div className="truncate font-semibold text-slate-900">{userData.name || "-"}</div>
+                            {canTogglePreviousUpdated
+                              ? renderDiffValue(userData.name || "-", previousName, hasAnyBasicField("name"))
+                              : <div className="truncate font-semibold text-slate-900">{userData.name || "-"}</div>}
                           </div>
                           <div className="min-w-0">
                             <div className="text-slate-500">Email</div>

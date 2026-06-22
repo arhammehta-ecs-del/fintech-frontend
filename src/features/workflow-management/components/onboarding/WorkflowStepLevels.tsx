@@ -21,6 +21,7 @@ type WorkflowStepLevelsProps = {
   visibleLevels: number;
   errorMsg: string;
   isRMUsedGlobally: boolean;
+  hasNoApproverSelected: boolean;
   onUpdateApprover: (levelId: number, index: number, value: string) => void;
   onAddApprover: (levelId: number) => void;
   onRemoveApprover: (levelId: number, index: number) => void;
@@ -53,6 +54,7 @@ export default function WorkflowStepLevels({
   visibleLevels,
   errorMsg,
   isRMUsedGlobally,
+  hasNoApproverSelected,
   onUpdateApprover,
   onAddApprover,
   onRemoveApprover,
@@ -236,6 +238,16 @@ export default function WorkflowStepLevels({
                 }`}
                 style={{ left: `${x}px`, top: `${y}px` }}
               >
+                {(() => {
+                  const primaryOptions =
+                    level.id === 1
+                      ? APPROVAL_OPTIONS
+                      : APPROVAL_OPTIONS.filter((option) => option.id !== "no_approver");
+                  const secondaryOptions = APPROVAL_OPTIONS.filter((option) => option.id !== "no_approver");
+                  const isLevelLockedByNoApprover = level.id === 1 && hasNoApproverSelected;
+
+                  return (
+                    <>
                 <div className="mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div
@@ -269,7 +281,7 @@ export default function WorkflowStepLevels({
                         <SelectValue placeholder="Select Approver" />
                       </SelectTrigger>
                       <SelectContent>
-                        {APPROVAL_OPTIONS.map((option) => {
+                        {primaryOptions.map((option) => {
                           const state = getOptionState({
                             optionId: option.id,
                             level,
@@ -292,13 +304,19 @@ export default function WorkflowStepLevels({
                   <button
                     type="button"
                     onClick={() => onAddApprover(level.id)}
-                    disabled={level.approvals.length >= 2}
+                    disabled={level.approvals.length >= 2 || isLevelLockedByNoApprover}
                     className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                      level.approvals.length >= 2
+                      level.approvals.length >= 2 || isLevelLockedByNoApprover
                         ? "cursor-not-allowed text-slate-300"
                         : "text-blue-600 hover:bg-blue-50"
                     }`}
-                    title={level.approvals.length >= 2 ? "Maximum 2 approvers per level" : "Add additional approver"}
+                    title={
+                      isLevelLockedByNoApprover
+                        ? "No Approver does not allow extra approvers"
+                        : level.approvals.length >= 2
+                          ? "Maximum 2 approvers per level"
+                          : "Add additional approver"
+                    }
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Add Approver
@@ -308,20 +326,20 @@ export default function WorkflowStepLevels({
                     <button
                       type="button"
                       onClick={() => level.type !== "AND" && onToggleLogic(level.id)}
-                      disabled={level.approvals.length < 2}
+                      disabled={level.approvals.length < 2 || isLevelLockedByNoApprover}
                       className={`rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wider transition-colors ${
                         level.type === "AND" ? "bg-blue-600 text-white" : "text-slate-500 hover:text-slate-700"
-                      } ${level.approvals.length < 2 ? "cursor-not-allowed opacity-40" : ""}`}
+                      } ${level.approvals.length < 2 || isLevelLockedByNoApprover ? "cursor-not-allowed opacity-40" : ""}`}
                     >
                       AND
                     </button>
                     <button
                       type="button"
                       onClick={() => level.type !== "OR" && onToggleLogic(level.id)}
-                      disabled={level.approvals.length < 2}
+                      disabled={level.approvals.length < 2 || isLevelLockedByNoApprover}
                       className={`rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wider transition-colors ${
                         level.type === "OR" ? "bg-blue-600 text-white" : "text-slate-500 hover:text-slate-700"
-                      } ${level.approvals.length < 2 ? "cursor-not-allowed opacity-40" : ""}`}
+                      } ${level.approvals.length < 2 || isLevelLockedByNoApprover ? "cursor-not-allowed opacity-40" : ""}`}
                     >
                       OR
                     </button>
@@ -343,7 +361,7 @@ export default function WorkflowStepLevels({
                           <SelectValue placeholder="Select Approver" />
                         </SelectTrigger>
                         <SelectContent>
-                          {APPROVAL_OPTIONS.map((option) => {
+                          {secondaryOptions.map((option) => {
                             const state = getOptionState({
                               optionId: option.id,
                               level,
@@ -370,6 +388,9 @@ export default function WorkflowStepLevels({
                     </div>
                   </div>
                 ) : null}
+                    </>
+                  );
+                })()}
               </div>
             ))}
 
