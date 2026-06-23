@@ -380,21 +380,24 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
           </button>
         </div>
 
-        <div ref={panelsRef} className="relative grid min-h-0 flex-1 grid-cols-1 gap-5 overflow-hidden bg-white p-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+        <div ref={panelsRef} className="relative grid min-h-0 flex-1 grid-cols-1 gap-5 overflow-hidden bg-white p-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-8">
           {arrowPosition ? (
             <div
-              className="pointer-events-none absolute z-10 hidden h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#dbe4ff] bg-white text-[#4f6fd9] shadow-[0_10px_30px_rgba(79,111,217,0.18)] lg:flex"
+              className="pointer-events-none absolute z-20 hidden h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#dbe4ff] bg-white text-[#4f6fd9] shadow-[0_10px_30px_rgba(79,111,217,0.18)] lg:flex"
               style={{ left: `${arrowPosition.left}px`, top: `${arrowPosition.top}px` }}
             >
               <ArrowRight className="h-4 w-4" />
             </div>
           ) : null}
 
-          <div ref={leftPanelRef} className="min-h-0 rounded-2xl border border-[#dbe4ff] bg-white p-5">
-            <div className="mb-4">
+          <div ref={leftPanelRef} className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[#dbe4ff] bg-white p-5">
+            <div className="mb-4 shrink-0">
               <h3 className="text-base font-semibold text-slate-800">Organization Nodes</h3>
             </div>
-            <div className="max-h-[54vh] space-y-3 overflow-auto pr-1">
+            <div
+              className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden pr-3"
+              style={{ scrollbarGutter: "stable", WebkitOverflowScrolling: "touch" }}
+            >
               {loading ? (
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">Loading preferences...</div>
               ) : loadError ? (
@@ -412,14 +415,15 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                   const isCollapsed = collapsedNodePaths.includes(item.node.nodePath);
                   const selectedModuleCountForNode = getSelectedModuleCountForNode(item.node.nodePath, item.node.modules);
                   const totalModuleCountForNode = item.node.modules.length;
+                  const indentPx = item.depth * 20;
                   return (
-                    <div key={item.node.nodePath} className="w-full" style={{ paddingLeft: `${item.depth * 20}px` }}>
+                    <div key={item.node.nodePath} className="min-w-0" style={{ paddingLeft: `${indentPx}px` }}>
                       <button
                         ref={isSelected ? selectedNodeRef : null}
                         type="button"
                         onClick={() => setSelectedNodePath(item.node.nodePath)}
                         className={cn(
-                          "group relative w-full overflow-hidden rounded-2xl border bg-white px-4 py-4 text-left shadow-sm transition-all duration-200",
+                          "group relative block w-full min-w-0 max-w-full overflow-hidden rounded-2xl border bg-white px-4 py-4 text-left shadow-sm transition-all duration-200",
                           isSelected
                             ? item.isRoot
                               ? "border border-indigo-200 bg-indigo-50/70 text-slate-800 shadow-[0_10px_22px_rgba(99,102,241,0.16)] border-l-[4px] border-l-indigo-400"
@@ -474,7 +478,7 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                               ) : null}
                               <span className="truncate text-base font-semibold text-slate-800">{item.node.nodeName}</span>
                             </div>
-                            <p className="mt-2 break-all pl-8 text-xs text-slate-500">{item.node.nodePath}</p>
+                            <p className="mt-2 break-words pl-8 text-xs text-slate-500">{item.node.nodePath}</p>
                           </div>
                           <span className="shrink-0 rounded-full border border-[#dbe4ff] bg-[#f7f9ff] px-2.5 py-1 text-[11px] font-semibold text-[#4f6fd9]">
                             {selectedModuleCountForNode}/{totalModuleCountForNode}
@@ -534,13 +538,14 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                   <div className="space-y-3">
                     {selectedNode.modules.map((moduleEntry) => {
                       const selectedValue = selectionDraft[selectedNode.nodePath]?.[moduleEntry.module] ?? "";
-                      const selectedCount = selectedValue ? 1 : 0;
+                      const workflowOptionCount = moduleEntry.workflows.length;
                       return (
                         <div key={`${selectedNode.nodePath}-${moduleEntry.module}`} className="rounded-2xl border border-[#dbe4ff] bg-white px-4 py-4 shadow-sm">
                           <div className="grid gap-3 md:grid-cols-[110px_minmax(0,1fr)] md:items-center">
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-900">{formatModuleLabel(moduleEntry.module)}</p>
-                              <p className="mt-1 text-xs font-medium text-slate-500">{selectedCount} selected</p>
+                              <p className="text-sm font-semibold text-slate-900">
+                                {formatModuleLabel(moduleEntry.module)} ({workflowOptionCount})
+                              </p>
                             </div>
                             <div>
                               <Select

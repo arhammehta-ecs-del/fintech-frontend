@@ -7,6 +7,7 @@ const readNumber = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isFinite(value) ? value : undefined;
 const toRecord = (value: unknown): RawWorkflowRecord =>
   typeof value === "object" && value !== null ? (value as RawWorkflowRecord) : {};
+const normalizeToken = (value: string) => value.trim().replace(/[\s_]+/g, "").toUpperCase();
 
 export const isWorkflowUpdateRequest = (input: { pendingRequestType?: string; pendingRequestImpact?: string }) => {
   const requestType = readString(input.pendingRequestType).toUpperCase();
@@ -28,12 +29,6 @@ const getLevelCountFromPath = (nodePath: string, nodeType?: string) => {
     .map((segment) => segment.trim())
     .filter(Boolean);
   return segments.length > 0 ? segments.length : undefined;
-};
-
-const getNodeLabelFromPath = (nodePath: string) => {
-  const segments = nodePath.split(".").map((segment) => segment.trim()).filter(Boolean);
-  const last = segments[segments.length - 1] || "";
-  return formatSnakeCaseLabel(last);
 };
 
 export const formatSnakeCaseLabel = (value: string) =>
@@ -64,6 +59,39 @@ const splitNodePathSegments = (value: string) => {
   return rawParts
     .map((part) => toNodePathSegmentLabel(part))
     .filter((part) => Boolean(part) && part.toUpperCase() !== "ROOT");
+};
+
+export const getWorkflowNodeLabelFromPath = (nodePath: string) => {
+  const segments = splitNodePathSegments(nodePath);
+  return segments[segments.length - 1] || "";
+};
+
+export const getWorkflowNodeDisplayName = (input: {
+  nodeName?: string;
+  nodePath?: string;
+  module?: string;
+  subModule?: string;
+}) => {
+  const explicitNodeName = readString(input.nodeName);
+  const pathDerivedNodeName = getWorkflowNodeLabelFromPath(readString(input.nodePath));
+  if (!explicitNodeName) return pathDerivedNodeName || "-";
+
+  const normalizedNodeName = normalizeToken(explicitNodeName);
+  const contextualTokens = [readString(input.module), readString(input.subModule)]
+    .map(normalizeToken)
+    .filter(Boolean);
+  const isGenericWorkflowName =
+    normalizedNodeName.includes("WORKFLOW") ||
+    normalizedNodeName === "ORGSTR" ||
+    normalizedNodeName === "ORGSTRUCTURE" ||
+    normalizedNodeName === "SYSTEMACCESS" ||
+    contextualTokens.includes(normalizedNodeName);
+
+  if (isGenericWorkflowName && pathDerivedNodeName) {
+    return pathDerivedNodeName;
+  }
+
+  return explicitNodeName;
 };
 
 const normalizeOrgStructure = (value: unknown) => {
@@ -135,6 +163,8 @@ export const getWorkflowParentPathPreview = (nodePath: string) => {
 export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): WorkflowRecord => {
   const record = toRecord(item);
   const payload = toRecord(record.data);
+  const target = toRecord(record.target);
+  const payloadTarget = toRecord(payload.target);
   const associateAlias = toRecord(record.associateAlias);
   const payloadAssociateAlias = toRecord(payload.associateAlias);
   const pendingRequest = toRecord(record.pendingRequest);
@@ -146,6 +176,8 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
     Object.keys(pendingOldDataFromPending).length > 0 ? pendingOldDataFromPending : pendingOldDataFromRecord;
   const pendingNewData =
     Object.keys(pendingNewDataFromPending).length > 0 ? pendingNewDataFromPending : pendingNewDataFromRecord;
+  const pendingOldTarget = toRecord(pendingOldData.target);
+  const pendingNewTarget = toRecord(pendingNewData.target);
   const orgStructure = toRecord(record.orgStructure);
   const initiator = toRecord(record.initiator);
   const topLevelWorkflowName =
@@ -156,13 +188,28 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
     readString(payloadAssociateAlias.workflowName);
   const resolvedWorkflowName = topLevelWorkflowName || associatedWorkflowName;
   const inferredModule = deriveModuleFromWorkflowName(associatedWorkflowName || resolvedWorkflowName);
-  const rawModule = readString(record.module) || readString(payload.module) || inferredModule;
-  const subModule = readString(record.subModule) || readString(payload.subModule) || inferredModule;
+  const rawModule =
+    readString(record.module) ||
+    readString(target.module) ||
+    readString(payload.module) ||
+    readString(payloadTarget.module) ||
+    inferredModule;
+  const subModule =
+    readString(record.subModule) ||
+    readString(target.subModule) ||
+    readString(payload.subModule) ||
+    readString(payloadTarget.subModule) ||
+    inferredModule;
   const nodePath =
     readString(record.nodePath) ||
+    readString(target.nodePath) ||
     readString(orgStructure.nodePath) ||
+    readString(pendingOldData.nodePath) ||
+    readString(pendingOldTarget.nodePath) ||
+    readString(pendingNewData.nodePath) ||
+    readString(pendingNewTarget.nodePath) ||
     readString(payload.nodePath) ||
-    readString(pendingNewData.nodePath);
+    readString(payloadTarget.nodePath);
 
   const id =
     readString(record.id) ||
@@ -182,7 +229,9 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
       .join("|");
   const levelsHash =
     readString(record.levelsHash) ||
+    readString(target.levelsHash) ||
     readString(payload.levelsHash) ||
+    readString(payloadTarget.levelsHash) ||
     readString(record.workflowId) ||
     readString(payload.workflowId);
   const workflowId =
@@ -191,22 +240,50 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
     id;
   const name =
     readString(record.name) ||
+    readString(pendingNewData.name) ||
+    readString(pendingOldData.name) ||
     readString(payload.name) ||
     readString(record.workflowName) ||
     readString(payload.workflowName) ||
     "-";
-  const alias = readString(record.alias) || readString(payload.alias) || "-";
-  const moduleName = readString(record.module) || readString(payload.module) || inferredModule || "-";
+  const alias =
+    readString(record.alias) ||
+    readString(pendingNewData.alias) ||
+    readString(pendingOldData.alias) ||
+    readString(payload.alias) ||
+    "-";
+  const moduleName =
+    readString(record.module) ||
+    readString(pendingNewData.module) ||
+    readString(pendingOldData.module) ||
+    readString(payload.module) ||
+    inferredModule ||
+    "-";
   const moduleDisplayName = subModule ? formatSnakeCaseLabel(subModule) : formatSnakeCaseLabel(moduleName);
-  const workflowType = readString(record.workflowType) || readString(payload.workflowType);
+  const workflowType =
+    readString(record.workflowType) ||
+    readString(pendingNewData.workflowType) ||
+    readString(pendingOldData.workflowType) ||
+    readString(payload.workflowType);
   const isPending = Boolean(record.isPending ?? payload.isPending);
-  const nodeType = readString(record.nodeType) || readString(orgStructure.nodeType) || readString(payload.nodeType);
-  const nodeName =
-    readString(record.nodeName) ||
-    readString(orgStructure.nodeName) ||
-    readString(record.department) ||
-    (nodePath ? getNodeLabelFromPath(nodePath) : subModule || "-");
-  const levels = record.levels ?? payload.levels ?? [];
+  const nodeType =
+    readString(record.nodeType) ||
+    readString(orgStructure.nodeType) ||
+    readString(pendingNewData.nodeType) ||
+    readString(pendingOldData.nodeType) ||
+    readString(payload.nodeType);
+  const nodeName = getWorkflowNodeDisplayName({
+    nodeName:
+      readString(orgStructure.nodeName) ||
+      readString(pendingNewData.nodeName) ||
+      readString(pendingOldData.nodeName) ||
+      readString(record.nodeName) ||
+      readString(record.department),
+    nodePath,
+    module: rawModule,
+    subModule,
+  });
+  const levels = record.levels ?? payload.levels ?? pendingNewData.levels ?? pendingOldData.levels ?? [];
   const normalizedOrgStructure =
     normalizeOrgStructure(record.orgStructure) ||
     normalizeOrgStructure(payload.orgStructure) ||

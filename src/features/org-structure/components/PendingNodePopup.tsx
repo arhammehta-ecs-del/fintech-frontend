@@ -11,6 +11,8 @@ type PendingNodePopupProps = {
   onClose: () => void;
   onApprove: (node: OrgNode, remark: string) => void;
   onReject: (node: OrgNode, remark: string) => void;
+  onStartPendingAction?: (node: OrgNode, action: "approve" | "reject") => Promise<boolean | void> | boolean | void;
+  onCancelPendingAction?: (node: OrgNode) => Promise<void> | void;
   onNavigateToImpactedUsers?: (node: OrgNode) => void;
   onOpenHistory?: (node: OrgNode) => void;
   onToggleHistory?: () => void;
@@ -166,6 +168,8 @@ export function PendingNodePopup({
   onClose,
   onApprove,
   onReject,
+  onStartPendingAction,
+  onCancelPendingAction,
   onOpenHistory,
   onToggleHistory,
   isHistoryOpen = false,
@@ -174,12 +178,14 @@ export function PendingNodePopup({
 }: PendingNodePopupProps) {
   const [remark, setRemark] = useState("");
   const [remarkError, setRemarkError] = useState("");
+  const [pendingDecision, setPendingDecision] = useState<"approve" | "reject" | null>(null);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (open) {
       setRemark("");
       setRemarkError("");
+      setPendingDecision(null);
     }
   }, [open, node?.id]);
 
@@ -213,6 +219,20 @@ export function PendingNodePopup({
       : "New Node Approval";
   const nodePathSegments = node.nodePath.split(".").filter(Boolean);
   const diffRows = buildOrgDiffRows(node);
+
+  const handleStartPendingAction = async (action: "approve" | "reject") => {
+    const shouldOpen = await onStartPendingAction?.(node, action);
+    if (shouldOpen === false) return;
+    setPendingDecision(action);
+    setRemarkError("");
+  };
+
+  const handleClosePendingAction = () => {
+    void onCancelPendingAction?.(node);
+    setPendingDecision(null);
+    setRemark("");
+    setRemarkError("");
+  };
 
   const validateAndRun = (action: "approve" | "reject") => {
     const cleanedRemark = remark.trim();
@@ -583,45 +603,89 @@ export function PendingNodePopup({
             isStandaloneDialog ? "px-8" : "px-6",
           )}
         >
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Remark</label>
-              <span className={cn("text-[11px] tabular-nums text-slate-500", remark.length >= REMARK_MAX_LENGTH && "font-semibold text-amber-600")}>
-                {remark.length}/{REMARK_MAX_LENGTH}
-              </span>
-            </div>
-            <Textarea
-              ref={remarkInputRef}
-              value={remark}
-              onChange={(event) => {
-                setRemark(event.target.value);
-                if (remarkError && event.target.value.trim()) {
-                  setRemarkError("");
-                }
-              }}
-              maxLength={REMARK_MAX_LENGTH}
-              placeholder="Enter approval or rejection remark"
-              className={cn("h-11 min-h-11 resize-none overflow-hidden rounded-xl py-3 shadow-sm", remarkError ? "border-rose-300 focus-visible:ring-rose-400" : "border-slate-200 focus-visible:ring-sky-400/30")}
-            />
-            {remarkError ? <p className="text-xs font-medium text-rose-600">{remarkError}</p> : null}
-          </div>
+          {pendingDecision ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    {pendingDecision === "approve" ? "Approve Remark" : "Reject Remark"}
+                  </label>
+                  <span className={cn("text-[11px] tabular-nums text-slate-500", remark.length >= REMARK_MAX_LENGTH && "font-semibold text-amber-600")}>
+                    {remark.length}/{REMARK_MAX_LENGTH}
+                  </span>
+                </div>
+                <Textarea
+                  ref={remarkInputRef}
+                  value={remark}
+                  onChange={(event) => {
+                    setRemark(event.target.value);
+                    if (remarkError && event.target.value.trim()) {
+                      setRemarkError("");
+                    }
+                  }}
+                  maxLength={REMARK_MAX_LENGTH}
+                  placeholder={`Enter remark for ${pendingDecision === "approve" ? "approval" : "rejection"}`}
+                  className={cn("h-11 min-h-11 resize-none overflow-hidden rounded-xl py-3 shadow-sm", remarkError ? "border-rose-300 focus-visible:ring-rose-400" : "border-slate-200 focus-visible:ring-sky-400/30")}
+                />
+                {remarkError ? <p className="text-xs font-medium text-rose-600">{remarkError}</p> : null}
+              </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <button
-              onClick={() => validateAndRun("reject")}
-              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 shadow-sm"
-            >
-              <XCircle size={16} />
-              Reject
-            </button>
-            <button
-              onClick={() => validateAndRun("approve")}
-              className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#3553E9] to-[#4f74ff] py-2.5 text-sm font-bold text-white transition hover:from-[#2f49cf] hover:to-[#3f66f6] hover:shadow-lg shadow-md active:scale-[0.98]"
-            >
-              <CheckCircle2 size={16} />
-              Approve
-            </button>
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                {pendingDecision === "approve" ? (
+                  <>
+                    <button
+                      onClick={handleClosePendingAction}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 shadow-sm"
+                    >
+                      <X size={16} />
+                      Close
+                    </button>
+                    <button
+                      onClick={() => validateAndRun("approve")}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#16a34a] to-[#22c55e] py-2.5 text-sm font-bold text-white transition hover:from-[#15803d] hover:to-[#16a34a] hover:shadow-lg shadow-md active:scale-[0.98]"
+                    >
+                      <CheckCircle2 size={16} />
+                      Approve
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => validateAndRun("reject")}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-red-600 bg-red-600 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 shadow-sm"
+                    >
+                      <XCircle size={16} />
+                      Reject
+                    </button>
+                    <button
+                      onClick={handleClosePendingAction}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 shadow-sm"
+                    >
+                      <X size={16} />
+                      Close
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => void handleStartPendingAction("reject")}
+                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 shadow-sm"
+              >
+                <XCircle size={16} />
+                Reject
+              </button>
+              <button
+                onClick={() => void handleStartPendingAction("approve")}
+                className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#3553E9] to-[#4f74ff] py-2.5 text-sm font-bold text-white transition hover:from-[#2f49cf] hover:to-[#3f66f6] hover:shadow-lg shadow-md active:scale-[0.98]"
+              >
+                <CheckCircle2 size={16} />
+                Approve
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

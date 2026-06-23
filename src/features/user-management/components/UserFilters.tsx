@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { ArrowUpDown, Check, ChevronDown, Filter, RefreshCw, Search, X } from "lucide-react";
+import { ArrowUpDown, ChevronDown, Filter, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,6 +13,10 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import {
+  SearchableMultiSelectMenu,
+  SearchableSingleSelectMenu,
+} from "@/components/filter-search-dropdown";
 import type { MemberStatusTab, SortOrder } from "@/features/user-management/types";
 import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 import type { UserFilterDropdownOption, UserFilterNodeOption, PermissionSummaryEntry } from "@/services/user.service";
@@ -100,7 +104,7 @@ type UserFiltersProps = {
   suppressAutoEventTooltip?: boolean;
   onRefresh: () => void | Promise<void>;
   refreshInitializedAt?: number | null;
-  roles: UserFilterDropdownOption[];
+  designationOptions: UserFilterDropdownOption[];
   accessCategories: string[];
   accessSubcategories: Record<string, string[]>;
   filterNodeOptions: UserFilterNodeOption[];
@@ -162,7 +166,7 @@ export default function UserFilters(props: UserFiltersProps) {
     refreshInitializedAt,
     sortOrder,
     onSortOrderChange,
-    roles,
+    designationOptions,
     accessCategories,
     accessSubcategories,
     filterNodeOptions,
@@ -336,9 +340,10 @@ export default function UserFilters(props: UserFiltersProps) {
             </PopoverTrigger>
             <PopoverContent
               align="end"
-              className="z-[110] w-[560px] overflow-visible rounded-2xl border border-slate-200 bg-white p-0 shadow-[0_26px_60px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80"
+              sideOffset={10}
+              className="z-[110] flex w-[min(560px,calc(100vw-2rem))] max-h-[min(var(--radix-popover-content-available-height),720px)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-[0_26px_60px_rgba(15,23,42,0.22)] ring-1 ring-slate-200/80"
             >
-              <div className="border-b border-slate-200 bg-white px-5 py-3.5">
+              <div className="shrink-0 border-b border-slate-200 bg-white px-5 py-2.5">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[14px] font-semibold tracking-[0.01em] text-slate-900">Filter Members</p>
@@ -360,15 +365,15 @@ export default function UserFilters(props: UserFiltersProps) {
                 </div>
               </div>
 
-              <div className="space-y-4 overflow-visible bg-white px-5 py-3.5">
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-white px-5 py-2.5">
                 <FilterSection title="Identity">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <MultiSelectDropdown
                       title="Designation"
                       placeholder="Select designation"
-                      options={roles.map((role) => role.value)}
-                      itemCount={roles.length}
-                      counts={Object.fromEntries(roles.map((role) => [role.value, role.count ?? 0]))}
+                      options={designationOptions.map((designation) => designation.value)}
+                      itemCount={designationOptions.length}
+                      counts={Object.fromEntries(designationOptions.map((designation) => [designation.value, designation.count ?? 0]))}
                       selected={draft.designationFilters}
                       onToggle={(value) =>
                         setDraft((current) => ({
@@ -649,8 +654,8 @@ export default function UserFilters(props: UserFiltersProps) {
                 </FilterSection>
               </div>
 
-              <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3">
-                <div className="flex items-center gap-2">
+              <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-3">
+                <div className="flex items-center justify-end gap-2">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -805,9 +810,6 @@ function MultiSelectDropdown({
   dropdownPosition?: "top" | "bottom";
   disabled?: boolean;
 }) {
-  const [search, setSearch] = useState("");
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const normalizedOptions = useMemo(
     () =>
       options
@@ -816,86 +818,37 @@ function MultiSelectDropdown({
         .filter(Boolean),
     [options],
   );
-  const filteredOptions = normalizedOptions.filter((option) => option.toLowerCase().includes(search.toLowerCase()));
   const disabledOptionSet = useMemo(() => new Set(disabledOptions), [disabledOptions]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [open]);
-
   return (
-    <div ref={containerRef} className="relative">
+    <div className="relative">
       <FieldHeader title={title} count={itemCount ?? normalizedOptions.length} onClear={onClear} canClear={selected.length > 0} />
-      <Button
-        type="button"
-        variant="outline"
+      <SearchableMultiSelectMenu
+        title={title}
+        placeholder={placeholder}
+        options={normalizedOptions.map((option) => ({
+          value: option,
+          label: option,
+          count: counts?.[option],
+          disabled: disabledOptionSet.has(option),
+        }))}
+        selected={selected}
+        onToggle={onToggle}
+        onSelectAll={
+          onSelectAll
+            ? onSelectAll
+            : (values) => {
+              values.forEach((value) => {
+                if (!selected.includes(value)) onToggle(value);
+              });
+            }
+        }
         disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
-        className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", selected.length > 0 && "border-blue-200 bg-blue-50/40 text-blue-800")}
-      >
-        <span className="truncate">{selected.length === 0 ? placeholder : selected.length === 1 ? selected[0] : `${selected.length} selected`}</span>
-        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", open && "rotate-180")} />
-      </Button>
-      {open ? (
-        <div
-          className={cn(
-            "absolute left-0 z-30 w-full min-w-[260px] rounded-lg border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]",
-            dropdownPosition === "top" ? "bottom-full mb-2" : "top-full mt-2",
-          )}
-        >
-          <div className="mb-2 flex items-center gap-2">
-            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${title.toLowerCase()}`} className="h-9 flex-1" />
-            {normalizedOptions.length > 5 && onSelectAll ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-9 px-2 text-[11px] font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                onClick={() => {
-                  const allSelectable = normalizedOptions.filter((o) => !disabledOptionSet.has(o));
-                  onSelectAll(allSelectable);
-                }}
-              >
-                Select all
-              </Button>
-            ) : null}
-          </div>
-          <div className="max-h-[220px] space-y-1 overflow-auto">
-            {filteredOptions.map((option) => {
-              const isSelected = selected.includes(option);
-              const isDisabled = disabledOptionSet.has(option);
-              return (
-                <label
-                  key={option}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm transition-colors",
-                    isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-slate-50",
-                    isSelected && "bg-blue-50 text-blue-800",
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      disabled={isDisabled}
-                      onChange={() => onToggle(option)}
-                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span>{option}</span>
-                  </span>
-                  {counts && counts[option] ? <span className="text-[11px] font-medium text-blue-600">{counts[option]}</span> : null}
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
+        triggerClassName="h-10 rounded-lg px-3 text-[12px]"
+        contentClassName="w-full min-w-[260px] rounded-lg"
+        side={dropdownPosition}
+        searchInputClassName="h-9"
+      />
     </div>
   );
 }
@@ -917,57 +870,19 @@ function SingleSelectDropdown({
   onSelect: (value: string | null) => void;
   onClear: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [open]);
-
   return (
-    <div ref={containerRef} className="relative">
+    <div className="relative">
       <FieldHeader title={title} count={itemCount ?? options.length} onClear={onClear} canClear={Boolean(value)} />
-      <Button
-        type="button"
-        variant="outline"
-        onClick={() => setOpen((current) => !current)}
-        className={cn("h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px]", value && "border-blue-200 bg-blue-50/40 text-blue-800")}
-      >
-        <span className="truncate">{value || placeholder}</span>
-        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", open && "rotate-180")} />
-      </Button>
-      {open ? (
-        <div className="absolute left-0 top-full z-30 mt-2 w-full min-w-[220px] rounded-lg border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]">
-          <div className="max-h-[220px] overflow-auto">
-            {options.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => {
-                  onSelect(value === option ? null : option);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-slate-50",
-                  value === option && "bg-blue-50 text-blue-800",
-                )}
-              >
-                <span>{option}</span>
-                <span className={cn("inline-flex h-4 w-4 items-center justify-center", value === option ? "text-blue-700" : "text-transparent")}>
-                  <Check className="h-4 w-4" />
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <SearchableSingleSelectMenu
+        title={title}
+        placeholder={placeholder}
+        options={options.map((option) => ({ value: option, label: option }))}
+        value={value}
+        onChange={(nextValue) => onSelect(nextValue || null)}
+        triggerClassName="h-10 rounded-lg px-3 text-[12px]"
+        contentClassName="w-full min-w-[220px] rounded-lg"
+        searchInputClassName="h-9"
+      />
     </div>
   );
 }
@@ -1125,6 +1040,7 @@ function NodeNameDropdown({
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const normalizedOptions = useMemo(
     () =>
@@ -1151,6 +1067,12 @@ function NodeNameDropdown({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [open]);
 
+  useEffect(() => {
+    if (open) return;
+    setSearch("");
+    setIsSearchExpanded(false);
+  }, [open]);
+
   return (
     <div ref={containerRef} className="relative">
       <FieldHeader title="Node Name" count={normalizedOptions.length} onClear={onClearSelection} canClear={selected.length > 0 || Object.values(nodeAccessType).some(types => types && types.length > 0)} />
@@ -1171,7 +1093,51 @@ function NodeNameDropdown({
       </Button>
       {open ? (
         <div className="absolute right-0 top-full z-30 mt-2 min-w-[380px] max-w-[min(95vw,500px)] rounded-lg border border-slate-200 bg-white p-3 shadow-[0_16px_34px_rgba(15,23,42,0.12)]">
-          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search node name" className="mb-3 h-9" />
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Node Name</div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                if (isSearchExpanded) {
+                  setSearch("");
+                  setIsSearchExpanded(false);
+                  return;
+                }
+                setIsSearchExpanded(true);
+              }}
+              className="h-9 w-9 rounded-lg border-slate-200 bg-slate-50 text-slate-600 shadow-none hover:border-slate-300 hover:bg-white"
+              aria-label={isSearchExpanded ? "Close node name search" : "Open node name search"}
+            >
+              {isSearchExpanded ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+            </Button>
+          </div>
+          <div
+            className={cn(
+              "overflow-hidden transition-all duration-250 ease-out",
+              isSearchExpanded ? "mt-2 max-h-12 opacity-100" : "max-h-0 opacity-0",
+            )}
+          >
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                onKeyDown={(event) => {
+                  event.stopPropagation();
+                  if (event.key === "Escape") {
+                    setSearch("");
+                    setIsSearchExpanded(false);
+                  }
+                }}
+                placeholder="Search node name..."
+                className="h-9 rounded-xl border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] shadow-none"
+                autoComplete="off"
+                autoFocus={isSearchExpanded}
+              />
+            </div>
+          </div>
           <div className="max-h-[220px] space-y-2 overflow-auto">
             {filteredOptions.map((option) => {
               const isSelected = selectedPaths.length > 0 ? selectedPaths.includes(option.path) : selected.includes(option.value);

@@ -5,6 +5,7 @@ import type { WorkflowLevel } from "@/features/workflow-management/components/on
 import { APPROVAL_OPTIONS } from "@/features/workflow-management/constants";
 import {
   formatSnakeCaseLabel,
+  getWorkflowNodeDisplayName,
   getWorkflowPathPreview,
   isRootWorkflowNode,
 } from "@/features/workflow-management/utils/workflowRecord.utils";
@@ -102,14 +103,14 @@ const renderInlineDiff = (currentValue: string, previousValue?: string) => {
   const prev = prevRaw === "-" ? "" : prevRaw;
 
   if (!prev || prev === next) {
-    return <span className="block break-words text-[16px] font-semibold leading-tight text-slate-900 md:text-[18px]">{next}</span>;
+    return <span className="block break-words text-[15px] font-semibold leading-6 text-slate-900 md:text-[17px]">{next}</span>;
   }
 
   return (
-    <div className="flex flex-col items-start gap-1.5 text-[15px] font-semibold leading-tight md:text-[17px]">
-      <span className="max-w-full break-words rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-rose-700 line-through">{prev}</span>
+    <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center">
+      <span className="max-w-full break-words rounded-lg border border-rose-200 bg-rose-50/80 px-3 py-2 text-[14px] font-medium leading-5 text-rose-700">{prev}</span>
       <span className="text-slate-400">→</span>
-      <span className="max-w-full break-words rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700">{next}</span>
+      <span className="max-w-full break-words rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[14px] font-semibold leading-5 text-emerald-800">{next}</span>
     </div>
   );
 };
@@ -126,7 +127,7 @@ const renderOrgPathBadge = (pathStr: string) => {
   const segments = pathStr.split('.').filter(Boolean);
   return (
     <div className="mt-1.5 flex flex-wrap items-center">
-      <span className="inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-sky-50 px-2 py-1 text-[11px] font-semibold tracking-wide text-sky-700 border border-sky-200/80 shadow-sm">
+      <span className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-sky-200/80 bg-sky-50 px-2.5 py-1 text-[11px] font-medium tracking-[0.04em] text-sky-700">
         {segments.map((segment, i) => (
           <span key={i} className="flex items-center gap-1.5">
             <span>{segment}</span>
@@ -159,7 +160,7 @@ const renderConnectorDiff = ({
 
   if (isRemoved) {
     return (
-      <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-[10px] font-black uppercase text-rose-600 line-through">
+      <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-rose-700">
         {prev || "-"}
       </span>
     );
@@ -167,7 +168,7 @@ const renderConnectorDiff = ({
 
   if (isAdded) {
     return (
-      <span className="rounded border border-emerald-100 bg-emerald-50 px-1 py-0.5 text-[10px] font-black uppercase text-emerald-700">
+      <span className="rounded border border-emerald-200 bg-emerald-50/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">
         {next || "-"}
       </span>
     );
@@ -175,22 +176,22 @@ const renderConnectorDiff = ({
 
   if (prev && next && prev !== next) {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-black uppercase">
-        <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-rose-600 line-through">{prev}</span>
+      <span className="flex items-center gap-1 text-[10px] font-semibold uppercase">
+        <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-rose-700">{prev}</span>
         <span className="text-slate-400">→</span>
-        <span className="rounded border border-emerald-100 bg-emerald-50 px-1 py-0.5 text-emerald-700">{next}</span>
+        <span className="rounded border border-emerald-200 bg-emerald-50/60 px-1.5 py-0.5 text-emerald-700">{next}</span>
       </span>
     );
   }
 
   const label = next || prev || "-";
-  const colorClass = 
-    label === "AND" ? "bg-indigo-50 text-indigo-600 border-indigo-200/60" :
-    label === "OR"  ? "bg-amber-50 text-amber-600 border-amber-200/60" :
-    "bg-slate-100 text-slate-500 border-slate-200";
+  const colorClass =
+    label === "AND" ? "border-slate-300 bg-slate-100 text-slate-600" :
+      label === "OR" ? "border-slate-300 bg-slate-100 text-slate-600" :
+        "bg-slate-100 text-slate-500 border-slate-200";
 
   return (
-    <span className={cn("rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm", colorClass)}>
+    <span className={cn("rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]", colorClass)}>
       {label}
     </span>
   );
@@ -242,7 +243,12 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
     });
   }, [workflow.linkedOrgStructure, workflow.autoGenerated]);
 
-  const topNodeName = workflow.orgStructure?.nodeName?.trim() || workflow.nodeName || "-";
+  const topNodeName = getWorkflowNodeDisplayName({
+    nodeName: workflow.orgStructure?.nodeName?.trim() || workflow.nodeName,
+    nodePath: workflow.orgStructure?.nodePath?.trim() || workflow.nodePath,
+    module: workflow.rawModule || workflow.module,
+    subModule: workflow.subModule,
+  });
   const topNodePath = workflow.orgStructure?.nodePath?.trim() || workflow.nodePath || "";
   const topNodeLevelCount = workflow.orgStructure?.levelCount ?? workflow.levelCount;
   const workflowTypeLabel = formatSnakeCaseLabel(workflow.workflowType || workflow.nodeType || "-");
@@ -255,27 +261,29 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
   const previousWorkflowTypeLabel = previousWorkflow
     ? formatSnakeCaseLabel(previousWorkflow.workflowType || previousWorkflow.nodeType || "")
     : "";
-  const previousTopNodeName = previousWorkflow?.orgStructure?.nodeName?.trim() || previousWorkflow?.nodeName || "";
+  const previousTopNodeName = previousWorkflow
+    ? getWorkflowNodeDisplayName({
+        nodeName: previousWorkflow.orgStructure?.nodeName?.trim() || previousWorkflow.nodeName,
+        nodePath: previousWorkflow.orgStructure?.nodePath?.trim() || previousWorkflow.nodePath,
+        module: previousWorkflow.rawModule || previousWorkflow.module,
+        subModule: previousWorkflow.subModule,
+      })
+    : "";
   const derivedCurrentAlias = buildWorkflowAliasFromLevels(summaryLevels);
   const derivedPreviousAlias = buildWorkflowAliasFromLevels(previousSummaryLevels);
-  const displayPreviousAlias = previousWorkflowAlias || derivedPreviousAlias;
-  const displayCurrentAlias = hasComparisonData
-    ? (() => {
-        const explicitCurrentAlias = workflow.alias?.trim() || "";
-        if (explicitCurrentAlias && explicitCurrentAlias !== displayPreviousAlias) return explicitCurrentAlias;
-        return derivedCurrentAlias || explicitCurrentAlias || "-";
-      })()
-    : workflow.alias?.trim() || derivedCurrentAlias || "-";
+  const explicitCurrentAlias = workflow.alias?.trim() || "";
+  const displayPreviousAlias = previousWorkflowAlias || derivedPreviousAlias || "-";
+  const displayCurrentAlias = explicitCurrentAlias || derivedCurrentAlias || "-";
 
   return (
     <div className="px-2 py-0 md:px-4">
-      <div className="mb-5 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 shadow-sm">
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid grid-cols-1 gap-x-12 gap-y-5 md:grid-cols-2">
           {/* Workflow Name */}
           <div className="grid grid-cols-[140px_1fr] items-start gap-4">
             <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
               <div className="flex items-center gap-2">
-                <Zap className="h-3.5 w-3.5 text-blue-500" />
+                <Zap className="h-3.5 w-3.5 text-slate-400" />
                 Workflow Name
               </div>
               <span className="text-slate-400">:</span>
@@ -284,12 +292,12 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
               {renderInlineDiff(workflow.name || "-", previousWorkflowName)}
             </div>
           </div>
-          
+
           {/* Process Alias */}
           <div className="grid grid-cols-[140px_1fr] items-start gap-4">
             <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
               <div className="flex items-center gap-2">
-                <Layers className="h-3.5 w-3.5 text-purple-500" />
+                <Layers className="h-3.5 w-3.5 text-slate-400" />
                 Process Alias
               </div>
               <span className="text-slate-400">:</span>
@@ -303,7 +311,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
           <div className="grid grid-cols-[140px_1fr] items-start gap-4">
             <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
               <div className="flex items-center gap-2">
-                <Briefcase className="h-3.5 w-3.5 text-indigo-500" />
+                <Briefcase className="h-3.5 w-3.5 text-slate-400" />
                 Module
               </div>
               <span className="text-slate-400">:</span>
@@ -317,7 +325,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
           <div className="grid grid-cols-[140px_1fr] items-start gap-4">
             <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
               <div className="flex items-center gap-2">
-                <Settings2 className="h-3.5 w-3.5 text-cyan-500" />
+                <Settings2 className="h-3.5 w-3.5 text-slate-400" />
                 Workflow Type
               </div>
               <span className="text-slate-400">:</span>
@@ -331,7 +339,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
           <div className="col-span-1 grid grid-cols-[140px_1fr] items-start gap-4 md:col-span-2 md:grid-cols-[140px_1fr]">
             <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
               <div className="flex items-center gap-2">
-                <Building2 className="h-3.5 w-3.5 text-emerald-500" />
+                <Building2 className="h-3.5 w-3.5 text-slate-400" />
                 Node Name
               </div>
               <span className="text-slate-400">:</span>
@@ -339,7 +347,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 {typeof topNodeLevelCount === "number" ? (
-                  <span className="inline-flex shrink-0 items-center rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold leading-none tracking-wider text-indigo-700">
+                  <span className="inline-flex shrink-0 items-center rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none tracking-[0.12em] text-indigo-700">
                     L{topNodeLevelCount}
                   </span>
                 ) : null}
@@ -361,7 +369,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
           {mergedLevels.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">No level details available.</div>
           ) : (
-            mergedLevels.map(({ id, current, previous }, index) => {
+            mergedLevels.map(({ id, current, previous }) => {
               const level = current ?? previous;
               if (!level) return null;
               const isAdded = hasComparisonData && Boolean(current && !previous);
@@ -370,49 +378,31 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
               const currentApprovals = current?.approvals ?? [];
               const previousApprovals = previous?.approvals ?? [];
               const slotCount = Math.max(currentApprovals.length, previousApprovals.length);
-              
-              const borderColors = [
-                "border-l-sky-400",
-                "border-l-emerald-400",
-                "border-l-amber-400",
-                "border-l-purple-400",
-                "border-l-rose-400",
-                "border-l-cyan-400",
-              ];
-              const badgeColors = [
-                "bg-sky-100 text-sky-700",
-                "bg-emerald-100 text-emerald-700",
-                "bg-amber-100 text-amber-700",
-                "bg-purple-100 text-purple-700",
-                "bg-rose-100 text-rose-700",
-                "bg-cyan-100 text-cyan-700",
-              ];
-              const levelBorderClass = borderColors[index % borderColors.length];
-              const levelBadgeClass = badgeColors[index % badgeColors.length];
+
               return (
                 <div
                   key={id}
                   className={cn(
                     "flex min-h-[64px] items-center gap-4 rounded-xl border border-l-[4px] p-2.5 shadow-sm",
                     isRemoved
-                      ? "border-rose-300 border-l-rose-500 bg-rose-50/70 shadow-[0_8px_24px_rgba(244,63,94,0.10)]"
+                      ? "border-rose-200 border-l-rose-400 bg-rose-50/45 shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
                       : isAdded
-                        ? "border-emerald-300 border-l-emerald-500 bg-emerald-50 shadow-[0_10px_26px_rgba(16,185,129,0.18)] ring-1 ring-emerald-200/80"
+                        ? "border-emerald-200 border-l-emerald-400 bg-emerald-50/45 shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
                         : isChanged
-                          ? "border-amber-300 border-l-amber-500 bg-amber-50/80 shadow-[0_8px_24px_rgba(245,158,11,0.12)]"
-                          : `border-slate-100 bg-white ${levelBorderClass}`,
+                          ? "border-amber-200 border-l-amber-400 bg-amber-50/45 shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
+                          : "border-slate-200 border-l-slate-300 bg-white",
                   )}
                 >
                   <div
                     className={cn(
-                      "flex h-9 w-9 flex-none items-center justify-center rounded-lg text-[10px] font-black",
+                      "flex h-9 w-9 flex-none items-center justify-center rounded-lg border text-[10px] font-semibold",
                       isRemoved
-                        ? "bg-rose-100 text-rose-700"
+                        ? "border-rose-200 bg-rose-100 text-rose-700"
                         : isAdded
-                          ? "bg-emerald-100 text-emerald-700"
+                          ? "border-emerald-200 bg-emerald-100 text-emerald-700"
                           : isChanged
-                            ? "bg-amber-100 text-amber-700"
-                            : levelBadgeClass,
+                            ? "border-amber-200 bg-amber-100 text-amber-700"
+                            : "border-slate-200 bg-slate-100 text-slate-600",
                     )}
                   >
                     L{id}
@@ -448,23 +438,23 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
                             <span className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">Approver {approvalIdx + 1}</span>
                             <span className="text-xs font-semibold text-slate-800">
                               {isRemoved || approvalRemoved ? (
-                                <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-rose-600 line-through">
+                                <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-rose-700">
                                   {previousLabel || nextLabel}
                                 </span>
                               ) : approvalChanged ? (
                                 <>
                                   {previousLabel ? (
-                                    <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-rose-600 line-through">
+                                    <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-rose-700">
                                       {previousLabel}
                                     </span>
                                   ) : null}
                                   {previousLabel ? <span className="px-1 text-slate-400">→</span> : null}
-                                  <span className="rounded border border-emerald-100 bg-emerald-50 px-1 py-0.5 text-emerald-700">
+                                  <span className="rounded border border-emerald-200 bg-emerald-50/60 px-1.5 py-0.5 text-emerald-700">
                                     {nextLabel}
                                   </span>
                                 </>
                               ) : isAdded || approvalAdded ? (
-                                <span className="rounded border border-emerald-100 bg-emerald-50 px-1 py-0.5 text-emerald-700">
+                                <span className="rounded border border-emerald-200 bg-emerald-50/60 px-1.5 py-0.5 text-emerald-700">
                                   {nextLabel}
                                 </span>
                               ) : (
@@ -503,7 +493,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
                 <div key={`${entry.nodePath}-${index}`} className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-sm">
                   <p className="flex items-center gap-2 truncate text-[15px] font-semibold text-slate-900">
                     {typeof entry.levelCount === "number" ? (
-                      <span className="inline-flex shrink-0 items-center rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold leading-none tracking-wider text-indigo-700">
+                      <span className="inline-flex shrink-0 items-center rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none tracking-[0.12em] text-indigo-700">
                         L{entry.levelCount}
                       </span>
                     ) : null}

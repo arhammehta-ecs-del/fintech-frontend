@@ -27,6 +27,14 @@ import { formatRoleTokenLabel } from "@/features/user-management/roleLabels";
 
 const normalizeFilterIntentValue = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
+const getLockErrorMessage = (error: unknown, fallback: string) => {
+  const rawMessage =
+    typeof error === "object" && error !== null && "message" in error && typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message.trim()
+      : "";
+  return rawMessage || getApiErrorMessage(error, fallback);
+};
+
 export function UserManagementView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
@@ -70,7 +78,7 @@ export function UserManagementView() {
     hasNewUserEvent,
     setHasNewUserEvent,
     hasLoadedUsersOnce,
-    roles,
+    designationOptions,
     accessCategories,
     accessSubcategories,
     filterNodeOptions,
@@ -221,6 +229,17 @@ export function UserManagementView() {
       setIsOpeningMemberPreview(false);
     }
   }, [setViewingMember, statusTab, toast]);
+
+  const fetchDetailedMemberForAction = useCallback(
+    async (member: AppUser, tabOverride?: "active" | "pending" | "inactive") => {
+      const effectiveTab = tabOverride ?? statusTab;
+      return fetchUserDetails(effectiveTab, {
+        id: member.id || member.requestId || member.uuid || null,
+        email: member.email || member.basicDetails?.email || null,
+      });
+    },
+    [statusTab],
+  );
 
   useEffect(() => {
     if (!viewingMember) {
@@ -580,6 +599,15 @@ export function UserManagementView() {
     );
   };
 
+  const startPendingUserAction = async (member: AppUser) => {
+    await startUserLockSession(member);
+    return member;
+  };
+
+  const cancelPendingUserAction = async () => {
+    await userLockSession.stopSession(true);
+  };
+
   const loadWorkflowOptionsForMemberAction = async (member: AppUser) => {
     const primaryNodePath = (member.accessDetails || [])
       .find((entry) => entry.accessType === "PRIMARY")
@@ -618,18 +646,19 @@ export function UserManagementView() {
       return;
     }
     try {
-      await startUserLockSession(member);
-      await loadWorkflowOptionsForMemberAction(member);
+      const detailedMember = await fetchDetailedMemberForAction(member);
+      await startUserLockSession(detailedMember);
+      await loadWorkflowOptionsForMemberAction(detailedMember);
+      setViewingMember(detailedMember);
     } catch (error) {
       setDeleteWorkflowOptions([]);
       toast({
         title: "Action unavailable",
-        description: error instanceof Error ? error.message : "Unable to lock user for this action.",
+        description: getLockErrorMessage(error, "Unable to lock user for this action."),
         variant: "destructive",
       });
       return;
     }
-    setViewingMember(member);
     setPendingManageActionType("archive");
     setShowDeleteActions(true);
     setDeleteWorkflow("__none__");
@@ -819,7 +848,7 @@ export function UserManagementView() {
           await loadUsers(true);
           setHasNewUserEvent(false);
         }}
-        roles={roles}
+        designationOptions={designationOptions}
         accessCategories={accessCategories}
         accessSubcategories={accessSubcategories}
         filterNodeOptions={filterNodeOptions}
@@ -1012,6 +1041,22 @@ export function UserManagementView() {
               currentTab={statusTab}
               onApprovePending={handleActivateMember}
               onRejectPending={handleDeactivateMember}
+              onStartPendingAction={async (member) => {
+                try {
+                  await startPendingUserAction(member);
+                  return true;
+                } catch (error) {
+                  toast({
+                    title: "Approve unavailable",
+                    description: getLockErrorMessage(error, "Unable to lock user for approval."),
+                    variant: "destructive",
+                  });
+                  return false;
+                }
+              }}
+              onCancelPendingAction={async () => {
+                await cancelPendingUserAction();
+              }}
               onToggleActiveStatus={(member, isActive) => {
                 if (isActive) {
                   handleActivateMember(member);
@@ -1022,18 +1067,19 @@ export function UserManagementView() {
               onRequestStatusToggle={(member, isActive) => {
                 void (async () => {
                   try {
-                    await startUserLockSession(member);
-                    await loadWorkflowOptionsForMemberAction(member);
+                    const detailedMember = await fetchDetailedMemberForAction(member);
+                    await startUserLockSession(detailedMember);
+                    await loadWorkflowOptionsForMemberAction(detailedMember);
+                    setViewingMember(detailedMember);
                   } catch (error) {
                     setDeleteWorkflowOptions([]);
                     toast({
                       title: "Action unavailable",
-                      description: error instanceof Error ? error.message : "Unable to lock user for this action.",
+                      description: getLockErrorMessage(error, "Unable to lock user for this action."),
                       variant: "destructive",
                     });
                     return;
                   }
-                  setViewingMember(member);
                   setPendingManageActionType(isActive ? "active" : "inactive");
                   setShowDeleteActions(true);
                   setDeleteWorkflow("__none__");
@@ -1051,7 +1097,7 @@ export function UserManagementView() {
                   } catch (error) {
                     toast({
                       title: "Edit unavailable",
-                      description: error instanceof Error ? error.message : "Unable to lock user for edit.",
+                      description: getLockErrorMessage(error, "Unable to lock user for edit."),
                       variant: "destructive",
                     });
                   }

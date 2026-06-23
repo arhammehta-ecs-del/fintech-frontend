@@ -11,6 +11,7 @@ import OrgHistorySidebar from "@/features/org-structure/components/OrgHistorySid
 import { useOrgStructure } from "@/features/org-structure/hooks/useOrgStructure";
 import { collectNodeTrail } from "@/features/org-structure/orgNode.utils";
 import { countNodes, countPendingNodes, filterPendingNodes, hasPendingNodes } from "@/features/org-structure/components/OrgStructureView.utils";
+import { getApiErrorMessage } from "@/services/client";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useEffect } from "react";
 import { Eye, EyeOff, RefreshCw } from "lucide-react";
@@ -19,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
 import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
+import { useToast } from "@/hooks/use-toast";
 
 const getPendingHistoryContext = (node: OrgNode) => {
   const pendingNodePath =
@@ -41,7 +43,16 @@ const getPendingHistoryContext = (node: OrgNode) => {
   };
 };
 
+const getOrgLockErrorMessage = (error: unknown, fallback: string) => {
+  const rawMessage =
+    typeof error === "object" && error !== null && "message" in error && typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message.trim()
+      : "";
+  return rawMessage || getApiErrorMessage(error, fallback);
+};
+
 export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
+  const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const newNodeTypeOptions: NewNodeType[] = ["DEPARTMENT", "DIVISION", "TEAM", "PLANT", "LOCATION"];
   const {
@@ -80,6 +91,8 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     setPendingNodeForReview,
     handleApproveNode,
     handleRejectNode,
+    startPendingNodeAction,
+    cancelPendingNodeAction,
     hasNewOrgEvent,
     setHasNewOrgEvent,
     refreshOrgStructure,
@@ -605,7 +618,33 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
       <PendingNodePopup
         open={!!pendingNodeForReview}
         node={pendingNodeForReview}
-        onClose={handleClosePendingNodePopup}
+        onClose={() => {
+          void (async () => {
+            await cancelPendingNodeAction();
+            handleClosePendingNodePopup();
+          })();
+        }}
+        onStartPendingAction={async (node, action) => {
+          try {
+            await startPendingNodeAction(node);
+            return true;
+          } catch (error) {
+            toast({
+              title: action === "reject" ? "Reject unavailable" : "Approve unavailable",
+              description: getOrgLockErrorMessage(
+                error,
+                action === "reject"
+                  ? "Unable to lock org request for rejection."
+                  : "Unable to lock org request for approval.",
+              ),
+              variant: "destructive",
+            });
+            return false;
+          }
+        }}
+        onCancelPendingAction={async () => {
+          await cancelPendingNodeAction();
+        }}
         onApprove={async (node, remark) => {
           await handleApproveNode(node, remark);
           handleClosePendingNodePopup();

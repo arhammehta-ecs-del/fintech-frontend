@@ -14,6 +14,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
+  SearchableMultiSelectMenu,
+  SearchableSingleSelectMenu,
+} from "@/components/filter-search-dropdown";
+import {
   COMPANY_LIST_BOOLEAN_OPTIONS,
   COMPANY_LIST_DATE_OPTIONS,
   COMPANY_LIST_SIGNATORY_OPTIONS,
@@ -450,30 +454,18 @@ function SingleSelectDropdown({
   onClear?: () => void;
   onSelect: (value: string) => void;
 }) {
-  const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder;
   return (
     <DropdownField title={title} canClear={Boolean(value)} onClear={onClear}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn(
-              "h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]",
-              value && "border-primary/40 text-primary",
-            )}
-          >
-            <span className="truncate">{selectedLabel}</span>
-            <ChevronDown className="h-4 w-4 text-slate-400" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl border border-slate-200 p-2">
-          {options.map((option) => (
-            <DropdownMenuItem key={option.value} onSelect={() => onSelect(option.value)} className="cursor-pointer rounded-md">
-              {option.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <SearchableSingleSelectMenu
+        title={title}
+        placeholder={placeholder}
+        options={options}
+        value={value}
+        onChange={onSelect}
+        triggerClassName="h-11 rounded-xl px-3.5 text-[15px]"
+        contentClassName="w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl"
+        sideOffset={8}
+      />
     </DropdownField>
   );
 }
@@ -493,41 +485,23 @@ function MultiSelectDropdown({
   onClear?: () => void;
   onToggle: (value: string) => void;
 }) {
-  const summary =
-    selected.length === 0
-      ? placeholder
-      : selected.length === 1
-        ? options.find((option) => option.value === selected[0])?.label ?? selected[0]
-        : `${selected.length} selected`;
   return (
     <DropdownField title={title} canClear={selected.length > 0} onClear={onClear}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn(
-              "h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]",
-              selected.length > 0 && "border-primary/40 text-primary",
-            )}
-          >
-            <span className="truncate">{summary}</span>
-            <ChevronDown className="h-4 w-4 text-slate-400" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl border border-slate-200 p-2">
-          {options.map((option) => (
-            <DropdownMenuCheckboxItem
-              key={option.value}
-              checked={selected.includes(option.value)}
-              onCheckedChange={() => onToggle(option.value)}
-              onSelect={(event) => event.preventDefault()}
-              className="cursor-pointer rounded-md"
-            >
-              {option.label}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <SearchableMultiSelectMenu
+        title={title}
+        placeholder={placeholder}
+        options={options}
+        selected={selected}
+        onToggle={onToggle}
+        onSelectAll={(values) => {
+          values.forEach((value) => {
+            if (!selected.includes(value)) onToggle(value);
+          });
+        }}
+        triggerClassName="h-11 rounded-xl px-3.5 text-[15px]"
+        contentClassName="w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl"
+        sideOffset={8}
+      />
     </DropdownField>
   );
 }

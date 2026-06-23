@@ -13,6 +13,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import PaginationFooter from "@/components/PaginationFooter";
+import {
+  SearchableMultiSelectMenu,
+  SearchableSingleSelectMenu,
+} from "@/components/filter-search-dropdown";
 import { cn } from "@/lib/utils";
 import {
   API_MONITORING_DATE_OPTIONS,
@@ -775,37 +779,19 @@ function SingleSelectDropdown({
   const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder;
   return (
     <DropdownField title={title} optionCount={optionCount} summary={value ? selectedLabel : emptySummary} canClear={Boolean(value)} onClear={onClear}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", value && "border-primary/40 text-primary")}>
-            <span className="truncate">{selectedLabel}</span>
-            <ChevronDown className="h-4 w-4 text-slate-400" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          sideOffset={8}
-          className={cn("min-w-[var(--radix-dropdown-menu-trigger-width)] w-fit max-w-[80vw] rounded-xl border border-slate-200 p-2", contentClassName)}
-        >
-          {options.map((option) => {
-            const disabled = typeof option.count === "number" && option.count === 0;
-            return (
-            <DropdownMenuItem
-              key={option.value}
-              disabled={disabled}
-              onSelect={() => {
-                if (!disabled) onSelect(option.value);
-              }}
-              className={cn("rounded-md", !disabled && "cursor-pointer", disabled && "cursor-not-allowed opacity-50")}
-            >
-              <div className="flex w-full min-w-0 items-center justify-between gap-3">
-                <span className="min-w-0 flex-1">{option.label}</span>
-                {typeof option.count === "number" ? <span className="shrink-0 text-xs font-semibold text-sky-600">{option.count}</span> : null}
-              </div>
-            </DropdownMenuItem>
-          )})}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <SearchableSingleSelectMenu
+        title={title}
+        placeholder={placeholder}
+        options={options.map((option) => ({
+          ...option,
+          disabled: typeof option.count === "number" && option.count === 0,
+        }))}
+        value={value}
+        onChange={onSelect}
+        triggerClassName="h-11 rounded-xl px-3.5 text-[15px]"
+        contentClassName={cn("min-w-[var(--radix-dropdown-menu-trigger-width)] w-fit max-w-[80vw] rounded-xl", contentClassName)}
+        sideOffset={8}
+      />
     </DropdownField>
   );
 }
@@ -829,47 +815,27 @@ function MultiSelectDropdown({
   optionCount?: number;
   contentClassName?: string;
 }) {
-  const summary =
-    selected.length === 0
-      ? ""
-      : selected.length === 1
-        ? options.find((option) => option.value === selected[0])?.label ?? selected[0]
-        : `${selected.length} selected`;
+  const summary = selected.length === 0 ? "" : selected.length === 1 ? options.find((option) => option.value === selected[0])?.label ?? selected[0] : `${selected.length} selected`;
   return (
     <DropdownField title={title} optionCount={optionCount} summary={summary} canClear={selected.length > 0} onClear={onClear}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className={cn("h-11 w-full justify-between rounded-xl border-slate-200 bg-white px-3.5 text-left text-[15px]", selected.length > 0 && "border-primary/40 text-primary")}>
-            <span className="truncate">{selected.length === 0 ? placeholder : summary}</span>
-            <ChevronDown className="h-4 w-4 text-slate-400" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          sideOffset={8}
-          className={cn("min-w-[var(--radix-dropdown-menu-trigger-width)] w-fit max-w-[80vw] rounded-xl border border-slate-200 p-2", contentClassName)}
-        >
-          {options.map((option) => {
-            const disabled = typeof option.count === "number" && option.count === 0;
-            return (
-            <DropdownMenuCheckboxItem
-              key={option.value}
-              disabled={disabled}
-              checked={selected.includes(option.value)}
-              onCheckedChange={() => {
-                if (!disabled) onToggle(option.value);
-              }}
-              onSelect={(event) => event.preventDefault()}
-              className={cn("rounded-md", !disabled && "cursor-pointer", disabled && "cursor-not-allowed opacity-50")}
-            >
-              <div className="flex w-full min-w-0 items-center justify-between gap-3">
-                <span className="min-w-0 flex-1">{option.label}</span>
-                {typeof option.count === "number" ? <span className="shrink-0 text-xs font-semibold text-sky-600">{option.count}</span> : null}
-              </div>
-            </DropdownMenuCheckboxItem>
-          )})}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <SearchableMultiSelectMenu
+        title={title}
+        placeholder={placeholder}
+        options={options.map((option) => ({
+          ...option,
+          disabled: typeof option.count === "number" && option.count === 0,
+        }))}
+        selected={selected}
+        onToggle={onToggle}
+        onSelectAll={(values) => {
+          values.forEach((value) => {
+            if (!selected.includes(value)) onToggle(value);
+          });
+        }}
+        triggerClassName="h-11 rounded-xl px-3.5 text-[15px]"
+        contentClassName={cn("min-w-[var(--radix-dropdown-menu-trigger-width)] w-fit max-w-[80vw] rounded-xl", contentClassName)}
+        sideOffset={8}
+      />
     </DropdownField>
   );
 }

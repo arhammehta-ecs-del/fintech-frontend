@@ -71,6 +71,7 @@ type WorkflowFilterDropdownsResponse = WorkflowApiResponse & {
     nodeType?: Array<{ value?: string; count?: number } | string>;
     category?: string[];
     subCategory?: string[];
+    currentStatus?: Array<{ value?: string; count?: number } | string>;
     workflowLevel?: Array<{ value?: number | string; count?: number }>;
     checker?: Array<{ value?: number | string; count?: number }>;
   };
@@ -78,6 +79,7 @@ type WorkflowFilterDropdownsResponse = WorkflowApiResponse & {
   nodeType?: Array<{ value?: string; count?: number } | string>;
   category?: string[];
   subCategory?: string[];
+  currentStatus?: Array<{ value?: string; count?: number } | string>;
   workflowLevel?: Array<{ value?: number | string; count?: number }>;
   checker?: Array<{ value?: number | string; count?: number }>;
 };
@@ -131,6 +133,7 @@ export type WorkflowFilterDropdowns = {
   nodeName: Array<{ value: string; label: string; path: string; description?: string; level?: number; count?: number }>;
   nodeType: Array<{ value: string; label: string; count?: number; description?: string }>;
   module: Array<{ value: string; label: string; description?: string }>;
+  status: Array<{ value: string; label: string; count?: number }>;
   workflowLevel: Array<{ value: string; label: string; count: number }>;
   approverCount: Array<{ value: string; label: string; count: number }>;
 };
@@ -411,6 +414,7 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilte
     nodeType: response.nodeType,
     category: response.category,
     subCategory: response.subCategory,
+    currentStatus: response.currentStatus,
     workflowLevel: response.workflowLevel,
     checker: response.checker,
   };
@@ -462,7 +466,6 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilte
           value,
           count,
           label: value,
-          description: typeof count === "number" ? `${count} available` : undefined,
         });
         return accumulator;
       }, [])
@@ -479,6 +482,21 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilte
           value: toApiToken(value),
           label: formatFilterLabel(value),
         }))
+      : [],
+    status: Array.isArray(dropdowns.currentStatus)
+      ? dropdowns.currentStatus.reduce<Array<{ value: string; label: string; count?: number }>>((accumulator, item) => {
+          if (typeof item === "string") {
+            const value = formatFilterLabel(readString(item));
+            if (value) accumulator.push({ value, label: value });
+            return accumulator;
+          }
+
+          const value = formatFilterLabel(readString(item?.value));
+          if (!value) return accumulator;
+          const count = typeof item?.count === "number" ? item.count : undefined;
+          accumulator.push({ value, label: value, count });
+          return accumulator;
+        }, [])
       : [],
     workflowLevel: Array.isArray(dropdowns.workflowLevel)
       ? dropdowns.workflowLevel

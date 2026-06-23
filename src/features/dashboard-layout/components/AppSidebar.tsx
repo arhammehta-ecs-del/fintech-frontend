@@ -38,6 +38,10 @@ export function AppSidebar({
   onNavigate,
   onLogout,
 }: AppSidebarProps) {
+  const handleInteractiveClick = () => {
+    onNavigate?.();
+  };
+
   const renderNavItem = (item: NavItem) => {
     const active = locationPathname === item.path || (item.path !== "/" && locationPathname.startsWith(item.path));
 
@@ -45,7 +49,10 @@ export function AppSidebar({
       <div key={item.path}>
         <Link
           to={item.path}
-          onClick={onNavigate}
+          onClick={(event) => {
+            event.stopPropagation();
+            handleInteractiveClick();
+          }}
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
             active ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
@@ -96,9 +103,10 @@ export function AppSidebar({
 
   return (
     <aside
-      onClick={onToggleCollapsed}
+      onClick={() => onToggleCollapsed?.()}
       className={cn(
         "sticky top-0 hidden h-screen shrink-0 overflow-y-auto border-r border-border bg-[linear-gradient(180deg,hsl(var(--sidebar-background))_0%,hsl(220_35%_96%)_55%,hsl(228_55%_94%)_100%)] transition-all duration-200 md:flex md:flex-col",
+        onToggleCollapsed ? "cursor-pointer" : "",
         collapsed ? "md:w-14" : "md:w-52 xl:w-60",
       )}
     >

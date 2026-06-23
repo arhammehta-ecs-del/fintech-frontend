@@ -126,20 +126,20 @@ function StatusHeader({
   const tone = getEventTone(item.action, item.status);
   const badgeClassName =
     tone === "pending"
-      ? "border-amber-200/50 bg-amber-50 text-amber-700"
+      ? "border-amber-200 bg-amber-50/70 text-amber-700"
       : tone === "initiation"
-        ? "border-sky-200/60 bg-sky-50 text-sky-700"
+        ? "border-sky-200 bg-sky-50/70 text-sky-700"
         : tone === "modified"
-          ? "border-orange-200/60 bg-orange-50 text-orange-700"
+          ? "border-orange-200 bg-orange-50/70 text-orange-700"
           : tone === "rejected"
-            ? "border-rose-200/50 bg-rose-50 text-rose-700"
+            ? "border-rose-200 bg-rose-50/70 text-rose-700"
             : tone === "inactive"
-              ? "border-rose-200/50 bg-rose-50 text-rose-700"
-              : "border-emerald-200/50 bg-emerald-50 text-emerald-700";
+              ? "border-rose-200 bg-rose-50/70 text-rose-700"
+              : "border-emerald-200 bg-emerald-50/70 text-emerald-700";
 
   return (
-    <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
-      <div className={`flex items-center gap-1.5 rounded border px-2 py-1 ${badgeClassName}`}>
+    <div className="mb-4 flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+      <div className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 ${badgeClassName}`}>
         {tone === "pending" ? (
           <Clock className="h-3 w-3" />
         ) : tone === "initiation" ? (
@@ -151,15 +151,15 @@ function StatusHeader({
         ) : (
           <ShieldCheck className="h-3 w-3" />
         )}
-        <span className="text-[10px] font-bold uppercase tracking-tight">{item.action}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em]">{item.action}</span>
         {item.levelCount ? (
-          <span className={`inline-flex h-4 min-w-4 items-center justify-center rounded-sm border px-1 text-[9px] font-bold leading-none ${badgeClassName}`}>
+          <span className={`inline-flex h-4 min-w-4 items-center justify-center rounded-sm border px-1 text-[9px] font-semibold leading-none ${badgeClassName}`}>
             {item.levelCount}
           </span>
         ) : null}
       </div>
       {item.changeSummaryBadges && item.changeSummaryBadges.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {item.changeSummaryBadges.map((badge) => (
             <span
               key={badge.key}
@@ -176,9 +176,9 @@ function StatusHeader({
 }
 
 const getChangeSummaryBadgeClassName = (tone?: "added" | "modified" | "removed") => {
-  if (tone === "added") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (tone === "modified") return "border-amber-200 bg-amber-50 text-amber-700";
-  if (tone === "removed") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (tone === "added") return "border-emerald-200 bg-emerald-50/75 text-emerald-700";
+  if (tone === "modified") return "border-amber-200 bg-amber-50/75 text-amber-700";
+  if (tone === "removed") return "border-rose-200 bg-rose-50/75 text-rose-700";
   return "border-slate-200 bg-slate-50 text-slate-600";
 };
 
@@ -224,15 +224,15 @@ function ActorFooter({ item }: { item: HistoryEntry }) {
   }
 
   return (
-    <div className="-mx-4 -mb-4 mt-4 flex items-center justify-between rounded-b-[14px] border-t border-slate-100 bg-slate-50/50 px-4 pb-4 pt-3">
+    <div className="-mx-4 -mb-4 mt-5 flex items-center justify-between rounded-b-[14px] border-t border-slate-100 bg-slate-50/60 px-4 pb-4 pt-3.5">
       {!shouldHideFooterActor ? (
         <div className="flex items-center gap-2.5">
           <div className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-[9px] font-bold text-slate-600 shadow-sm">
             {actor.initials}
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-0.5">
             <span className="text-[11px] font-semibold leading-tight text-slate-900">{actor.name}</span>
-            <span className="text-[9.5px] text-slate-500">{actor.email}</span>
+            <span className="text-[10px] text-slate-500">{actor.email}</span>
           </div>
         </div>
       ) : (
@@ -241,7 +241,7 @@ function ActorFooter({ item }: { item: HistoryEntry }) {
 
       {item.timestampMissing || shouldHideFooterTimestamp ? null : (
         <div className="flex flex-col items-end">
-          <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600">
+          <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600">
             <span className="flex items-center gap-1"><Calendar className="h-3 w-3 text-slate-400" /> {actor.date || "—"}</span>
             <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-slate-400" /> {actor.time || "—"}</span>
           </div>
@@ -275,7 +275,7 @@ function ApprovalSections({ item }: { item: HistoryEntry }) {
   const tone = getEventTone(item.action, item.status);
   const getSectionClassName = (sectionTone?: "warning" | "success" | "danger") => {
     if (sectionTone === "warning") return "border-amber-200 bg-amber-50/40";
-    if (sectionTone === "danger") return "border-rose-200 bg-rose-50/40";
+    if (sectionTone === "danger") return "border-rose-200 bg-rose-50/35";
     if (sectionTone === "success") return "border-emerald-200 bg-emerald-50/35";
     return tone === "pending"
       ? "border-amber-200 bg-amber-50/40"
@@ -284,24 +284,24 @@ function ApprovalSections({ item }: { item: HistoryEntry }) {
         : tone === "modified"
           ? "border-orange-200 bg-orange-50/40"
           : tone === "inactive" || tone === "rejected"
-            ? "border-rose-200 bg-rose-50/40"
+            ? "border-rose-200 bg-rose-50/35"
             : "border-emerald-200 bg-emerald-50/35";
   };
 
   return (
-    <div className="mt-2 space-y-2">
+    <div className="mt-3 space-y-3">
       {sections.map((section, sectionIndex) => (
-        <div key={`${section.title}-${sectionIndex}`} className={["rounded-lg border p-2", getSectionClassName(section.tone)].join(" ")}>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{section.title}</p>
-          <div className="max-h-[180px] space-y-2 overflow-y-auto pr-1">
+        <div key={`${section.title}-${sectionIndex}`} className={["rounded-xl border p-3", getSectionClassName(section.tone)].join(" ")}>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{section.title}</p>
+          <div className="max-h-[200px] space-y-2.5 overflow-y-auto pr-1">
             {section.items.map((group, groupIndex) => {
               const firstPerson = group.people[0];
               return (
-                <div key={`${section.title}-${group.label || "group"}-${groupIndex}`} className="rounded-md border border-white/70 bg-white/70 p-2">
-                  <div className="mb-1.5 flex items-center justify-between gap-4">
+                <div key={`${section.title}-${group.label || "group"}-${groupIndex}`} className="rounded-lg border border-white/80 bg-white/80 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-4">
                     {group.label ? (
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="text-[10px] font-semibold text-slate-700">{group.label}</span>
+                        <span className="text-[10px] font-semibold tracking-[0.04em] text-slate-700">{group.label}</span>
                       </div>
                     ) : <div />}
                     {(group.status || firstPerson?.date) ? (
@@ -313,7 +313,7 @@ function ApprovalSections({ item }: { item: HistoryEntry }) {
                               group.status === "APPROVED"
                                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                                 : group.status === "REJECTED"
-                                  ? "border-rose-200 bg-rose-50 text-rose-700"
+                                  ? "border-rose-200 bg-rose-50/60 text-rose-700"
                                   : "border-slate-200 bg-white text-slate-500",
                             ].join(" ")}
                           >
@@ -433,10 +433,10 @@ function MilestoneTimeline({
   }, [data]);
 
   return (
-    <div className="relative py-1">
-      <div className="space-y-6">
+    <div className="relative py-2">
+      <div className="space-y-7">
         {data.map((item, index) => (
-          <div key={item.id} className="relative pl-14">
+          <div key={item.id} className="relative pl-16">
             {(() => {
               const isExpanded = item.id in expandedItems ? expandedItems[item.id] : !item.collapseToHeader;
               const isCollapsed = !isExpanded;
@@ -447,41 +447,41 @@ function MilestoneTimeline({
                     const tone = getEventTone(item.action, item.status);
                     const dateBadgeClassName =
                       tone === "pending"
-                        ? "border-amber-300 text-amber-700 shadow-[0_0_10px_rgba(251,191,36,0.15)]"
+                        ? "border-amber-200 bg-white text-amber-700"
                         : tone === "initiation"
-                          ? "border-sky-300 text-sky-700 shadow-[0_0_10px_rgba(56,189,248,0.16)]"
+                          ? "border-sky-200 bg-white text-sky-700"
                           : tone === "modified"
-                            ? "border-orange-300 text-orange-700 shadow-[0_0_10px_rgba(249,115,22,0.18)]"
+                            ? "border-orange-200 bg-white text-orange-700"
                             : tone === "inactive"
-                              ? "border-rose-300 text-rose-700 shadow-[0_0_10px_rgba(244,63,94,0.16)]"
+                              ? "border-rose-200 bg-white text-rose-700"
                               : tone === "approved"
-                                ? "border-emerald-300 text-emerald-700 shadow-[0_0_10px_rgba(16,185,129,0.16)]"
-                                : "border-slate-200";
+                                ? "border-emerald-200 bg-white text-emerald-700"
+                                : "border-slate-200 bg-white";
 
                     return (
                       <div
                         className={[
-                          "absolute left-0 top-0 z-10 flex h-9 w-[52px] flex-col items-center justify-center rounded-xl border bg-white font-bold text-slate-700 shadow-sm transition-all",
+                          "absolute left-0 top-0 z-10 flex h-10 w-[56px] flex-col items-center justify-center rounded-xl border bg-white font-bold text-slate-700 shadow-sm transition-all",
                           dateBadgeClassName,
                         ].join(" ")}
                       >
                         <span className="text-[13px] leading-none tracking-tight">{item.day}</span>
-                        <span className="mt-0.5 text-[7px] uppercase tracking-widest opacity-70">{item.month.substring(0, 3)}</span>
+                        <span className="mt-0.5 text-[7px] font-semibold uppercase tracking-[0.16em] opacity-70">{item.month.substring(0, 3)}</span>
                       </div>
                     );
                   })()}
 
                   {index < data.length - 1 ? (
                     <div
-                      className="absolute left-[26px] top-[36px] w-[1.5px] bg-slate-200"
-                      style={{ height: "calc(100% + 24px)" }}
+                      className="absolute left-[28px] top-[40px] w-[1.5px] bg-slate-200"
+                      style={{ height: "calc(100% + 28px)" }}
                       aria-hidden="true"
                     />
                   ) : null}
 
                   <div
                     className={[
-                      isCollapsed ? "rounded-2xl border bg-white px-4 py-3 shadow-sm transition-all" : "rounded-2xl border bg-white p-4 shadow-sm transition-all",
+                      isCollapsed ? "rounded-2xl border bg-white px-5 py-4 shadow-sm transition-all" : "rounded-2xl border bg-white p-5 shadow-sm transition-all",
                       (() => {
                         const tone = getEventTone(item.action, item.status);
                         return tone === "pending"
@@ -519,19 +519,19 @@ function MilestoneTimeline({
                     />
                     {!isCollapsed ? (
                       <>
-                        <div className="mb-2 flex items-start justify-between gap-3 px-1">
+                        <div className="mb-3 flex items-start justify-between gap-3 px-1">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-3">
-                              <h4 className="min-w-0 text-[13px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
+                              <h4 className="min-w-0 text-[14px] font-semibold tracking-tight text-slate-900">{item.action}</h4>
                               <div className="flex shrink-0 items-center gap-2">
                                 {onViewMore && !item.disableViewMore ? (
                                   <button
                                     type="button"
                                     onClick={() => onViewMore(item)}
                                     className={[
-                                      "shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                                      "shrink-0 rounded-md px-3 py-1.5 text-[11px] font-semibold transition-colors",
                                       activeViewMoreSourceId && getViewMoreSourceId(item) === activeViewMoreSourceId
-                                        ? "border border-blue-600 bg-blue-50 text-blue-700 shadow-[0_0_0_1px_rgba(37,99,235,0.08)]"
+                                        ? "border border-slate-300 bg-slate-100 text-slate-800 shadow-[0_0_0_1px_rgba(15,23,42,0.04)]"
                                         : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
                                     ].join(" ")}
                                   >
@@ -543,9 +543,9 @@ function MilestoneTimeline({
                           </div>
                         </div>
                         <div className="mb-2 px-1">
-                          <p className="text-[11.5px] leading-relaxed text-slate-600">{item.details}</p>
+                          <p className="text-[12.5px] leading-6 text-slate-600">{item.details}</p>
                           {item.remarks ? (
-                            <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600">
+                            <p className="mt-2 text-[12px] leading-6 text-slate-600">
                               <span className="font-medium text-slate-700">Remarks:</span> {item.remarks}
                             </p>
                           ) : null}

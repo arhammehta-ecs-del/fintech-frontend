@@ -741,7 +741,7 @@ export function useUserManagement() {
     editingMember,
     setEditingMember,
     departments: filterDropdowns.nodeName.map((item) => item.value),
-    roles: filterDropdowns.designation,
+    designationOptions: filterDropdowns.designation,
     reportingManagerOptions: filterDropdowns.reportingManager,
     primaryNodeOptions: [],
     secondaryNodeOptions: [],

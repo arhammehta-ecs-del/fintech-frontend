@@ -22,6 +22,14 @@ import {
   performPendingNodeAction,
 } from "@/features/org-structure/hooks/orgStructureViewModel.utils";
 
+const getOrgLockErrorMessage = (error: unknown, fallback: string) => {
+  const rawMessage =
+    typeof error === "object" && error !== null && "message" in error && typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message.trim()
+      : "";
+  return rawMessage || getApiErrorMessage(error, fallback);
+};
+
 export function useOrgStructure() {
   const { currentUser, orgStructure, setOrgStructure } = useAppContext();
   const { toast } = useToast();
@@ -444,7 +452,7 @@ export function useOrgStructure() {
     } catch (error) {
       toast({
         title: "Unable to open status update",
-        description: getApiErrorMessage(error, "Unable to fetch workflow options."),
+        description: getOrgLockErrorMessage(error, "Unable to fetch workflow options."),
         variant: "destructive",
       });
     }
@@ -515,6 +523,30 @@ export function useOrgStructure() {
 
   const zoomOut = () => setZoom((current) => Math.max(MIN_ZOOM, Number((current - ZOOM_STEP).toFixed(2))));
   const zoomIn = () => setZoom((current) => Math.min(MAX_ZOOM, Number((current + ZOOM_STEP).toFixed(2))));
+  const startPendingNodeAction = async (node: OrgNode) => {
+    const nodePath = (node.nodePath || "").trim();
+    if (!nodePath) {
+      throw new Error("Node path is missing for lock request.");
+    }
+    await orgLockSession.startSession(
+      {
+        type: "org",
+        target: { nodePath },
+      },
+      () => {
+        setPendingNodeForReview(null);
+        toast({
+          title: "Edit lock expired",
+          description: "No activity detected. Pending org approval form was closed.",
+          variant: "destructive",
+        });
+      },
+    );
+    return node;
+  };
+  const cancelPendingNodeAction = async () => {
+    await orgLockSession.stopSession(true);
+  };
   const refreshOrgStructure = async () => {
     if (!companyCode) return;
     await loadOrgForCompanyCode(companyCode);
@@ -527,6 +559,7 @@ export function useOrgStructure() {
     viewportEdgePadding: VIEWPORT_EDGE_PADDING, setCanvasWidth, setIsNewNodePopupOpen, setNewNodeParent, newNodeWorkflowOptions,
     setPendingNodeForReview, handleOpenNewNodePopup, handleCreateNode, handleDepartmentClick, handleSidebarOpenChange,
     handleApproveNode, handleRejectNode, zoomOut, zoomIn, hasNewOrgEvent, setHasNewOrgEvent, refreshOrgStructure,
+    startPendingNodeAction, cancelPendingNodeAction,
     statusUpdateNode, statusUpdateTargetStatus, statusUpdateWorkflowHash, statusUpdateWorkflowOptions,
     statusUpdateRemarks, setStatusUpdateNode, setStatusUpdateWorkflowHash, setStatusUpdateRemarks, handleRequestNodeStatusChange, submitNodeStatusUpdate,
     orgLockWarningOpen: orgLockSession.warningOpen,

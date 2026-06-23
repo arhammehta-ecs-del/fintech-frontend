@@ -10,10 +10,10 @@ type EditLockResponse = {
 };
 
 export type EditLockWorkflowTarget = {
-  nodePath: string;
+  nodePath?: string;
   levelsHash: string;
-  subModule: string;
-  module: string;
+  subModule?: string;
+  module?: string;
 };
 
 export type EditLockPayload =
@@ -30,8 +30,17 @@ export async function acquireEditLock(payload: EditLockPayload) {
       : normalizedSubtype === "lock"
         ? 10
         : null;
+  const normalizedPayload =
+    payload.type === "workflow"
+      ? {
+          ...payload,
+          target: Object.fromEntries(
+            Object.entries(payload.target).filter(([, value]) => typeof value !== "string" || value.trim() !== ""),
+          ) as EditLockWorkflowTarget,
+        }
+      : payload;
   const requestBody = {
-    ...payload,
+    ...normalizedPayload,
     type: normalizedType,
     subtype: normalizedSubtype,
     addMin: normalizedAddMin,

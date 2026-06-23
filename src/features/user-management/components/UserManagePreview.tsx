@@ -51,6 +51,8 @@ export function UserManagePreview({
   currentTab = "active",
   onApprovePending,
   onRejectPending,
+  onStartPendingAction,
+  onCancelPendingAction,
   onToggleActiveStatus,
   onClose,
   onToggleHistory,
@@ -78,6 +80,8 @@ export function UserManagePreview({
   currentTab?: "active" | "pending" | "inactive";
   onApprovePending?: (member: AppUser, remark?: string) => void;
   onRejectPending?: (member: AppUser, remark?: string) => void;
+  onStartPendingAction?: (member: AppUser, action: "approve" | "reject") => Promise<boolean | void> | boolean | void;
+  onCancelPendingAction?: (member: AppUser) => Promise<void> | void;
   onToggleActiveStatus?: (member: AppUser, isActive: boolean) => void;
   onClose?: () => void;
   onToggleHistory?: () => void;
@@ -604,7 +608,9 @@ export function UserManagePreview({
     setCollapsedDismissedKey(null);
   }, [member.id, historyDetailOverride, currentTab]);
 
-  const handleStartPendingAction = (action: "approve" | "reject") => {
+  const handleStartPendingAction = async (action: "approve" | "reject") => {
+    const shouldOpen = await onStartPendingAction?.(member, action);
+    if (shouldOpen === false) return;
     setPendingDecision(action);
     setRemarkTouched(false);
   };
@@ -621,6 +627,7 @@ export function UserManagePreview({
   };
 
   const handleCloseRemark = () => {
+    void onCancelPendingAction?.(member);
     setPendingDecision(null);
     setPendingRemark("");
     setRemarkTouched(false);

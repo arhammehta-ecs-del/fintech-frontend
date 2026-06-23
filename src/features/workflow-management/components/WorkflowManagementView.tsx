@@ -24,7 +24,13 @@ import WorkflowManageDialog from "./WorkflowManageDialog";
 import type { HistoryDetailPreviewEvent, HistoryDetailViewModel } from "@/components/HistoryDetailDialog";
 import { useWorkflowManagement } from "@/features/workflow-management/hooks/useWorkflowManagement";
 import { cn } from "@/lib/utils";
-import { mapWorkflowRecord, getWorkflowPathPreview, isRootWorkflowNode, isWorkflowUpdateRequest } from "@/features/workflow-management/utils/workflowRecord.utils";
+import {
+  mapWorkflowRecord,
+  getWorkflowNodeDisplayName,
+  getWorkflowPathPreview,
+  isRootWorkflowNode,
+  isWorkflowUpdateRequest,
+} from "@/features/workflow-management/utils/workflowRecord.utils";
 import { useToast } from "@/hooks/use-toast";
 import { useEditLockSession } from "@/hooks/useEditLockSession";
 import EditLockWarningDialog from "@/components/EditLockWarningDialog";
@@ -34,6 +40,10 @@ import { formatCollapsedNodePath } from "@/features/user-management/utils";
 import { useNotificationsPanelOpen } from "@/hooks/useNotificationsPanelOpen";
 import { getApiErrorMessage } from "@/services/client";
 import { fetchWorkflowDetails, fetchWorkflowsPaginated } from "@/services/workflow.service";
+import {
+  SearchableMultiSelectMenu,
+  SearchableSingleSelectMenu,
+} from "@/components/filter-search-dropdown";
 
 const tabClassName =
   "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:shadow-sm";
@@ -58,6 +68,90 @@ const DEFAULT_WORKFLOW_TABLE_GRID =
   "md:grid-cols-[minmax(16ch,1.65fr)_minmax(9ch,0.95fr)_minmax(10ch,0.95fr)_minmax(13ch,1.2fr)_minmax(7ch,0.7fr)_minmax(9ch,0.8fr)_minmax(72px,0.45fr)]";
 const ADAPTIVE_PENDING_WORKFLOW_TABLE_GRID =
   "md:grid-cols-[minmax(18ch,1.85fr)_minmax(9ch,0.95fr)_minmax(10ch,0.95fr)_minmax(12ch,1.15fr)_minmax(7ch,0.7fr)_minmax(9ch,0.8fr)_minmax(72px,0.45fr)]";
+
+const getLockErrorMessage = (error: unknown, fallback: string) => {
+  const rawMessage =
+    typeof error === "object" && error !== null && "message" in error && typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message.trim()
+      : "";
+  return rawMessage || getApiErrorMessage(error, fallback);
+};
+
+const readWorkflowString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+const resolveWorkflowLockModuleValues = (workflow: NonNullable<typeof manageWorkflow>) => {
+  const pendingOldData = (workflow.pendingOldData ?? {}) as Record<string, unknown>;
+  const pendingNewData = (workflow.pendingNewData ?? {}) as Record<string, unknown>;
+  const pendingOldTarget =
+    typeof pendingOldData.target === "object" && pendingOldData.target !== null
+      ? (pendingOldData.target as Record<string, unknown>)
+      : {};
+  const pendingNewTarget =
+    typeof pendingNewData.target === "object" && pendingNewData.target !== null
+      ? (pendingNewData.target as Record<string, unknown>)
+      : {};
+
+  return {
+    module:
+      readWorkflowString(pendingOldData.module) ||
+      readWorkflowString(pendingOldTarget.module) ||
+      readWorkflowString(pendingNewData.module) ||
+      readWorkflowString(pendingNewTarget.module) ||
+      readWorkflowString(workflow.rawModule) ||
+      readWorkflowString(workflow.module),
+    subModule:
+      readWorkflowString(pendingOldData.subModule) ||
+      readWorkflowString(pendingOldTarget.subModule) ||
+      readWorkflowString(pendingNewData.subModule) ||
+      readWorkflowString(pendingNewTarget.subModule) ||
+      readWorkflowString(workflow.subModule),
+  };
+};
+
+const resolveWorkflowLockLevelsHash = (workflow: NonNullable<typeof manageWorkflow>) => {
+  const pendingOldData = (workflow.pendingOldData ?? {}) as Record<string, unknown>;
+  const pendingOldTarget =
+    typeof pendingOldData.target === "object" && pendingOldData.target !== null
+      ? (pendingOldData.target as Record<string, unknown>)
+      : {};
+  const pendingNewData = (workflow.pendingNewData ?? {}) as Record<string, unknown>;
+  const pendingNewTarget =
+    typeof pendingNewData.target === "object" && pendingNewData.target !== null
+      ? (pendingNewData.target as Record<string, unknown>)
+      : {};
+
+  return (
+    readWorkflowString(pendingOldData.levelsHash) ||
+    readWorkflowString(pendingOldTarget.levelsHash) ||
+    readWorkflowString(workflow.levelsHash) ||
+    readWorkflowString(pendingNewData.levelsHash) ||
+    readWorkflowString(pendingNewTarget.levelsHash) ||
+    readWorkflowString(workflow.workflowId) ||
+    readWorkflowString(workflow.id)
+  );
+};
+
+const resolveWorkflowNodePath = (workflow: NonNullable<typeof manageWorkflow>) => {
+  const pendingOldData = (workflow.pendingOldData ?? {}) as Record<string, unknown>;
+  const pendingOldTarget = typeof pendingOldData.target === "object" && pendingOldData.target !== null
+    ? (pendingOldData.target as Record<string, unknown>)
+    : {};
+  const pendingNewData = (workflow.pendingNewData ?? {}) as Record<string, unknown>;
+  const pendingTarget = typeof pendingNewData.target === "object" && pendingNewData.target !== null
+    ? (pendingNewData.target as Record<string, unknown>)
+    : {};
+
+  return (
+    readWorkflowString(workflow.orgStructure?.nodePath) ||
+    readWorkflowString(workflow.linkedOrgStructure?.[0]?.nodePath) ||
+    readWorkflowString(workflow.autoGenerated?.[0]?.orgStructure?.nodePath) ||
+    readWorkflowString(pendingOldData.nodePath) ||
+    readWorkflowString(pendingOldTarget.nodePath) ||
+    readWorkflowString(pendingNewData.nodePath) ||
+    readWorkflowString(pendingTarget.nodePath) ||
+    readWorkflowString(workflow.nodePath)
+  );
+};
 
 function NodePathMarquee({ text }: { text: string }) {
   const MARQUEE_DURATION_SECONDS = 6;
@@ -157,6 +251,8 @@ export default function WorkflowManagementView() {
     searchSuggestions,
     moduleFilters,
     setModuleFilters,
+    statusFilters,
+    setStatusFilters,
     nodeNameFilters,
     setNodeNameFilters,
     nodeTypeFilters,
@@ -173,6 +269,7 @@ export default function WorkflowManagementView() {
     setApproverCountFilters,
     setIsFilterRequestActive,
     moduleOptions,
+    statusOptions,
     nodeNameOptions,
     nodeTypeOptions,
     approverCountOptions,
@@ -217,6 +314,7 @@ export default function WorkflowManagementView() {
   ];
   const activeFilterCount =
     moduleFilters.length +
+    statusFilters.length +
     nodeNameFilters.length +
     nodeTypeFilters.length +
     workflowLevelFilters.length +
@@ -232,6 +330,7 @@ export default function WorkflowManagementView() {
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const [viewportWidth, setViewportWidth] = useState(0);
   const [draftModuleFilters, setDraftModuleFilters] = useState<string[]>(moduleFilters);
+  const [draftStatusFilters, setDraftStatusFilters] = useState<string[]>(statusFilters);
   const [draftNodeNameFilters, setDraftNodeNameFilters] = useState<string[]>(nodeNameFilters);
   const [draftNodeTypeFilters, setDraftNodeTypeFilters] = useState<string[]>(nodeTypeFilters);
   const [draftWorkflowLevelFilters, setDraftWorkflowLevelFilters] = useState<string[]>(workflowLevelFilters);
@@ -470,6 +569,7 @@ export default function WorkflowManagementView() {
 
   const syncDraftFromApplied = () => {
     setDraftModuleFilters(moduleFilters);
+    setDraftStatusFilters(statusFilters);
     setDraftNodeNameFilters(nodeNameFilters);
     setDraftNodeTypeFilters(nodeTypeFilters);
     setDraftWorkflowLevelFilters(workflowLevelFilters);
@@ -481,6 +581,7 @@ export default function WorkflowManagementView() {
 
   const clearDraftFilters = () => {
     setDraftModuleFilters([]);
+    setDraftStatusFilters([]);
     setDraftNodeNameFilters([]);
     setDraftNodeTypeFilters([]);
     setDraftWorkflowLevelFilters([]);
@@ -497,20 +598,21 @@ export default function WorkflowManagementView() {
     setWorkflowSeedForEdit(null);
     setOnboardingStep(1);
   };
-  const getWorkflowLockTarget = (workflow: NonNullable<typeof manageWorkflow>) => ({
-    type: "workflow" as const,
-    target: {
-      nodePath: (workflow.nodePath || "").trim(),
-      levelsHash: (workflow.levelsHash || workflow.workflowId || workflow.id || "").trim(),
-      subModule: (workflow.subModule || "").trim(),
-      module: (workflow.rawModule || workflow.module || "").trim(),
-    },
-  });
+  const getWorkflowLockTarget = (workflow: NonNullable<typeof manageWorkflow>) => {
+    const lockModules = resolveWorkflowLockModuleValues(workflow);
+    return {
+      type: "workflow" as const,
+      target: {
+        nodePath: resolveWorkflowNodePath(workflow),
+        levelsHash: resolveWorkflowLockLevelsHash(workflow),
+        subModule: lockModules.subModule,
+        module: lockModules.module,
+      },
+    };
+  };
 
   const closeManageWorkflowDialog = async () => {
-    const isPendingLike = !!manageWorkflow && (manageWorkflow.status === "Pending" || isWorkflowUpdateRequest(manageWorkflow));
-    const isInactive = manageWorkflow?.status === "Inactive";
-    const shouldReleaseLock = !isPendingLike && !isInactive && manageLockArmed;
+    const shouldReleaseLock = manageLockArmed;
     await workflowLockSession.stopSession(shouldReleaseLock);
     setManageLockArmed(false);
     setManageHistoryOpen(false);
@@ -523,6 +625,35 @@ export default function WorkflowManagementView() {
     setDeleteRemarkError("");
     setManageWorkflow(null);
   };
+
+  const startPendingWorkflowAction = useCallback(async (workflow: NonNullable<typeof manageWorkflow>) => {
+    await workflowLockSession.startSession(
+      getWorkflowLockTarget(workflow),
+      () => {
+        setManageHistoryOpen(false);
+        setManageLockArmed(false);
+        setManageInitialAction(null);
+        setShowDeleteActions(false);
+        setDeleteWorkflow("__none__");
+        setDeleteWorkflowOptions([]);
+        setDeleteRemark("");
+        setDeleteRemarkError("");
+        setManageWorkflow(null);
+        toast({
+          title: "Edit lock expired",
+          description: "No activity detected. Workflow approval form was closed.",
+          variant: "destructive",
+        });
+      },
+    );
+    setManageLockArmed(true);
+    return workflow;
+  }, [toast, workflowLockSession]);
+
+  const cancelPendingWorkflowAction = useCallback(async () => {
+    await workflowLockSession.stopSession(true);
+    setManageLockArmed(false);
+  }, [workflowLockSession]);
 
   useEffect(() => {
     if (!manageWorkflow) {
@@ -574,7 +705,7 @@ export default function WorkflowManagementView() {
       setShowDeleteActions(false);
       toast({
         title: "Delete unavailable",
-        description: error instanceof Error ? error.message : "Unable to lock workflow for delete.",
+        description: getLockErrorMessage(error, "Unable to lock workflow for delete."),
         variant: "destructive",
       });
       throw error;
@@ -661,8 +792,8 @@ export default function WorkflowManagementView() {
 
   const availableContentWidth = Math.max(0, viewportWidth - shellOffset.left);
   const MIN_DIALOG_SPLIT_WIDTH = 860;
-  const MIN_HISTORY_WIDTH = 380;
-  const MAX_HISTORY_WIDTH = 500;
+  const MIN_HISTORY_WIDTH = 420;
+  const MAX_HISTORY_WIDTH = 560;
   const computedHistoryPanelWidth = Math.max(
     MIN_HISTORY_WIDTH,
     Math.min(MAX_HISTORY_WIDTH, availableContentWidth - MIN_DIALOG_SPLIT_WIDTH),
@@ -846,6 +977,14 @@ export default function WorkflowManagementView() {
                       onToggle={(value) => setDraftModuleFilters((current) => toggleValue(current, value))}
                     />
                     <WorkflowFilterDropdown
+                      title="Status"
+                      placeholder="Select status"
+                      options={statusOptions}
+                      selected={draftStatusFilters}
+                      onClear={() => setDraftStatusFilters([])}
+                      onToggle={(value) => setDraftStatusFilters((current) => toggleValue(current, value))}
+                    />
+                    <WorkflowFilterDropdown
                       title="Workflow Levels"
                       placeholder="Select workflow levels"
                       options={workflowLevelOptions.map((option) => ({
@@ -916,6 +1055,7 @@ export default function WorkflowManagementView() {
                     size="sm"
                     onClick={() => {
                       setModuleFilters(draftModuleFilters);
+                      setStatusFilters(draftStatusFilters);
                       setNodeNameFilters(draftNodeNameFilters);
                       setNodeTypeFilters(draftNodeTypeFilters);
                       setWorkflowLevelFilters(draftWorkflowLevelFilters);
@@ -925,6 +1065,7 @@ export default function WorkflowManagementView() {
                       setApproverCountFilters(draftApproverCountFilters);
                       const hasFilters =
                         draftModuleFilters.length > 0 ||
+                        draftStatusFilters.length > 0 ||
                         draftNodeNameFilters.length > 0 ||
                         draftNodeTypeFilters.length > 0 ||
                         draftWorkflowLevelFilters.length > 0 ||
@@ -932,7 +1073,20 @@ export default function WorkflowManagementView() {
                         draftApproverLevelFilters.length > 0 ||
                         draftLinkedOrgStructureFilters.length > 0 ||
                         draftApproverCountFilters.length > 0;
-                      setIsFilterRequestActive(hasFilters);
+                      const hasRequestFilters =
+                        draftModuleFilters.length > 0 ||
+                        draftNodeNameFilters.length > 0 ||
+                        draftNodeTypeFilters.length > 0 ||
+                        draftWorkflowLevelFilters.length > 0 ||
+                        draftApproverTypeFilters.length > 0 ||
+                        draftApproverLevelFilters.length > 0 ||
+                        draftLinkedOrgStructureFilters.length > 0 ||
+                        draftApproverCountFilters.length > 0;
+                      const selectedStatus = draftStatusFilters[0];
+                      if (draftStatusFilters.length === 1 && (selectedStatus === "Active" || selectedStatus === "Pending" || selectedStatus === "Inactive")) {
+                        setActiveStatus(selectedStatus);
+                      }
+                      setIsFilterRequestActive(hasRequestFilters);
                       if (
                         !hasFilters
                       ) {
@@ -1068,9 +1222,19 @@ export default function WorkflowManagementView() {
                       )}
                       style={{ maxWidth: `${NODE_NAME_TRUNCATE_THRESHOLD}ch` }}
                       data-level={typeof workflow.levelCount === "number" ? `L${workflow.levelCount}` : undefined}
-                      title={workflow.nodeName || "—"}
+                      title={getWorkflowNodeDisplayName({
+                        nodeName: workflow.nodeName,
+                        nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
+                        module: workflow.rawModule || workflow.module,
+                        subModule: workflow.subModule,
+                      }) || "—"}
                     >
-                      {workflow.nodeName || "—"}
+                      {getWorkflowNodeDisplayName({
+                        nodeName: workflow.nodeName,
+                        nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
+                        module: workflow.rawModule || workflow.module,
+                        subModule: workflow.subModule,
+                      }) || "—"}
                     </p>
                     {(() => {
                       const nodePath = workflow.nodePath || "";
@@ -1285,6 +1449,22 @@ export default function WorkflowManagementView() {
           void closeManageWorkflowDialog();
         }}
         onSubmitAction={handleWorkflowAction}
+        onStartPendingAction={async (workflow) => {
+          try {
+            await startPendingWorkflowAction(workflow);
+            return true;
+          } catch (error) {
+            toast({
+              title: "Approve unavailable",
+              description: getLockErrorMessage(error, "Unable to lock workflow for approval."),
+              variant: "destructive",
+            });
+            return false;
+          }
+        }}
+        onCancelPendingAction={async () => {
+          await cancelPendingWorkflowAction();
+        }}
         onRequestStatusWorkflowOptions={async (workflow) => {
           await workflowLockSession.startSession(
             getWorkflowLockTarget(workflow),
@@ -1350,7 +1530,7 @@ export default function WorkflowManagementView() {
             } catch (error) {
               toast({
                 title: "Edit unavailable",
-                description: error instanceof Error ? error.message : "Unable to lock workflow for edit.",
+                description: getLockErrorMessage(error, "Unable to lock workflow for edit."),
                 variant: "destructive",
               });
             }
@@ -1424,20 +1604,6 @@ function WorkflowFilterDropdown({
   onClear?: () => void;
   onToggle: (value: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-  const selectedLabels = selected
-    .map((value) => {
-      const option = options.find((entry) => entry.value === value);
-      if (!option) return value;
-      return option.description ? `${option.label} - ${option.description}` : option.label;
-    })
-    .filter(Boolean);
-  const summaryLabel =
-    selected.length === 0 ? placeholder : selected.length === 1 ? selectedLabels[0] : `${selected.length} selected`;
-  const filteredOptions = options.filter((option) => option.label.toLowerCase().includes(searchTerm.toLowerCase()));
-
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
@@ -1452,130 +1618,19 @@ function WorkflowFilterDropdown({
           </button>
         ) : null}
       </div>
-      <DropdownMenu
-        open={open}
-        onOpenChange={(nextOpen) => {
-          setOpen(nextOpen);
-          if (!nextOpen) {
-            setSearchTerm("");
-            setIsSearchExpanded(false);
-          }
+      <SearchableMultiSelectMenu
+        title={title}
+        placeholder={placeholder}
+        options={options}
+        selected={selected}
+        onToggle={onToggle}
+        onSelectAll={(values) => {
+          values.forEach((value) => {
+            if (!selected.includes(value)) onToggle(value);
+          });
         }}
-      >
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn(
-              "h-10 w-full justify-between rounded-lg border-slate-200 bg-white px-3 text-left text-[12px] font-medium hover:border-slate-300",
-              selected.length > 0 ? "border-blue-200 bg-blue-50/40 text-blue-800" : "text-slate-700",
-            )}
-          >
-            <span className="truncate">{summaryLabel}</span>
-            <span className="ml-2 inline-flex items-center gap-1.5">
-              {selected.length > 0 ? (
-                <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
-                  {selected.length}
-                </span>
-              ) : null}
-              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-            </span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="min-w-[var(--radix-dropdown-menu-trigger-width)] w-max max-w-[420px] md:max-w-[520px] border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
-          onCloseAutoFocus={(event) => event.preventDefault()}
-        >
-          <div className="mt-1 flex items-center justify-between gap-2 px-1">
-            <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">{title}</div>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => {
-                if (isSearchExpanded) {
-                  setSearchTerm("");
-                  setIsSearchExpanded(false);
-                  return;
-                }
-                setIsSearchExpanded(true);
-              }}
-              className="h-9 w-9 rounded-lg border-slate-200 bg-slate-50 text-slate-600 shadow-none hover:border-slate-300 hover:bg-white"
-              aria-label={isSearchExpanded ? `Close ${title.toLowerCase()} search` : `Open ${title.toLowerCase()} search`}
-            >
-              {isSearchExpanded ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-            </Button>
-          </div>
-          <div
-            className={cn(
-              "overflow-hidden px-1 transition-all duration-250 ease-out",
-              isSearchExpanded ? "mt-2 max-h-12 opacity-100" : "max-h-0 opacity-0",
-            )}
-          >
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                onKeyDown={(event) => {
-                  event.stopPropagation();
-                  if (event.key === "Escape") {
-                    setSearchTerm("");
-                    setIsSearchExpanded(false);
-                  }
-                }}
-                placeholder={`Search ${title.toLowerCase()}...`}
-                className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] shadow-none"
-                autoComplete="off"
-                autoFocus={isSearchExpanded}
-              />
-            </div>
-          </div>
-          {filteredOptions.length === 0 ? (
-            <div className="px-2 py-2 text-[12px] text-slate-400">No options available</div>
-          ) : (
-            <div className="mt-2 max-h-56 overflow-y-auto">
-              {filteredOptions.map((option) => (
-                <DropdownMenuCheckboxItem
-                  key={`${option.value}-${option.label}`}
-                  checked={selected.includes(option.value)}
-                  onSelect={(event) => event.preventDefault()}
-                  onCheckedChange={() => onToggle(option.value)}
-                  className="items-start text-[13px]"
-                  style={typeof option.level === "number" ? { marginLeft: `${(option.level - 1) * 16}px` } : undefined}
-                >
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <div className="flex min-w-0 items-start justify-between gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="truncate">{option.label}</span>
-                        {typeof option.level === "number" ? (
-                          <span className="shrink-0 rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-bold tracking-wider text-indigo-700">
-                            L{option.level}
-                          </span>
-                        ) : null}
-                      </div>
-                      {typeof option.count === "number" ? (
-                        <span className="shrink-0 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600">
-                          {option.count}
-                        </span>
-                      ) : null}
-                    </div>
-                    {option.path ? (
-                      <span className="whitespace-normal break-all text-[10px] leading-4 text-slate-500">
-                        {option.path}
-                      </span>
-                    ) : option.description && typeof option.count !== "number" ? (
-                      <span className="whitespace-normal break-words text-[11px] leading-4 text-slate-500">
-                        {option.description}
-                      </span>
-                    ) : null}
-                  </div>
-                </DropdownMenuCheckboxItem>
-              ))}
-            </div>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        contentClassName="md:max-w-[520px]"
+      />
     </div>
   );
 }
@@ -1657,9 +1712,6 @@ function WorkflowSingleSelectDropdown({
   onChange: (value: string) => void;
   onClear?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const summaryLabel = value || placeholder;
-
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
@@ -1674,70 +1726,14 @@ function WorkflowSingleSelectDropdown({
           </button>
         ) : null}
       </div>
-      <DropdownMenu open={open} onOpenChange={setOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn(
-              "h-10 w-full justify-between rounded-lg border-slate-200 bg-white px-3 text-left text-[12px] font-medium hover:border-slate-300",
-              value ? "border-blue-200 bg-blue-50/40 text-blue-800" : "text-slate-700",
-            )}
-          >
-            <span className="truncate">{summaryLabel}</span>
-            <span className="ml-2 inline-flex items-center gap-1.5">
-              {value ? (
-                <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
-                  1
-                </span>
-              ) : null}
-              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-            </span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[260px] border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
-          onCloseAutoFocus={(event) => event.preventDefault()}
-        >
-          <div className="mt-1 px-1">
-            <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">{title}</div>
-          </div>
-          <div className="mt-2 space-y-1">
-            {options.map((option) => {
-              const checked = value === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => {
-                    onChange(checked ? "" : option.value);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] transition hover:bg-slate-50",
-                    checked ? "bg-blue-50 text-blue-800" : "text-slate-700",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex h-4 w-4 items-center justify-center rounded-full border",
-                      checked ? "border-blue-600" : "border-slate-300",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "h-2 w-2 rounded-full",
-                        checked ? "bg-blue-600" : "bg-transparent",
-                      )}
-                    />
-                  </span>
-                  <span>{option.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <SearchableSingleSelectMenu
+        title={title}
+        placeholder={placeholder}
+        options={options}
+        value={value || null}
+        onChange={onChange}
+        contentClassName="min-w-[260px]"
+      />
     </div>
   );
 }

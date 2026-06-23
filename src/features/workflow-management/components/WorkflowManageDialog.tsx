@@ -19,6 +19,8 @@ type WorkflowManageDialogProps = {
   currentTab?: "Active" | "Pending" | "Inactive";
   onClose: () => void;
   onSubmitAction: (workflow: WorkflowRecord, action: "approve" | "reject", remark: string) => Promise<void>;
+  onStartPendingAction?: (workflow: WorkflowRecord, action: "approve" | "reject") => Promise<boolean | void> | boolean | void;
+  onCancelPendingAction?: (workflow: WorkflowRecord) => Promise<void> | void;
   onRequestStatusWorkflowOptions?: (workflow: WorkflowRecord) => Promise<{
     options: Array<{ id: string; label: string }>;
     selectedLevelsHash: string;
@@ -286,6 +288,8 @@ export default function WorkflowManageDialog({
   currentTab = "Active",
   onClose,
   onSubmitAction,
+  onStartPendingAction,
+  onCancelPendingAction,
   onRequestStatusWorkflowOptions,
   onSubmitStatusUpdate,
   onDeleteRequestStart,
@@ -384,10 +388,22 @@ export default function WorkflowManageDialog({
     const expectedLevelCount = isHistoryPreviewActive
       ? parseWorkflowAliasLevelCount(pendingNewData.alias)
       : countWorkflowLevels(pendingNewData.levels);
-    return applyWorkflowDiffData(workflow, pendingOldData, pendingNewData, {
-      previousWorkflowOverride: isHistoryPreviewActive ? undefined : workflow,
-      expectedLevelCount,
-    });
+    const previewBase = createHistoryPreviewBase(workflow);
+    const previousWorkflowOverride =
+      !isHistoryPreviewActive && hasPendingDataDiff
+        ? (Object.keys(pendingOldData).length > 0
+            ? applyPendingDataView(previewBase, pendingOldData, true)
+            : previewBase)
+        : undefined;
+    return applyWorkflowDiffData(
+      !isHistoryPreviewActive && hasPendingDataDiff ? previewBase : workflow,
+      pendingOldData,
+      pendingNewData,
+      {
+        previousWorkflowOverride,
+        expectedLevelCount,
+      },
+    );
   }, [workflow, isHistoryPreviewActive, historyOldData, historyNewData, isHistoryUpdatePreview]);
   const displayWorkflow = comparisonWorkflows?.currentWorkflow ?? null;
   const previousWorkflow = comparisonWorkflows?.previousWorkflow ?? null;
@@ -477,10 +493,12 @@ export default function WorkflowManageDialog({
   const pendingWorkflowName = workflow.workflowName?.trim() || "";
   const previousWorkflowAlias = previousWorkflow?.alias?.trim() || "";
   const derivedDisplayWorkflowAlias = deriveWorkflowAliasFromLevels(displayWorkflow.levels);
+  const explicitDisplayWorkflowAlias = displayWorkflow.alias?.trim() || "";
   const pendingWorkflowAlias =
-    isUpdateRequest && derivedDisplayWorkflowAlias && derivedDisplayWorkflowAlias !== previousWorkflowAlias
-      ? derivedDisplayWorkflowAlias
-      : workflow.workflowAlias?.trim() || displayWorkflow.alias?.trim() || derivedDisplayWorkflowAlias || "";
+    explicitDisplayWorkflowAlias ||
+    workflow.workflowAlias?.trim() ||
+    derivedDisplayWorkflowAlias ||
+    previousWorkflowAlias;
   const previousStatusLabel = (() => {
     if (isPending && !isHistoryPreviewActive) {
       const pendingOldBasicDetails = toRecord(pendingOldData.basicDetails);
@@ -596,12 +614,15 @@ export default function WorkflowManageDialog({
             : Settings2;
   const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
 
-  const handleStartPendingAction = (action: "approve" | "reject") => {
+  const handleStartPendingAction = async (action: "approve" | "reject") => {
+    const shouldOpen = await onStartPendingAction?.(workflow, action);
+    if (shouldOpen === false) return;
     setPendingDecision(action);
     setRemarkTouched(false);
   };
 
   const handleClosePendingAction = () => {
+    void onCancelPendingAction?.(workflow);
     setPendingDecision(null);
     setRemark("");
     setRemarkTouched(false);

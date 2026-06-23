@@ -100,6 +100,7 @@ export function useWorkflowManagement() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [moduleFilters, setModuleFilters] = useState<string[]>([]);
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [nodeNameFilters, setNodeNameFilters] = useState<string[]>([]);
   const [nodeTypeFilters, setNodeTypeFilters] = useState<string[]>([]);
   const [workflowLevelFilters, setWorkflowLevelFilters] = useState<string[]>([]);
@@ -124,6 +125,7 @@ export function useWorkflowManagement() {
   const [filterNodeNameOptions, setFilterNodeNameOptions] = useState<Array<{ value: string; label: string; path: string; description?: string; level?: number; count?: number }>>([]);
   const [filterNodeTypeOptions, setFilterNodeTypeOptions] = useState<Array<{ value: string; label: string; count?: number; description?: string }>>([]);
   const [filterModuleOptions, setFilterModuleOptions] = useState<Array<{ value: string; label: string; description?: string }>>([]);
+  const [filterStatusOptions, setFilterStatusOptions] = useState<Array<{ value: string; label: string; count?: number }>>([]);
   const [filterWorkflowLevelOptions, setFilterWorkflowLevelOptions] = useState<Array<{ value: string; label: string; count: number }>>([]);
   const [filterApproverCountOptions, setFilterApproverCountOptions] = useState<Array<{ value: string; label: string; count: number }>>([]);
   const [isFilterLoading, setIsFilterLoading] = useState(false);
@@ -374,6 +376,7 @@ export function useWorkflowManagement() {
       setFilterNodeNameOptions(dropdowns.nodeName);
       setFilterNodeTypeOptions(dropdowns.nodeType);
       setFilterModuleOptions(dropdowns.module);
+      setFilterStatusOptions(dropdowns.status);
       setFilterWorkflowLevelOptions(dropdowns.workflowLevel);
       setFilterApproverCountOptions(dropdowns.approverCount);
     } catch (error) {
@@ -400,6 +403,15 @@ export function useWorkflowManagement() {
         ).values(),
       ).sort((a, b) => a.label.localeCompare(b.label)),
     [filterModuleOptions, workflows],
+  );
+  const statusOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          filterStatusOptions.map((option) => [normalizeFilterValue(option.value), option]),
+        ).values(),
+      ).sort((a, b) => a.label.localeCompare(b.label)),
+    [filterStatusOptions],
   );
   const nodeNameOptions = useMemo(
     () =>
@@ -476,6 +488,7 @@ export function useWorkflowManagement() {
 
   const clearColumnFilters = () => {
     setModuleFilters([]);
+    setStatusFilters([]);
     setNodeNameFilters([]);
     setNodeTypeFilters([]);
     setWorkflowLevelFilters([]);
@@ -739,6 +752,8 @@ export function useWorkflowManagement() {
     searchSuggestions,
     moduleFilters,
     setModuleFilters,
+    statusFilters,
+    setStatusFilters,
     nodeNameFilters,
     setNodeNameFilters,
     nodeTypeFilters,
@@ -756,6 +771,7 @@ export function useWorkflowManagement() {
     isFilterRequestActive,
     setIsFilterRequestActive,
     moduleOptions,
+    statusOptions,
     nodeNameOptions,
     nodeTypeOptions,
     approverCountOptions: filterApproverCountOptions,

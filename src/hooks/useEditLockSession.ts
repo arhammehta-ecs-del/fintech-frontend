@@ -65,16 +65,18 @@ export function useEditLockSession() {
     async (shouldRelease = true) => {
       stopTicker();
       const target = targetRef.current;
+      const timeoutHandler = onTimeoutRef.current;
       targetRef.current = null;
       onTimeoutRef.current = null;
       sessionActiveRef.current = false;
       setWarningOpen(false);
-      if (!shouldRelease || !target) return;
+      if (!shouldRelease || !target) return timeoutHandler;
       try {
         await releaseEditLock(target);
       } catch {
         // no-op: release failures should not block UI closure
       }
+      return timeoutHandler;
     },
     [stopTicker],
   );
@@ -95,8 +97,8 @@ export function useEditLockSession() {
         return;
       }
       setWarningOpen(false);
-      await stopSession(true);
-      onTimeoutRef.current?.();
+      const timeoutHandler = await stopSession(true);
+      timeoutHandler?.();
     }, 1000);
   }, [stopSession, stopTicker, warningOpen]);
 
@@ -134,8 +136,8 @@ export function useEditLockSession() {
   }, []);
 
   const endEditingNow = useCallback(async () => {
-    await stopSession(true);
-    onTimeoutRef.current?.();
+    const timeoutHandler = await stopSession(true);
+    timeoutHandler?.();
   }, [stopSession]);
 
   useEffect(() => {
