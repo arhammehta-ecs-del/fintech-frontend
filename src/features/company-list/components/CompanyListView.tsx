@@ -92,7 +92,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
   const showBackgroundRefreshState = isLoading && hasRows;
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6 md:min-h-[calc(100dvh-7rem)]">
       <CompanyListToolbar
         searchInput={searchInput}
         onSearchInputChange={setSearchInput}
@@ -144,7 +144,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
       ) : !hasRows ? (
         <CompanyListEmptyState selectedStatusTab={selectedStatusTab} onOpenOnboarding={() => setIsOnboardingOpen(true)} />
       ) : (
-        <Card className="relative hidden min-h-[520px] overflow-hidden border-slate-200/80 shadow-[0_10px_30px_rgba(15,23,42,0.08)] md:flex md:h-[calc(100vh-17.5rem)] md:flex-col">
+        <Card className="relative hidden overflow-hidden border-slate-200/80 shadow-[0_10px_30px_rgba(15,23,42,0.08)] md:flex md:min-h-0 md:flex-1 md:flex-col">
           {showBackgroundRefreshState ? (
             <div className="pointer-events-none absolute inset-0 z-20 bg-white/55 backdrop-blur-[1px]">
               <div className="absolute inset-x-0 top-0 h-1 overflow-hidden bg-slate-100/80">
@@ -156,38 +156,40 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
               </div>
             </div>
           ) : null}
-          <div className="min-h-0 flex-1">
-            <CompanyListTable
-              displayRows={paginatedDisplayRows}
-              expanded={expanded}
-              visibleColumns={visibleColumns}
-              showStatusColumn={showStatusColumn}
-              dragState={dragState}
-              onToggleGroup={toggleGroup}
-              onOpenCompany={openModal}
-              onToggleActive={handleToggleCompanyActive}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1">
+              <CompanyListTable
+                displayRows={paginatedDisplayRows}
+                expanded={expanded}
+                visibleColumns={visibleColumns}
+                showStatusColumn={showStatusColumn}
+                dragState={dragState}
+                onToggleGroup={toggleGroup}
+                onOpenCompany={openModal}
+                onToggleActive={handleToggleCompanyActive}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+              />
+            </div>
+            <PaginationFooter
+              currentCount={displayRows.length}
+              recordCurrentCount={pageCompanyCount}
+              recordTotalCount={totalCompaniesForTab}
+              recordLabel="Records"
+              summaryTextOverride={companyRangeSummary}
+              pageSize={pageSize}
+              pageSizeOptions={pageSizeOptions}
+              onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}
+              safePage={safePage}
+              totalPages={totalPages}
+              onPrevPage={() => void handlePrevPage()}
+              onNextPage={() => void handleNextPage()}
+              onJumpToPage={(value) => void handleJumpToPage(value)}
+              className="sticky bottom-0 z-20 shrink-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
             />
           </div>
-          <PaginationFooter
-            currentCount={displayRows.length}
-            recordCurrentCount={pageCompanyCount}
-            recordTotalCount={totalCompaniesForTab}
-            recordLabel="Records"
-            summaryTextOverride={companyRangeSummary}
-            pageSize={pageSize}
-            pageSizeOptions={pageSizeOptions}
-            onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}
-            safePage={safePage}
-            totalPages={totalPages}
-            onPrevPage={() => void handlePrevPage()}
-            onNextPage={() => void handleNextPage()}
-            onJumpToPage={(value) => void handleJumpToPage(value)}
-            className="shrink-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-          />
         </Card>
       )}
       {!showInitialLoadingState && !error && hasRows ? (
@@ -238,3 +240,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     </div>
   );
 }
+
+
+
+

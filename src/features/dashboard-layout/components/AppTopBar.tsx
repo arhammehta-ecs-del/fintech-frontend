@@ -1841,7 +1841,7 @@ export function AppTopBar({
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5 text-muted-foreground" />
               {!hiddenStatusSelected && unreadTotalCount > 0 ? (
-                <span className="absolute -right-1 -top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
+                <span className="absolute -right-1 -top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-[#6d5dfc] px-1 text-[10px] font-semibold leading-none text-white shadow-[0_6px_16px_rgba(109,93,252,0.4)]">
                   {unreadCountBadgeLabel}
                 </span>
               ) : null}

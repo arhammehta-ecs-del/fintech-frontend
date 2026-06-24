@@ -460,13 +460,10 @@ export function useWorkflowManagement() {
     () =>
       Array.from(
         new Map(
-          [
-            ...workflows.map((workflow) => workflow.module).filter(Boolean).map((value) => ({ value, label: value })),
-            ...filterModuleOptions,
-          ].map((option) => [normalizeFilterValue(option.value), option]),
+          filterModuleOptions.map((option) => [normalizeFilterValue(option.value), option]),
         ).values(),
       ).sort((a, b) => a.label.localeCompare(b.label)),
-    [filterModuleOptions, workflows],
+    [filterModuleOptions],
   );
   const statusOptions = useMemo(
     () =>
@@ -916,3 +913,4 @@ export function useWorkflowManagement() {
     hasLoadedWorkflowsOnce,
   };
 }
+

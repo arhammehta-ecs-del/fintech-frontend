@@ -482,37 +482,15 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowDropdownAppl
   return {
     nodeName: nodeNameOptions,
     nodeType: nodeTypeOptions,
-    module: Array.isArray(dropdowns.module)
-      ? dropdowns.module.reduce<Array<{ value: string; label: string; description?: string }>>((accumulator, item) => {
-        if (typeof item === "string") {
-          const value = readString(item);
-          if (!value || value.toLowerCase() === "all") return accumulator;
-          accumulator.push({
-            value: toApiToken(value),
-            label: formatFilterLabel(value),
-          });
-          return accumulator;
-        }
-
-        const value = readString(item?.value);
-        if (!value || value.toLowerCase() === "all") return accumulator;
-        const count = typeof item?.count === "number" ? item.count : undefined;
-        accumulator.push({
+    module: Array.isArray(dropdowns.subCategory)
+      ? dropdowns.subCategory
+        .map(readString)
+        .filter((value) => Boolean(value) && value.trim().toLowerCase() !== "all")
+        .map((value) => ({
           value: toApiToken(value),
           label: formatFilterLabel(value),
-          description: typeof count === "number" ? `${count}` : undefined,
-        });
-        return accumulator;
-      }, [])
-      : Array.isArray(dropdowns.subCategory)
-        ? dropdowns.subCategory
-          .map(readString)
-          .filter((value) => Boolean(value) && value.trim().toLowerCase() !== "all")
-          .map((value) => ({
-            value: toApiToken(value),
-            label: formatFilterLabel(value),
-          }))
-        : [],
+        }))
+      : [],
     status: Array.isArray(dropdowns.currentStatus)
       ? dropdowns.currentStatus.reduce<Array<{ value: string; label: string; count?: number }>>((accumulator, item) => {
         if (typeof item === "string") {
@@ -558,3 +536,4 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowDropdownAppl
       : [],
   };
 }
+

@@ -79,6 +79,13 @@ const getLockErrorMessage = (error: unknown, fallback: string) => {
 
 const readWorkflowString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
+const isDescendantNodePath = (parentPath: string, candidatePath: string) => {
+  const normalizedParent = parentPath.trim().toUpperCase();
+  const normalizedCandidate = candidatePath.trim().toUpperCase();
+  if (!normalizedParent || !normalizedCandidate || normalizedParent === normalizedCandidate) return false;
+  return normalizedCandidate.startsWith(`${normalizedParent}.`) || normalizedCandidate.startsWith(`${normalizedParent}_`);
+};
+
 const resolveWorkflowLockModuleValues = (workflow: NonNullable<typeof manageWorkflow>) => {
   const pendingOldData = (workflow.pendingOldData ?? {}) as Record<string, unknown>;
   const pendingNewData = (workflow.pendingNewData ?? {}) as Record<string, unknown>;
@@ -943,13 +950,18 @@ export default function WorkflowManagementView() {
                     </p>
                   </div>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <WorkflowFilterDropdown
-                      title="Node Name"
-                      placeholder="Select node names"
+                    <WorkflowNodeNameDropdown
                       options={nodeNameOptions}
                       selected={draftNodeNameFilters}
-                      onClear={() => setDraftNodeNameFilters([])}
-                      onToggle={(value) => setDraftNodeNameFilters((current) => toggleValue(current, value))}
+                      onClearSelection={() => setDraftNodeNameFilters([])}
+                      onToggle={(option) => setDraftNodeNameFilters((current) => toggleValue(current, option.value))}
+                      onSelectAllChildren={(items) => {
+                        setDraftNodeNameFilters((current) => {
+                          const next = new Set(current);
+                          items.forEach((item) => next.add(item.value));
+                          return Array.from(next);
+                        });
+                      }}
                     />
                     <WorkflowFilterDropdown
                       title="Node Type"
@@ -960,8 +972,8 @@ export default function WorkflowManagementView() {
                       onToggle={(value) => setDraftNodeTypeFilters((current) => toggleValue(current, value))}
                     />
                     <WorkflowFilterDropdown
-                      title="Module"
-                      placeholder="Select modules"
+                      title="Sub Category"
+                      placeholder="Select sub categories"
                       options={moduleOptions}
                       selected={draftModuleFilters}
                       onClear={() => setDraftModuleFilters([])}
@@ -1071,7 +1083,7 @@ export default function WorkflowManagementView() {
                       selected={draftApproverCountFilters}
                       onClear={() => setDraftApproverCountFilters([])}
                       onToggle={(value) =>
-                        setDraftApproverCountFilters((current) => (current.includes(value) ? [] : [value]))
+                        setDraftApproverCountFilters((current) => toggleValue(current, value))
                       }
                     />
                   </div>
@@ -1636,6 +1648,236 @@ export default function WorkflowManagementView() {
   );
 }
 
+function WorkflowNodeNameDropdown({
+  options,
+  selected,
+  onToggle,
+  onSelectAllChildren,
+  onClearSelection,
+}: {
+  options: Array<{ value: string; label: string; description?: string; count?: number; level?: number; path?: string }>;
+  selected: string[];
+  onToggle: (option: { value: string; label: string; description?: string; count?: number; level?: number; path?: string }) => void;
+  onSelectAllChildren: (values: Array<{ value: string; label: string; description?: string; count?: number; level?: number; path?: string }>) => void;
+  onClearSelection: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number }>({ top: 0, left: 0, width: 380, maxHeight: 320 });
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const normalizedOptions = useMemo(
+    () =>
+      options.filter((option) => Boolean(option?.value?.trim()) && Boolean(option?.path?.trim())),
+    [options],
+  );
+  const filteredOptions = normalizedOptions.filter((option) => {
+    const query = search.toLowerCase();
+    return !query || option.value.toLowerCase().includes(query) || (option.path || "").toLowerCase().includes(query);
+  });
+
+  useEffect(() => {
+    if (!open) return;
+
+    const updateMenuPosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const desiredWidth = Math.min(Math.max(rect.width, 380), Math.max(320, viewportWidth - 24));
+      const left = Math.min(Math.max(12, rect.right - desiredWidth), viewportWidth - desiredWidth - 12);
+      const spaceBelow = viewportHeight - rect.bottom - 12;
+      const spaceAbove = rect.top - 12;
+      const shouldOpenAbove = spaceBelow < 260 && spaceAbove > spaceBelow;
+      const maxHeight = Math.max(180, Math.min(360, shouldOpenAbove ? spaceAbove - 8 : spaceBelow - 8));
+      const top = shouldOpenAbove
+        ? Math.max(12, rect.top - Math.min(320, maxHeight))
+        : rect.bottom + 8;
+
+      setMenuPosition({ top, left, width: desiredWidth, maxHeight });
+    };
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (containerRef.current?.contains(target) || menuRef.current?.contains(target)) {
+        return;
+      }
+      setOpen(false);
+    };
+
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) return;
+    setSearch("");
+    setIsSearchExpanded(false);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+          Node Name ({normalizedOptions.length})
+        </Label>
+        {selected.length > 0 ? (
+          <button
+            type="button"
+            onClick={onClearSelection}
+            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600 transition hover:text-blue-700"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        ref={triggerRef}
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          "h-10 w-full justify-between rounded-lg border-slate-200 px-3 text-left text-[12px] font-medium hover:border-slate-300",
+          selected.length > 0 ? "border-blue-200 bg-blue-50/40 text-blue-800" : "text-slate-700",
+        )}
+      >
+        <span className="truncate">
+          {selected.length === 0 ? "Select node names" : selected.length === 1 ? selected[0] : `${selected.length} selected`}
+        </span>
+        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", open && "rotate-180")} />
+      </Button>
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={menuRef}
+              className="fixed z-[160] rounded-lg border border-slate-200 bg-white p-3 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
+              style={{
+                top: menuPosition.top,
+                left: menuPosition.left,
+                width: menuPosition.width,
+                maxHeight: menuPosition.maxHeight,
+              }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Node Name</div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    if (isSearchExpanded) {
+                      setSearch("");
+                      setIsSearchExpanded(false);
+                      return;
+                    }
+                    setIsSearchExpanded(true);
+                  }}
+                  className="h-9 w-9 rounded-lg border-slate-200 bg-slate-50 text-slate-600 shadow-none hover:border-slate-300 hover:bg-white"
+                  aria-label={isSearchExpanded ? "Close node name search" : "Open node name search"}
+                >
+                  {isSearchExpanded ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+                </Button>
+              </div>
+              <div className={cn("overflow-hidden transition-all duration-250 ease-out", isSearchExpanded ? "mt-2 max-h-12 opacity-100" : "max-h-0 opacity-0")}>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    onKeyDown={(event) => {
+                      event.stopPropagation();
+                      if (event.key === "Escape") {
+                        setSearch("");
+                        setIsSearchExpanded(false);
+                      }
+                    }}
+                    placeholder="Search node name..."
+                    className="h-9 rounded-xl border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] shadow-none"
+                    autoComplete="off"
+                    autoFocus={isSearchExpanded}
+                  />
+                </div>
+              </div>
+              <div className="mt-2 overflow-auto pr-1" style={{ maxHeight: Math.max(120, menuPosition.maxHeight - (isSearchExpanded ? 92 : 48)) }}>
+                <div className="space-y-2">
+                  {filteredOptions.map((option) => {
+                    const isSelected = selected.includes(option.value);
+                    const childOptions = normalizedOptions.filter((candidate) => isDescendantNodePath(option.path || "", candidate.path || ""));
+                    const selectableChildOptions = childOptions.filter((candidate) => !selected.includes(candidate.value));
+                    return (
+                      <div
+                        key={`${option.path}-${option.value}`}
+                        className={cn("rounded-lg border p-2", isSelected ? "border-blue-200 bg-blue-50/40" : "border-slate-100")}
+                        style={{ marginLeft: `${((option.level ?? 1) - 1) * 16}px` }}
+                      >
+                        <div className="flex flex-col gap-1.5">
+                          <label className="flex min-w-0 cursor-pointer items-start gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => onToggle(option)}
+                              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                            />
+                            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <p className="break-words text-sm font-medium text-slate-800">{option.value}</p>
+                                {typeof option.level === "number" ? (
+                                  <span className="inline-flex shrink-0 items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-indigo-700 ring-1 ring-indigo-200/60">
+                                    L{option.level}
+                                  </span>
+                                ) : null}
+                                {typeof option.count === "number" ? (
+                                  <span className="shrink-0 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600">
+                                    {option.count}
+                                  </span>
+                                ) : null}
+                              </div>
+                              {option.path ? <p className="break-all pl-0 text-[10px] text-slate-500">{option.path}</p> : null}
+                            </div>
+                          </label>
+                        </div>
+                        {isSelected && childOptions.length > 0 ? (
+                          <div className="mt-2 flex items-center justify-between rounded-lg border border-blue-100 bg-white/80 px-2.5 py-1.5">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                              Child Nodes ({childOptions.length})
+                            </p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className={cn(
+                                "h-7 rounded-full border-blue-200 px-2.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-50",
+                                selectableChildOptions.length === 0 && "opacity-70",
+                              )}
+                              onClick={() => onSelectAllChildren(childOptions)}
+                            >
+                              Select all child
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
 function WorkflowFilterDropdown({
   title,
   placeholder,
@@ -1790,3 +2032,10 @@ function WorkflowSingleSelectDropdown({
     </div>
   );
 }
+
+
+
+
+
+
+

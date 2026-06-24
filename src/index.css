@@ -109,7 +109,163 @@
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-slate-300;
   }
+
+  /* Sidebar-specific scrollbar – blends with the dark surface */
+  .sidebar-shell::-webkit-scrollbar {
+    width: 3px;
+  }
+  .sidebar-shell::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar-shell::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 9999px;
+  }
+  .sidebar-shell::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  /* Top-edge inner highlight for glass depth */
+  .sidebar-shell::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 20%),
+      radial-gradient(ellipse 80% 40% at 20% 0%, rgba(129,140,248,0.06) 0%, transparent 70%);
+    border-radius: inherit;
+  }
+
+  /* Fine-grain noise overlay for texture */
+  .sidebar-shell::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.35;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.4'/%3E%3C/svg%3E");
+    background-size: 150px 150px;
+    border-radius: inherit;
+  }
 }
+
+/* ── Sidebar animations ──────────────────────────────────────────────── */
+
+/* Active indicator pulse — gentle breathing glow */
+@keyframes sidebar-pulse {
+  0%, 100% {
+    opacity: 0.7;
+    box-shadow: 0 0 6px 2px rgba(52, 211, 153, 0.25);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 10px 4px rgba(52, 211, 153, 0.4);
+  }
+}
+
+.sidebar-active-pulse {
+  animation: sidebar-pulse 2.4s ease-in-out infinite;
+}
+
+/* Active left bar shimmer */
+@keyframes sidebar-bar-shimmer {
+  0%, 100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.sidebar-active-bar {
+  animation: sidebar-bar-shimmer 3s ease-in-out infinite;
+}
+
+/* Floating mesh orbs — slow drift */
+@keyframes sidebar-float-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(6px, 10px) scale(1.05); }
+  66% { transform: translate(-4px, 6px) scale(0.97); }
+}
+
+@keyframes sidebar-float-2 {
+  0%, 100% { transform: translate(0, -50%) scale(1); }
+  40% { transform: translate(8px, calc(-50% + 12px)) scale(1.08); }
+  70% { transform: translate(-6px, calc(-50% - 8px)) scale(0.95); }
+}
+
+@keyframes sidebar-float-3 {
+  0%, 100% { transform: translate(-50%, 0) scale(1); }
+  50% { transform: translate(calc(-50% + 10px), -8px) scale(1.1); }
+}
+
+.sidebar-orb-1 {
+  animation: sidebar-float-1 12s ease-in-out infinite;
+}
+.sidebar-orb-2 {
+  animation: sidebar-float-2 16s ease-in-out infinite;
+}
+.sidebar-orb-3 {
+  animation: sidebar-float-3 14s ease-in-out infinite;
+}
+
+/* Nav item entrance stagger (on page load) */
+@keyframes sidebar-item-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.sidebar-nav-item {
+  animation: sidebar-item-in 0.35s ease-out both;
+}
+.sidebar-nav-item:nth-child(1) { animation-delay: 0.05s; }
+.sidebar-nav-item:nth-child(2) { animation-delay: 0.1s; }
+.sidebar-nav-item:nth-child(3) { animation-delay: 0.15s; }
+.sidebar-nav-item:nth-child(4) { animation-delay: 0.2s; }
+.sidebar-nav-item:nth-child(5) { animation-delay: 0.25s; }
+
+/* Logo mark subtle rotation on hover */
+.sidebar-logo-mark {
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sidebar-logo-mark:hover {
+  transform: rotate(-6deg) scale(1.06);
+}
+
+/* Active item subtle background shimmer */
+@keyframes sidebar-active-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.sidebar-active-item {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.04) 40%,
+    rgba(255,255,255,0.08) 50%,
+    rgba(255,255,255,0.04) 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: sidebar-active-shimmer 6s ease-in-out infinite;
+}
+
+
 
 @keyframes fadeInUp {
   from {
