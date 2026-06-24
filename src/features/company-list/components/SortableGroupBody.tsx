@@ -41,7 +41,7 @@ export default function SortableGroupBody({
     <tbody>
       <tr
         className={cn(
-          "border-b border-border/80 cursor-pointer transition-colors hover:bg-sky-50/70",
+          "border-b border-border/80 cursor-pointer transition-colors duration-150 hover:bg-slate-100",
           isDragging && "opacity-50",
           isDropTarget && "bg-primary/5",
         )}

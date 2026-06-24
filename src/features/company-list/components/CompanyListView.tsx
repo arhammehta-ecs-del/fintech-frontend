@@ -81,6 +81,12 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     [paginatedDisplayRows],
   );
   const totalCompaniesForTab = statusCounts[selectedStatusTab];
+  const companyRangeSummary = useMemo(() => {
+    if (totalCompaniesForTab <= 0 || pageCompanyCount === 0) return "Range: 0-0 of 0";
+    const start = Math.max(1, (safePage - 1) * pageSize + 1);
+    const end = Math.min(totalCompaniesForTab, start + pageCompanyCount - 1);
+    return `Range: ${start}-${end} of ${totalCompaniesForTab}`;
+  }, [pageCompanyCount, pageSize, safePage, totalCompaniesForTab]);
   const hasRows = displayRows.length > 0;
   const showInitialLoadingState = isLoading && !hasRows && !error;
   const showBackgroundRefreshState = isLoading && hasRows;
@@ -171,6 +177,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
             recordCurrentCount={pageCompanyCount}
             recordTotalCount={totalCompaniesForTab}
             recordLabel="Records"
+            summaryTextOverride={companyRangeSummary}
             pageSize={pageSize}
             pageSizeOptions={pageSizeOptions}
             onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}
@@ -189,6 +196,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
           recordCurrentCount={pageCompanyCount}
           recordTotalCount={totalCompaniesForTab}
           recordLabel="Records"
+          summaryTextOverride={companyRangeSummary}
           pageSize={pageSize}
           pageSizeOptions={pageSizeOptions}
           onPageSizeChange={(value) => setPageSize(value as (typeof pageSizeOptions)[number])}

@@ -17,9 +17,26 @@ import { WORKFLOW_PAGE_SIZE_OPTIONS } from "@/features/workflow-management/types
 import { mapWorkflowRecord } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 const WORKFLOW_SEARCH_DEBOUNCE_MS = 500;
-const APPROVER_FILTER_OPTIONS = ["Reporting Manager", "Node Approver", "Hierarchy Approver"] as const;
+const APPROVER_FILTER_OPTIONS = ["Reporting Manager", "Node Approver", "Hierarchy Approver", "No Approver"] as const;
 const LINKED_ORG_STRUCTURE_OPTIONS = ["Yes", "No"] as const;
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+const normalizeApproverToken = (value: string) => value.trim().replace(/\s+/g, "_").toUpperCase();
+const approverLabelToApiToken = (value: string) => {
+  const normalized = normalizeApproverToken(value);
+  if (normalized === "HIERARCHY_APPROVER" || normalized === "ALL_HIERARCHY_APPROVER") return "HIERARCHY_APPROVER";
+  if (normalized === "NO_APPROVER") return "NO_APPROVER";
+  if (normalized === "NODE_APPROVER") return "NODE_APPROVER";
+  if (normalized === "REPORTING_MANAGER") return "REPORTING_MANAGER";
+  return normalized;
+};
+const approverTokenToLabel = (value: unknown) => {
+  const normalized = normalizeApproverToken(readString(value));
+  if (normalized === "REPORTING_MANAGER") return "Reporting Manager";
+  if (normalized === "NODE_APPROVER") return "Node Approver";
+  if (normalized === "HIERARCHY_APPROVER" || normalized === "ALL_HIERARCHY_APPROVER") return "Hierarchy Approver";
+  if (normalized === "NO_APPROVER") return "No Approver";
+  return "";
+};
 
 const fuzzyMatch = (text: string, query: string) => {
   const source = text.trim().toLowerCase().replace(/\s+/g, "");
@@ -55,11 +72,13 @@ const buildWorkflowAppliedFilters = (input: {
     .filter((value) => Number.isFinite(value) && value > 0);
   const approverCount = input.approverCountFilters
     .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value) && value > 0);
-  const approverLevel = Number(input.approverLevelFilters[0] ?? 0) || null;
-  const approverType = input.approverTypeFilters.length > 0 ? input.approverTypeFilters : null;
+    .filter((value) => Number.isFinite(value) && value >= 0);
+  const approverLevelRaw = input.approverLevelFilters[0];
+  const approverLevelNumber = approverLevelRaw === undefined ? null : Number(approverLevelRaw);
+  const approverLevel = approverLevelNumber !== null && Number.isFinite(approverLevelNumber) ? approverLevelNumber : null;
+  const approverType = input.approverTypeFilters.length > 0 ? input.approverTypeFilters.map(approverLabelToApiToken) : null;
   const levels =
-    approverLevel
+    approverLevel !== null
       ? (approverType && approverType.length > 0
         ? approverType.map((entry) => ({
           count: approverLevel,
@@ -511,14 +530,103 @@ export function useWorkflowManagement() {
     [filterWorkflowLevelOptions],
   );
   const approverLevelOptions = useMemo(() => {
-    const highestLevel = workflowLevelOptions.reduce((max, option) => {
-      const numericValue = Number(option.value);
-      return Number.isFinite(numericValue) ? Math.max(max, numericValue) : max;
-    }, 0);
+    const numericValues = filterApproverCountOptions
+      .map((option) => Number(option.value))
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b);
 
-    return Array.from({ length: highestLevel }, (_, index) => String(index + 1));
-  }, [workflowLevelOptions]);
+    if (numericValues.length === 0) return [];
 
+    const lowestLevel = numericValues[0];
+    const highestLevel = numericValues[numericValues.length - 1];
+    return Array.from({ length: highestLevel - lowestLevel + 1 }, (_, index) => String(lowestLevel + index));
+  }, [filterApproverCountOptions]);
+
+  const getWorkflowApproverLevelCount = (levels: unknown) => {
+    if (Array.isArray(levels)) {
+      return levels.filter((entry) => {
+        if (!entry || typeof entry !== "object") return false;
+        const record = entry as Record<string, unknown>;
+        return Boolean(approverTokenToLabel(record.approver1) || approverTokenToLabel(record.approver2));
+      }).length;
+    }
+
+    if (!levels || typeof levels !== "object") return 0;
+
+    return Object.values(levels as Record<string, unknown>).filter((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      const record = entry as Record<string, unknown>;
+      return Boolean(approverTokenToLabel(record.approver1) || approverTokenToLabel(record.approver2));
+    }).length;
+  };
+
+  const getWorkflowApproverCount = (levels: unknown) => {
+    const countLevelApprovers = (entry: unknown) => {
+      if (!entry || typeof entry !== "object") return 0;
+      const record = entry as Record<string, unknown>;
+      const approver1 = approverTokenToLabel(record.approver1);
+      const approver2 = approverTokenToLabel(record.approver2);
+      const approverCount = [approver1, approver2].filter(Boolean).length;
+      if (approverCount === 0) return 0;
+      return readString(record.type).toUpperCase() === "OR" ? 1 : approverCount;
+    };
+
+    if (Array.isArray(levels)) {
+      return levels.reduce((total, entry) => total + countLevelApprovers(entry), 0);
+    }
+
+    if (!levels || typeof levels !== "object") return 0;
+
+    return Object.values(levels as Record<string, unknown>).reduce((total, entry) => total + countLevelApprovers(entry), 0);
+  };
+
+  const getWorkflowApproverTypes = (levels: unknown) => {
+    const labels = new Set<string>();
+    const collectApprover = (value: unknown) => {
+      const label = approverTokenToLabel(value);
+      if (label) labels.add(label);
+    };
+
+    const entries = Array.isArray(levels)
+      ? levels
+      : levels && typeof levels === "object"
+        ? Object.values(levels as Record<string, unknown>)
+        : [];
+
+    entries.forEach((entry) => {
+      if (!entry || typeof entry !== "object") return;
+      const record = entry as Record<string, unknown>;
+      collectApprover(record.approver1);
+      collectApprover(record.approver2);
+    });
+
+    return labels;
+  };
+
+  const getWorkflowApproverTypesByLevel = (levels: unknown) => {
+    const entries = Array.isArray(levels)
+      ? levels.map((entry, index) => [String(index + 1), entry] as const)
+      : levels && typeof levels === "object"
+        ? Object.entries(levels as Record<string, unknown>).map(([key, entry], index) => [String(Number(key.replace(/[^\d]/g, "")) || index + 1), entry] as const)
+        : [];
+
+    const labelsByLevel = new Map<string, Set<string>>();
+    const collectApprover = (target: Set<string>, value: unknown) => {
+      const label = approverTokenToLabel(value);
+      if (label) target.add(label);
+    };
+
+    entries.forEach(([level, entry]) => {
+      if (!entry || typeof entry !== "object") return;
+      const record = entry as Record<string, unknown>;
+      const labels = labelsByLevel.get(level) ?? new Set<string>();
+      collectApprover(labels, record.approver1);
+      collectApprover(labels, record.approver2);
+      if (labels.size > 0) labelsByLevel.set(level, labels);
+    });
+
+    return labelsByLevel;
+  };
   const searchSuggestions = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return [];
@@ -562,58 +670,6 @@ export function useWorkflowManagement() {
       return readString(record.approver1) || readString(record.approver2);
     }).length;
   };
-  const getWorkflowApproverTypes = (levels: unknown) => {
-    const labels = new Set<string>();
-    const collectApprover = (value: unknown) => {
-      const normalized = readString(value).toUpperCase();
-      if (normalized === "REPORTING_MANAGER") labels.add("Reporting Manager");
-      if (normalized === "NODE_APPROVER") labels.add("Node Approver");
-      if (normalized === "HIERARCHY_APPROVER") labels.add("Hierarchy Approver");
-    };
-
-    const entries = Array.isArray(levels)
-      ? levels
-      : levels && typeof levels === "object"
-        ? Object.values(levels as Record<string, unknown>)
-        : [];
-
-    entries.forEach((entry) => {
-      if (!entry || typeof entry !== "object") return;
-      const record = entry as Record<string, unknown>;
-      collectApprover(record.approver1);
-      collectApprover(record.approver2);
-    });
-
-    return labels;
-  };
-
-  const getWorkflowApproverTypesByLevel = (levels: unknown) => {
-    const entries = Array.isArray(levels)
-      ? levels.map((entry, index) => [String(index + 1), entry] as const)
-      : levels && typeof levels === "object"
-        ? Object.entries(levels as Record<string, unknown>).map(([key, entry], index) => [String(Number(key.replace(/[^\d]/g, "")) || index + 1), entry] as const)
-        : [];
-
-    const labelsByLevel = new Map<string, Set<string>>();
-    const collectApprover = (target: Set<string>, value: unknown) => {
-      const normalized = readString(value).toUpperCase();
-      if (normalized === "REPORTING_MANAGER") target.add("Reporting Manager");
-      if (normalized === "NODE_APPROVER") target.add("Node Approver");
-      if (normalized === "HIERARCHY_APPROVER") target.add("Hierarchy Approver");
-    };
-
-    entries.forEach(([level, entry]) => {
-      if (!entry || typeof entry !== "object") return;
-      const record = entry as Record<string, unknown>;
-      const labels = labelsByLevel.get(level) ?? new Set<string>();
-      collectApprover(labels, record.approver1);
-      collectApprover(labels, record.approver2);
-      if (labels.size > 0) labelsByLevel.set(level, labels);
-    });
-
-    return labelsByLevel;
-  };
-
   const filteredWorkflows = useMemo(() => {
     if (isFilterRequestActive) {
       return workflows;
@@ -624,6 +680,7 @@ export function useWorkflowManagement() {
       const workflowApproverTypes = getWorkflowApproverTypes(workflow.levels);
       const workflowApproverTypesByLevel = getWorkflowApproverTypesByLevel(workflow.levels);
       const workflowLevelCount = String(getWorkflowLevelCount(workflow.levels));
+      const workflowApproverCount = String(getWorkflowApproverCount(workflow.levels));
       const selectedApproverLevel = approverLevelFilters[0] ?? "";
       const approverTypesAtSelectedLevel = selectedApproverLevel ? workflowApproverTypesByLevel.get(selectedApproverLevel) ?? new Set<string>() : null;
       const hasLinkedOrgStructure =
@@ -660,7 +717,7 @@ export function useWorkflowManagement() {
         matchesApproverLevel &&
         matchesApproverType &&
         matchesLinkedOrgStructure &&
-        (approverCountFilters.length === 0 || approverCountFilters.includes(workflowLevelCount))
+        (approverCountFilters.length === 0 || approverCountFilters.includes(workflowApproverCount))
       );
     });
   }, [approverLevelFilters, approverTypeFilters, isFilterRequestActive, linkedOrgStructureFilters, moduleFilters, nodeNameFilters, nodeTypeFilters, workflowLevelFilters, approverCountFilters, workflows]);

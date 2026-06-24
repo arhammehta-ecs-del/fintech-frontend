@@ -71,6 +71,7 @@ type WorkflowFilterDropdownsResponse = WorkflowApiResponse & {
     nodeType?: Array<{ value?: string; count?: number } | string>;
     category?: string[];
     subCategory?: string[];
+    module?: Array<{ value?: string; count?: number } | string>;
     currentStatus?: Array<{ value?: string; count?: number } | string>;
     workflowLevel?: Array<{ value?: number | string; count?: number }>;
     checker?: Array<{ value?: number | string; count?: number }>;
@@ -79,6 +80,7 @@ type WorkflowFilterDropdownsResponse = WorkflowApiResponse & {
   nodeType?: Array<{ value?: string; count?: number } | string>;
   category?: string[];
   subCategory?: string[];
+  module?: Array<{ value?: string; count?: number } | string>;
   currentStatus?: Array<{ value?: string; count?: number } | string>;
   workflowLevel?: Array<{ value?: number | string; count?: number }>;
   checker?: Array<{ value?: number | string; count?: number }>;
@@ -419,6 +421,7 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowDropdownAppl
     nodeType: response.nodeType,
     category: response.category,
     subCategory: response.subCategory,
+    module: response.module,
     currentStatus: response.currentStatus,
     workflowLevel: response.workflowLevel,
     checker: response.checker,
@@ -479,15 +482,37 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowDropdownAppl
   return {
     nodeName: nodeNameOptions,
     nodeType: nodeTypeOptions,
-    module: Array.isArray(dropdowns.subCategory)
-      ? dropdowns.subCategory
-        .map(readString)
-        .filter((value) => Boolean(value) && value.trim().toLowerCase() !== "all")
-        .map((value) => ({
+    module: Array.isArray(dropdowns.module)
+      ? dropdowns.module.reduce<Array<{ value: string; label: string; description?: string }>>((accumulator, item) => {
+        if (typeof item === "string") {
+          const value = readString(item);
+          if (!value || value.toLowerCase() === "all") return accumulator;
+          accumulator.push({
+            value: toApiToken(value),
+            label: formatFilterLabel(value),
+          });
+          return accumulator;
+        }
+
+        const value = readString(item?.value);
+        if (!value || value.toLowerCase() === "all") return accumulator;
+        const count = typeof item?.count === "number" ? item.count : undefined;
+        accumulator.push({
           value: toApiToken(value),
           label: formatFilterLabel(value),
-        }))
-      : [],
+          description: typeof count === "number" ? `${count}` : undefined,
+        });
+        return accumulator;
+      }, [])
+      : Array.isArray(dropdowns.subCategory)
+        ? dropdowns.subCategory
+          .map(readString)
+          .filter((value) => Boolean(value) && value.trim().toLowerCase() !== "all")
+          .map((value) => ({
+            value: toApiToken(value),
+            label: formatFilterLabel(value),
+          }))
+        : [],
     status: Array.isArray(dropdowns.currentStatus)
       ? dropdowns.currentStatus.reduce<Array<{ value: string; label: string; count?: number }>>((accumulator, item) => {
         if (typeof item === "string") {

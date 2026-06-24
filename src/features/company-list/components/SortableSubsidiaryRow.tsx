@@ -49,7 +49,7 @@ export default function SortableSubsidiaryRow({
     <>
       <tr
         className={cn(
-          "border-b border-border/70 bg-white transition-colors hover:bg-sky-50/50",
+          "border-b border-border/70 bg-white transition-colors duration-150 hover:bg-slate-100",
           isDragging && "opacity-50",
           isDropTarget && "bg-primary/5",
         )}

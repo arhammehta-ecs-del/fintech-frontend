@@ -27,6 +27,8 @@ import {
 } from "@/features/api-monitoring/hooks/useApiMonitoring";
 import type { ApiMonitoringLog } from "@/features/api-monitoring/types";
 import ApiMonitoringDetailsDialog from "@/features/api-monitoring/components/ApiMonitoringDetailsDialog";
+import ApiPathText from "@/features/api-monitoring/components/ApiPathText";
+import { companyBadgeStyle } from "@/features/api-monitoring/components/companyBadgeStyle";
 import { useRefreshTimestamp } from "@/hooks/useRefreshTimestamp";
 
 const getStatusIcon = (status: number | null) => {
@@ -34,17 +36,6 @@ const getStatusIcon = (status: number | null) => {
   if (status >= 200 && status < 300) return <CircleCheck className="h-5 w-5 text-emerald-600" />;
   if (status >= 400 && status < 500) return <AlertTriangle className="h-5 w-5 text-amber-500" />;
   return <XCircle className="h-5 w-5 text-red-600" />;
-};
-
-const companyBadgeStyle = (code: string) => {
-  const source = (code || "N/A").trim();
-  const hash = source.split("").reduce((acc, ch, index) => acc + (ch.charCodeAt(0) * (index + 1)), 0);
-  const hue = Math.abs(hash) % 360;
-  return {
-    backgroundColor: `hsl(${hue} 85% 92%)`,
-    color: `hsl(${hue} 65% 28%)`,
-    borderColor: `hsl(${hue} 70% 78%)`,
-  };
 };
 
 const buildEmptyDraft = (): ApiMonitoringAppliedFiltersDraft => ({
@@ -297,7 +288,7 @@ export default function ApiMonitoringView() {
         <p className="mt-1 text-sm text-muted-foreground">Real-time traffic and latency tracking</p>
       </Card>
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm md:flex md:h-[760px] md:flex-col">
+      <div className="min-h-[520px] rounded-2xl border border-slate-200 bg-white shadow-sm md:flex md:h-[calc(100dvh-12rem)] md:min-h-[640px] md:flex-col">
         <div className="border-b border-slate-200 px-4 pt-4 pb-[10px]">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="relative w-full lg:flex-1 lg:pr-4">
@@ -646,7 +637,7 @@ export default function ApiMonitoringView() {
                       return;
                     }
                   }}
-                  className="cursor-pointer border-b border-border/70 transition hover:bg-muted/40"
+                  className="group cursor-pointer border-b border-border/70 transition-colors duration-150 hover:bg-slate-100"
                 >
                   <td className="px-6 py-3 align-top">
                     <p className="text-sm font-medium text-foreground">{log.company.name}</p>
@@ -666,7 +657,12 @@ export default function ApiMonitoringView() {
                     </div>
                   </td>
                   <td className="px-4 py-3 align-top">
-                    <p className="max-w-[280px] truncate font-mono text-sm text-foreground">{log.path}</p>
+                    <ApiPathText
+                      path={log.path}
+                      maxWidthClassName="max-w-[280px]"
+                      textClassName="text-sm text-foreground"
+                      compactThreshold={40}
+                    />
                     <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700">{log.spanCount} sub-tracks</p>
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
@@ -699,6 +695,7 @@ export default function ApiMonitoringView() {
           onPrevPage={() => void handlePrevPage()}
           onNextPage={() => void handleNextPage()}
           onJumpToPage={(value) => void handleJumpToPage(value)}
+          className="shrink-0 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
         />
       </div>
 

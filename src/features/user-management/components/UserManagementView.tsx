@@ -797,6 +797,12 @@ export function UserManagementView() {
   const displayStatusHeading = impactedPreviewMembers ? (impactedUserLabel ? `${impactedUserLabel} Impacted Users` : "Impacted Users") : statusHeading;
   const shouldShowDefaultPagination = !impactedPreviewMembers;
   const isUserTableLoading = isLoading || isImpactedPreviewLoading;
+  const userRangeSummary = useMemo(() => {
+    if (totalMembersForTab <= 0 || pageMemberCount === 0) return "Range: 0-0 of 0";
+    const start = Math.max(1, (safePage - 1) * pageSize + 1);
+    const end = Math.min(totalMembersForTab, start + pageMemberCount - 1);
+    return `Range: ${start}-${end} of ${totalMembersForTab}`;
+  }, [pageMemberCount, pageSize, safePage, totalMembersForTab]);
 
   return (
     <div className="space-y-4">
@@ -863,7 +869,7 @@ export function UserManagementView() {
         permissionSummary={permissionSummary}
       />
 
-      <Card className="overflow-hidden border-slate-200 shadow-sm md:flex md:h-[calc(100dvh-21rem)] md:min-h-[420px] md:flex-col">
+      <Card className="overflow-hidden border-slate-200 shadow-sm md:flex md:h-[calc(100dvh-19.5rem)] md:min-h-[500px] md:flex-col">
         <CardHeader className="flex flex-col gap-4 border-b border-slate-200 bg-white sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-800">
@@ -934,6 +940,7 @@ export function UserManagementView() {
               recordCurrentCount={pageMemberCount}
               recordTotalCount={totalMembersForTab}
               recordLabel="Records"
+              summaryTextOverride={userRangeSummary}
               pageSize={pageSize}
               onPageSizeChange={setPageSize}
               safePage={safePage}

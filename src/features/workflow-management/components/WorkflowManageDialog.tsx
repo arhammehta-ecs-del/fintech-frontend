@@ -329,6 +329,7 @@ export default function WorkflowManageDialog({
   const [statusRemark, setStatusRemark] = useState("");
   const [statusWorkflowHash, setStatusWorkflowHash] = useState("");
   const [statusWorkflowOptions, setStatusWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const safeDeleteWorkflowOptions = Array.isArray(deleteWorkflowOptions) ? deleteWorkflowOptions : [];
 
   useEffect(() => {
     if (!open) {
@@ -1060,7 +1061,7 @@ export default function WorkflowManageDialog({
                     </SelectTrigger>
                     <SelectContent side="top">
                       <SelectItem value="__none__">No Workflow</SelectItem>
-                      {deleteWorkflowOptions.map((option) => (
+                      {safeDeleteWorkflowOptions.map((option) => (
                         <SelectItem key={option.id} value={option.id}>
                           {option.label}
                         </SelectItem>

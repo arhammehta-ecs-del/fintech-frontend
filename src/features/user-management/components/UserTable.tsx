@@ -241,7 +241,7 @@ export default function UserTable({
           const canDeleteMember = member.status !== "Pending" && member.status !== "Inactive";
 
           return (
-          <tr key={member.email} className="border-b border-slate-200 transition hover:bg-slate-50/80">
+          <tr key={member.email} className="border-b border-slate-200 transition-colors duration-150 hover:bg-slate-100">
             <td className="pl-7 pr-4 py-4">
               <button
                 type="button"

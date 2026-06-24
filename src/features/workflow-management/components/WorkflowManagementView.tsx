@@ -377,6 +377,12 @@ export default function WorkflowManagementView() {
       : activeStatus === "Inactive"
         ? statusCounts.inactive
         : statusCounts.active;
+  const workflowRangeSummary = useMemo(() => {
+    if (totalWorkflowsForTab <= 0 || paginatedWorkflows.length === 0) return "Range: 0-0 of 0";
+    const start = Math.max(1, (safePage - 1) * pageSize + 1);
+    const end = Math.min(totalWorkflowsForTab, start + paginatedWorkflows.length - 1);
+    return `Range: ${start}-${end} of ${totalWorkflowsForTab}`;
+  }, [pageSize, paginatedWorkflows.length, safePage, totalWorkflowsForTab]);
   const clearNotificationIntentParams = (params: URLSearchParams) => {
     const nextParams = new URLSearchParams(params);
     [
@@ -676,9 +682,9 @@ export default function WorkflowManagementView() {
         },
       );
       setManageLockArmed(true);
-      const workflowOptions = await requestStatusWorkflowOptions(workflow);
-      setDeleteWorkflowOptions(workflowOptions);
-      setDeleteWorkflow("__none__");
+      const { options, selectedLevelsHash } = await requestStatusWorkflowOptions(workflow);
+      setDeleteWorkflowOptions(Array.isArray(options) ? options : []);
+      setDeleteWorkflow(selectedLevelsHash.trim() || "__none__");
       setDeleteRemark("");
       setDeleteRemarkError("");
       setShowDeleteActions(true);
@@ -693,7 +699,7 @@ export default function WorkflowManagementView() {
         description: getLockErrorMessage(error, "Unable to lock workflow for delete."),
         variant: "destructive",
       });
-      throw error;
+      return;
     }
   }, [requestStatusWorkflowOptions, toast, workflowLockSession]);
 
@@ -1177,7 +1183,7 @@ export default function WorkflowManagementView() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm md:flex md:h-[calc(100dvh-21rem)] md:min-h-[420px] md:flex-col">
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm md:flex md:h-[calc(100dvh-19.5rem)] md:min-h-[500px] md:flex-col">
         <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <h3 className="text-xl font-semibold text-slate-800">
@@ -1225,7 +1231,13 @@ export default function WorkflowManagementView() {
               {paginatedWorkflows.map((workflow) => {
                 const isModificationInProgress = Boolean(workflow.isPending);
                 return (
-                <div key={workflow.id} className={cn("grid grid-cols-1 gap-2 p-4 md:items-center md:gap-x-4", workflowGridTemplateClass)}>
+                <div
+                  key={workflow.id}
+                  className={cn(
+                    "grid grid-cols-1 gap-2 p-4 transition-colors duration-150 hover:bg-slate-100 md:items-center md:gap-x-4",
+                    workflowGridTemplateClass,
+                  )}
+                >
                   <div className="min-w-0">
                     <div
                       className={cn(
@@ -1356,6 +1368,7 @@ export default function WorkflowManagementView() {
             recordCurrentCount={paginatedWorkflows.length}
             recordTotalCount={totalWorkflowsForTab}
             recordLabel="Records"
+            summaryTextOverride={workflowRangeSummary}
             pageSize={pageSize}
             pageSizeOptions={WORKFLOW_PAGE_SIZE_OPTIONS}
             onPageSizeChange={(value) => setPageSize(value as typeof pageSize)}

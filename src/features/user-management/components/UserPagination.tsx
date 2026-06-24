@@ -6,6 +6,7 @@ type UserPaginationProps = {
   recordCurrentCount?: number;
   recordTotalCount?: number;
   recordLabel?: string;
+  summaryTextOverride?: string;
   pageSize: (typeof USER_PAGE_SIZE_OPTIONS)[number];
   onPageSizeChange: (value: (typeof USER_PAGE_SIZE_OPTIONS)[number]) => void;
   safePage: number;
@@ -21,6 +22,7 @@ export default function UserPagination({
   recordCurrentCount,
   recordTotalCount,
   recordLabel,
+  summaryTextOverride,
   pageSize,
   onPageSizeChange,
   safePage,
@@ -36,6 +38,7 @@ export default function UserPagination({
       recordCurrentCount={recordCurrentCount}
       recordTotalCount={recordTotalCount}
       recordLabel={recordLabel}
+      summaryTextOverride={summaryTextOverride}
       pageSize={pageSize}
       pageSizeOptions={USER_PAGE_SIZE_OPTIONS}
       onPageSizeChange={(value) => onPageSizeChange(value as (typeof USER_PAGE_SIZE_OPTIONS)[number])}
