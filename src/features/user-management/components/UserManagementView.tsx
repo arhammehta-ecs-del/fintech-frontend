@@ -600,12 +600,11 @@ export function UserManagementView() {
   };
 
   const startPendingUserAction = async (member: AppUser) => {
-    await startUserLockSession(member);
     return member;
   };
 
   const cancelPendingUserAction = async () => {
-    await userLockSession.stopSession(true);
+    return;
   };
 
   const loadWorkflowOptionsForMemberAction = async (member: AppUser) => {

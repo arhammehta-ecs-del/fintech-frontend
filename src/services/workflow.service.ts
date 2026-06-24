@@ -100,10 +100,13 @@ export type WorkflowPaginatedRequest = {
 export type WorkflowAppliedFilters = {
   nodeName: { values: string[] | null } | null;
   nodeType: string[] | null;
+  status: string[] | null;
+  currentStatus: "modify" | "initiate" | null;
   workflowType: string[] | null;
   module: string[] | null;
   subModule: string[] | null;
   workflowLevels: number[] | null;
+  approverCount: number[] | null;
   levels: Array<{ count: number; approverType: string | null }> | null;
   approverType: string[] | null;
   onboardingDate: {
@@ -113,6 +116,8 @@ export type WorkflowAppliedFilters = {
   } | null;
   hasLinkedOrg: "Yes" | "No" | null;
 };
+
+export type WorkflowDropdownAppliedFilters = Omit<WorkflowAppliedFilters, "status" | "currentStatus" | "approverCount">;
 
 export type WorkflowPaginatedResult = {
   rows: unknown[];
@@ -341,10 +346,10 @@ const mapWorkflowPreferenceNode = (value: unknown): WorkflowPreferenceNode | nul
         module: moduleName.trim().toUpperCase(),
         selectedWorkflow: selectedWorkflowRecord
           ? {
-              levelsHash: readString(selectedWorkflowRecord.levelsHash),
-              name: readString(selectedWorkflowRecord.name),
-              alias: readString(selectedWorkflowRecord.alias),
-            }
+            levelsHash: readString(selectedWorkflowRecord.levelsHash),
+            name: readString(selectedWorkflowRecord.name),
+            alias: readString(selectedWorkflowRecord.alias),
+          }
           : null,
         workflows,
       } satisfies WorkflowPreferenceModule;
@@ -400,7 +405,7 @@ export async function updateWorkflowPreference(payload: WorkflowPreferenceUpdate
   });
 }
 
-export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilters | null = null): Promise<WorkflowFilterDropdowns> {
+export async function fetchWorkflowFilterDropdowns(applied: WorkflowDropdownAppliedFilters | null = null): Promise<WorkflowFilterDropdowns> {
   const response = await apiFetch<WorkflowFilterDropdownsResponse>(COMPANY_NODES_PATH, {
     body: JSON.stringify({
       filter: true,
@@ -425,50 +430,50 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilte
 
   const nodeNameOptions: WorkflowNodeNameOption[] = Array.isArray(dropdowns.nodeName)
     ? dropdowns.nodeName.reduce<WorkflowNodeNameOption[]>((accumulator, item) => {
-        if (typeof item === "string") {
-          const value = readString(item);
-          if (value) {
-            accumulator.push({ value, label: value, path: "" });
-          }
-          return accumulator;
+      if (typeof item === "string") {
+        const value = readString(item);
+        if (value) {
+          accumulator.push({ value, label: value, path: "" });
         }
-
-        const value = readString(item?.value);
-        const path = readString(item?.path);
-        const count = typeof item?.count === "number" ? item.count : undefined;
-        if (!value) return accumulator;
-        accumulator.push({
-          value,
-          path,
-          label: value,
-          description: path || undefined,
-          level: typeof item?.levelCount === "number" ? item.levelCount : undefined,
-          count,
-        });
         return accumulator;
-      }, []).sort((a, b) => (a.path || "").localeCompare(b.path || ""))
+      }
+
+      const value = readString(item?.value);
+      const path = readString(item?.path);
+      const count = typeof item?.count === "number" ? item.count : undefined;
+      if (!value) return accumulator;
+      accumulator.push({
+        value,
+        path,
+        label: value,
+        description: path || undefined,
+        level: typeof item?.levelCount === "number" ? item.levelCount : undefined,
+        count,
+      });
+      return accumulator;
+    }, []).sort((a, b) => (a.path || "").localeCompare(b.path || ""))
     : [];
 
   const nodeTypeOptions: WorkflowNodeTypeOption[] = Array.isArray(dropdowns.nodeType)
     ? dropdowns.nodeType.reduce<WorkflowNodeTypeOption[]>((accumulator, item) => {
-        if (typeof item === "string") {
-          const value = formatFilterLabel(readString(item));
-          if (value) {
-            accumulator.push({ value, label: value });
-          }
-          return accumulator;
+      if (typeof item === "string") {
+        const value = formatFilterLabel(readString(item));
+        if (value) {
+          accumulator.push({ value, label: value });
         }
-
-        const value = formatFilterLabel(readString(item?.value));
-        if (!value) return accumulator;
-        const count = typeof item?.count === "number" ? item.count : undefined;
-        accumulator.push({
-          value,
-          count,
-          label: value,
-        });
         return accumulator;
-      }, [])
+      }
+
+      const value = formatFilterLabel(readString(item?.value));
+      if (!value) return accumulator;
+      const count = typeof item?.count === "number" ? item.count : undefined;
+      accumulator.push({
+        value,
+        count,
+        label: value,
+      });
+      return accumulator;
+    }, [])
     : [];
 
   return {
@@ -485,46 +490,46 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowAppliedFilte
       : [],
     status: Array.isArray(dropdowns.currentStatus)
       ? dropdowns.currentStatus.reduce<Array<{ value: string; label: string; count?: number }>>((accumulator, item) => {
-          if (typeof item === "string") {
-            const value = formatFilterLabel(readString(item));
-            if (value) accumulator.push({ value, label: value });
-            return accumulator;
-          }
-
-          const value = formatFilterLabel(readString(item?.value));
-          if (!value) return accumulator;
-          const count = typeof item?.count === "number" ? item.count : undefined;
-          accumulator.push({ value, label: value, count });
+        if (typeof item === "string") {
+          const value = formatFilterLabel(readString(item));
+          if (value) accumulator.push({ value, label: value });
           return accumulator;
-        }, [])
+        }
+
+        const value = formatFilterLabel(readString(item?.value));
+        if (!value) return accumulator;
+        const count = typeof item?.count === "number" ? item.count : undefined;
+        accumulator.push({ value, label: value, count });
+        return accumulator;
+      }, [])
       : [],
     workflowLevel: Array.isArray(dropdowns.workflowLevel)
       ? dropdowns.workflowLevel
-          .map((item) => ({
-            value: toNullableNumber(item?.value),
-            count: toNullableNumber(item?.count),
-          }))
-          .filter((item): item is { value: number; count: number } => item.value !== null && item.count !== null)
-          .map((item) => ({
-            value: String(item.value),
-            label: String(item.value),
-            count: item.count,
-          }))
-          .sort((a, b) => Number(a.value) - Number(b.value))
+        .map((item) => ({
+          value: toNullableNumber(item?.value),
+          count: toNullableNumber(item?.count),
+        }))
+        .filter((item): item is { value: number; count: number } => item.value !== null && item.count !== null)
+        .map((item) => ({
+          value: String(item.value),
+          label: String(item.value),
+          count: item.count,
+        }))
+        .sort((a, b) => Number(a.value) - Number(b.value))
       : [],
     approverCount: Array.isArray(dropdowns.checker)
       ? dropdowns.checker
-          .map((item) => ({
-            value: toNullableNumber(item?.value),
-            count: toNullableNumber(item?.count),
-          }))
-          .filter((item): item is { value: number; count: number } => item.value !== null && item.count !== null)
-          .map((item) => ({
-            value: String(item.value),
-            label: String(item.value),
-            count: item.count,
-          }))
-          .sort((a, b) => Number(a.value) - Number(b.value))
+        .map((item) => ({
+          value: toNullableNumber(item?.value),
+          count: toNullableNumber(item?.count),
+        }))
+        .filter((item): item is { value: number; count: number } => item.value !== null && item.count !== null)
+        .map((item) => ({
+          value: String(item.value),
+          label: String(item.value),
+          count: item.count,
+        }))
+        .sort((a, b) => Number(a.value) - Number(b.value))
       : [],
   };
 }

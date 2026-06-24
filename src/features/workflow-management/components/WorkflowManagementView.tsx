@@ -253,6 +253,8 @@ export default function WorkflowManagementView() {
     setModuleFilters,
     statusFilters,
     setStatusFilters,
+    subStatusFilters,
+    setSubStatusFilters,
     nodeNameFilters,
     setNodeNameFilters,
     nodeTypeFilters,
@@ -315,6 +317,7 @@ export default function WorkflowManagementView() {
   const activeFilterCount =
     moduleFilters.length +
     statusFilters.length +
+    subStatusFilters.length +
     nodeNameFilters.length +
     nodeTypeFilters.length +
     workflowLevelFilters.length +
@@ -331,6 +334,7 @@ export default function WorkflowManagementView() {
   const [viewportWidth, setViewportWidth] = useState(0);
   const [draftModuleFilters, setDraftModuleFilters] = useState<string[]>(moduleFilters);
   const [draftStatusFilters, setDraftStatusFilters] = useState<string[]>(statusFilters);
+  const [draftSubStatusFilters, setDraftSubStatusFilters] = useState<("initiate" | "modify")[]>(subStatusFilters);
   const [draftNodeNameFilters, setDraftNodeNameFilters] = useState<string[]>(nodeNameFilters);
   const [draftNodeTypeFilters, setDraftNodeTypeFilters] = useState<string[]>(nodeTypeFilters);
   const [draftWorkflowLevelFilters, setDraftWorkflowLevelFilters] = useState<string[]>(workflowLevelFilters);
@@ -570,6 +574,7 @@ export default function WorkflowManagementView() {
   const syncDraftFromApplied = () => {
     setDraftModuleFilters(moduleFilters);
     setDraftStatusFilters(statusFilters);
+    setDraftSubStatusFilters(subStatusFilters);
     setDraftNodeNameFilters(nodeNameFilters);
     setDraftNodeTypeFilters(nodeTypeFilters);
     setDraftWorkflowLevelFilters(workflowLevelFilters);
@@ -582,6 +587,7 @@ export default function WorkflowManagementView() {
   const clearDraftFilters = () => {
     setDraftModuleFilters([]);
     setDraftStatusFilters([]);
+    setDraftSubStatusFilters([]);
     setDraftNodeNameFilters([]);
     setDraftNodeTypeFilters([]);
     setDraftWorkflowLevelFilters([]);
@@ -627,33 +633,12 @@ export default function WorkflowManagementView() {
   };
 
   const startPendingWorkflowAction = useCallback(async (workflow: NonNullable<typeof manageWorkflow>) => {
-    await workflowLockSession.startSession(
-      getWorkflowLockTarget(workflow),
-      () => {
-        setManageHistoryOpen(false);
-        setManageLockArmed(false);
-        setManageInitialAction(null);
-        setShowDeleteActions(false);
-        setDeleteWorkflow("__none__");
-        setDeleteWorkflowOptions([]);
-        setDeleteRemark("");
-        setDeleteRemarkError("");
-        setManageWorkflow(null);
-        toast({
-          title: "Edit lock expired",
-          description: "No activity detected. Workflow approval form was closed.",
-          variant: "destructive",
-        });
-      },
-    );
-    setManageLockArmed(true);
     return workflow;
-  }, [toast, workflowLockSession]);
+  }, []);
 
   const cancelPendingWorkflowAction = useCallback(async () => {
-    await workflowLockSession.stopSession(true);
-    setManageLockArmed(false);
-  }, [workflowLockSession]);
+    return;
+  }, []);
 
   useEffect(() => {
     if (!manageWorkflow) {
@@ -984,6 +969,51 @@ export default function WorkflowManagementView() {
                       onClear={() => setDraftStatusFilters([])}
                       onToggle={(value) => setDraftStatusFilters((current) => toggleValue(current, value))}
                     />
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Sub Status (2)
+                        </Label>
+                        {draftSubStatusFilters.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setDraftSubStatusFilters([])}
+                            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600 transition hover:text-blue-700"
+                          >
+                            Clear
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="rounded-lg border border-slate-200 px-3 py-2">
+                        <div className="flex items-center gap-4">
+                          {[
+                            { id: "workflow-sub-status-initiate", value: "initiate" as const, label: "New track" },
+                            { id: "workflow-sub-status-modify", value: "modify" as const, label: "In modification" },
+                          ].map((option) => {
+                            const isChecked = draftSubStatusFilters.includes(option.value);
+                            return (
+                              <label key={option.id} htmlFor={option.id} className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-[13px] text-slate-700">
+                                <input
+                                  id={option.id}
+                                  type="radio"
+                                  name="workflow-sub-status"
+                                  checked={isChecked}
+                                  onChange={(event) => {
+                                    if (!event.target.checked) return;
+                                    setDraftSubStatusFilters([option.value]);
+                                    if (option.value === "initiate") {
+                                      setDraftStatusFilters(["Pending"]);
+                                    }
+                                  }}
+                                  className="h-4 w-4 rounded-full border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                                />
+                                <span>{option.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
                     <WorkflowFilterDropdown
                       title="Workflow Levels"
                       placeholder="Select workflow levels"
@@ -1056,6 +1086,7 @@ export default function WorkflowManagementView() {
                     onClick={() => {
                       setModuleFilters(draftModuleFilters);
                       setStatusFilters(draftStatusFilters);
+                      setSubStatusFilters(draftSubStatusFilters);
                       setNodeNameFilters(draftNodeNameFilters);
                       setNodeTypeFilters(draftNodeTypeFilters);
                       setWorkflowLevelFilters(draftWorkflowLevelFilters);
@@ -1066,6 +1097,7 @@ export default function WorkflowManagementView() {
                       const hasFilters =
                         draftModuleFilters.length > 0 ||
                         draftStatusFilters.length > 0 ||
+                        draftSubStatusFilters.length > 0 ||
                         draftNodeNameFilters.length > 0 ||
                         draftNodeTypeFilters.length > 0 ||
                         draftWorkflowLevelFilters.length > 0 ||
@@ -1075,6 +1107,8 @@ export default function WorkflowManagementView() {
                         draftApproverCountFilters.length > 0;
                       const hasRequestFilters =
                         draftModuleFilters.length > 0 ||
+                        draftStatusFilters.length > 0 ||
+                        draftSubStatusFilters.length > 0 ||
                         draftNodeNameFilters.length > 0 ||
                         draftNodeTypeFilters.length > 0 ||
                         draftWorkflowLevelFilters.length > 0 ||
@@ -1607,7 +1641,9 @@ function WorkflowFilterDropdown({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{title}</Label>
+        <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+          {title} ({options.length})
+        </Label>
         {selected.length > 0 && onClear ? (
           <button
             type="button"
@@ -1653,7 +1689,9 @@ function WorkflowCompactLevelDropdown({
   return (
     <div className="w-[84px] shrink-0 space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{title}</Label>
+        <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+          {title} ({options.length})
+        </Label>
         {value && onClear ? (
           <button
             type="button"
@@ -1715,7 +1753,9 @@ function WorkflowSingleSelectDropdown({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{title}</Label>
+        <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+          {title} ({options.length})
+        </Label>
         {value && onClear ? (
           <button
             type="button"

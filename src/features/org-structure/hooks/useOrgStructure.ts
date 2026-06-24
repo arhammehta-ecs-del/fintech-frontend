@@ -524,28 +524,10 @@ export function useOrgStructure() {
   const zoomOut = () => setZoom((current) => Math.max(MIN_ZOOM, Number((current - ZOOM_STEP).toFixed(2))));
   const zoomIn = () => setZoom((current) => Math.min(MAX_ZOOM, Number((current + ZOOM_STEP).toFixed(2))));
   const startPendingNodeAction = async (node: OrgNode) => {
-    const nodePath = (node.nodePath || "").trim();
-    if (!nodePath) {
-      throw new Error("Node path is missing for lock request.");
-    }
-    await orgLockSession.startSession(
-      {
-        type: "org",
-        target: { nodePath },
-      },
-      () => {
-        setPendingNodeForReview(null);
-        toast({
-          title: "Edit lock expired",
-          description: "No activity detected. Pending org approval form was closed.",
-          variant: "destructive",
-        });
-      },
-    );
     return node;
   };
   const cancelPendingNodeAction = async () => {
-    await orgLockSession.stopSession(true);
+    return;
   };
   const refreshOrgStructure = async () => {
     if (!companyCode) return;
