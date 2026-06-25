@@ -478,7 +478,6 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                               ) : null}
                               <span className="truncate text-base font-semibold text-slate-800">{item.node.nodeName}</span>
                             </div>
-                            <p className="mt-2 break-words pl-8 text-xs text-slate-500">{item.node.nodePath}</p>
                           </div>
                           <span className="shrink-0 rounded-full border border-[#dbe4ff] bg-[#f7f9ff] px-2.5 py-1 text-[11px] font-semibold text-[#4f6fd9]">
                             {selectedModuleCountForNode}/{totalModuleCountForNode}
@@ -610,4 +609,5 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     </Dialog>
   );
 }
+
 

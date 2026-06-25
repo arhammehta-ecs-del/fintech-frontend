@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Check, ChevronDown, LogOut, Menu, Pencil, Settings, ShieldCheck, User, X } from "lucide-react";
+import { ArrowRight, Bell, Check, ChevronDown, LogOut, Menu, Settings, ShieldCheck, User, X } from "lucide-react";
 import type { NavigateFunction } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -597,7 +597,6 @@ export function AppTopBar({
   const [notificationSettingsInitialCompanies, setNotificationSettingsInitialCompanies] = useState<NotificationSettingsCompanyState[]>([]);
   const [selectedNotificationSettingsCompanyCode, setSelectedNotificationSettingsCompanyCode] = useState("");
   const [selectedNotificationSettingsNodePath, setSelectedNotificationSettingsNodePath] = useState("");
-  const [notificationSettingsEditMode, setNotificationSettingsEditMode] = useState(false);
   const [notificationSettingsSaving, setNotificationSettingsSaving] = useState(false);
   const [notificationSettingsSubmitError, setNotificationSettingsSubmitError] = useState("");
   const [notificationSettingsArrowPosition, setNotificationSettingsArrowPosition] = useState<{ left: number; top: number } | null>(null);
@@ -1167,7 +1166,6 @@ export function AppTopBar({
     setNotificationSettingsLoading(true);
     setNotificationSettingsError("");
     setNotificationSettingsSubmitError("");
-    setNotificationSettingsEditMode(false);
     setNotificationSettingsSaving(false);
 
     try {
@@ -1219,7 +1217,7 @@ export function AppTopBar({
 
   const handleNotificationSettingsNodeToggle = useCallback(
     (nodePath: string, checked: boolean) => {
-      if (!notificationSettingsEditMode || notificationSettingsSaving) return;
+      if (notificationSettingsSaving) return;
       updateNotificationSettingsNode(nodePath, (node) => ({
         ...node,
         nodeEnabled: checked,
@@ -1230,12 +1228,12 @@ export function AppTopBar({
       }));
       focusNotificationSettingsNode(nodePath);
     },
-    [focusNotificationSettingsNode, notificationSettingsEditMode, notificationSettingsSaving, updateNotificationSettingsNode],
+    [focusNotificationSettingsNode, notificationSettingsSaving, updateNotificationSettingsNode],
   );
 
   const handleNotificationSettingsModuleToggle = useCallback(
     (nodePath: string, moduleName: string, checked: boolean) => {
-      if (!notificationSettingsEditMode || notificationSettingsSaving) return;
+      if (notificationSettingsSaving) return;
       updateNotificationSettingsNode(nodePath, (node) => ({
         ...node,
         settings: node.settings.map((setting) =>
@@ -1248,13 +1246,17 @@ export function AppTopBar({
         ),
       }));
     },
-    [notificationSettingsEditMode, notificationSettingsSaving, updateNotificationSettingsNode],
+    [notificationSettingsSaving, updateNotificationSettingsNode],
   );
+
+  const handleNotificationSettingsReset = useCallback(() => {
+    setNotificationSettingsCompanies(cloneNotificationSettingsCompanies(notificationSettingsInitialCompanies));
+    setNotificationSettingsSubmitError("");
+  }, [notificationSettingsInitialCompanies]);
 
   const handleNotificationSettingsDialogChange = useCallback((nextOpen: boolean) => {
     setNotificationSettingsOpen(nextOpen);
     if (!nextOpen) {
-      setNotificationSettingsEditMode(false);
       setNotificationSettingsSaving(false);
       setNotificationSettingsSubmitError("");
       setNotificationSettingsCompanies(cloneNotificationSettingsCompanies(notificationSettingsInitialCompanies));
@@ -1273,7 +1275,6 @@ export function AppTopBar({
       const nextBaseline = cloneNotificationSettingsCompanies(notificationSettingsCompanies);
       setNotificationSettingsInitialCompanies(nextBaseline);
       setNotificationSettingsCompanies(cloneNotificationSettingsCompanies(nextBaseline));
-      setNotificationSettingsEditMode(false);
     } catch (error) {
       setNotificationSettingsSubmitError(getApiErrorMessage(error, "Unable to save notification settings."));
     } finally {
@@ -1683,7 +1684,6 @@ export function AppTopBar({
                         </span>
                         <div className={cn("truncate text-base font-semibold", "text-slate-800")}>{item.node.nodeName}</div>
                       </div>
-                      <div className="mt-2 break-words pl-8 text-xs text-slate-500">{item.node.nodePath}</div>
                     </div>
                     <div
                       className="shrink-0"
@@ -1696,7 +1696,7 @@ export function AppTopBar({
                           <span className="inline-flex">
                             <Switch
                               checked={isEnabled}
-                              disabled={!notificationSettingsEditMode || notificationSettingsSaving}
+                              disabled={notificationSettingsSaving}
                               onCheckedChange={(checked) => handleNotificationSettingsNodeToggle(item.node.nodePath, checked)}
                               aria-label={`Toggle notifications for ${item.node.nodeName}`}
                             />
@@ -1761,7 +1761,7 @@ export function AppTopBar({
                   <span className="inline-flex">
                     <Switch
                       checked={nodeEnabled}
-                      disabled={!notificationSettingsEditMode || notificationSettingsSaving}
+                      disabled={notificationSettingsSaving}
                       onCheckedChange={(checked) => handleNotificationSettingsNodeToggle(selectedNotificationSettingsNode.nodePath, checked)}
                       aria-label={`Toggle notifications for ${selectedNotificationSettingsNode.nodeName}`}
                     />
@@ -1793,7 +1793,7 @@ export function AppTopBar({
                       <span className="inline-flex">
                         <Switch
                           checked={setting.isEnabled}
-                          disabled={!notificationSettingsEditMode || notificationSettingsSaving}
+                          disabled={notificationSettingsSaving}
                           onCheckedChange={(checked) =>
                             handleNotificationSettingsModuleToggle(selectedNotificationSettingsNode.nodePath, setting.module, checked)
                           }
@@ -2037,16 +2037,6 @@ export function AppTopBar({
                   <span className="block text-[1.05rem] font-semibold">Manage Notifications</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {!notificationSettingsEditMode && (
-                    <button
-                      type="button"
-                      onClick={() => setNotificationSettingsEditMode(true)}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
-                    >
-                      <Pencil className="h-3 w-3" />
-                      Edit
-                    </button>
-                  )}
                   <button
                     type="button"
                     onClick={() => handleNotificationSettingsDialogChange(false)}
@@ -2064,9 +2054,14 @@ export function AppTopBar({
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#5b6f9c]">Company</p>
+                    {selectedNotificationSettingsCompany ? (
+                      <p className="mt-2 truncate text-sm font-medium text-slate-900">
+                        {selectedNotificationSettingsCompany.companyName} ({selectedNotificationSettingsCompany.companyCode})
+                      </p>
+                    ) : null}
                   </div>
                   {notificationSettingsCompanies.length > 1 ? (
-                    <div className="w-full xl:w-[22rem]">
+                    <div className="flex w-full justify-end xl:w-auto">
                       <Select
                         value={selectedNotificationSettingsCompany?.companyCode ?? ""}
                         onValueChange={(value) => {
@@ -2076,7 +2071,7 @@ export function AppTopBar({
                           setSelectedNotificationSettingsNodePath(flattenNotificationSettingsTree(nextCompany?.nodes ?? [])[0]?.node.nodePath ?? "");
                         }}
                       >
-                        <SelectTrigger className="h-11 rounded-xl border-[#dbe4ff] bg-white">
+                        <SelectTrigger className="h-11 w-full rounded-xl border-[#dbe4ff] bg-white xl:w-[22rem]">
                           <SelectValue placeholder="Select company" />
                         </SelectTrigger>
                         <SelectContent>
@@ -2088,11 +2083,16 @@ export function AppTopBar({
                         </SelectContent>
                       </Select>
                     </div>
-                  ) : selectedNotificationSettingsCompany ? (
-                    <p className="mt-2 truncate text-sm font-medium text-slate-900">
-                      {selectedNotificationSettingsCompany.companyName} ({selectedNotificationSettingsCompany.companyCode})
-                    </p>
-                  ) : null}
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleNotificationSettingsReset}
+                      disabled={pendingNotificationSettingsChangeCount === 0 || notificationSettingsSaving}
+                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Reset
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2128,31 +2128,25 @@ export function AppTopBar({
                 </div>
               </div>
             </div>
-            {notificationSettingsEditMode && (
-              <div className="flex items-center justify-end gap-3 border-t border-[#dbe4ff] bg-white px-6 py-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNotificationSettingsCompanies(cloneNotificationSettingsCompanies(notificationSettingsInitialCompanies));
-                    setNotificationSettingsEditMode(false);
-                    setNotificationSettingsSubmitError("");
-                  }}
-                  disabled={notificationSettingsSaving}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleNotificationSettingsSubmit()}
-                  disabled={pendingNotificationSettingsChangeCount === 0 || notificationSettingsSaving}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,#3553e9_0%,#2563eb_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(37,99,235,0.28)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
-                >
-                  <Check className="h-4 w-4" />
-                  {notificationSettingsSaving ? "Saving..." : `Submit Changes${pendingNotificationSettingsChangeCount > 0 ? ` (${pendingNotificationSettingsChangeCount})` : ""}`}
-                </button>
-              </div>
-            )}
+            <div className="flex items-center justify-end gap-3 border-t border-[#dbe4ff] bg-white px-6 py-4">
+              <button
+                type="button"
+                onClick={() => handleNotificationSettingsDialogChange(false)}
+                disabled={notificationSettingsSaving}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleNotificationSettingsSubmit()}
+                disabled={pendingNotificationSettingsChangeCount === 0 || notificationSettingsSaving}
+                className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,#3553e9_0%,#2563eb_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(37,99,235,0.28)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
+              >
+                <Check className="h-4 w-4" />
+                {notificationSettingsSaving ? "Saving..." : `Submit Changes${pendingNotificationSettingsChangeCount > 0 ? ` (${pendingNotificationSettingsChangeCount})` : ""}`}
+              </button>
+            </div>
           </DialogContent>
         </Dialog>
 
@@ -2170,14 +2164,6 @@ export function AppTopBar({
             <div className="border-b border-border bg-white px-4 py-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(235,60%,50%)] text-lg font-semibold text-white">
-                  {(currentUser?.name || currentUser?.email || "User")
-                    .split(" ")
-                    .map((part) => part[0])
-                    .join("")
-                    .slice(0, 2)
-                    .toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
                   <p className="truncate text-[1.05rem] font-semibold leading-5 text-foreground">{currentUser?.name || "User"}</p>
                   <p className="truncate pt-0.5 text-sm text-muted-foreground">{currentUser?.email || "No email available"}</p>
                   {currentUser?.role ? (
@@ -2231,4 +2217,7 @@ export function AppTopBar({
     </header>
   );
 }
+
+
+
 

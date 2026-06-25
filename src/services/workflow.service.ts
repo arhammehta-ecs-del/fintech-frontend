@@ -119,7 +119,7 @@ export type WorkflowAppliedFilters = {
   hasLinkedOrg: "Yes" | "No" | null;
 };
 
-export type WorkflowDropdownAppliedFilters = Omit<WorkflowAppliedFilters, "status" | "currentStatus" | "approverCount">;
+export type WorkflowDropdownAppliedFilters = Omit<WorkflowAppliedFilters, "status" | "currentStatus">;
 
 export type WorkflowPaginatedResult = {
   rows: unknown[];
@@ -417,7 +417,6 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowDropdownAppl
       applied,
     }),
   });
-
   const dropdowns = response.dropdowns ?? {
     nodeName: response.nodeName,
     nodeType: response.nodeType,
@@ -549,7 +548,7 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowDropdownAppl
           value: toNullableNumber(item?.value),
           count: toNullableNumber(item?.count),
         }))
-        .filter((item): item is { value: number; count: number } => item.value !== null && item.count !== null)
+        .filter((item): item is { value: number; count: number } => item.value !== null && item.count !== null && item.count > 0)
         .map((item) => ({
           value: String(item.value),
           label: String(item.value),
@@ -563,7 +562,7 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowDropdownAppl
           value: toNullableNumber(item?.value),
           count: toNullableNumber(item?.count),
         }))
-        .filter((item): item is { value: number; count: number } => item.value !== null && item.count !== null)
+        .filter((item): item is { value: number; count: number } => item.value !== null && item.count !== null && item.count > 0)
         .map((item) => ({
           value: String(item.value),
           label: String(item.value),
@@ -573,5 +572,7 @@ export async function fetchWorkflowFilterDropdowns(applied: WorkflowDropdownAppl
       : [],
   };
 }
+
+
 
 

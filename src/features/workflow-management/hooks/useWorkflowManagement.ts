@@ -70,7 +70,7 @@ const buildWorkflowAppliedFilters = (input: {
 }): WorkflowAppliedFilters | null => {
   const workflowLevels = input.workflowLevelFilters
     .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value) && value > 0);
+    .filter((value) => Number.isFinite(value) && value >= 0);
   const approverCount = input.approverCountFilters
     .map((value) => Number(value))
     .filter((value) => Number.isFinite(value) && value >= 0);
@@ -137,6 +137,7 @@ const toWorkflowDropdownAppliedFilters = (
     module: applied.module,
     subModule: applied.subModule,
     workflowLevels: applied.workflowLevels,
+    approverCount: applied.approverCount,
     levels: applied.levels,
     approverType: applied.approverType,
     onboardingDate: applied.onboardingDate,
@@ -937,6 +938,7 @@ export function useWorkflowManagement() {
     hasLoadedWorkflowsOnce,
   };
 }
+
 
 
 
