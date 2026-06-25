@@ -12,7 +12,7 @@ const WorkflowManagementView = lazy(() =>
 );
 
 const settingsTabClassName =
-  "rounded-full px-4 py-2 text-sm font-medium transition-all hover:bg-slate-100 hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm";
+  "rounded-full px-4 py-2 text-sm font-medium transition-all hover:bg-slate-100 hover:text-foreground data-[state=active]:bg-[hsl(235,60%,50%)] data-[state=active]:text-white data-[state=active]:shadow-[0_10px_24px_rgba(30,35,80,0.22)]";
 
 export default function CompanySettings() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -75,3 +75,4 @@ export default function CompanySettings() {
     </div>
   );
 }
+

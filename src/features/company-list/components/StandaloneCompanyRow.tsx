@@ -120,7 +120,7 @@ export default function StandaloneCompanyRow({
         )}
         {showStatusColumn && visibleColumns.has("status") && (
           <td className="px-4 py-3">
-            <Badge variant="outline" className={cn("text-xs", statusColors[company.status])}>
+            <Badge variant="outline" className={cn("px-2.5 py-0.5 text-[10px]", statusColors[company.status])}>
               {company.status}
             </Badge>
           </td>

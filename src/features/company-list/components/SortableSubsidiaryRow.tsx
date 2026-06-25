@@ -106,7 +106,7 @@ export default function SortableSubsidiaryRow({
         )}
         {showStatusColumn && visibleColumns.has("status") && (
           <td className="px-4 py-3">
-            <Badge variant="outline" className={cn("text-xs", statusColors[sub.status])}>
+            <Badge variant="outline" className={cn("px-2.5 py-0.5 text-[10px]", statusColors[sub.status])}>
               {sub.status}
             </Badge>
           </td>

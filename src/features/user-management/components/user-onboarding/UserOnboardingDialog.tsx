@@ -127,7 +127,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
                       <div
                         className={cn(
                           "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors",
-                          isActive ? "bg-[rgb(53,83,233)] text-white" : "bg-muted text-muted-foreground",
+                          isActive ? "bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.18)]" : "bg-muted text-muted-foreground",
                         )}
                       >
                         {isComplete ? <Check className="h-4 w-4" /> : currentStep}
@@ -135,7 +135,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
                       <span
                         className={cn(
                           "hidden whitespace-nowrap text-xs font-medium sm:block",
-                          isActive ? "text-[rgb(53,83,233)]" : "text-muted-foreground",
+                          isActive ? "text-[hsl(235,60%,50%)]" : "text-muted-foreground",
                         )}
                       >
                         {label}
@@ -143,7 +143,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
                     </div>
                     {index < NEW_MEMBER_STEPS.length - 1 ? (
                       <div className="flex min-w-[2rem] flex-1 items-center">
-                        <div className={cn("h-px w-full", step > currentStep ? "bg-[rgb(53,83,233)]" : "bg-border")} />
+                        <div className={cn("h-px w-full", step > currentStep ? "bg-[hsl(235,60%,50%)]" : "bg-border")} />
                       </div>
                     ) : null}
                   </div>
@@ -262,7 +262,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
                     value={formData.selectedWorkflowLevelsHash || "__none__"}
                     onValueChange={(value) => setSelectedWorkflow(value === "__none__" ? "" : value)}
                   >
-                    <SelectTrigger className="h-11 w-full min-w-[240px] border-[rgb(53,83,233)]/30 text-[rgb(53,83,233)] sm:w-[280px]">
+                    <SelectTrigger className="h-11 w-full min-w-[240px] border-[hsl(235,60%,50%)]/30 text-[hsl(235,60%,50%)] sm:w-[280px]">
                       <SelectValue placeholder="Select Workflow">
                         {formData.selectedWorkflow || "Select Workflow"}
                       </SelectValue>
@@ -278,7 +278,7 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
                   </Select>
                 ) : null}
 
-                <Button type="submit" className="w-full bg-[rgb(53,83,233)] text-white hover:bg-[rgb(53,83,233)]/90 sm:w-auto">
+                <Button type="submit" className="w-full bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.22)] hover:bg-[hsl(235,60%,45%)] sm:w-auto">
                   {step === 4
                     ? seedMember
                       ? "Submit Changes"
@@ -296,3 +296,4 @@ export function UserOnboardingDialog({ open, onOpenChange, onSubmit, seedMember 
 }
 
 export default UserOnboardingDialog;
+

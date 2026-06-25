@@ -7,7 +7,7 @@ const NOTIFICATION_SETTINGS_FETCH_PATH = "/api/v1/notifications/fetch-settings";
 const NOTIFICATION_SETTINGS_UPDATE_PATH = "/api/v1/notifications/settings";
 
 export type NotificationSseType = "INITIATE" | "APPROVE" | "REJECT";
-export type NotificationSseRefType = "USER" | "WORKFLOW" | "ORG" | "COMPANYLIST";
+export type NotificationSseRefType = "USER" | "WORKFLOW" | "ORG" | "COMPANY" | "COMPANYLIST";
 export type NotificationSseStatus = "UNREAD" | "READ";
 
 export type NotificationSsePacket = {
@@ -35,7 +35,7 @@ type NotificationReadResponse = {
 };
 
 export type NotificationFetchStatus = "UNREAD" | "READ" | "HIDDEN" | "ALL";
-export type NotificationFetchRefType = "USER" | "WORKFLOW" | "ORG" | null;
+export type NotificationFetchRefType = "USER" | "WORKFLOW" | "ORG" | "COMPANY" | null;
 export type NotificationFetchDateRange = "7DAYS" | "15DAYS" | "1MONTH" | "CUSTOM";
 
 export type NotificationFetchRequest = {
@@ -203,3 +203,4 @@ export async function updateNotificationSettings(payload: NotificationSettingsUp
     body: JSON.stringify(payload),
   });
 }
+

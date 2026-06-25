@@ -13,6 +13,7 @@ export default function DashboardLayout() {
   const { setIsAuthenticated, setCurrentUser, users, currentUser } = useAppContext();
   const navigate = useNavigate();
   const location = useLocation();
+  const isCompanyListRoute = location.pathname === "/companies";
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
@@ -50,7 +51,7 @@ export default function DashboardLayout() {
           onLogout={logoutNow}
         />
 
-        <div className="flex min-w-0 flex-1 flex-col bg-background">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
           <AppTopBar
             mobileNavOpen={mobileNavOpen}
             onMobileNavOpenChange={setMobileNavOpen}
@@ -62,9 +63,11 @@ export default function DashboardLayout() {
             onLogout={logoutNow}
           />
 
-          <main className="flex-1 overflow-auto">
+          <main className={`min-h-0 flex-1 ${isCompanyListRoute ? "overflow-hidden" : "overflow-auto"}`}>
             <div
-              className="w-full p-3 pb-6 sm:p-4 sm:pb-7 lg:p-5 lg:pb-8 xl:p-6"
+              className={isCompanyListRoute
+                ? "flex h-full min-h-0 w-full flex-col overflow-hidden p-3 pb-0 sm:p-4 sm:pb-0 lg:p-5 lg:pb-0 xl:p-6 xl:pb-0"
+                : "w-full p-3 pb-6 sm:p-4 sm:pb-7 lg:p-5 lg:pb-8 xl:p-6"}
               data-sidebar-state={collapsed ? "collapsed" : "expanded"}
             >
               <Outlet />
@@ -82,3 +85,5 @@ export default function DashboardLayout() {
     </div>
   );
 }
+
+

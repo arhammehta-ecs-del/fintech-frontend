@@ -17,9 +17,9 @@ function StepNode({ active, done, id, label }: { active: boolean; done: boolean;
       <div
         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
           active
-            ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+            ? "bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.18)]"
             : done
-              ? "bg-emerald-600 text-white"
+              ? "bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.18)]"
               : "bg-slate-100 text-slate-400"
         }`}
       >
@@ -28,7 +28,7 @@ function StepNode({ active, done, id, label }: { active: boolean; done: boolean;
       <div className="min-w-0">
         <div
           className={`truncate text-sm font-semibold transition-colors ${
-            active ? "text-blue-600" : done ? "text-emerald-600" : "text-slate-500"
+            active ? "text-[hsl(235,60%,50%)]" : done ? "text-[hsl(235,60%,50%)]" : "text-slate-500"
           }`}
         >
           {label}
@@ -42,10 +42,13 @@ export default function WorkflowStepper({ step }: WorkflowStepperProps) {
   return (
     <div className="mb-4 grid w-full grid-cols-[auto_minmax(24px,1fr)_auto_minmax(24px,1fr)_auto] items-center gap-x-4 overflow-x-auto pb-1">
       <StepNode id={STEPS[0].id} active={step === STEPS[0].id} done={step > STEPS[0].id} label={STEPS[0].label} />
-      <div className={`h-px w-full ${step > STEPS[0].id ? "bg-blue-500" : "bg-slate-200"}`} />
+      <div className={`h-px w-full ${step > STEPS[0].id ? "bg-[hsl(235,60%,50%)]" : "bg-slate-200"}`} />
       <StepNode id={STEPS[1].id} active={step === STEPS[1].id} done={step > STEPS[1].id} label={STEPS[1].label} />
-      <div className={`h-px w-full ${step > STEPS[1].id ? "bg-blue-500" : "bg-slate-200"}`} />
+      <div className={`h-px w-full ${step > STEPS[1].id ? "bg-[hsl(235,60%,50%)]" : "bg-slate-200"}`} />
       <StepNode id={STEPS[2].id} active={step === STEPS[2].id} done={step > STEPS[2].id} label={STEPS[2].label} />
     </div>
   );
 }
+
+
+

@@ -151,6 +151,7 @@ export interface CurrentUser {
   name: string;
   email: string;
   phone?: string;
+  isGlobal?: boolean;
   company?: string;
   brand?: string;
   companyCode?: string;
@@ -245,3 +246,4 @@ export function useAppContext() {
   if (!ctx) throw new Error("useAppContext must be used within AppProvider");
   return ctx;
 }
+

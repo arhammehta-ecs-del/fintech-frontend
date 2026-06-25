@@ -1,4 +1,4 @@
-import type { DragEvent } from "react";
+import type { DragEvent, RefObject } from "react";
 import type { Company, CompanyStatus, GroupCompany } from "@/contexts/AppContext";
 
 export type VisibleColumn = "groupName" | "companyName" | "code" | "createdDate" | "status" | "manage";
@@ -35,6 +35,8 @@ export type CompanyOnboardingWizardRendererProps = {
 export type CompanyListTableProps = {
   displayRows: DisplayRow[];
   expanded: Set<string>;
+  pageSize: number;
+  scrollContainerRef?: RefObject<HTMLDivElement | null>;
   visibleColumns: Set<VisibleColumn>;
   showStatusColumn: boolean;
   dragState: DragPayload | null;
@@ -68,7 +70,7 @@ export type CompanyListToolbarProps = {
 
 export const COMPANY_LIST_DATE_OPTIONS = ["7days", "15days", "1month", "custom"] as const;
 export const COMPANY_LIST_BOOLEAN_OPTIONS = ["yes", "no"] as const;
-export const COMPANY_LIST_SIGNATORY_OPTIONS = [1, 2, 3, 4, 5] as const;
+export const COMPANY_LIST_SIGNATORY_OPTIONS = [2, 3, 4, 5] as const;
 
 export type CompanyListDateFilterValue = (typeof COMPANY_LIST_DATE_OPTIONS)[number] | null;
 export type CompanyListBooleanFilterValue = (typeof COMPANY_LIST_BOOLEAN_OPTIONS)[number] | null;

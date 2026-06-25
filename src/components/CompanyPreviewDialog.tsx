@@ -195,7 +195,7 @@ export function CompanyPreviewDialog({
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="relative min-h-0 flex-1 overflow-hidden px-4 pb-4 pt-5 sm:px-6 sm:pb-6 sm:pt-5">
+          <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-5 sm:px-6 sm:pb-6 sm:pt-5">
             {showPendingActions ? (
               <div className="mb-4 rounded-xl border border-slate-200/90 bg-gradient-to-r from-slate-50 to-white p-3 shadow-[0_6px_18px_rgba(15,23,42,0.06)]">
                 <div className="flex flex-wrap items-center gap-2 text-[13px] text-slate-700">
@@ -260,7 +260,7 @@ export function CompanyPreviewDialog({
                     <h4 className="text-sm font-semibold text-foreground">New Signatories</h4>
                   </div>
 
-                  <div className="max-h-[52vh] space-y-3 overflow-y-auto pr-1">
+                  <div className="space-y-3">
                     {signatoriesForPreview.length > 0 ? (
                       signatoriesForPreview.map((signatory, index) => renderSignatoryCard(signatory, index))
                     ) : (
@@ -357,3 +357,4 @@ export function CompanyPreviewDialog({
     </Dialog>
   );
 }
+

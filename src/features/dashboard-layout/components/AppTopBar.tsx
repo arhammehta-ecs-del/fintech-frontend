@@ -38,6 +38,7 @@ type AppTopBarProps = {
     name?: string;
     email?: string;
     role?: string;
+    isGlobal?: boolean;
   } | null;
   navigate: NavigateFunction;
   onLogout: () => void;
@@ -45,7 +46,7 @@ type AppTopBarProps = {
 
 type NotificationTone = "blue" | "green" | "orange" | "red" | "slate";
 type NotificationEntity = "User" | "Workflow" | "Org" | "Company List";
-type NotificationRefTypeFilter = "ALL" | "USER" | "WORKFLOW" | "ORG";
+type NotificationRefTypeFilter = "ALL" | "USER" | "WORKFLOW" | "ORG" | "COMPANY";
 type NotificationIntent = "approve" | "view";
 type NotificationStatusFilterValue = Exclude<NotificationFetchStatus, "ALL">;
 type NotificationModuleFilterValue = Exclude<NotificationRefTypeFilter, "ALL">;
@@ -111,6 +112,7 @@ const MODULE_FILTER_OPTIONS: Array<{ value: NotificationModuleFilterValue; label
   { value: "USER", label: "User" },
   { value: "WORKFLOW", label: "Workflow" },
   { value: "ORG", label: "Org" },
+  { value: "COMPANY", label: "Company" },
 ];
 
 const toggleArrayValue = <T extends string>(values: T[], value: T) =>
@@ -315,7 +317,7 @@ const mapRefTypeToEntity = (value?: string | null): NotificationEntity => {
   const normalized = String(value ?? "").trim().toUpperCase();
   if (normalized === "WORKFLOW") return "Workflow";
   if (normalized === "ORG") return "Org";
-  if (normalized === "COMPANYLIST" || normalized === "COMPANY LIST") return "Company List";
+  if (normalized === "COMPANY" || normalized === "COMPANYLIST" || normalized === "COMPANY LIST") return "Company List";
   return "User";
 };
 
@@ -624,10 +626,19 @@ export function AppTopBar({
     setProfilePopoverOpen(false);
   }, [locationPathname]);
 
+  useEffect(() => {
+    if (currentUser?.isGlobal) return;
+    setNotificationModuleFilters((current) => current.filter((value) => value !== "COMPANY"));
+  }, [currentUser?.isGlobal]);
+
   const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const activeDateRange = customFromDate && customToDate ? "CUSTOM" : notificationDateRange;
   const customDateRangeIsComplete = notificationDateRange !== "CUSTOM" || Boolean(customFromDate && customToDate);
+  const availableNotificationModuleOptions = useMemo(
+    () => MODULE_FILTER_OPTIONS.filter((option) => option.value !== "COMPANY" || currentUser?.isGlobal),
+    [currentUser?.isGlobal],
+  );
   const visibleNotifications = useMemo(
     () => filterNotificationsBySelection(notifications, notificationStatusFilters, notificationModuleFilters),
     [notifications, notificationModuleFilters, notificationStatusFilters],
@@ -1483,7 +1494,7 @@ export function AppTopBar({
             >
               <span>All</span>
             </DropdownMenuCheckboxItem>
-            {MODULE_FILTER_OPTIONS.map((option) => (
+            {availableNotificationModuleOptions.map((option) => (
               <DropdownMenuCheckboxItem
                 key={option.value}
                 checked={notificationModuleFilters.includes(option.value)}
@@ -1841,7 +1852,7 @@ export function AppTopBar({
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5 text-muted-foreground" />
               {!hiddenStatusSelected && unreadTotalCount > 0 ? (
-                <span className="absolute -right-1 -top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-[#6d5dfc] px-1 text-[10px] font-semibold leading-none text-white shadow-[0_6px_16px_rgba(109,93,252,0.4)]">
+                <span className="absolute -right-1 -top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-[hsl(235,60%,50%)] px-1 text-[10px] font-semibold leading-none text-white shadow-[0_6px_16px_rgba(70,78,169,0.4)]">
                   {unreadCountBadgeLabel}
                 </span>
               ) : null}
@@ -2009,14 +2020,14 @@ export function AppTopBar({
         </Dialog>
 
         <Dialog open={notificationSettingsOpen} onOpenChange={handleNotificationSettingsDialogChange}>
-        <DialogContent
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          showCloseButton={false}
-          className={cn(
-            "flex w-[min(96vw,1120px)] max-w-[1120px] flex-col gap-0 overflow-hidden rounded-3xl border border-[#d9e1ff] bg-white p-0 shadow-[0_28px_80px_rgba(29,78,216,0.18)]",
-            (selectedNotificationSettingsCompany && flattenNotificationSettingsTree(selectedNotificationSettingsCompany.nodes, []).length > 3) ? "h-[88vh]" : "max-h-[88vh]",
-          )}
-        >
+          <DialogContent
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            showCloseButton={false}
+            className={cn(
+              "flex w-[min(96vw,1120px)] max-w-[1120px] flex-col gap-0 overflow-hidden rounded-3xl border border-[#d9e1ff] bg-white p-0 shadow-[0_28px_80px_rgba(29,78,216,0.18)]",
+              (selectedNotificationSettingsCompany && flattenNotificationSettingsTree(selectedNotificationSettingsCompany.nodes, []).length > 3) ? "h-[88vh]" : "max-h-[88vh]",
+            )}
+          >
             <DialogHeader className="border-b border-[#dbe4ff] bg-white px-6 py-5">
               <DialogDescription className="sr-only">
                 Configure notification settings for companies, nodes, and modules.
@@ -2149,7 +2160,7 @@ export function AppTopBar({
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="relative flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground transition-colors hover:opacity-90"
+              className="relative flex h-8 w-8 items-center justify-center rounded-full bg-[hsl(235,60%,50%)] text-xs font-semibold text-white transition-colors hover:opacity-90"
               aria-label="Open profile details"
             >
               {(currentUser?.name || currentUser?.email || "U").charAt(0).toUpperCase()}
@@ -2158,7 +2169,7 @@ export function AppTopBar({
           <PopoverContent align="end" className="w-[min(22rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border-border bg-white p-0 text-foreground shadow-2xl">
             <div className="border-b border-border bg-white px-4 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(235,60%,50%)] text-lg font-semibold text-white">
                   {(currentUser?.name || currentUser?.email || "User")
                     .split(" ")
                     .map((part) => part[0])
@@ -2220,3 +2231,4 @@ export function AppTopBar({
     </header>
   );
 }
+

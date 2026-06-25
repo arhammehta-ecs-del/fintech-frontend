@@ -370,12 +370,12 @@ export function UserManagementView() {
       return [] as const;
     };
 
-    const resolveByNormalizedValue = (options: string[], rawValue: string) => {
+    const resolveByNormalizedValue = (options: Array<string | { value: string }>, rawValue: string) => {
       const normalizedRaw = normalizeFilterIntentValue(rawValue);
       if (!normalizedRaw) return null;
       return (
-        options.find((option) => normalizeFilterIntentValue(option) === normalizedRaw) ??
-        options.find((option) => normalizeFilterIntentValue(option) === normalizeFilterIntentValue(formatRoleTokenLabel(rawValue))) ??
+        options.find((option) => normalizeFilterIntentValue(typeof option === "string" ? option : option.value) === normalizedRaw) ??
+        options.find((option) => normalizeFilterIntentValue(typeof option === "string" ? option : option.value) === normalizeFilterIntentValue(formatRoleTokenLabel(rawValue))) ??
         null
       );
     };
@@ -389,8 +389,11 @@ export function UserManagementView() {
           categoryCandidates
             .map((candidate) => resolveByNormalizedValue(dropdowns.category, candidate))
             .find(Boolean) ?? null;
-        const scopedSubcategories = resolvedCategory
-          ? dropdowns.subCategory[resolvedCategory] ?? []
+        const resolvedCategoryValue = resolvedCategory
+          ? (typeof resolvedCategory === "string" ? resolvedCategory : resolvedCategory.value)
+          : "";
+        const scopedSubcategories = resolvedCategoryValue
+          ? dropdowns.subCategory[resolvedCategoryValue] ?? []
           : Object.values(dropdowns.subCategory).flat();
         const formattedSubcategoryIntent = formatRoleTokenLabel(linkedSubcategory);
         const subcategoryCandidates = [linkedSubcategory, formattedSubcategoryIntent].filter(Boolean);
@@ -411,8 +414,8 @@ export function UserManagementView() {
           nodeNameFilters: resolvedNode ? [resolvedNode] : linkedNode ? [linkedNode] : [],
           nodeNameFilterPaths: linkedNodePath ? [linkedNodePath] : [],
           nodeTypeFilters: [],
-          accessCategoryFilters: resolvedCategory ? [resolvedCategory] : formattedCategoryIntent ? [formattedCategoryIntent] : linkedCategory ? [linkedCategory] : [],
-          accessSubcategoryFilters: resolvedSubcategory ? [resolvedSubcategory] : formattedSubcategoryIntent ? [formattedSubcategoryIntent] : linkedSubcategory ? [linkedSubcategory] : [],
+          accessCategoryFilters: resolvedCategory ? [typeof resolvedCategory === "string" ? resolvedCategory : resolvedCategory.value] : formattedCategoryIntent ? [formattedCategoryIntent] : linkedCategory ? [linkedCategory] : [],
+          accessSubcategoryFilters: resolvedSubcategory ? [typeof resolvedSubcategory === "string" ? resolvedSubcategory : resolvedSubcategory.value] : formattedSubcategoryIntent ? [formattedSubcategoryIntent] : linkedSubcategory ? [linkedSubcategory] : [],
           reportingManagerFilters: [],
           statusFilters: [],
           statusFilterMode: [],
@@ -879,8 +882,9 @@ export function UserManagementView() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button
+                        <Button
               size="sm"
+              className="bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.22)] hover:bg-[hsl(235,60%,45%)]"
               onClick={() => {
                 setOnboardingSeedMember(null);
                 void handleOpenAddUserDialog();
@@ -1242,3 +1246,5 @@ export function UserManagementView() {
     </div>
   );
 }
+
+

@@ -182,9 +182,9 @@ type CompanyNodesFilterResponse = {
     designation?: Array<{ value?: string; count?: number }>;
     nodeName?: Array<{ value?: string; path?: string; nodeType?: string; level?: number; levelCount?: string; count?: number; permissionCount?: number }>;
     nodeType?: Array<{ value?: string; count?: number }>;
-    category?: string[];
-    subCategory?: Record<string, string[]>;
-    reportingManager?: string[];
+    category?: Array<{ value?: string; count?: number } | string>;
+    subCategory?: Record<string, Array<{ value?: string; count?: number } | string>>;
+    reportingManager?: Array<{ value?: string; count?: number } | string>;
     userStatusSummary?: Record<string, number>;
     permissionSummary?: Record<string, { count: number }>;
   };
@@ -223,9 +223,9 @@ export type UserFilterDropdowns = {
   designation: UserFilterDropdownOption[];
   nodeName: UserFilterNodeOption[];
   nodeType: UserFilterDropdownOption[];
-  category: string[];
-  subCategory: Record<string, string[]>;
-  reportingManager: string[];
+  category: UserFilterDropdownOption[];
+  subCategory: Record<string, UserFilterDropdownOption[]>;
+  reportingManager: UserFilterDropdownOption[];
   userStatusSummary?: Record<string, number>;
   permissionSummary?: Record<string, PermissionSummaryEntry>;
 };
@@ -681,19 +681,45 @@ export async function fetchUserFilterDropdowns(
         .filter((item) => item.value)
       : [],
     category: Array.isArray(dropdowns.category)
-      ? dropdowns.category.map((item) => readString(item).trim()).filter(Boolean)
+      ? dropdowns.category
+        .map((item) => {
+          if (typeof item === "string") return { value: readString(item).trim() };
+          return {
+            value: readString(item?.value).trim(),
+            count: typeof item?.count === "number" ? item.count : undefined,
+          };
+        })
+        .filter((item) => item.value)
       : [],
     subCategory:
       dropdowns.subCategory && typeof dropdowns.subCategory === "object"
         ? Object.fromEntries(
           Object.entries(dropdowns.subCategory).map(([key, values]) => [
             key,
-            Array.isArray(values) ? values.map((item) => readString(item).trim()).filter(Boolean) : [],
+            Array.isArray(values)
+              ? values
+                .map((item) => {
+                  if (typeof item === "string") return { value: readString(item).trim() };
+                  return {
+                    value: readString(item?.value).trim(),
+                    count: typeof item?.count === "number" ? item.count : undefined,
+                  };
+                })
+                .filter((item) => item.value)
+              : [],
           ]),
         )
         : {},
-    reportingManager: Array.isArray(dropdowns.reportingManager)
-      ? dropdowns.reportingManager.map((item) => readString(item).trim()).filter(Boolean)
+        reportingManager: Array.isArray(dropdowns.reportingManager)
+      ? dropdowns.reportingManager
+        .map((item) => {
+          if (typeof item === "string") return { value: readString(item).trim() };
+          return {
+            value: readString(item?.value).trim(),
+            count: typeof item?.count === "number" ? item.count : undefined,
+          };
+        })
+        .filter((item) => item.value)
       : [],
     userStatusSummary:
       dropdowns.userStatusSummary && typeof dropdowns.userStatusSummary === "object"
@@ -847,3 +873,5 @@ export async function fetchUserDetails(
     statusTab === "pending" ? "Pending" : statusTab === "inactive" ? "Inactive" : "Active",
   );
 }
+
+

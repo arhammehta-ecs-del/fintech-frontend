@@ -3,9 +3,9 @@ import type { Company, CompanyStatus, GroupCompany } from "@/contexts/AppContext
 import type { DisplayRow } from "@/features/company-list/types";
 
 export const statusColors: Record<CompanyStatus, string> = {
-  Approved: "bg-success/10 text-success border-success/20",
-  Pending: "bg-warning/10 text-warning border-warning/20",
-  Inactive: "bg-destructive/10 text-destructive border-destructive/20",
+  Approved: "rounded-md border border-emerald-200 bg-emerald-50/50 text-emerald-600 font-medium shadow-none",
+  Pending: "rounded-md border border-amber-200 bg-amber-50/50 text-amber-600 font-medium shadow-none",
+  Inactive: "rounded-md border border-rose-200 bg-rose-50/50 text-rose-600 font-medium shadow-none",
 };
 
 export const formatDisplayDate = (value: string, emptyFallback = "") => {

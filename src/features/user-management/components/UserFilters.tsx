@@ -105,11 +105,11 @@ type UserFiltersProps = {
   onRefresh: () => void | Promise<void>;
   refreshInitializedAt?: number | null;
   designationOptions: UserFilterDropdownOption[];
-  accessCategories: string[];
-  accessSubcategories: Record<string, string[]>;
+  accessCategories: UserFilterDropdownOption[];
+  accessSubcategories: Record<string, UserFilterDropdownOption[]>;
   filterNodeOptions: UserFilterNodeOption[];
   nodeTypeOptions: UserFilterDropdownOption[];
-  reportingManagerOptions: string[];
+  reportingManagerOptions: UserFilterDropdownOption[];
   statusCounts: Record<MemberStatusTab, number>;
   userStatusSummary?: Record<string, number>;
   permissionSummary?: Record<string, PermissionSummaryEntry>;
@@ -188,7 +188,7 @@ export default function UserFilters(props: UserFiltersProps) {
   const activeFilterCount = countActiveFilters(draft);
   const hasAnyFilter = appliedFilterCount > 0;
   const categoryOptions = useMemo(
-    () => accessCategories.filter((option) => option.trim().toLowerCase() !== "all"),
+    () => accessCategories.filter((option) => option.value.trim().toLowerCase() !== "all"),
     [accessCategories],
   );
   const subCategoryOptions = useMemo(
@@ -199,8 +199,16 @@ export default function UserFilters(props: UserFiltersProps) {
     [accessSubcategories, draft.accessCategoryFilters],
   );
   const filteredSubCategoryOptions = useMemo(
-    () => subCategoryOptions.filter((option) => option.trim().toLowerCase() !== "all"),
+    () => subCategoryOptions.filter((option) => option.value.trim().toLowerCase() !== "all"),
     [subCategoryOptions],
+  );
+  const categoryCounts = useMemo(
+    () => Object.fromEntries(categoryOptions.map((option) => [option.value, option.count ?? 0])),
+    [categoryOptions],
+  );
+  const subCategoryCounts = useMemo(
+    () => Object.fromEntries(filteredSubCategoryOptions.map((option) => [option.value, option.count ?? 0])),
+    [filteredSubCategoryOptions],
   );
 
   const updateDraft = <K extends keyof AppliedUserFiltersDraft>(key: K, value: AppliedUserFiltersDraft[K]) => {
@@ -291,7 +299,7 @@ export default function UserFilters(props: UserFiltersProps) {
                     isDisabled
                       ? "cursor-not-allowed opacity-50 text-slate-400"
                       : statusTab === tab.id
-                        ? "bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)]"
+                        ? "bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.22)]"
                         : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
                   )}
                 >
@@ -456,10 +464,11 @@ export default function UserFilters(props: UserFiltersProps) {
                       onClear={() => clearDraftField("nodeTypeFilters")}
                     />
                     <MultiSelectDropdown
-                      title="Reporting Manager"
+                                            title="Reporting Manager"
                       placeholder="Select reporting manager"
-                      options={reportingManagerOptions}
+                      options={reportingManagerOptions.map((option) => option.value)}
                       itemCount={reportingManagerOptions.length}
+                      counts={Object.fromEntries(reportingManagerOptions.map((option) => [option.value, option.count ?? 0]))}
                       selected={draft.reportingManagerFilters}
                       onToggle={(value) =>
                         setDraft((current) => ({
@@ -473,13 +482,14 @@ export default function UserFilters(props: UserFiltersProps) {
                     <MultiSelectDropdown
                       title="Category"
                       placeholder="Select category"
-                      options={categoryOptions}
+                      options={categoryOptions.map((option) => option.value)}
                       itemCount={categoryOptions.length}
+                      counts={categoryCounts}
                       selected={draft.accessCategoryFilters}
                       onToggle={(value) =>
                         setDraft((current) => {
                           const nextCategories = toggleFilterValue(current.accessCategoryFilters, value);
-                          const allowedSubcategories = new Set(nextCategories.flatMap((category) => accessSubcategories[category] ?? []));
+                          const allowedSubcategories = new Set(nextCategories.flatMap((category) => (accessSubcategories[category] ?? []).map((option) => option.value)));
                           return {
                             ...current,
                             accessCategoryFilters: nextCategories,
@@ -491,7 +501,7 @@ export default function UserFilters(props: UserFiltersProps) {
                       }
                       onSelectAll={(values) =>
                         setDraft((current) => {
-                          const allowedSubcategories = new Set(values.flatMap((category) => accessSubcategories[category] ?? []));
+                          const allowedSubcategories = new Set(values.flatMap((category) => (accessSubcategories[category] ?? []).map((option) => option.value)));
                           return {
                             ...current,
                             accessCategoryFilters: values,
@@ -509,8 +519,9 @@ export default function UserFilters(props: UserFiltersProps) {
                     <MultiSelectDropdown
                       title="Subcategory"
                       placeholder="Select subcategory"
-                      options={filteredSubCategoryOptions}
+                      options={filteredSubCategoryOptions.map((option) => option.value)}
                       itemCount={filteredSubCategoryOptions.length}
+                      counts={subCategoryCounts}
                       selected={draft.accessSubcategoryFilters}
                       onToggle={(value) =>
                         setDraft((current) => ({
@@ -1306,3 +1317,6 @@ function RoleFilterDropdown({
     />
   );
 }
+
+
+

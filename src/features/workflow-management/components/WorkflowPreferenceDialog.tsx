@@ -428,7 +428,7 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                             ? item.isRoot
                               ? "border border-indigo-200 bg-indigo-50/70 text-slate-800 shadow-[0_10px_22px_rgba(99,102,241,0.16)] border-l-[4px] border-l-indigo-400"
                               : cn(
-                                "border-[rgb(53,83,233)] shadow-[0_0_0_3px_rgba(53,83,233,0.08)] bg-[rgb(53,83,233,0.02)] border-l-[4px]",
+                                "border-[hsl(235,60%,50%)] shadow-[0_0_0_3px_rgba(30,35,80,0.08)] bg-[hsla(235,60%,50%,0.02)] border-l-[4px]",
                                 borderLeftClass,
                               )
                             : cn(
@@ -472,7 +472,7 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                                 <span className="h-6 w-6 shrink-0" aria-hidden="true" />
                               )}
                               {typeof item.node.levelCount === "number" ? (
-                                <span className="inline-flex rounded-md bg-[#eef2ff] px-2 py-0.5 text-[11px] font-bold tracking-[0.16em] text-[#4f46e5]">
+                                <span className="inline-flex rounded-md bg-[hsla(235,60%,50%,0.10)] px-2 py-0.5 text-[11px] font-bold tracking-[0.16em] text-[hsl(235,60%,50%)]">
                                   L{item.node.levelCount}
                                 </span>
                               ) : null}
@@ -506,7 +506,7 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#5b6f9c]">Node Preference</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {typeof selectedNode.levelCount === "number" ? (
-                        <span className="inline-flex rounded-md bg-[#eef2ff] px-2 py-1 text-[11px] font-bold tracking-[0.16em] text-[#4f46e5]">
+                        <span className="inline-flex rounded-md bg-[hsla(235,60%,50%,0.10)] px-2 py-1 text-[11px] font-bold tracking-[0.16em] text-[hsl(235,60%,50%)]">
                           L{selectedNode.levelCount}
                         </span>
                       ) : null}
@@ -599,7 +599,7 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
               type="button"
               onClick={() => void handleSubmit()}
               disabled={!pendingChanges || saving}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,#3553e9_0%,#2563eb_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(37,99,235,0.28)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(235,60%,50%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(30,35,80,0.22)] transition-all hover:bg-[hsl(235,60%,45%)] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
             >
               <Check className="h-4 w-4" />
               {saving ? "Saving..." : "Submit"}
@@ -610,3 +610,4 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     </Dialog>
   );
 }
+

@@ -184,7 +184,7 @@ export default function WorkflowOnboardingView({
               onValueChange={(value) => setSelectedWorkflowLevelsHash(value === "__none__" ? "" : value)}
               disabled={hasNoApproverSelected}
             >
-              <SelectTrigger className="h-11 w-[220px] border-blue-200 text-blue-700">
+              <SelectTrigger className="h-11 w-[220px] border-[hsl(235,60%,50%)]/30 text-[hsl(235,60%,50%)]">
                 <SelectValue placeholder="Select Workflow" />
               </SelectTrigger>
               <SelectContent side="top" align="end">
@@ -201,7 +201,7 @@ export default function WorkflowOnboardingView({
             type="button"
             onClick={handleNext}
             className={`flex min-w-[184px] items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all active:scale-95 ${
-              step === 3 ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"
+              "bg-[hsl(235,60%,50%)] hover:bg-[hsl(235,60%,45%)] shadow-[0_10px_24px_rgba(30,35,80,0.22)]"
             }`}
           >
             {step === 1 ? "Next Step" : step === 2 ? "Generate Summary" : resolvedMode === "edit" ? "Update Workflow" : "Publish Workflow"}
@@ -222,3 +222,4 @@ export default function WorkflowOnboardingView({
     </div>
   );
 }
+

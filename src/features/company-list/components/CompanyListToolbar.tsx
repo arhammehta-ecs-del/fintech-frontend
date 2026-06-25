@@ -125,7 +125,7 @@ export default function CompanyListToolbar({
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Company List</h1>
         </div>
-        <Button onClick={onOpenOnboarding} className="gap-2">
+        <Button onClick={onOpenOnboarding} className="gap-2 bg-[hsl(235,60%,50%)] hover:bg-[hsl(235,60%,45%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.22)]">
           <Plus className="h-4 w-4" /> Add New Company
         </Button>
       </div>
@@ -187,7 +187,7 @@ export default function CompanyListToolbar({
                   className={cn(
                     "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200",
                     selectedStatusTab === option.id
-                      ? "bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)]"
+                      ? "bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.22)]"
                       : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
                   )}
                   aria-pressed={selectedStatusTab === option.id}
@@ -379,9 +379,9 @@ export default function CompanyListToolbar({
                       }}
                       className={cn(
                         "h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm transition-all duration-200",
-                        isRefreshing && "scale-[1.03] border-[#3553e9]/35 shadow-[0_10px_24px_rgba(53,83,233,0.16)]",
+                        isRefreshing && "scale-[1.03] border-[hsl(235,60%,50%)]/35 shadow-[0_10px_24px_rgba(30,35,80,0.16)]",
                         hasNewCompanyListEvent &&
-                          "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
+                          "border-[hsl(235,60%,50%)] bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.22)] hover:bg-[hsl(235,60%,50%)] hover:text-white",
                       )}
                     >
                       <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />

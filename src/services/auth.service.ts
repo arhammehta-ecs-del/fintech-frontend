@@ -18,6 +18,7 @@ type RawLoginUser = {
   name?: string | null;
   email?: string | null;
   phone?: string | null;
+  isGlobal?: boolean | null;
   company?: string | null;
   brand?: string | null;
   companyCode?: string | null;
@@ -103,6 +104,7 @@ const mapUser = (record?: RawLoginUser | null): CurrentUser => {
     name,
     email,
     phone,
+    isGlobal: Boolean(record.isGlobal),
     company: firstCompany?.companyName,
     brand: firstCompany?.brandName,
     companyCode: firstCompany?.companyCode,
@@ -204,3 +206,4 @@ export async function getReporteeAccessRights(): Promise<ReporteeAccessRightsRes
     users: mapAccessRightsUsers(data.users),
   };
 }
+

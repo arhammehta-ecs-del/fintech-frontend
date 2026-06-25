@@ -46,7 +46,7 @@ import {
 } from "@/components/filter-search-dropdown";
 
 const tabClassName =
-  "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:shadow-sm";
+  "rounded-full px-5 py-2 text-sm font-semibold transition-all data-[active=true]:bg-[hsl(235,60%,50%)] data-[active=true]:text-white data-[active=true]:shadow-[0_10px_24px_rgba(30,35,80,0.22)]";
 
 const statusBadgeClassName: Record<string, string> = {
   Active: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -256,8 +256,10 @@ export default function WorkflowManagementView() {
     search,
     setSearch,
     searchSuggestions,
-    moduleFilters,
-    setModuleFilters,
+    categoryFilters,
+    setCategoryFilters,
+    subCategoryFilters,
+    setSubCategoryFilters,
     statusFilters,
     setStatusFilters,
     subStatusFilters,
@@ -277,7 +279,8 @@ export default function WorkflowManagementView() {
     approverCountFilters,
     setApproverCountFilters,
     setIsFilterRequestActive,
-    moduleOptions,
+    categoryOptions,
+    subCategoryOptions,
     statusOptions,
     nodeNameOptions,
     nodeTypeOptions,
@@ -322,7 +325,8 @@ export default function WorkflowManagementView() {
     ...(statusCounts.inactive > 0 ? [{ id: "Inactive" as const, label: "Inactive", count: statusCounts.inactive }] : []),
   ];
   const activeFilterCount =
-    moduleFilters.length +
+    categoryFilters.length +
+    subCategoryFilters.length +
     statusFilters.length +
     subStatusFilters.length +
     nodeNameFilters.length +
@@ -339,7 +343,8 @@ export default function WorkflowManagementView() {
   const [workflowHistoryPreviewEvent, setWorkflowHistoryPreviewEvent] = useState<HistoryDetailPreviewEvent | null>(null);
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const [viewportWidth, setViewportWidth] = useState(0);
-  const [draftModuleFilters, setDraftModuleFilters] = useState<string[]>(moduleFilters);
+  const [draftCategoryFilters, setDraftCategoryFilters] = useState<string[]>(categoryFilters);
+  const [draftSubCategoryFilters, setDraftSubCategoryFilters] = useState<string[]>(subCategoryFilters);
   const [draftStatusFilters, setDraftStatusFilters] = useState<string[]>(statusFilters);
   const [draftSubStatusFilters, setDraftSubStatusFilters] = useState<("initiate" | "modify")[]>(subStatusFilters);
   const [draftNodeNameFilters, setDraftNodeNameFilters] = useState<string[]>(nodeNameFilters);
@@ -585,7 +590,8 @@ export default function WorkflowManagementView() {
     current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
 
   const syncDraftFromApplied = () => {
-    setDraftModuleFilters(moduleFilters);
+    setDraftCategoryFilters(categoryFilters);
+    setDraftSubCategoryFilters(subCategoryFilters);
     setDraftStatusFilters(statusFilters);
     setDraftSubStatusFilters(subStatusFilters);
     setDraftNodeNameFilters(nodeNameFilters);
@@ -598,7 +604,8 @@ export default function WorkflowManagementView() {
   };
 
   const clearDraftFilters = () => {
-    setDraftModuleFilters([]);
+    setDraftCategoryFilters([]);
+    setDraftSubCategoryFilters([]);
     setDraftStatusFilters([]);
     setDraftSubStatusFilters([]);
     setDraftNodeNameFilters([]);
@@ -972,12 +979,20 @@ export default function WorkflowManagementView() {
                       onToggle={(value) => setDraftNodeTypeFilters((current) => toggleValue(current, value))}
                     />
                     <WorkflowFilterDropdown
+                      title="Category"
+                      placeholder="Select categories"
+                      options={categoryOptions}
+                      selected={draftCategoryFilters}
+                      onClear={() => setDraftCategoryFilters([])}
+                      onToggle={(value) => setDraftCategoryFilters((current) => toggleValue(current, value))}
+                    />
+                    <WorkflowFilterDropdown
                       title="Sub Category"
                       placeholder="Select sub categories"
-                      options={moduleOptions}
-                      selected={draftModuleFilters}
-                      onClear={() => setDraftModuleFilters([])}
-                      onToggle={(value) => setDraftModuleFilters((current) => toggleValue(current, value))}
+                      options={subCategoryOptions}
+                      selected={draftSubCategoryFilters}
+                      onClear={() => setDraftSubCategoryFilters([])}
+                      onToggle={(value) => setDraftSubCategoryFilters((current) => toggleValue(current, value))}
                     />
                     <WorkflowFilterDropdown
                       title="Status"
@@ -1102,7 +1117,8 @@ export default function WorkflowManagementView() {
                   <Button
                     size="sm"
                     onClick={() => {
-                      setModuleFilters(draftModuleFilters);
+                      setCategoryFilters(draftCategoryFilters);
+                      setSubCategoryFilters(draftSubCategoryFilters);
                       setStatusFilters(draftStatusFilters);
                       setSubStatusFilters(draftSubStatusFilters);
                       setNodeNameFilters(draftNodeNameFilters);
@@ -1113,7 +1129,8 @@ export default function WorkflowManagementView() {
                       setLinkedOrgStructureFilters(draftLinkedOrgStructureFilters);
                       setApproverCountFilters(draftApproverCountFilters);
                       const hasFilters =
-                        draftModuleFilters.length > 0 ||
+                        draftCategoryFilters.length > 0 ||
+                        draftSubCategoryFilters.length > 0 ||
                         draftStatusFilters.length > 0 ||
                         draftSubStatusFilters.length > 0 ||
                         draftNodeNameFilters.length > 0 ||
@@ -1124,7 +1141,8 @@ export default function WorkflowManagementView() {
                         draftLinkedOrgStructureFilters.length > 0 ||
                         draftApproverCountFilters.length > 0;
                       const hasRequestFilters =
-                        draftModuleFilters.length > 0 ||
+                        draftCategoryFilters.length > 0 ||
+                        draftSubCategoryFilters.length > 0 ||
                         draftStatusFilters.length > 0 ||
                         draftSubStatusFilters.length > 0 ||
                         draftNodeNameFilters.length > 0 ||
@@ -1211,8 +1229,8 @@ export default function WorkflowManagementView() {
               >
                 Set Preference
               </Button>
-              <Button
-                className="w-full lg:w-auto"
+                            <Button
+                className="w-full lg:w-auto bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.22)] hover:bg-[hsl(235,60%,45%)]"
                 onClick={() => {
                   setOnboardingMode("create");
                   setWorkflowSeedForEdit(null);
@@ -2032,6 +2050,12 @@ function WorkflowSingleSelectDropdown({
     </div>
   );
 }
+
+
+
+
+
+
 
 
 
