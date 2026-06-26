@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Check, ChevronDown, LogOut, Menu, Settings, ShieldCheck, User, X } from "lucide-react";
+import { ArrowRight, Bell, Check, ChevronDown, Loader2, LogOut, Menu, Settings, ShieldCheck, User, X } from "lucide-react";
 import type { NavigateFunction } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -1102,6 +1102,15 @@ export function AppTopBar({
     };
   }, [visibleDialogNotifications]);
 
+  const dialogNotificationGroupCount =
+    groupedDialogNotifications.today.length +
+    groupedDialogNotifications.yesterday.length +
+    groupedDialogNotifications.earlier.length +
+    groupedDialogNotifications.upcoming.length;
+  const shouldShowDialogInitialLoading = dialogLoading && dialogNotifications.length === 0;
+  const shouldShowDialogRefreshingFallback = dialogLoading && dialogNotifications.length > 0 && dialogNotificationGroupCount === 0;
+  const shouldShowDialogEmptyState = !dialogLoading && dialogNotificationGroupCount === 0;
+
   const unreadCountBadgeLabel = unreadTotalCount > 99 ? "99+" : String(unreadTotalCount);
   const visibleHiddenNotificationsCount = visibleNotifications.filter((item) => item.status === "HIDDEN").length;
   const hiddenStatusSelected = notificationStatusFilters.includes("HIDDEN");
@@ -1550,7 +1559,7 @@ export function AppTopBar({
     const allSelected = options.length > 0 && optionValues.every((value) => selectedKeys.has(normalizeNotificationFilterKey(value)));
 
     return (
-      <DropdownMenu>
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
@@ -2106,7 +2115,7 @@ export function AppTopBar({
             if (!nextOpen) resetNotificationFilters();
           }}
         >
-          <DialogContent showCloseButton={false} className="flex flex-col gap-0 max-h-[88vh] w-[min(94vw,760px)] max-w-[760px] overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-2xl">
+          <DialogContent showCloseButton={false} className="flex h-[88vh] max-h-[88vh] w-[min(94vw,760px)] max-w-[760px] flex-col gap-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-2xl">
             <DialogHeader className="border-b border-slate-200 px-6 py-4">
               <DialogDescription className="sr-only">
                 Review, filter, and manage all notifications.
@@ -2149,19 +2158,26 @@ export function AppTopBar({
               </DialogTitle>
             </DialogHeader>
             {renderNotificationFilters()}
-            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 p-4">
-              {dialogLoading ? (
-                <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/80 px-4 text-center">
-                  <p className="text-sm font-semibold text-slate-700">Loading notifications...</p>
+            <div className="relative min-h-[220px] flex-1 overflow-y-auto bg-slate-50/60 p-4">
+              {dialogLoading && dialogNotifications.length > 0 ? (
+                <div className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center bg-white/35 pt-4 backdrop-blur-[1px]">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white/95 px-3 py-1.5 text-[11px] font-semibold text-blue-700 shadow-sm">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading...
+                  </span>
                 </div>
               ) : null}
 
-              {!dialogLoading &&
-                groupedDialogNotifications.today.length +
-                groupedDialogNotifications.yesterday.length +
-                groupedDialogNotifications.earlier.length +
-                groupedDialogNotifications.upcoming.length ===
-                0 ? (
+              {shouldShowDialogInitialLoading || shouldShowDialogRefreshingFallback ? (
+                <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/80 px-4 text-center">
+                  <div className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    <span>{shouldShowDialogInitialLoading ? "Loading notifications..." : "Loading filtered notifications..."}</span>
+                  </div>
+                </div>
+              ) : null}
+
+              {shouldShowDialogEmptyState ? (
                 <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/80 px-4 text-center">
                   <div>
                     <p className="text-sm font-semibold text-slate-800">No notifications</p>
@@ -2170,7 +2186,7 @@ export function AppTopBar({
                 </div>
               ) : null}
 
-              {!dialogLoading ? (
+              {dialogNotificationGroupCount > 0 ? (
                 <div className="space-y-3">
                   {([
                     ["Today", groupedDialogNotifications.today],
