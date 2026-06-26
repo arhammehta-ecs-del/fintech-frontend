@@ -165,6 +165,13 @@ const formatMultiFilterLabel = (values: string[], allLabel: string, options: Not
   return `${values.length} Selected`;
 };
 
+const areNotificationFilterValuesEqual = (left: string[], right: string[]) => {
+  if (left.length !== right.length) return false;
+  const leftValues = left.map(normalizeNotificationFilterKey).sort();
+  const rightValues = right.map(normalizeNotificationFilterKey).sort();
+  return leftValues.every((value, index) => value === rightValues[index]);
+};
+
 const filterNotificationsBySelection = (
   items: NotificationItem[],
   selectedStatusFilters: NotificationStatusFilterValue[],
@@ -635,6 +642,9 @@ export function AppTopBar({
   const [notificationStatusFilters, setNotificationStatusFilters] = useState<NotificationStatusFilterValue[]>([]);
   const [notificationModuleFilters, setNotificationModuleFilters] = useState<NotificationModuleFilterValue[]>([]);
   const [notificationTypeFilters, setNotificationTypeFilters] = useState<NotificationTypeFilterValue[]>([]);
+  const [draftNotificationStatusFilters, setDraftNotificationStatusFilters] = useState<NotificationStatusFilterValue[]>([]);
+  const [draftNotificationModuleFilters, setDraftNotificationModuleFilters] = useState<NotificationModuleFilterValue[]>([]);
+  const [draftNotificationTypeFilters, setDraftNotificationTypeFilters] = useState<NotificationTypeFilterValue[]>([]);
   const [notificationFilterOptions, setNotificationFilterOptions] = useState<NotificationFetchFilters>(EMPTY_NOTIFICATION_FILTERS);
   const [notificationDateRange, setNotificationDateRange] = useState<NotificationFetchDateRange>(DEFAULT_DATE_RANGE);
   const [customFromDate, setCustomFromDate] = useState("");
@@ -663,6 +673,9 @@ export function AppTopBar({
     setNotificationStatusFilters([]);
     setNotificationModuleFilters([]);
     setNotificationTypeFilters([]);
+    setDraftNotificationStatusFilters([]);
+    setDraftNotificationModuleFilters([]);
+    setDraftNotificationTypeFilters([]);
     setNotificationDateRange(DEFAULT_DATE_RANGE);
     setCustomFromDate("");
     setCustomToDate("");
@@ -680,6 +693,7 @@ export function AppTopBar({
   useEffect(() => {
     if (currentUser?.isGlobal) return;
     setNotificationModuleFilters((current) => current.filter((value) => value !== "COMPANY"));
+    setDraftNotificationModuleFilters((current) => current.filter((value) => value !== "COMPANY"));
   }, [currentUser?.isGlobal]);
 
   const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -701,6 +715,17 @@ export function AppTopBar({
     () => mergeNotificationFilterOptions(notificationFilterOptions.type, []),
     [notificationFilterOptions.type],
   );
+  const hasPendingNotificationFilterChanges =
+    !areNotificationFilterValuesEqual(notificationStatusFilters, draftNotificationStatusFilters) ||
+    !areNotificationFilterValuesEqual(notificationModuleFilters, draftNotificationModuleFilters) ||
+    !areNotificationFilterValuesEqual(notificationTypeFilters, draftNotificationTypeFilters);
+
+  const applyNotificationFilters = useCallback(() => {
+    setNotificationStatusFilters(draftNotificationStatusFilters);
+    setNotificationModuleFilters(draftNotificationModuleFilters);
+    setNotificationTypeFilters(draftNotificationTypeFilters);
+  }, [draftNotificationModuleFilters, draftNotificationStatusFilters, draftNotificationTypeFilters]);
+
   const visibleNotifications = useMemo(
     () => filterNotificationsBySelection(notifications, notificationStatusFilters, notificationModuleFilters, notificationTypeFilters),
     [notifications, notificationModuleFilters, notificationStatusFilters, notificationTypeFilters],
@@ -1544,7 +1569,7 @@ export function AppTopBar({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          className="w-[min(30rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border-slate-200 bg-white p-2 shadow-[0_22px_60px_rgba(15,23,42,0.18)]"
+          className="w-max min-w-[var(--radix-dropdown-menu-trigger-width)] max-w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border-slate-200 bg-white p-2 shadow-[0_22px_60px_rgba(15,23,42,0.18)]"
         >
           <div className="bg-white px-1 pb-2">
             <div className="flex items-center justify-between gap-3 px-2 pb-1 pt-1">
@@ -1596,29 +1621,15 @@ export function AppTopBar({
   };
 
   const renderNotificationFilters = (compact = false) => (
-    <div className={`flex flex-col gap-3 border-b border-slate-200 bg-white ${compact ? "px-4 py-3" : "px-4 py-4"}`}>
-      <div className={cn("grid gap-3", compact ? "grid-cols-1" : "grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto]")}> 
+    <div className={`flex flex-col gap-2.5 border-b border-slate-200 bg-white ${compact ? "px-4 py-3" : "px-4 py-3"}`}>
+      <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {hasAnyNotificationFilter ? (
-            <button
-              type="button"
-              onClick={resetNotificationFilters}
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-100 font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-800",
-                compact ? "min-h-8 px-2.5 py-1 text-[10px]" : "min-h-9 px-3 py-1 text-xs",
-              )}
-            >
-              <X className="h-3.5 w-3.5" />
-              Clear filters
-            </button>
-          ) : null}
-
           {renderNotificationFilterDropdown<NotificationStatusFilterValue>({
             title: "Status",
             allLabel: "All Status",
-            selected: notificationStatusFilters,
+            selected: draftNotificationStatusFilters,
             options: availableNotificationStatusOptions,
-            onChange: setNotificationStatusFilters,
+            onChange: setDraftNotificationStatusFilters,
             compact,
             minWidthClass: "min-w-[116px]",
           })}
@@ -1626,9 +1637,9 @@ export function AppTopBar({
           {renderNotificationFilterDropdown<NotificationModuleFilterValue>({
             title: "Module",
             allLabel: "All Module",
-            selected: notificationModuleFilters,
+            selected: draftNotificationModuleFilters,
             options: availableNotificationModuleOptions,
-            onChange: setNotificationModuleFilters,
+            onChange: setDraftNotificationModuleFilters,
             compact,
             minWidthClass: "min-w-[116px]",
           })}
@@ -1636,15 +1647,44 @@ export function AppTopBar({
           {renderNotificationFilterDropdown<NotificationTypeFilterValue>({
             title: "Type",
             allLabel: "All Type",
-            selected: notificationTypeFilters,
+            selected: draftNotificationTypeFilters,
             options: availableNotificationTypeOptions,
-            onChange: setNotificationTypeFilters,
+            onChange: setDraftNotificationTypeFilters,
             compact,
             minWidthClass: "min-w-[116px]",
           })}
         </div>
 
-        <div className="flex w-full min-w-0 shrink-0 flex-nowrap items-center gap-1.5 sm:w-auto">
+        <div className="flex shrink-0 flex-col items-stretch gap-1">
+          <button
+            type="button"
+            onClick={applyNotificationFilters}
+            disabled={!hasPendingNotificationFilterChanges}
+            className={cn(
+              "inline-flex min-h-7 min-w-[4.5rem] items-center justify-center rounded-full font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+              compact ? "px-3 py-1 text-[10px]" : "px-4 py-1 text-xs",
+              hasPendingNotificationFilterChanges
+                ? NOTIFICATION_ACCENT_SOLID
+                : "border border-slate-200 bg-white text-slate-500",
+            )}
+          >
+            Apply
+          </button>
+          <button
+            type="button"
+            onClick={resetNotificationFilters}
+            disabled={!hasAnyNotificationFilter}
+            className={cn(
+              "inline-flex min-h-7 min-w-[4.5rem] items-center justify-center rounded-full border border-slate-200 bg-slate-100 font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50",
+              compact ? "px-3 py-1 text-[10px]" : "px-4 py-1 text-xs",
+            )}
+          >
+            Clear
+          </button>
+        </div>
+
+      </div>
+      <div className="flex w-full min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden">
           {DATE_RANGE_OPTIONS.map((option) => (
             <button
               key={option}
@@ -1687,7 +1727,6 @@ export function AppTopBar({
             Custom
           </button>
         </div>
-      </div>
       {notificationDateRange === "CUSTOM" ? (
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           <input
