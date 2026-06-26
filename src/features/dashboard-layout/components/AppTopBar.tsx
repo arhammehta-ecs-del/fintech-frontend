@@ -649,6 +649,9 @@ export function AppTopBar({
   const [notificationDateRange, setNotificationDateRange] = useState<NotificationFetchDateRange>(DEFAULT_DATE_RANGE);
   const [customFromDate, setCustomFromDate] = useState("");
   const [customToDate, setCustomToDate] = useState("");
+  const [draftNotificationDateRange, setDraftNotificationDateRange] = useState<NotificationFetchDateRange>(DEFAULT_DATE_RANGE);
+  const [draftCustomFromDate, setDraftCustomFromDate] = useState("");
+  const [draftCustomToDate, setDraftCustomToDate] = useState("");
   const [expandedNotificationIds, setExpandedNotificationIds] = useState<string[]>([]);
   const [expandedNotificationTrackCounts, setExpandedNotificationTrackCounts] = useState<Record<string, number>>({});
   const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
@@ -679,6 +682,9 @@ export function AppTopBar({
     setNotificationDateRange(DEFAULT_DATE_RANGE);
     setCustomFromDate("");
     setCustomToDate("");
+    setDraftNotificationDateRange(DEFAULT_DATE_RANGE);
+    setDraftCustomFromDate("");
+    setDraftCustomToDate("");
   }, []);
 
   useEffect(() => {
@@ -699,7 +705,9 @@ export function AppTopBar({
   const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const activeDateRange = customFromDate && customToDate ? "CUSTOM" : notificationDateRange;
+  const draftActiveDateRange = draftCustomFromDate && draftCustomToDate ? "CUSTOM" : draftNotificationDateRange;
   const customDateRangeIsComplete = notificationDateRange !== "CUSTOM" || Boolean(customFromDate && customToDate);
+  const draftCustomDateRangeIsComplete = draftNotificationDateRange !== "CUSTOM" || Boolean(draftCustomFromDate && draftCustomToDate);
   const availableNotificationStatusOptions = useMemo(
     () => mergeNotificationFilterOptions(notificationFilterOptions.status, FALLBACK_STATUS_FILTER_OPTIONS),
     [notificationFilterOptions.status],
@@ -718,13 +726,28 @@ export function AppTopBar({
   const hasPendingNotificationFilterChanges =
     !areNotificationFilterValuesEqual(notificationStatusFilters, draftNotificationStatusFilters) ||
     !areNotificationFilterValuesEqual(notificationModuleFilters, draftNotificationModuleFilters) ||
-    !areNotificationFilterValuesEqual(notificationTypeFilters, draftNotificationTypeFilters);
+    !areNotificationFilterValuesEqual(notificationTypeFilters, draftNotificationTypeFilters) ||
+    notificationDateRange !== draftNotificationDateRange ||
+    customFromDate !== draftCustomFromDate ||
+    customToDate !== draftCustomToDate;
 
   const applyNotificationFilters = useCallback(() => {
+    if (!draftCustomDateRangeIsComplete) return;
     setNotificationStatusFilters(draftNotificationStatusFilters);
     setNotificationModuleFilters(draftNotificationModuleFilters);
     setNotificationTypeFilters(draftNotificationTypeFilters);
-  }, [draftNotificationModuleFilters, draftNotificationStatusFilters, draftNotificationTypeFilters]);
+    setNotificationDateRange(draftNotificationDateRange);
+    setCustomFromDate(draftCustomFromDate);
+    setCustomToDate(draftCustomToDate);
+  }, [
+    draftCustomDateRangeIsComplete,
+    draftCustomFromDate,
+    draftCustomToDate,
+    draftNotificationDateRange,
+    draftNotificationModuleFilters,
+    draftNotificationStatusFilters,
+    draftNotificationTypeFilters,
+  ]);
 
   const visibleNotifications = useMemo(
     () => filterNotificationsBySelection(notifications, notificationStatusFilters, notificationModuleFilters, notificationTypeFilters),
@@ -997,18 +1020,18 @@ export function AppTopBar({
   );
 
   const handleCustomFromDateChange = useCallback((value: string) => {
-    setCustomFromDate(value);
-    if (value && customToDate && value > customToDate) {
-      setCustomToDate(value);
+    setDraftCustomFromDate(value);
+    if (value && draftCustomToDate && value > draftCustomToDate) {
+      setDraftCustomToDate(value);
     }
-  }, [customToDate]);
+  }, [draftCustomToDate]);
 
   const handleCustomToDateChange = useCallback((value: string) => {
-    setCustomToDate(value);
-    if (value && customFromDate && value < customFromDate) {
-      setCustomFromDate(value);
+    setDraftCustomToDate(value);
+    if (value && draftCustomFromDate && value < draftCustomFromDate) {
+      setDraftCustomFromDate(value);
     }
-  }, [customFromDate]);
+  }, [draftCustomFromDate]);
 
   const loadCompactNotifications = useCallback(async () => {
     try {
@@ -1668,11 +1691,11 @@ export function AppTopBar({
           <button
             type="button"
             onClick={applyNotificationFilters}
-            disabled={!hasPendingNotificationFilterChanges}
+            disabled={!hasPendingNotificationFilterChanges || !draftCustomDateRangeIsComplete}
             className={cn(
               "inline-flex min-h-7 min-w-[4.5rem] items-center justify-center rounded-full font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
               compact ? "px-3 py-1 text-[10px]" : "px-4 py-1 text-xs",
-              hasPendingNotificationFilterChanges
+              hasPendingNotificationFilterChanges && draftCustomDateRangeIsComplete
                 ? NOTIFICATION_ACCENT_SOLID
                 : "border border-slate-200 bg-white text-slate-500",
             )}
@@ -1699,14 +1722,14 @@ export function AppTopBar({
               key={option}
               type="button"
               onClick={() => {
-                setNotificationDateRange(option);
-                setCustomFromDate("");
-                setCustomToDate("");
+                setDraftNotificationDateRange(option);
+                setDraftCustomFromDate("");
+                setDraftCustomToDate("");
               }}
               className={cn(
                 "min-h-8 w-[4.75rem] shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-center font-semibold leading-4 transition-colors",
                 compact ? "text-[10px]" : "text-[11px]",
-                activeDateRange === option
+                draftActiveDateRange === option
                   ? NOTIFICATION_ACCENT_SOLID
                   : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
               )}
@@ -1717,18 +1740,18 @@ export function AppTopBar({
           <button
             type="button"
             onClick={() => {
-              if (notificationDateRange === "CUSTOM") {
-                setNotificationDateRange(DEFAULT_DATE_RANGE);
-                setCustomFromDate("");
-                setCustomToDate("");
+              if (draftNotificationDateRange === "CUSTOM") {
+                setDraftNotificationDateRange(DEFAULT_DATE_RANGE);
+                setDraftCustomFromDate("");
+                setDraftCustomToDate("");
                 return;
               }
-              setNotificationDateRange("CUSTOM");
+              setDraftNotificationDateRange("CUSTOM");
             }}
             className={cn(
               "min-h-8 w-[4.75rem] shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-center font-semibold leading-4 transition-colors",
               compact ? "text-[10px]" : "text-[11px]",
-              activeDateRange === "CUSTOM"
+              draftActiveDateRange === "CUSTOM"
                 ? NOTIFICATION_ACCENT_SOLID
                 : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
             )}
@@ -1736,20 +1759,20 @@ export function AppTopBar({
             Custom
           </button>
         </div>
-      {notificationDateRange === "CUSTOM" ? (
+      {draftNotificationDateRange === "CUSTOM" ? (
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           <input
             type="date"
-            max={customToDate || todayIso}
-            value={customFromDate}
+            max={draftCustomToDate || todayIso}
+            value={draftCustomFromDate}
             onChange={(event) => handleCustomFromDateChange(event.target.value)}
             className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none"
           />
           <input
             type="date"
             max={todayIso}
-            min={customFromDate || undefined}
-            value={customToDate}
+            min={draftCustomFromDate || undefined}
+            value={draftCustomToDate}
             onChange={(event) => handleCustomToDateChange(event.target.value)}
             className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none"
           />
