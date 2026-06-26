@@ -29,7 +29,6 @@ import {
   mapWorkflowRecord,
   formatSnakeCaseLabel,
   getWorkflowNodeDisplayName,
-  getWorkflowPathPreview,
   isRootWorkflowNode,
   isWorkflowUpdateRequest,
 } from "@/features/workflow-management/utils/workflowRecord.utils";
@@ -227,27 +226,24 @@ function NodePathMarquee({ text }: { text: string }) {
           <Info className="h-3 w-3" />
         </span>
       ) : null}
-      <span className="inline-flex min-w-0 max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.02em] text-sky-700">
+      <span className="inline-flex min-w-0 max-w-full rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-semibold leading-none tracking-normal text-sky-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
         <span ref={viewportRef} className="block max-w-full overflow-hidden whitespace-nowrap">
           <span
-            className="inline-flex items-center whitespace-nowrap will-change-transform"
-            style={
-              shouldAnimate
-                ? {
-                  animation: `workflow-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
-                  ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
-                  transform: "translate3d(0,0,0)",
-                }
-                : undefined
-            }
+            className={shouldAnimate ? "inline-flex items-center whitespace-nowrap will-change-transform" : "inline-flex items-center whitespace-nowrap"}
+            style={shouldAnimate
+              ? {
+                animation: `workflow-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
+                ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
+              }
+              : undefined}
           >
-            <span ref={textRef} className="inline-block whitespace-nowrap">
+            <span ref={textRef} className="inline-block whitespace-nowrap antialiased">
               {text}
             </span>
             {overflowPx > 0 ? (
               <span aria-hidden className="inline-flex items-center whitespace-nowrap">
                 <span className="inline-block" style={{ width: `${MARQUEE_GAP_PX}px` }} />
-                <span className="inline-block whitespace-nowrap">{text}</span>
+                <span className="inline-block whitespace-nowrap antialiased">{text}</span>
               </span>
             ) : null}
           </span>
@@ -1308,7 +1304,7 @@ export default function WorkflowManagementView() {
                   <div className="min-w-0 text-sm text-slate-700">
                     <p
                       className={cn(
-                        "flex flex-wrap items-start gap-1.5 text-sm leading-5 text-slate-700 break-words",
+                        "flex items-center gap-1.5 truncate text-sm leading-5 text-slate-700",
                         typeof workflow.levelCount === "number" &&
                           "before:shrink-0 before:rounded before:bg-indigo-100 before:px-1 before:py-0.5 before:text-[9px] before:font-bold before:tracking-wider before:text-indigo-700 before:content-[attr(data-level)]",
                       )}
@@ -1320,7 +1316,7 @@ export default function WorkflowManagementView() {
                         subModule: workflow.subModule,
                       }) || "—"}${workflow.nodeType ? ` (${formatSnakeCaseLabel(workflow.nodeType)})` : ""}`}
                     >
-                      <span className="min-w-0 break-words">
+                      <span className="min-w-0 truncate">
                         {getWorkflowNodeDisplayName({
                           nodeName: workflow.nodeName,
                           nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
@@ -1333,7 +1329,7 @@ export default function WorkflowManagementView() {
                       ) : null}
                     </p>
                     {(() => {
-                      const nodePath = workflow.nodePath || "";
+                      const nodePath = resolveWorkflowNodePath(workflow);
                       const nodeType = (workflow.nodeType || "").toUpperCase();
                       const nodeDepth = nodePath.split(".").map((part) => part.trim()).filter(Boolean).length;
                       const isRootByType = nodeType === "ROOT";
