@@ -36,11 +36,39 @@ const readLevel = (value: unknown) => {
   }
   return null;
 };
+const readCount = (value: unknown) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+};
 const toEpochMs = (value: unknown) => {
   const raw = readString(value);
   if (!raw) return Number.NEGATIVE_INFINITY;
   const timestamp = Date.parse(raw);
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+};
+const formatApprovalSummaryDetail = (record: RawHistoryRecord, targetLabel: string) => {
+  const approvalSummary = toRecord(record.approvalSummary);
+  const totalLevels = readCount(approvalSummary.totalLevels);
+  const completedLevels = readCount(approvalSummary.completedLevels);
+  const currentStatus = readString(approvalSummary.currentStatus).toUpperCase();
+
+  if (!totalLevels) return "";
+
+  if (currentStatus === "APPROVED" && totalLevels > 1 && completedLevels >= totalLevels) {
+    return `All ${totalLevels} levels approved for ${targetLabel}.`;
+  }
+
+  const statusLabel =
+    currentStatus === "APPROVED"
+      ? "Approval completed."
+      : currentStatus === "REJECTED"
+        ? "Approval stopped at the rejection stage."
+        : "Approval progress recorded.";
+  return `${statusLabel} ${completedLevels} of ${totalLevels} levels completed.`;
 };
 const mapEligibleApprovers = (record: RawHistoryRecord) => {
   const eligibleApproversRaw = Array.isArray(record.eligibleapprovers) ? record.eligibleapprovers : [];
@@ -167,6 +195,8 @@ const mapOrgHistoryEntry = (
   const disableViewMore = isAutoEvent;
   const remarks = readString(record.remarks);
   const levelCount = readString(record.levelCount);
+  const targetNodeLabel = nodeName || subtitle || "organisation structure";
+  const approvalSummaryDetail = formatApprovalSummaryDetail(record, targetNodeLabel);
 
   const approvedByLevels = (Array.isArray(record.approvedBy) ? record.approvedBy : [])
     .map((levelEntry: any) => ({
@@ -184,11 +214,13 @@ const mapOrgHistoryEntry = (
     .filter((entry: any) => entry.level !== null && entry.approvers.length > 0)
     .sort((a: any, b: any) => (b.level ?? 0) - (a.level ?? 0));
 
-  const details = eligibleApprovers.length > 0
-    ? "Eligible approvers listed below."
-    : nodeName
-      ? `event recorded for node ${nodeName} in ${parentNodeName || subtitle || "organisation structure"}.`
-      : `event recorded for ${subtitle || "organisation structure"}.`;
+  const details = approvalSummaryDetail || (
+    eligibleApprovers.length > 0
+      ? "Eligible approvers listed below."
+      : nodeName
+        ? `event recorded for node ${nodeName} in ${parentNodeName || subtitle || "organisation structure"}.`
+        : `event recorded for ${subtitle || "organisation structure"}.`
+  );
   const approvalSections = [
     ...(impactedAccessUsers.length > 0
       ? [{
@@ -252,11 +284,11 @@ const mapOrgHistoryEntry = (
     showActor,
     approver: isApprovedAction
       ? {
-        name: initiatorName,
-        email: initiatorEmail,
-        date,
-        time,
-      }
+          name: initiatorName,
+          email: initiatorEmail,
+          date,
+          time,
+        }
       : undefined,
     status: isPendingAction ? "pending" : "approved",
   };

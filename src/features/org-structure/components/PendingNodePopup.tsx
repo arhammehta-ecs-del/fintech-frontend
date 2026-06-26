@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { X, CheckCircle2, XCircle, Building2, MapPin, Layers3, Briefcase, Boxes, Info, User, Mail, Clock3, History, Users, Workflow } from "lucide-react";
+import { X, CheckCircle2, XCircle, Building2, MapPin, Layers3, Briefcase, Boxes, Info, User, Mail, Clock3, History, Users, Workflow, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrgNode } from "@/contexts/AppContext";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,7 +46,8 @@ const formatRequestedAtToIst = (value?: string) => {
 };
 
 const REMARK_MAX_LENGTH = 100;
-
+const IMPACTED_LIST_MAX_HEIGHT_CLASS = "max-h-[26rem]";
+const IMPACTED_USERS_GRID_CLASS = "grid-cols-[minmax(9rem,1fr)_minmax(13rem,1.15fr)_minmax(10rem,0.8fr)_72px]";
 const toRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 
@@ -57,6 +58,8 @@ const formatAccessLabel = (value: string) =>
     .trim()
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const formatNodeTypeLabel = (value?: string) => formatAccessLabel(value || "");
 
 const getAccessBadges = (access?: Record<string, string[]>) =>
   Object.entries(access ?? {}).flatMap(([module, permissions]) =>
@@ -156,7 +159,7 @@ function DiffValue({
   return (
     <span className="font-semibold text-slate-900">
       <span className="rounded border border-rose-100 bg-rose-50 px-1 py-0.5 text-rose-600 line-through">{prev}</span>
-      <span className="px-1 text-slate-400">→</span>
+      <span className="px-1 text-slate-400">ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢</span>
       <span className="rounded border border-emerald-100 bg-emerald-50 px-1 py-0.5 text-emerald-700">{next || "-"}</span>
     </span>
   );
@@ -179,6 +182,8 @@ export function PendingNodePopup({
   const [remark, setRemark] = useState("");
   const [remarkError, setRemarkError] = useState("");
   const [pendingDecision, setPendingDecision] = useState<"approve" | "reject" | null>(null);
+  const [isWorkflowsExpanded, setIsWorkflowsExpanded] = useState(true);
+  const [isUsersExpanded, setIsUsersExpanded] = useState(true);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -186,6 +191,8 @@ export function PendingNodePopup({
       setRemark("");
       setRemarkError("");
       setPendingDecision(null);
+      setIsWorkflowsExpanded(true);
+      setIsUsersExpanded(true);
     }
   }, [open, node?.id]);
 
@@ -219,6 +226,7 @@ export function PendingNodePopup({
       : "New Node Approval";
   const nodePathSegments = node.nodePath.split(".").filter(Boolean);
   const diffRows = buildOrgDiffRows(node);
+  const metadataPillClassName = "inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70";
 
   const handleStartPendingAction = async (action: "approve" | "reject") => {
     const shouldOpen = await onStartPendingAction?.(node, action);
@@ -337,10 +345,10 @@ export function PendingNodePopup({
             </button>
           </div>
 
-          <div className="flex flex-col items-center gap-2.5 text-center">
+          <div className="flex flex-col items-center gap-2 text-center">
             <span
               className={cn(
-                "inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.13em]",
+                "inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em]",
                 useUpdateTheme ? "bg-orange-100 text-orange-700" : "bg-amber-100 text-amber-700",
               )}
             >
@@ -348,7 +356,7 @@ export function PendingNodePopup({
             </span>
             <div
               className={cn(
-                "flex h-12 w-12 items-center justify-center rounded-xl bg-white",
+                "flex h-11 w-11 items-center justify-center rounded-2xl bg-white",
                 useUpdateTheme
                   ? "shadow-[0_6px_16px_rgba(249,115,22,0.16)]"
                   : "shadow-[0_6px_16px_rgba(245,158,11,0.14)]",
@@ -356,103 +364,153 @@ export function PendingNodePopup({
             >
               <Icon className={cn("h-6 w-6", useUpdateTheme ? "text-orange-500" : "text-amber-500")} />
             </div>
-            <h2 className="text-[2rem] font-bold leading-none tracking-tight text-slate-900">{node.name}</h2>
+            <div className="space-y-1">
+              <h2 className="max-w-[22ch] text-[1.65rem] font-semibold leading-tight tracking-[-0.03em] text-slate-900 sm:text-[1.8rem]">
+                {node.name}
+              </h2>
+              <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                <span>{formatNodeTypeLabel(node.nodeType) || "Node"}</span>
+                {node.parentNodeName ? <span className="text-slate-300">&bull;</span> : null}
+                {node.parentNodeName ? <span className="normal-case tracking-normal text-slate-400">{node.parentNodeName}</span> : null}
+              </div>
+            </div>
+
           </div>
         </div>
 
         {/* Details Section */}
         <div className={cn("flex-1 min-h-0 space-y-4 overflow-y-auto py-6", isStandaloneDialog ? "px-8" : "px-6")}>
-          <div className={cn("rounded-2xl border bg-white p-4 shadow-sm", useUpdateTheme ? "border-orange-200/80" : "border-slate-200")}>
-            <div className="mb-3 flex items-center gap-2">
-              <div className={cn("h-1.5 w-1.5 rounded-full", useUpdateTheme ? "bg-orange-500" : "bg-amber-500")} />
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-700">Node Details</p>
-            </div>
-            <div className="space-y-2.5">
-              <div className="grid grid-cols-[18px_96px_1fr] items-start gap-2 text-sm">
-                <Info size={14} className="mt-0.5 text-slate-400" />
-                <span className="text-slate-500">Node Type</span>
-                <span className="font-semibold text-slate-900">{node.nodeType}</span>
-              </div>
-              <div className="grid grid-cols-[18px_96px_1fr] items-start gap-2 text-sm">
-                <Info size={14} className="mt-0.5 text-slate-400" />
-                <span className="text-slate-500">Node Path</span>
-                <span className="font-mono text-[12px] font-semibold text-slate-700 break-words">
-                  {nodePathSegments.length > 0
-                    ? nodePathSegments.map((segment, index) => (
-                      <span key={`${segment}-${index}`}>
-                        {segment}
-                        {index < nodePathSegments.length - 1 ? "." : ""}
-                        <wbr />
-                      </span>
-                    ))
-                    : node.nodePath}
-                </span>
-              </div>
-            </div>
-          </div>
-
           {showRequestMetadata ? (
-            <div className={cn("rounded-2xl border bg-white p-4 shadow-sm", useUpdateTheme ? "border-orange-200/80" : "border-slate-200")}>
-              <div
-                className={cn(
-                  "grid gap-4",
-                  isStandaloneDialog
-                    ? hasLongWorkflowLabel
-                      ? "lg:grid-cols-[0.92fr_1.08fr]"
-                      : "lg:grid-cols-[1fr_0.95fr]"
-                    : hasLongWorkflowLabel
-                      ? "md:grid-cols-[0.9fr_1.3fr]"
-                      : "md:grid-cols-[1fr_0.85fr]",
-                )}
-              >
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Initiator Info</p>
-                  <div className="mt-2.5 space-y-1.5 text-[13px] leading-relaxed">
-                    <div className="flex items-center gap-2">
-                      <User size={13} className="shrink-0 text-slate-500" />
-                      <p className="truncate font-medium text-slate-800">{requesterName}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Mail size={13} className="shrink-0 text-slate-500" />
-                      <p className="truncate font-medium text-slate-700">{requesterEmail}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock3 size={13} className="shrink-0 text-slate-500" />
-                      <p className="font-medium text-slate-700">{requestedOn}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {workflowName || workflowAlias ? (
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workflow</p>
-                    <div className="mt-2.5 space-y-1 text-[13px]">
-                      <div className="grid grid-cols-[52px_10px_1fr] items-start">
-                        <span className="text-slate-500">Name</span>
-                        <span className="text-slate-400">:</span>
-                        <span
-                          className="font-medium leading-5 text-slate-700 break-words [overflow-wrap:anywhere]"
-                          title={workflowName || "—"}
-                        >
-                          {workflowName || "—"}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-[52px_10px_1fr] items-start">
-                        <span className="text-slate-500">Alias</span>
-                        <span className="text-slate-400">:</span>
-                        <span
-                          className="font-medium leading-5 text-slate-700 break-words [overflow-wrap:anywhere]"
-                          title={workflowAlias || "—"}
-                        >
-                          {workflowAlias || "—"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2 text-[12px]">
+                <span className={metadataPillClassName}>
+                  <User size={12} className="text-slate-400" />
+                  <span className="text-slate-500">By</span>
+                  <span className="font-medium text-slate-700">{requesterName}</span>
+                </span>
+                <span className={metadataPillClassName}>
+                  <Mail size={12} className="text-slate-400" />
+                  <span className="text-slate-500">Email</span>
+                  <span className="truncate font-medium text-slate-700">{requesterEmail}</span>
+                </span>
+                <span className={metadataPillClassName}>
+                  <Clock3 size={12} className="text-slate-400" />
+                  <span className="text-slate-500">Initiated</span>
+                  <span className="font-medium text-slate-700">{requestedOn}</span>
+                </span>
+                {workflowName ? (
+                  <span className={metadataPillClassName}>
+                    <span className="text-slate-500">Workflow</span>
+                    <span className="truncate font-medium text-slate-700">{workflowName}</span>
+                  </span>
+                ) : null}
+                {workflowAlias ? (
+                  <span className={metadataPillClassName}>
+                    <span className="text-slate-500">Alias</span>
+                    <span className="truncate font-medium text-slate-700">{workflowAlias}</span>
+                  </span>
                 ) : null}
               </div>
             </div>
           ) : null}
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-4",
+              showRequestMetadata && !isStandaloneDialog && "lg:grid-cols-[minmax(16rem,0.72fr)_minmax(0,1.28fr)]",
+            )}
+          >
+            <div className={cn("rounded-2xl border bg-white p-4 shadow-sm", useUpdateTheme ? "border-orange-200/80" : "border-slate-200")}>
+              <div className="mb-3 flex items-center gap-2">
+                <div className={cn("h-1.5 w-1.5 rounded-full", useUpdateTheme ? "bg-orange-500" : "bg-amber-500")} />
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-700">Node Details</p>
+              </div>
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-[18px_96px_1fr] items-start gap-2 text-sm">
+                  <Info size={14} className="mt-0.5 text-slate-400" />
+                  <span className="text-slate-500">Node Type</span>
+                  <span className="font-semibold text-slate-900">{formatNodeTypeLabel(node.nodeType) || node.nodeType}</span>
+                </div>
+                <div className="grid grid-cols-[18px_96px_1fr] items-start gap-2 text-sm">
+                  <Info size={14} className="mt-0.5 text-slate-400" />
+                  <span className="text-slate-500">Node Path</span>
+                  <span className="font-mono text-[12px] font-semibold text-slate-700 break-words">
+                    {nodePathSegments.length > 0
+                      ? nodePathSegments.map((segment, index) => (
+                        <span key={`${segment}-${index}`}>
+                          {segment}
+                          {index < nodePathSegments.length - 1 ? "." : ""}
+                          <wbr />
+                        </span>
+                      ))
+                      : node.nodePath}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {showRequestMetadata ? (
+              <div className={cn("rounded-2xl border bg-white p-4 shadow-sm", useUpdateTheme ? "border-orange-200/80" : "border-slate-200")}>
+                <div
+                  className={cn(
+                    "grid gap-4",
+                    isStandaloneDialog
+                      ? hasLongWorkflowLabel
+                        ? "lg:grid-cols-[0.92fr_1.08fr]"
+                        : "lg:grid-cols-[1fr_0.95fr]"
+                      : hasLongWorkflowLabel
+                        ? "lg:grid-cols-[0.92fr_1.08fr]"
+                        : "lg:grid-cols-[1fr_0.9fr]",
+                  )}
+                >
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Initiator Info</p>
+                    <div className="mt-2.5 space-y-1.5 text-[13px] leading-relaxed">
+                      <div className="flex items-center gap-2">
+                        <User size={13} className="shrink-0 text-slate-500" />
+                        <p className="truncate font-medium text-slate-800">{requesterName}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Mail size={13} className="shrink-0 text-slate-500" />
+                        <p className="truncate font-medium text-slate-700">{requesterEmail}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock3 size={13} className="shrink-0 text-slate-500" />
+                        <p className="font-medium text-slate-700">{requestedOn}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {workflowName || workflowAlias ? (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workflow</p>
+                      <div className="mt-2.5 space-y-1 text-[13px]">
+                        <div className="grid grid-cols-[52px_10px_1fr] items-start">
+                          <span className="text-slate-500">Name</span>
+                          <span className="text-slate-400">:</span>
+                          <span
+                            className="font-medium leading-5 text-slate-700 break-words [overflow-wrap:anywhere]"
+                            title={workflowName || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
+                          >
+                            {workflowName || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-[52px_10px_1fr] items-start">
+                          <span className="text-slate-500">Alias</span>
+                          <span className="text-slate-400">:</span>
+                          <span
+                            className="font-medium leading-5 text-slate-700 break-words [overflow-wrap:anywhere]"
+                            title={workflowAlias || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
+                          >
+                            {workflowAlias || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
 
           {!isStatusUpdateRequest && diffRows.length > 0 ? (
             <div className={cn("rounded-2xl border bg-white p-4 shadow-sm", useUpdateTheme ? "border-orange-200/80" : "border-slate-200")}>
@@ -491,102 +549,135 @@ export function PendingNodePopup({
           {(affectedUsersCount > 0 || affectedWorkflowsCount > 0) ? (
             <div
               className={cn(
-                "grid items-start gap-4",
-                isStandaloneDialog ? "lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]" : "xl:grid-cols-[minmax(0,1.28fr)_minmax(260px,0.72fr)]",
+                "grid grid-cols-1 items-start gap-4",
               )}
             >
-              {affectedUsersCount > 0 ? (
+              {affectedWorkflowsCount > 0 ? (
                 <div
                   className={cn(
-                    "h-fit self-start overflow-hidden rounded-2xl border text-left transition",
+                    "overflow-hidden rounded-2xl border",
                     "border-sky-200/80 bg-sky-50/80",
                   )}
                 >
-                  <div className="border-b border-sky-100 bg-sky-100/70 px-4 py-3">
-                    <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      <Users size={14} className="text-sky-600" />
-                      Impacted Users
-                    </div>
-                    <p className="mt-2 text-2xl font-bold leading-none text-sky-700">{affectedUsersCount}</p>
-                  </div>
-                  {impactedUsers.length > 0 ? (
-                    <>
-                      <div className="grid grid-cols-[minmax(8rem,0.9fr)_minmax(10rem,1fr)_minmax(14rem,1.4fr)_88px] border-b border-slate-200/80 bg-white/80 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        <span>Name</span>
-                        <span>Email</span>
-                        <span className="text-right">Access</span>
-                        <span className="text-right">Access Count</span>
+                  <div className={cn("bg-sky-100/70 px-4 py-3", isWorkflowsExpanded && impactedWorkflows.length > 0 && "border-b border-sky-100")}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                          <Workflow size={14} className="text-sky-600" />
+                          Impacted Workflows
+                        </div>
+                        <p className="mt-2 text-2xl font-bold leading-none text-sky-700">{affectedWorkflowsCount}</p>
                       </div>
-                      <div className="divide-y divide-slate-100/80 bg-white">
-                        {impactedUsers.map((user, index) => {
-                          const accessBadges = getAccessBadges(user.access);
-                          return (
+                      {impactedWorkflows.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsWorkflowsExpanded((current) => !current)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-sky-700 transition hover:bg-white"
+                          aria-expanded={isWorkflowsExpanded}
+                          aria-label={isWorkflowsExpanded ? "Collapse impacted workflows" : "Expand impacted workflows"}
+                        >
+                          {isWorkflowsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  {impactedWorkflows.length > 0 && isWorkflowsExpanded ? (
+                    <>
+                      <div className="grid grid-cols-[minmax(0,1fr)_96px] border-b border-slate-200/80 bg-white/90 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        <span>Workflow Name</span>
+                        <span className="text-right">Alias</span>
+                      </div>
+                      <div className={cn(IMPACTED_LIST_MAX_HEIGHT_CLASS, "overflow-y-auto bg-white")}>
+                        <div className="divide-y divide-slate-100/80">
+                          {impactedWorkflows.map((item, index) => (
                             <div
-                              key={`${user.email || user.name || "user"}-${index}`}
-                              className="grid grid-cols-[minmax(8rem,0.9fr)_minmax(10rem,1fr)_minmax(14rem,1.4fr)_88px] gap-3 px-4 py-3 text-sm hover:bg-slate-50/70"
+                              key={`${item.workflowName || item.alias || "workflow"}-${index}`}
+                              className="grid min-h-[3.25rem] grid-cols-[minmax(0,1fr)_96px] gap-3 px-4 py-3 text-sm hover:bg-slate-50/70"
                             >
-                              <span className="truncate font-medium text-slate-800" title={user.name || "—"}>
-                                {user.name || "—"}
+                              <span className="truncate font-medium text-slate-800" title={item.workflowName || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}>
+                                {item.workflowName || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
                               </span>
-                              <span className="truncate text-slate-500" title={user.email || "—"}>
-                                {user.email || "—"}
+                              <span className="truncate text-right text-slate-500" title={item.alias || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}>
+                                {item.alias || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
                               </span>
-                              <div className="flex justify-end overflow-x-auto whitespace-nowrap gap-1.5 scrollbar-thin scrollbar-thumb-sky-200 scrollbar-track-transparent">
-                                {accessBadges.length > 0 ? accessBadges.map((badge) => (
-                                  <span
-                                    key={`${user.email || user.name || "user"}-${badge}`}
-                                    className="inline-flex shrink-0 items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700"
-                                  >
-                                    {badge}
-                                  </span>
-                                )) : (
-                                  <span className="text-[11px] text-slate-400">—</span>
-                                )}
-                              </div>
-                              <span className="text-right text-sm font-semibold text-slate-700">{accessBadges.length}</span>
                             </div>
-                          );
-                        })}
+                          ))}
+                        </div>
                       </div>
                     </>
                   ) : null}
                 </div>
               ) : null}
 
-              {affectedWorkflowsCount > 0 ? (
+              {affectedUsersCount > 0 ? (
                 <div
                   className={cn(
-                    "h-fit self-start overflow-hidden rounded-2xl border",
+                    "overflow-hidden rounded-2xl border text-left transition",
                     "border-sky-200/80 bg-sky-50/80",
                   )}
                 >
-                  <div className="border-b border-sky-100 bg-sky-100/70 px-4 py-3">
-                    <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      <Workflow size={14} className="text-sky-600" />
-                      Impacted Workflows
-                    </div>
-                    <p className="mt-2 text-2xl font-bold leading-none text-sky-700">{affectedWorkflowsCount}</p>
-                  </div>
-                  {impactedWorkflows.length > 0 ? (
-                    <>
-                      <div className="grid grid-cols-[minmax(0,1fr)_96px] border-b border-slate-200/80 bg-white/80 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        <span>Workflow Name</span>
-                        <span className="text-right">Alias</span>
+                  <div className={cn("bg-sky-100/70 px-4 py-3", isUsersExpanded && impactedUsers.length > 0 && "border-b border-sky-100")}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                          <Users size={14} className="text-sky-600" />
+                          Impacted Users
+                        </div>
+                        <p className="mt-2 text-2xl font-bold leading-none text-sky-700">{affectedUsersCount}</p>
                       </div>
-                      <div className="divide-y divide-slate-100/80 bg-white">
-                        {impactedWorkflows.map((item, index) => (
-                          <div
-                            key={`${item.workflowName || item.alias || "workflow"}-${index}`}
-                            className="grid grid-cols-[minmax(0,1fr)_96px] gap-3 px-4 py-3 text-sm hover:bg-slate-50/70"
-                          >
-                            <span className="truncate font-medium text-slate-800" title={item.workflowName || "—"}>
-                              {item.workflowName || "—"}
-                            </span>
-                            <span className="truncate text-right text-slate-500" title={item.alias || "—"}>
-                              {item.alias || "—"}
-                            </span>
-                          </div>
-                        ))}
+                      {impactedUsers.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsUsersExpanded((current) => !current)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-sky-700 transition hover:bg-white"
+                          aria-expanded={isUsersExpanded}
+                          aria-label={isUsersExpanded ? "Collapse impacted users" : "Expand impacted users"}
+                        >
+                          {isUsersExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  {impactedUsers.length > 0 && isUsersExpanded ? (
+                    <>
+                      <div className={cn("grid border-b border-slate-200/80 bg-white/90 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500", IMPACTED_USERS_GRID_CLASS)}>
+                        <span>Name</span>
+                        <span>Email</span>
+                        <span>Access</span>
+                        <span className="text-right">Access Count</span>
+                      </div>
+                      <div className={cn(IMPACTED_LIST_MAX_HEIGHT_CLASS, "overflow-y-auto bg-white")}>
+                        <div className="divide-y divide-slate-100/80">
+                          {impactedUsers.map((user, index) => {
+                            const accessBadges = getAccessBadges(user.access);
+                            return (
+                              <div
+                                key={`${user.email || user.name || "user"}-${index}`}
+                                className={cn("grid min-h-[3.25rem] gap-4 px-4 py-3 text-sm hover:bg-slate-50/70", IMPACTED_USERS_GRID_CLASS)}
+                              >
+                                <span className="truncate font-medium text-slate-800" title={user.name || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}>
+                                  {user.name || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
+                                </span>
+                                <span className="truncate text-slate-500" title={user.email || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}>
+                                  {user.email || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
+                                </span>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {accessBadges.length > 0 ? accessBadges.map((badge) => (
+                                    <span
+                                      key={`${user.email || user.name || "user"}-${badge}`}
+                                      className="inline-flex shrink-0 items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700"
+                                    >
+                                      {badge}
+                                    </span>
+                                  )) : (
+                                    <span className="text-[11px] text-slate-400">ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</span>
+                                  )}
+                                </div>
+                                <span className="text-right text-sm font-semibold text-slate-700">{accessBadges.length}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </>
                   ) : null}
@@ -630,19 +721,19 @@ export function PendingNodePopup({
                 {remarkError ? <p className="text-xs font-medium text-rose-600">{remarkError}</p> : null}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center justify-end gap-3">
                 {pendingDecision === "approve" ? (
                   <>
                     <button
                       onClick={handleClosePendingAction}
-                      className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 shadow-sm"
+                      className="inline-flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                     >
                       <X size={16} />
-                      Close
+                      Cancel
                     </button>
                     <button
                       onClick={() => validateAndRun("approve")}
-                      className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#16a34a] to-[#22c55e] py-2.5 text-sm font-bold text-white transition hover:from-[#15803d] hover:to-[#16a34a] hover:shadow-lg shadow-md active:scale-[0.98]"
+                      className="inline-flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700"
                     >
                       <CheckCircle2 size={16} />
                       Approve
@@ -652,34 +743,34 @@ export function PendingNodePopup({
                   <>
                     <button
                       onClick={() => validateAndRun("reject")}
-                      className="flex items-center justify-center gap-2 rounded-xl border border-red-600 bg-red-600 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 shadow-sm"
+                      className="inline-flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-xl border border-[rgb(220,38,38)] bg-[rgb(220,38,38)] px-4 text-sm font-semibold text-white transition hover:bg-[rgb(220,38,38)]"
                     >
                       <XCircle size={16} />
                       Reject
                     </button>
                     <button
                       onClick={handleClosePendingAction}
-                      className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 shadow-sm"
+                      className="inline-flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                     >
                       <X size={16} />
-                      Close
+                      Cancel
                     </button>
                   </>
                 )}
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center justify-end gap-3">
               <button
                 onClick={() => void handleStartPendingAction("reject")}
-                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 shadow-sm"
+                className="inline-flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
               >
                 <XCircle size={16} />
                 Reject
               </button>
               <button
                 onClick={() => void handleStartPendingAction("approve")}
-                className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#3553E9] to-[#4f74ff] py-2.5 text-sm font-bold text-white transition hover:from-[#2f49cf] hover:to-[#3f66f6] hover:shadow-lg shadow-md active:scale-[0.98]"
+                className="inline-flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-xl bg-[rgb(53,83,233)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[rgb(45,71,210)]"
               >
                 <CheckCircle2 size={16} />
                 Approve
@@ -691,3 +782,18 @@ export function PendingNodePopup({
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

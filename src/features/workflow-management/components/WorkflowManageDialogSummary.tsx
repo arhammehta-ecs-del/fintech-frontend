@@ -1,5 +1,5 @@
-import { Briefcase, Building2, CheckCircle2, Layers, Settings2, Zap } from "lucide-react";
-import { useMemo } from "react";
+import { Briefcase, Building2, CheckCircle2, ChevronDown, Layers, Settings2, Zap } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 import type { WorkflowLevel } from "@/features/workflow-management/components/onboarding/types";
 import { APPROVAL_OPTIONS } from "@/features/workflow-management/constants";
@@ -109,12 +109,29 @@ const renderInlineDiff = (currentValue: string, previousValue?: string) => {
   return (
     <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center">
       <span className="max-w-full break-words rounded-lg border border-rose-200 bg-rose-50/80 px-3 py-2 text-[14px] font-medium leading-5 text-rose-700">{prev}</span>
-      <span className="text-slate-400">→</span>
+      <span className="text-slate-400">-&gt;</span>
       <span className="max-w-full break-words rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[14px] font-semibold leading-5 text-emerald-800">{next}</span>
     </div>
   );
 };
 
+const renderAliasDiff = (currentValue: string, previousValue?: string) => {
+  const next = (currentValue || "-").trim() || "-";
+  const prevRaw = (previousValue || "").trim();
+  const prev = prevRaw === "-" ? "" : prevRaw;
+
+  if (!prev || prev === next) {
+    return <span className="block break-words text-[15px] font-semibold leading-6 text-violet-700 md:text-[17px]">{next}</span>;
+  }
+
+  return (
+    <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center">
+      <span className="max-w-full break-words rounded-lg border border-rose-200 bg-rose-50/80 px-3 py-2 text-[14px] font-medium leading-5 text-rose-700">{prev}</span>
+      <span className="text-slate-400">-&gt;</span>
+      <span className="max-w-full break-words rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[14px] font-semibold leading-5 text-violet-700">{next}</span>
+    </div>
+  );
+};
 const getWorkflowConditionCount = (levels: WorkflowLevel[]) =>
   levels.reduce((total, level) => {
     const approvalCount = level.approvals.filter((approval) => Boolean(approval.option?.trim())).length;
@@ -124,14 +141,14 @@ const getWorkflowConditionCount = (levels: WorkflowLevel[]) =>
 
 const renderOrgPathBadge = (pathStr: string) => {
   if (!pathStr) return null;
-  const segments = pathStr.split('.').filter(Boolean);
+  const segments = pathStr.split(".").filter(Boolean);
   return (
     <div className="mt-1.5 flex flex-wrap items-center">
       <span className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-sky-200/80 bg-sky-50 px-2.5 py-1 text-[11px] font-medium tracking-[0.04em] text-sky-700">
         {segments.map((segment, i) => (
           <span key={i} className="flex items-center gap-1.5">
             <span>{segment}</span>
-            {i < segments.length - 1 && <span className="text-sky-300">›</span>}
+            {i < segments.length - 1 && <span className="text-sky-300">/</span>}
           </span>
         ))}
       </span>
@@ -178,7 +195,7 @@ const renderConnectorDiff = ({
     return (
       <span className="flex items-center gap-1 text-[10px] font-semibold uppercase">
         <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-rose-700">{prev}</span>
-        <span className="text-slate-400">→</span>
+        <span className="text-slate-400">-&gt;</span>
         <span className="rounded border border-emerald-200 bg-emerald-50/60 px-1.5 py-0.5 text-emerald-700">{next}</span>
       </span>
     );
@@ -201,6 +218,9 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
   const summaryLevels = toSummaryLevels(workflow.levels);
   const previousWorkflow = workflow.previousWorkflow ?? null;
   const hasComparisonData = Boolean(previousWorkflow);
+  const [levelsExpanded, setLevelsExpanded] = useState(true);
+  const [linkedOrgExpanded, setLinkedOrgExpanded] = useState(true);
+  const [collapsedLevels, setCollapsedLevels] = useState<Record<number, boolean>>({});
   const previousSummaryLevels = useMemo(
     () => (previousWorkflow ? toSummaryLevels(previousWorkflow.levels) : []),
     [previousWorkflow],
@@ -218,6 +238,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
       .sort(([a], [b]) => a - b)
       .map(([id, pair]) => ({ id, ...pair }));
   }, [summaryLevels, previousSummaryLevels]);
+
 
   const linkedOrgStructureNodes = useMemo(() => {
     const linkedRows = Array.isArray(workflow.linkedOrgStructure) ? workflow.linkedOrgStructure : [];
@@ -276,237 +297,304 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
   const displayCurrentAlias = explicitCurrentAlias || derivedCurrentAlias || "-";
 
   return (
-    <div className="px-2 py-0 md:px-4">
-      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="grid grid-cols-1 gap-x-12 gap-y-5 md:grid-cols-2">
-          {/* Workflow Name */}
-          <div className="grid grid-cols-[140px_1fr] items-start gap-4">
-            <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
-              <div className="flex items-center gap-2">
-                <Zap className="h-3.5 w-3.5 text-slate-400" />
-                Workflow Name
-              </div>
-              <span className="text-slate-400">:</span>
-            </div>
-            <div className="min-w-0">
-              {renderInlineDiff(workflow.name || "-", previousWorkflowName)}
-            </div>
-          </div>
-
-          {/* Process Alias */}
-          <div className="grid grid-cols-[140px_1fr] items-start gap-4">
-            <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
-              <div className="flex items-center gap-2">
-                <Layers className="h-3.5 w-3.5 text-slate-400" />
-                Process Alias
-              </div>
-              <span className="text-slate-400">:</span>
-            </div>
-            <div className="min-w-0">
-              {renderInlineDiff(displayCurrentAlias, displayPreviousAlias)}
-            </div>
-          </div>
-
-          {/* Module */}
-          <div className="grid grid-cols-[140px_1fr] items-start gap-4">
-            <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
-              <div className="flex items-center gap-2">
-                <Briefcase className="h-3.5 w-3.5 text-slate-400" />
-                Module
-              </div>
-              <span className="text-slate-400">:</span>
-            </div>
-            <div className="min-w-0">
-              {renderInlineDiff(moduleLabel || "-", previousModuleLabel)}
-            </div>
-          </div>
-
-          {/* Workflow Type */}
-          <div className="grid grid-cols-[140px_1fr] items-start gap-4">
-            <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
-              <div className="flex items-center gap-2">
-                <Settings2 className="h-3.5 w-3.5 text-slate-400" />
-                Workflow Type
-              </div>
-              <span className="text-slate-400">:</span>
-            </div>
-            <div className="min-w-0">
-              {renderInlineDiff(workflowTypeLabel || "-", previousWorkflowTypeLabel)}
-            </div>
-          </div>
-
-          {/* Node Name (Takes full width in md) */}
-          <div className="col-span-1 grid grid-cols-[140px_1fr] items-start gap-4 md:col-span-2 md:grid-cols-[140px_1fr]">
-            <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                Node Name
-              </div>
-              <span className="text-slate-400">:</span>
-            </div>
-            <div className="min-w-0 space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                {typeof topNodeLevelCount === "number" ? (
-                  <span className="inline-flex shrink-0 items-center rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none tracking-[0.12em] text-indigo-700">
-                    L{topNodeLevelCount}
-                  </span>
-                ) : null}
-                <div className="min-w-0 flex-1">
-                  {renderInlineDiff(topNodeName, previousTopNodeName)}
+    <div className="px-2 py-1 md:px-4">
+      <div className="mb-6 overflow-hidden rounded-[1.35rem] border border-slate-200/90 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+        <div className="border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-indigo-50/40 px-5 py-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">Workflow Overview</p>
+        </div>
+        <div className="p-5">
+          <div className="grid grid-cols-1 gap-x-12 gap-y-5 md:grid-cols-2">
+            <div className="grid grid-cols-[140px_1fr] items-start gap-4">
+              <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-3.5 w-3.5 text-slate-400" />
+                  Workflow Name
                 </div>
+                <span className="text-slate-400">:</span>
               </div>
-              {topNodePath && !isRootWorkflowNode(topNodePath, workflow.orgStructure?.nodeType || workflow.nodeType) ? (
-                renderOrgPathBadge(getWorkflowPathPreview(topNodePath, 3))
-              ) : null}
+              <div className="min-w-0">
+                {renderInlineDiff(workflow.name || "-", previousWorkflowName)}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-[140px_1fr] items-start gap-4">
+              <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-3.5 w-3.5 text-slate-400" />
+                  Process Alias
+                </div>
+                <span className="text-slate-400">:</span>
+              </div>
+              <div className="min-w-0">
+                {renderAliasDiff(displayCurrentAlias, displayPreviousAlias)}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-[140px_1fr] items-start gap-4">
+              <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
+                <div className="flex items-center gap-2">
+                  <Briefcase className="h-3.5 w-3.5 text-slate-400" />
+                  Module
+                </div>
+                <span className="text-slate-400">:</span>
+              </div>
+              <div className="min-w-0">
+                {renderInlineDiff(moduleLabel || "-", previousModuleLabel)}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-[140px_1fr] items-start gap-4">
+              <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
+                <div className="flex items-center gap-2">
+                  <Settings2 className="h-3.5 w-3.5 text-slate-400" />
+                  Workflow Type
+                </div>
+                <span className="text-slate-400">:</span>
+              </div>
+              <div className="min-w-0">
+                {renderInlineDiff(workflowTypeLabel || "-", previousWorkflowTypeLabel)}
+              </div>
+            </div>
+
+            <div className="col-span-1 grid grid-cols-[140px_1fr] items-start gap-4 md:col-span-2 md:grid-cols-[140px_1fr]">
+              <div className="flex items-center justify-between pt-0.5 text-xs font-semibold text-slate-500">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                  Node Name
+                </div>
+                <span className="text-slate-400">:</span>
+              </div>
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {typeof topNodeLevelCount === "number" ? (
+                    <span className="inline-flex shrink-0 items-center rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none tracking-[0.12em] text-indigo-700">
+                      L{topNodeLevelCount}
+                    </span>
+                  ) : null}
+                  <div className="min-w-0 flex-1">
+                    {renderInlineDiff(topNodeName, previousTopNodeName)}
+                  </div>
+                </div>
+                {topNodePath && !isRootWorkflowNode(topNodePath, workflow.orgStructure?.nodeType || workflow.nodeType) ? (
+                  renderOrgPathBadge(getWorkflowPathPreview(topNodePath, 3))
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div>
-        <h4 className="mb-4 px-1 text-sm font-bold tracking-tight text-slate-800">Levels</h4>
-        <div className="space-y-2 pr-1 pb-1">
-          {mergedLevels.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">No level details available.</div>
-          ) : (
-            mergedLevels.map(({ id, current, previous }) => {
-              const level = current ?? previous;
-              if (!level) return null;
-              const isAdded = hasComparisonData && Boolean(current && !previous);
-              const isRemoved = hasComparisonData && Boolean(previous && !current);
-              const isChanged = hasComparisonData && Boolean(current && previous && levelSignature(current) !== levelSignature(previous));
-              const currentApprovals = current?.approvals ?? [];
-              const previousApprovals = previous?.approvals ?? [];
-              const slotCount = Math.max(currentApprovals.length, previousApprovals.length);
+      <div className="overflow-visible">
+        <button
+          type="button"
+          onClick={() => setLevelsExpanded((current) => !current)}
+          className="flex w-full items-center justify-between gap-3 border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-violet-50/40 px-5 py-4 text-left"
+          aria-expanded={levelsExpanded}
+        >
+          <div className="flex items-center gap-3">
+            <div className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-violet-100 text-violet-700 ring-1 ring-violet-200/80">
+              <Layers className="h-4 w-4" />
+            </div>
+            <div>
+              <h4 className="text-base font-bold tracking-tight text-slate-900">Levels</h4>
+              <p className="text-xs font-medium text-slate-500">{mergedLevels.length} configured approval {mergedLevels.length === 1 ? "level" : "levels"}</p>
+            </div>
+          </div>
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm">
+            <ChevronDown className={cn("h-4 w-4 transition-transform", levelsExpanded && "rotate-180")} />
+          </span>
+        </button>
+        {levelsExpanded ? (
+          <div className="space-y-2">
+            {mergedLevels.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">No level details available.</div>
+            ) : (
+              mergedLevels.map(({ id, current, previous }) => {
+                const level = current ?? previous;
+                if (!level) return null;
+                const isAdded = hasComparisonData && Boolean(current && !previous);
+                const isRemoved = hasComparisonData && Boolean(previous && !current);
+                const isChanged = hasComparisonData && Boolean(current && previous && levelSignature(current) !== levelSignature(previous));
+                const currentApprovals = current?.approvals ?? [];
+                const previousApprovals = previous?.approvals ?? [];
+                const slotCount = Math.max(currentApprovals.length, previousApprovals.length);
+                const isCollapsed = collapsedLevels[id] ?? false;
+                const levelAccentClass = isRemoved
+                  ? "from-rose-500 to-rose-400"
+                  : isAdded
+                    ? "from-emerald-500 to-emerald-400"
+                    : isChanged
+                      ? "from-amber-500 to-amber-400"
+                      : "from-indigo-500 to-violet-500";
 
-              return (
-                <div
-                  key={id}
-                  className={cn(
-                    "flex min-h-[64px] items-center gap-4 rounded-xl border border-l-[4px] p-2.5 shadow-sm",
-                    isRemoved
-                      ? "border-rose-200 border-l-rose-400 bg-rose-50/45 shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
-                      : isAdded
-                        ? "border-emerald-200 border-l-emerald-400 bg-emerald-50/45 shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
-                        : isChanged
-                          ? "border-amber-200 border-l-amber-400 bg-amber-50/45 shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
-                          : "border-slate-200 border-l-slate-300 bg-white",
-                  )}
-                >
+                return (
                   <div
+                    key={id}
                     className={cn(
-                      "flex h-9 w-9 flex-none items-center justify-center rounded-lg border text-[10px] font-semibold",
+                      "overflow-hidden rounded-xl border border-l-[6px] bg-white p-2.5 shadow-sm",
                       isRemoved
-                        ? "border-rose-200 bg-rose-100 text-rose-700"
+                        ? "border-rose-200 bg-rose-50/45 shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
                         : isAdded
-                          ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                          ? "border-emerald-200 bg-emerald-50/45 shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
                           : isChanged
-                            ? "border-amber-200 bg-amber-100 text-amber-700"
-                            : "border-slate-200 bg-slate-100 text-slate-600",
+                            ? "border-amber-200 bg-amber-50/45 shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
+                            : "border-slate-200 bg-white",
                     )}
                   >
-                    L{id}
-                  </div>
-                  <div className="flex flex-1 flex-wrap items-center gap-4">
-                    {Array.from({ length: slotCount }).map((_, approvalIdx) => {
-                      const currentApproval = currentApprovals[approvalIdx];
-                      const prevApproval = previousApprovals[approvalIdx];
-                      const currentOption = currentApproval?.option?.trim() || "";
-                      const previousOption = prevApproval?.option?.trim() || "";
-                      const approvalChanged = hasComparisonData && Boolean(currentOption || previousOption) && currentOption !== previousOption;
-                      const approvalAdded = hasComparisonData && Boolean(currentOption) && !previousOption;
-                      const approvalRemoved = hasComparisonData && Boolean(previousOption) && !currentOption;
-                      const nextLabel = currentOption
-                        ? APPROVAL_OPTIONS.find((option) => option.id === currentOption)?.label || currentOption || "Not Assigned"
-                        : "-";
-                      const previousLabel = previousOption
-                        ? APPROVAL_OPTIONS.find((option) => option.id === previousOption)?.label || previousOption || "Not Assigned"
-                        : "";
-                      const currentConnector = current?.type || "";
-                      const previousConnector = previous?.type || "";
-                      return (
-                        <div key={`${level.id}-${approvalIdx}`} className="flex items-center gap-4">
-                          {approvalIdx > 0 ? (
-                            renderConnectorDiff({
-                              currentType: currentConnector,
-                              previousType: previousConnector,
-                              isAdded: isAdded && !previous,
-                              isRemoved: isRemoved && !current,
-                            })
-                          ) : null}
-                          <div className="flex flex-col">
-                            <span className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">Approver {approvalIdx + 1}</span>
-                            <span className="text-xs font-semibold text-slate-800">
-                              {isRemoved || approvalRemoved ? (
-                                <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-rose-700">
-                                  {previousLabel || nextLabel}
-                                </span>
-                              ) : approvalChanged ? (
-                                <>
-                                  {previousLabel ? (
+                    <div className={cn("absolute inset-y-0 left-0 w-[5px] rounded-l-xl rounded-r-lg", levelAccentClass)} />
+                    <div className="flex min-h-[52px] items-center gap-4 pl-2.5">
+                      <div
+                        className={cn(
+                          "flex h-9 w-9 flex-none items-center justify-center rounded-lg border text-[10px] font-semibold",
+                          isRemoved
+                            ? "border-rose-200 bg-rose-100 text-rose-700"
+                            : isAdded
+                              ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                              : isChanged
+                                ? "border-amber-200 bg-amber-100 text-amber-700"
+                                : "border-slate-200 bg-slate-100 text-slate-600",
+                        )}
+                      >
+                        L{id}
+                      </div>
+                      <div className="flex flex-1 flex-wrap items-center gap-4">
+                        {Array.from({ length: slotCount }).map((_, approvalIdx) => {
+                          const currentApproval = currentApprovals[approvalIdx];
+                          const prevApproval = previousApprovals[approvalIdx];
+                          const currentOption = currentApproval?.option?.trim() || "";
+                          const previousOption = prevApproval?.option?.trim() || "";
+                          const approvalChanged = hasComparisonData && Boolean(currentOption || previousOption) && currentOption !== previousOption;
+                          const approvalAdded = hasComparisonData && Boolean(currentOption) && !previousOption;
+                          const approvalRemoved = hasComparisonData && Boolean(previousOption) && !currentOption;
+                          const nextLabel = currentOption
+                            ? APPROVAL_OPTIONS.find((option) => option.id === currentOption)?.label || currentOption || "Not Assigned"
+                            : "-";
+                          const previousLabel = previousOption
+                            ? APPROVAL_OPTIONS.find((option) => option.id === previousOption)?.label || previousOption || "Not Assigned"
+                            : "";
+                          const currentConnector = current?.type || "";
+                          const previousConnector = previous?.type || "";
+                          return (
+                            <div key={`${level.id}-${approvalIdx}`} className="flex items-center gap-4">
+                              {approvalIdx > 0 ? (
+                                renderConnectorDiff({
+                                  currentType: currentConnector,
+                                  previousType: previousConnector,
+                                  isAdded: isAdded && !previous,
+                                  isRemoved: isRemoved && !current,
+                                })
+                              ) : null}
+                              <div className="flex flex-col">
+                                <span className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">Approver {approvalIdx + 1}</span>
+                                <span className="text-xs font-semibold text-slate-800">
+                                  {isRemoved || approvalRemoved ? (
                                     <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-rose-700">
-                                      {previousLabel}
+                                      {previousLabel || nextLabel}
                                     </span>
-                                  ) : null}
-                                  {previousLabel ? <span className="px-1 text-slate-400">→</span> : null}
-                                  <span className="rounded border border-emerald-200 bg-emerald-50/60 px-1.5 py-0.5 text-emerald-700">
-                                    {nextLabel}
-                                  </span>
-                                </>
-                              ) : isAdded || approvalAdded ? (
-                                <span className="rounded border border-emerald-200 bg-emerald-50/60 px-1.5 py-0.5 text-emerald-700">
-                                  {nextLabel}
+                                  ) : approvalChanged ? (
+                                    <>
+                                      {previousLabel ? (
+                                        <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-rose-700">
+                                          {previousLabel}
+                                        </span>
+                                      ) : null}
+                                      {previousLabel ? <span className="px-1 text-slate-400">-&gt;</span> : null}
+                                      <span className="rounded border border-emerald-200 bg-emerald-50/60 px-1.5 py-0.5 text-emerald-700">
+                                        {nextLabel}
+                                      </span>
+                                    </>
+                                  ) : isAdded || approvalAdded ? (
+                                    <span className="rounded border border-emerald-200 bg-emerald-50/60 px-1.5 py-0.5 text-emerald-700">
+                                      {nextLabel}
+                                    </span>
+                                  ) : (
+                                    nextLabel
+                                  )}
                                 </span>
-                              ) : (
-                                nextLabel
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="ml-auto flex items-center gap-2">
+                        {isRemoved ? (
+                          <CheckCircle2 className="h-5 w-5 text-rose-600" />
+                        ) : isAdded ? (
+                          <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                        ) : isChanged ? (
+                          <CheckCircle2 className="h-5 w-5 text-amber-600" />
+                        ) : null}
+
+                      </div>
+                    </div>
                   </div>
-                  {isRemoved ? (
-                    <CheckCircle2 className="mr-2 h-5 w-5 text-rose-600" />
-                  ) : isAdded ? (
-                    <CheckCircle2 className="mr-2 h-5 w-5 text-emerald-600" />
-                  ) : isChanged ? (
-                    <CheckCircle2 className="mr-2 h-5 w-5 text-amber-600" />
-                  ) : null}
-                </div>
-              );
-            })
-          )}
-        </div>
+                );
+              })
+            )}
+          </div>
+        ) : null}
       </div>
 
       {linkedOrgStructureNodes.length > 0 ? (
-        <div className="mt-5">
-          <h4 className="mb-4 px-1 text-sm font-bold tracking-tight text-slate-800">
-            Linked Org Structure <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">{linkedOrgStructureNodes.length}</span>
-          </h4>
-          <div className="space-y-2 pb-1">
-            {linkedOrgStructureNodes.map((entry, index) => {
-              const formattedType = formatSnakeCaseLabel(entry.nodeType || "");
-              const fullNodePath = entry.nodePath || getWorkflowPathPreview(entry.nodePath, 3);
-              return (
-                <div key={`${entry.nodePath}-${index}`} className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-sm">
-                  <p className="flex items-center gap-2 truncate text-[15px] font-semibold text-slate-900">
-                    {typeof entry.levelCount === "number" ? (
-                      <span className="inline-flex shrink-0 items-center rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none tracking-[0.12em] text-indigo-700">
-                        L{entry.levelCount}
-                      </span>
-                    ) : null}
-                    <span className="truncate">{entry.nodeName}</span>
-                    {formattedType ? <span className="ml-2 text-[13px] font-medium text-slate-500">({formattedType})</span> : null}
-                  </p>
-                  {renderOrgPathBadge(fullNodePath)}
-                </div>
-              );
-            })}
-          </div>
+        <div className="mt-6 overflow-hidden rounded-[1.35rem] border border-slate-200/90 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+          <button
+            type="button"
+            onClick={() => setLinkedOrgExpanded((current) => !current)}
+            className="flex w-full items-center justify-between gap-3 border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-sky-50/40 px-5 py-4 text-left"
+            aria-expanded={linkedOrgExpanded}
+          >
+            <div className="flex items-center gap-3">
+              <div className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-sky-100 text-sky-700 ring-1 ring-sky-200/80">
+                <Building2 className="h-4 w-4" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold tracking-tight text-slate-900">
+                  Linked Org Structure <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">{linkedOrgStructureNodes.length}</span>
+                </h4>
+                <p className="text-xs font-medium text-slate-500">Showing 4 rows at a time with scroll for the rest</p>
+              </div>
+            </div>
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm">
+              <ChevronDown className={cn("h-4 w-4 transition-transform", linkedOrgExpanded && "rotate-180")} />
+            </span>
+          </button>
+          {linkedOrgExpanded ? (
+            <div className="max-h-[25.5rem] space-y-3 overflow-y-auto p-4 pr-3">
+              {linkedOrgStructureNodes.map((entry, index) => {
+                const formattedType = formatSnakeCaseLabel(entry.nodeType || "");
+                const fullNodePath = entry.nodePath || getWorkflowPathPreview(entry.nodePath, 3);
+                return (
+                  <div key={`${entry.nodePath}-${index}`} className="rounded-2xl border border-slate-200/80 bg-slate-50/50 px-4 py-3 shadow-sm">
+                    <p className="flex items-center gap-2 truncate text-[15px] font-semibold text-slate-900">
+                      {typeof entry.levelCount === "number" ? (
+                        <span className="inline-flex shrink-0 items-center rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none tracking-[0.12em] text-indigo-700">
+                          L{entry.levelCount}
+                        </span>
+                      ) : null}
+                      <span className="truncate">{entry.nodeName}</span>
+                      {formattedType ? <span className="ml-2 text-[13px] font-medium text-slate-500">({formattedType})</span> : null}
+                    </p>
+                    {renderOrgPathBadge(fullNodePath)}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

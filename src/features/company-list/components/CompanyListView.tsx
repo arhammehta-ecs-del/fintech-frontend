@@ -224,6 +224,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
         open={isPreviewOpen}
         onOpenChange={setIsPreviewOpen}
         onSave={handleSaveCompany}
+        onToggleActive={handleToggleCompanyActive}
       />
       <CompanyOnboardingWizardRenderer
         embedded
@@ -244,6 +245,7 @@ export function CompanyListView({ CompanyOnboardingWizardRenderer }: CompanyList
     </div>
   );
 }
+
 
 
 

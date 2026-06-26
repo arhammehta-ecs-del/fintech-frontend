@@ -690,13 +690,13 @@ export default function WorkflowManageDialog({
             event.preventDefault();
           }
         }}
-        className={cn("flex max-h-[88vh] w-[min(96vw,56rem)] max-w-[56rem] flex-col overflow-hidden p-0", contentClassName)}
+        className={cn("flex max-h-[92vh] w-[min(96vw,64rem)] max-w-[64rem] flex-col overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white p-0 shadow-[0_24px_70px_rgba(15,23,42,0.22)]", contentClassName)}
         style={contentStyle}
       >
         <DialogDescription className="sr-only">
           Review workflow details, approval chain, history, and submit approve or reject actions.
         </DialogDescription>
-        <DialogHeader className="border-b border-slate-200 bg-slate-50/40 px-6 pb-0 pt-4">
+        <DialogHeader className="border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-indigo-50/30 px-6 pb-0 pt-5">
           {viewContextTitle ? (
             <div className={cn("-mx-6 -mt-4 mb-4 flex items-center justify-center gap-3 px-6 py-1.5 text-center", viewContextClassName)}>
               <div className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/70 ring-1 ring-black/5">
@@ -711,7 +711,7 @@ export default function WorkflowManageDialog({
                 ) : null}
                 {shouldShowStatusTransition ? (
                   <span className="inline-flex h-4 shrink-0 items-center justify-center rounded border border-sky-200/70 bg-white/60 px-1.5 text-[9px] font-bold uppercase leading-none text-sky-700">
-                    {formatStatusLabel(previousStatusLabel)} <span className="px-0.5 text-sky-400">→</span> {formatStatusLabel(nextStatusLabel)}
+                    {formatStatusLabel(previousStatusLabel)} <span className="px-0.5 text-sky-400">{"->"}</span> {formatStatusLabel(nextStatusLabel)}
                   </span>
                 ) : null}
               </div>
@@ -946,11 +946,11 @@ export default function WorkflowManageDialog({
           ) : null}
         </DialogHeader>
 
-        <div className="space-y-4 overflow-y-auto px-5 pb-4 pt-0">
+        <div className="space-y-5 overflow-y-auto bg-[linear-gradient(180deg,rgba(248,250,252,0.7)_0%,rgba(255,255,255,1)_12rem)] px-5 pb-5 pt-4">
           <SummaryPreview workflow={{ ...displayWorkflow, previousWorkflow }} />
 
           {!isPending && !isHistoryPreviewActive && pendingStatus && onSubmitStatusUpdate ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
               <div className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
                 {pendingStatus === "inactive" ? "Submit Inactive Request" : "Submit Active Request"}
               </div>
@@ -967,7 +967,7 @@ export default function WorkflowManageDialog({
           ) : null}
 
           {canDeleteWorkflow && !isPending && !isHistoryPreviewActive && showDeleteActions ? (
-            <div className="rounded-xl border border-rose-200 bg-white p-4">
+            <div className="rounded-2xl border border-rose-200 bg-white p-5 shadow-sm">
               <div className="mb-3 text-xs font-bold uppercase tracking-wider text-rose-600">
                 Submit Delete Request
               </div>
@@ -985,7 +985,7 @@ export default function WorkflowManageDialog({
           ) : null}
 
           {canShowPendingActions && pendingDecision ? (
-            <div ref={remarkCardRef} className="rounded-xl border border-slate-200 bg-white p-4">
+            <div ref={remarkCardRef} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
               <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                 <GitBranch className="h-4 w-4" />
                 {pendingDecision === "approve" ? "Approve Remark" : "Reject Remark"}
@@ -1005,15 +1005,15 @@ export default function WorkflowManageDialog({
           ) : null}
         </div>
 
-        <div className="flex w-full items-center justify-end gap-2 border-t border-slate-200 bg-slate-50/40 px-6 py-4">
+        <div className="flex w-full items-center justify-end gap-2 border-t border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-6 py-4">
           {canShowPendingActions ? (
             pendingDecision === "approve" ? (
               <>
-                <Button variant="outline" onClick={handleClosePendingAction} disabled={isSubmitting}>
-                  Close
+                <Button variant="outline" onClick={handleClosePendingAction} disabled={isSubmitting} className="rounded-xl border-slate-200 bg-white px-4 text-slate-600 hover:bg-slate-50">
+                  Cancel
                 </Button>
                 <Button
-                  className="rounded-full px-6 bg-emerald-600 text-white hover:bg-emerald-700"
+                  className="rounded-xl bg-emerald-600 px-4 text-white hover:bg-emerald-700"
                   onClick={() => void handleSubmitPendingAction()}
                   disabled={!isRemarkValid || isSubmitting}
                 >
@@ -1027,22 +1027,22 @@ export default function WorkflowManageDialog({
                   variant="outline"
                   onClick={() => void handleSubmitPendingAction()}
                   disabled={!isRemarkValid || isSubmitting}
-                  className="rounded-full px-6 border-red-600 bg-red-600 text-white hover:bg-red-700 hover:text-white"
+                  className="rounded-xl border-[rgb(220,38,38)] bg-[rgb(220,38,38)] px-4 text-white hover:bg-[rgb(220,38,38)] hover:text-white"
                 >
                   <X className="mr-2 h-4 w-4" />
                   Reject
                 </Button>
-                <Button variant="outline" onClick={handleClosePendingAction} disabled={isSubmitting}>
-                  Close
+                <Button variant="outline" onClick={handleClosePendingAction} disabled={isSubmitting} className="rounded-xl border-slate-200 bg-white px-4 text-slate-600 hover:bg-slate-50">
+                  Cancel
                 </Button>
               </>
             ) : (
               <>
-                <Button variant="outline" onClick={() => handleStartPendingAction("reject")} className="rounded-full px-6">
+                <Button variant="outline" onClick={() => handleStartPendingAction("reject")} className="rounded-xl border-slate-200 bg-white px-4 text-slate-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600">
                   <X className="mr-2 h-4 w-4" />
                   Reject
                 </Button>
-                <Button className="rounded-full px-6 bg-[#3553E9] text-white hover:bg-[#2f49cf]" onClick={() => handleStartPendingAction("approve")}>
+                <Button className="rounded-xl bg-[rgb(53,83,233)] px-4 text-white shadow-sm hover:bg-[rgb(45,71,210)]" onClick={() => handleStartPendingAction("approve")}>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   Approve
                 </Button>
@@ -1096,7 +1096,7 @@ export default function WorkflowManageDialog({
                     </SelectContent>
                   </Select>
                   <Button
-                    className="rounded-full px-6 bg-[#3553E9] text-white hover:bg-[#2f49cf]"
+                    className="rounded-xl bg-[rgb(53,83,233)] px-4 text-white shadow-sm hover:bg-[rgb(45,71,210)]"
                     onClick={() => void handleSubmitStatusUpdate()}
                     disabled={!statusRemark.trim() || statusSubmitting}
                   >
@@ -1111,3 +1111,9 @@ export default function WorkflowManageDialog({
     </Dialog>
   );
 }
+
+
+
+
+
+

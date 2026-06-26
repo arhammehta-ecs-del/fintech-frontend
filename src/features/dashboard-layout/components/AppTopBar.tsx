@@ -28,6 +28,7 @@ import {
 } from "@/services/notification.service";
 import { getApiErrorMessage } from "@/services/client";
 import { setNotificationsPanelOpenFlag } from "@/hooks/useNotificationsPanelOpen";
+import { useToast } from "@/hooks/use-toast";
 
 type AppTopBarProps = {
   mobileNavOpen: boolean;
@@ -79,6 +80,7 @@ type NotificationItem = {
 type NotificationSettingsTreeNode = {
   nodePath: string;
   nodeName: string;
+  nodeType?: string;
   levelCount: number;
   nodeEnabled: boolean;
   settings: NotificationSettingsModule[];
@@ -115,6 +117,11 @@ const MODULE_FILTER_OPTIONS: Array<{ value: NotificationModuleFilterValue; label
   { value: "COMPANY", label: "Company" },
 ];
 
+const NOTIFICATION_ACCENT_SOFT =
+  "border-[hsla(235,60%,50%,0.18)] bg-[hsla(235,60%,50%,0.08)] text-[hsl(235,60%,50%)] shadow-sm";
+const NOTIFICATION_ACCENT_SOFT_HOVER = "hover:bg-[hsla(235,60%,50%,0.14)]";
+const NOTIFICATION_ACCENT_SOLID = "bg-[hsl(235,60%,50%)] text-white";
+const NOTIFICATION_ACCENT_BORDER = "border-[hsla(235,60%,50%,0.16)]";
 const toggleArrayValue = <T extends string>(values: T[], value: T) =>
   values.includes(value) ? values.filter((current) => current !== value) : [...values, value];
 
@@ -361,6 +368,14 @@ const formatModuleLabel = (value: string) =>
 
 const formatNodeLevelLabel = (levelCount?: number) => `L${Math.max(1, Number(levelCount ?? 1))}`;
 
+const formatNodeTypeLabel = (value?: string) =>
+  value
+    ? value.trim().toLowerCase().replace(/[_-]+/g, " ")
+    : "";
+
+const hasEnabledNotificationSetting = (settings: NotificationSettingsModule[]) =>
+  settings.some((setting) => Boolean(setting.isEnabled));
+
 const getNodePathSegments = (nodePath: string) =>
   nodePath
     .split(".")
@@ -385,6 +400,7 @@ const buildNotificationSettingsTree = (nodes: NotificationSettingsCompany["nodes
     byPath.set(nodePath, {
       nodePath,
       nodeName: String(node.nodeName ?? "").trim() || "Unnamed Node",
+      nodeType: String(node.nodeType ?? "").trim() || undefined,
       levelCount: Number(node.levelCount ?? Math.max(getNodePathSegments(nodePath).length - 1, 0)),
       settings: Array.isArray(node.settings)
         ? node.settings.map((setting) => ({
@@ -392,9 +408,7 @@ const buildNotificationSettingsTree = (nodes: NotificationSettingsCompany["nodes
           isEnabled: Boolean(setting.isEnabled),
         }))
         : [],
-      nodeEnabled: Array.isArray(node.settings)
-        ? node.settings.every((setting) => Boolean(setting.isEnabled))
-        : false,
+      nodeEnabled: Array.isArray(node.settings) ? hasEnabledNotificationSetting(node.settings) : false,
       children: [],
     });
   });
@@ -497,7 +511,7 @@ const mapNotificationSettingsNodes = (
   });
 
 const getNotificationSettingsNodeToggleState = (node: NotificationSettingsTreeNode | null) =>
-  Boolean(node?.nodeEnabled);
+  node ? hasEnabledNotificationSetting(node.settings) : false;
 
 const isNotificationSettingsDescendantPath = (candidatePath: string, parentPath: string) =>
   candidatePath === parentPath || candidatePath.startsWith(`${parentPath}.`);
@@ -572,6 +586,7 @@ export function AppTopBar({
   navigate,
   onLogout,
 }: AppTopBarProps) {
+  const { toast } = useToast();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [dialogNotifications, setDialogNotifications] = useState<NotificationItem[]>([]);
   const [dialogLoading, setDialogLoading] = useState(false);
@@ -1234,17 +1249,22 @@ export function AppTopBar({
   const handleNotificationSettingsModuleToggle = useCallback(
     (nodePath: string, moduleName: string, checked: boolean) => {
       if (notificationSettingsSaving) return;
-      updateNotificationSettingsNode(nodePath, (node) => ({
-        ...node,
-        settings: node.settings.map((setting) =>
+      updateNotificationSettingsNode(nodePath, (node) => {
+        const nextSettings = node.settings.map((setting) =>
           setting.module === moduleName
             ? {
               ...setting,
               isEnabled: checked,
             }
             : setting,
-        ),
-      }));
+        );
+
+        return {
+          ...node,
+          settings: nextSettings,
+          nodeEnabled: hasEnabledNotificationSetting(nextSettings),
+        };
+      });
     },
     [notificationSettingsSaving, updateNotificationSettingsNode],
   );
@@ -1271,10 +1291,16 @@ export function AppTopBar({
     setNotificationSettingsSubmitError("");
 
     try {
-      await updateNotificationSettings(pendingNotificationSettingsPayload);
+      const response = await updateNotificationSettings(pendingNotificationSettingsPayload);
       const nextBaseline = cloneNotificationSettingsCompanies(notificationSettingsCompanies);
       setNotificationSettingsInitialCompanies(nextBaseline);
       setNotificationSettingsCompanies(cloneNotificationSettingsCompanies(nextBaseline));
+      toast({
+        title: String(response.message ?? "").trim() || "Notification settings updated successfully",
+      });
+      setNotificationSettingsOpen(false);
+      setNotificationSettingsSubmitError("");
+      setCollapsedNotificationSettingsNodePaths([]);
     } catch (error) {
       setNotificationSettingsSubmitError(getApiErrorMessage(error, "Unable to save notification settings."));
     } finally {
@@ -1285,6 +1311,7 @@ export function AppTopBar({
     notificationSettingsSaving,
     pendingNotificationSettingsChangeCount,
     pendingNotificationSettingsPayload,
+    toast,
   ]);
 
   const renderNotificationCard = (notification: NotificationItem, key: string, compact = false) => {
@@ -1420,7 +1447,7 @@ export function AppTopBar({
                   ? "inline-flex h-9 min-w-[104px] items-center justify-between gap-1.5 rounded-xl border px-2.5 text-[12px] font-medium transition"
                   : "inline-flex h-9 min-w-[112px] items-center justify-between gap-1.5 rounded-xl border px-3 text-[13px] font-medium transition",
                 hasAnyNotificationFilter
-                  ? "border-blue-200 bg-blue-50 text-blue-700 shadow-sm"
+                  ? NOTIFICATION_ACCENT_SOFT
                   : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
               )}
             >
@@ -1470,7 +1497,7 @@ export function AppTopBar({
                   ? "inline-flex h-9 min-w-[104px] items-center justify-between gap-1.5 rounded-xl border px-2.5 text-[12px] font-medium transition"
                   : "inline-flex h-9 min-w-[112px] items-center justify-between gap-1.5 rounded-xl border px-3 text-[13px] font-medium transition",
                 hasAnyNotificationFilter
-                  ? "border-blue-200 bg-blue-50 text-blue-700 shadow-sm"
+                  ? NOTIFICATION_ACCENT_SOFT
                   : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
               )}
             >
@@ -1524,7 +1551,7 @@ export function AppTopBar({
               "shrink-0 whitespace-nowrap rounded-full font-semibold leading-none transition-colors",
               compact ? "px-2.5 py-[5px] text-[10px]" : "px-3 py-[5px] text-[11px]",
               activeDateRange === option
-                ? "bg-blue-600 text-white"
+                ? NOTIFICATION_ACCENT_SOLID
                 : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
             )}
           >
@@ -1546,7 +1573,7 @@ export function AppTopBar({
             "shrink-0 whitespace-nowrap rounded-full font-semibold leading-none transition-colors",
             compact ? "px-3 py-[5px] text-[10px]" : "px-3.5 py-[5px] text-[11px]",
             activeDateRange === "CUSTOM"
-              ? "bg-blue-600 text-white"
+              ? NOTIFICATION_ACCENT_SOLID
               : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
           )}
         >
@@ -1749,7 +1776,14 @@ export function AppTopBar({
               <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-600">
                 {formatNodeLevelLabel(selectedNotificationSettingsNode.levelCount)}
               </span>
-              <h3 className="text-lg font-semibold text-slate-900">{selectedNotificationSettingsNode.nodeName}</h3>
+              <h3 className="text-lg font-semibold text-slate-900">
+                {selectedNotificationSettingsNode.nodeName}
+                {selectedNotificationSettingsNode.nodeType ? (
+                  <span className="ml-1 text-base font-medium capitalize text-slate-500">
+                    ({formatNodeTypeLabel(selectedNotificationSettingsNode.nodeType)})
+                  </span>
+                ) : null}
+              </h3>
             </div>
             <p className="mt-1 text-xs text-slate-500">{selectedNotificationSettingsNode.nodePath}</p>
           </div>
@@ -1872,7 +1906,7 @@ export function AppTopBar({
                 <button
                   type="button"
                   onClick={() => void loadNotificationSettings()}
-                  className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                  className={cn("inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors", NOTIFICATION_ACCENT_SOFT, NOTIFICATION_ACCENT_SOFT_HOVER)}
                 >
                   Manage Notifications
                 </button>
@@ -1940,7 +1974,7 @@ export function AppTopBar({
                       resetNotificationFilters();
                       void loadNotificationSettings();
                     }}
-                    className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                    className={cn("inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors", NOTIFICATION_ACCENT_SOFT, NOTIFICATION_ACCENT_SOFT_HOVER)}
                   >
                     Manage Notifications
                   </button>
@@ -1957,7 +1991,7 @@ export function AppTopBar({
                     setAllNotificationsOpen(false);
                     resetNotificationFilters();
                   }} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="Close notifications">
-                    ×
+                    Ã—
                   </button>
                 </div>
               </DialogTitle>
@@ -2028,7 +2062,7 @@ export function AppTopBar({
               (selectedNotificationSettingsCompany && flattenNotificationSettingsTree(selectedNotificationSettingsCompany.nodes, []).length > 3) ? "h-[88vh]" : "max-h-[88vh]",
             )}
           >
-            <DialogHeader className="border-b border-[#dbe4ff] bg-white px-6 py-5">
+            <DialogHeader className={cn("bg-white px-6 py-5", NOTIFICATION_ACCENT_BORDER, "border-b")}>
               <DialogDescription className="sr-only">
                 Configure notification settings for companies, nodes, and modules.
               </DialogDescription>
@@ -2050,7 +2084,7 @@ export function AppTopBar({
             </DialogHeader>
 
             <div className="flex min-h-0 flex-1 flex-col bg-white">
-              <div className="border-b border-[#dbe4ff] bg-white px-6 py-4">
+              <div className={cn("bg-white px-6 py-4", NOTIFICATION_ACCENT_BORDER, "border-b")}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#5b6f9c]">Company</p>
@@ -2071,7 +2105,7 @@ export function AppTopBar({
                           setSelectedNotificationSettingsNodePath(flattenNotificationSettingsTree(nextCompany?.nodes ?? [])[0]?.node.nodePath ?? "");
                         }}
                       >
-                        <SelectTrigger className="h-11 w-full rounded-xl border-[#dbe4ff] bg-white xl:w-[22rem]">
+                        <SelectTrigger className={cn("h-11 w-full rounded-xl bg-white xl:w-[22rem]", NOTIFICATION_ACCENT_BORDER)}>
                           <SelectValue placeholder="Select company" />
                         </SelectTrigger>
                         <SelectContent>
@@ -2111,7 +2145,7 @@ export function AppTopBar({
                     <ArrowRight className="h-4 w-4" />
                   </div>
                 ) : null}
-                <div ref={notificationSettingsLeftPanelRef} className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[#dbe4ff] bg-white p-5">
+                <div ref={notificationSettingsLeftPanelRef} className={cn("flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-white p-5", NOTIFICATION_ACCENT_BORDER)}>
                   <div className="mb-4">
                     <h3 className="text-base font-semibold text-slate-800">Organization Nodes</h3>
                   </div>
@@ -2128,7 +2162,7 @@ export function AppTopBar({
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 border-t border-[#dbe4ff] bg-white px-6 py-4">
+            <div className={cn("flex items-center justify-end gap-3 bg-white px-6 py-4", NOTIFICATION_ACCENT_BORDER, "border-t")}>
               <button
                 type="button"
                 onClick={() => handleNotificationSettingsDialogChange(false)}
@@ -2141,7 +2175,7 @@ export function AppTopBar({
                 type="button"
                 onClick={() => void handleNotificationSettingsSubmit()}
                 disabled={pendingNotificationSettingsChangeCount === 0 || notificationSettingsSaving}
-                className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,#3553e9_0%,#2563eb_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(37,99,235,0.28)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
+                className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(235,60%,50%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(30,35,80,0.22)] transition-all hover:bg-[hsl(235,60%,45%)] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
               >
                 <Check className="h-4 w-4" />
                 {notificationSettingsSaving ? "Saving..." : `Submit Changes${pendingNotificationSettingsChangeCount > 0 ? ` (${pendingNotificationSettingsChangeCount})` : ""}`}
@@ -2162,10 +2196,13 @@ export function AppTopBar({
           </PopoverTrigger>
           <PopoverContent align="end" className="w-[min(22rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border-border bg-white p-0 text-foreground shadow-2xl">
             <div className="border-b border-border bg-white px-4 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(235,60%,50%)] text-lg font-semibold text-white">
-                  <p className="truncate text-[1.05rem] font-semibold leading-5 text-foreground">{currentUser?.name || "User"}</p>
-                  <p className="truncate pt-0.5 text-sm text-muted-foreground">{currentUser?.email || "No email available"}</p>
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[hsl(235,60%,50%)] text-lg font-semibold text-white">
+                  {(currentUser?.name || currentUser?.email || "U").charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[1.05rem] font-semibold leading-5 text-slate-900">{currentUser?.name || "User"}</p>
+                  <p className="truncate pt-0.5 text-sm text-slate-500">{currentUser?.email || "No email available"}</p>
                   {currentUser?.role ? (
                     <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
                       <ShieldCheck className="h-3 w-3" />
@@ -2200,7 +2237,7 @@ export function AppTopBar({
                   <div className={`mb-2 inline-flex h-8 w-8 items-center justify-center rounded-xl border ${item.tone}`}>
                     <item.icon className="h-4 w-4" />
                   </div>
-                  <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                  <p className="text-sm font-semibold text-slate-900">{item.label}</p>
                 </button>
               ))}
             </div>
@@ -2217,6 +2254,21 @@ export function AppTopBar({
     </header>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

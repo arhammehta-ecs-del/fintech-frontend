@@ -82,6 +82,7 @@ export type NotificationSettingsModule = {
 export type NotificationSettingsNode = {
   nodePath: string;
   nodeName: string;
+  nodeType?: string;
   levelCount?: number;
   settings: NotificationSettingsModule[];
 };
@@ -203,4 +204,6 @@ export async function updateNotificationSettings(payload: NotificationSettingsUp
     body: JSON.stringify(payload),
   });
 }
+
+
 

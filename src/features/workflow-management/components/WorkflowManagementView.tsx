@@ -26,6 +26,7 @@ import { useWorkflowManagement } from "@/features/workflow-management/hooks/useW
 import { cn } from "@/lib/utils";
 import {
   mapWorkflowRecord,
+  formatSnakeCaseLabel,
   getWorkflowNodeDisplayName,
   getWorkflowPathPreview,
   isRootWorkflowNode,
@@ -1282,7 +1283,7 @@ export default function WorkflowManagementView() {
                       {workflow.workflowName || workflow.name || workflow.alias || "—"}
                     </div>
                   </div>
-                  <div className="truncate whitespace-nowrap text-sm text-slate-700" title={workflow.alias}>{workflow.alias}</div>
+                  <div className="truncate whitespace-nowrap text-sm font-medium text-violet-700" title={workflow.alias}>{workflow.alias}</div>
                   <div
                     className="truncate whitespace-nowrap text-sm text-slate-700"
                     title={workflow.module || workflow.rawModule || workflow.workflowAlias || workflow.workflowName || "-"}
@@ -1298,12 +1299,12 @@ export default function WorkflowManagementView() {
                       )}
                       style={{ maxWidth: `${NODE_NAME_TRUNCATE_THRESHOLD}ch` }}
                       data-level={typeof workflow.levelCount === "number" ? `L${workflow.levelCount}` : undefined}
-                      title={getWorkflowNodeDisplayName({
+                      title={`${getWorkflowNodeDisplayName({
                         nodeName: workflow.nodeName,
                         nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
                         module: workflow.rawModule || workflow.module,
                         subModule: workflow.subModule,
-                      }) || "—"}
+                      }) || "—"}${workflow.nodeType ? ` (${formatSnakeCaseLabel(workflow.nodeType)})` : ""}`}
                     >
                       {getWorkflowNodeDisplayName({
                         nodeName: workflow.nodeName,
@@ -1311,6 +1312,7 @@ export default function WorkflowManagementView() {
                         module: workflow.rawModule || workflow.module,
                         subModule: workflow.subModule,
                       }) || "—"}
+                      {workflow.nodeType ? <span className="text-slate-500"> ({formatSnakeCaseLabel(workflow.nodeType)})</span> : null}
                     </p>
                     {(() => {
                       const nodePath = workflow.nodePath || "";
@@ -2050,6 +2052,11 @@ function WorkflowSingleSelectDropdown({
     </div>
   );
 }
+
+
+
+
+
 
 
 

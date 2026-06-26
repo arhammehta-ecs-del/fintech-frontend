@@ -3,6 +3,7 @@ import { ArrowRight, Check, ChevronDown, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getBranchAppearance, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getApiErrorMessage } from "@/services/client";
 import {
@@ -47,9 +48,10 @@ const buildSelectionMap = (nodes: WorkflowPreferenceDialogNode[]): NodeSelection
     return accumulator;
   }, {});
 
-const hasPendingChanges = (draft: NodeSelectionMap, baseline: NodeSelectionMap) =>
-  Object.entries(draft).some(([nodePath, modules]) =>
-    Object.entries(modules).some(([moduleName, value]) => (baseline[nodePath]?.[moduleName] ?? "") !== value),
+const countPendingChanges = (draft: NodeSelectionMap, baseline: NodeSelectionMap) =>
+  Object.entries(draft).reduce(
+    (count, [nodePath, modules]) => count + Object.entries(modules).filter(([moduleName, value]) => (baseline[nodePath]?.[moduleName] ?? "") !== value).length,
+    0,
   );
 
 const getWorkflowPreferenceParentPath = (nodePath: string) => {
@@ -109,6 +111,7 @@ const flattenWorkflowPreferenceTree = (
 };
 
 export default function WorkflowPreferenceDialog({ open, onOpenChange, onPreferencesSaved }: WorkflowPreferenceDialogProps) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [nodes, setNodes] = useState<WorkflowPreferenceDialogNode[]>([]);
@@ -137,7 +140,8 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     () => flattenWorkflowPreferenceTree(workflowPreferenceTree, collapsedNodePaths),
     [collapsedNodePaths, workflowPreferenceTree],
   );
-  const pendingChanges = useMemo(() => hasPendingChanges(selectionDraft, initialSelection), [initialSelection, selectionDraft]);
+  const pendingChangeCount = useMemo(() => countPendingChanges(selectionDraft, initialSelection), [initialSelection, selectionDraft]);
+  const pendingChanges = pendingChangeCount > 0;
   const getSelectedModuleCountForNode = (nodePath: string, modules: WorkflowPreferenceDialogNode["modules"]) =>
     modules.filter((moduleEntry) => Boolean(selectionDraft[nodePath]?.[moduleEntry.module] ?? "")).length;
   const selectedModuleCount = useMemo(
@@ -314,7 +318,7 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
         return updates;
       });
 
-      await updateWorkflowPreference(preferenceUpdates);
+      const response = await updateWorkflowPreference(preferenceUpdates);
 
       const refreshedNodes = await fetchWorkflowUserPreferences();
       const refreshedSelection = buildSelectionMap(refreshedNodes);
@@ -324,6 +328,11 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
       setSelectedNodePath((current) =>
         refreshedNodes.some((node) => node.nodePath === current) ? current : (refreshedNodes[0]?.nodePath ?? ""),
       );
+      if (response.message?.trim()) {
+        toast({
+          title: response.message.trim(),
+        });
+      }
       await onPreferencesSaved?.();
       onOpenChange(false);
     } catch (error) {
@@ -601,7 +610,7 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
               className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(235,60%,50%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(30,35,80,0.22)] transition-all hover:bg-[hsl(235,60%,45%)] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
             >
               <Check className="h-4 w-4" />
-              {saving ? "Saving..." : "Submit"}
+              {saving ? "Saving..." : `Submit Changes${pendingChangeCount > 0 ? ` (${pendingChangeCount})` : ""}`}
             </button>
           </div>
         ) : null}
@@ -609,5 +618,10 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     </Dialog>
   );
 }
+
+
+
+
+
 
 

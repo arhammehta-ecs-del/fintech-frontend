@@ -1485,7 +1485,7 @@ export function UserManagePreview({
           </div>
 
           {canShowPendingActions && pendingDecision ? (
-            <div ref={remarkCardRef} className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+            <div ref={remarkCardRef} className="rounded-xl bg-slate-50/40 p-4">
               <div>
                 <h4 className="text-sm font-semibold text-slate-900">
                   {pendingDecision === "approve" ? "Approve Remark" : "Reject Remark"}
@@ -1617,3 +1617,4 @@ export function UserManagePreview({
 }
 
 export default UserManagePreview;
+
