@@ -1,4 +1,5 @@
 import type { WorkflowRecord, WorkflowStatus } from "@/features/workflow-management/types/workflow.types";
+import { formatNodePathDisplay, splitNodePathSegments } from "@/lib/nodePath";
 
 type RawWorkflowRecord = Record<string, unknown>;
 
@@ -39,30 +40,12 @@ export const formatSnakeCaseLabel = (value: string) =>
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
 export const formatWorkflowPath = (nodePath: string) =>
-  nodePath
-    .split(".")
-    .map((segment) => segment.trim())
-    .filter((segment) => Boolean(segment) && segment.toUpperCase() !== "ROOT")
-    .map((segment) => formatSnakeCaseLabel(segment))
-    .join(" > ");
+  formatNodePathDisplay(nodePath, { excludeRoot: true });
 
-const toNodePathSegmentLabel = (segment: string) => segment.trim().replace(/_/g, " ");
-
-const splitNodePathSegments = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) return [];
-
-  const rawParts = trimmed.includes(">")
-    ? trimmed.split(">")
-    : trimmed.split(".");
-
-  return rawParts
-    .map((part) => toNodePathSegmentLabel(part))
-    .filter((part) => Boolean(part) && part.toUpperCase() !== "ROOT");
-};
+const getNodePathSegments = (value: string) => splitNodePathSegments(value, { excludeRoot: true });
 
 export const getWorkflowNodeLabelFromPath = (nodePath: string) => {
-  const segments = splitNodePathSegments(nodePath);
+  const segments = getNodePathSegments(nodePath);
   return segments[segments.length - 1] || "";
 };
 
@@ -135,29 +118,15 @@ const deriveModuleFromWorkflowName = (value: string) => {
   return match[1].trim();
 };
 
-export const getWorkflowPathPreview = (nodePath: string, keepLast = 3) => {
-  const segments = splitNodePathSegments(nodePath);
-  if (segments.length === 0) return "";
-
-  const root = segments[0] ?? "";
-  const tail = segments.slice(1);
-  if (tail.length <= keepLast) {
-    return [root, ...tail].filter(Boolean).join(" > ");
-  }
-
-  return [root, "...", ...tail.slice(-keepLast)].filter(Boolean).join(" > ");
-};
+export const getWorkflowPathPreview = (nodePath: string, keepLast = 3) =>
+  formatNodePathDisplay(nodePath, { excludeRoot: true, keepLast });
 
 export const getWorkflowParentPathPreview = (nodePath: string) => {
-  const segments = nodePath
-    .split(".")
-    .map((segment) => segment.trim())
-    .filter((segment) => Boolean(segment) && segment.toUpperCase() !== "ROOT");
+  const segments = getNodePathSegments(nodePath);
 
   if (segments.length <= 1) return "";
 
-  const parentSegment = segments[segments.length - 2];
-  return parentSegment ? formatSnakeCaseLabel(parentSegment) : "";
+  return segments[segments.length - 2] || "";
 };
 
 export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): WorkflowRecord => {
@@ -350,3 +319,6 @@ export const mapWorkflowRecord = (item: unknown, status: WorkflowStatus): Workfl
     status,
   };
 };
+
+
+

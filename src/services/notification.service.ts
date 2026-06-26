@@ -37,12 +37,23 @@ type NotificationReadResponse = {
 export type NotificationFetchStatus = "UNREAD" | "READ" | "HIDDEN" | "ALL";
 export type NotificationFetchRefType = "USER" | "WORKFLOW" | "ORG" | "COMPANY" | null;
 export type NotificationFetchDateRange = "7DAYS" | "15DAYS" | "1MONTH" | "CUSTOM";
+export type NotificationFilterOption = {
+  label: string;
+  value: string;
+  count?: number;
+};
+export type NotificationFetchFilters = {
+  status: NotificationFilterOption[];
+  module: NotificationFilterOption[];
+  type: NotificationFilterOption[];
+};
 
 export type NotificationFetchRequest = {
-  status: NotificationFetchStatus;
+  status: NotificationFetchStatus | NotificationFetchStatus[];
   limit: number;
   offset: number;
-  refType?: NotificationFetchRefType;
+  refType?: NotificationFetchRefType | string[];
+  type?: string[] | null;
   dateRange?: NotificationFetchDateRange;
   fromDate?: string | null;
   toDate?: string | null;
@@ -59,6 +70,7 @@ type NotificationFetchResponse = {
   cursorId?: string | null;
   nextCursorId?: string | null;
   hasNextPage?: boolean;
+  filters?: Partial<Record<keyof NotificationFetchFilters, unknown>>;
 };
 
 export type NotificationFetchResult = {
@@ -72,6 +84,7 @@ export type NotificationFetchResult = {
   cursorId: string | null;
   nextCursorId: string | null;
   hasNextPage: boolean;
+  filters: NotificationFetchFilters;
 };
 
 export type NotificationSettingsModule = {
@@ -163,12 +176,38 @@ export async function fetchNotificationPage(payload: NotificationFetchRequest) {
       unreadCount: null,
       limit: payload.limit,
       offset: payload.offset,
-      status: payload.status,
+      status: Array.isArray(payload.status) ? payload.status.join(",") : payload.status,
       cursorId: null,
       nextCursorId: null,
       hasNextPage: false,
+      filters: {
+        status: [],
+        module: [],
+        type: [],
+      },
     } as NotificationFetchResult;
   }
+  const normalizeFilterOptions = (items: unknown): NotificationFilterOption[] => {
+    if (!Array.isArray(items)) return [];
+    return items
+      .map((item) => {
+        if (typeof item === "string") {
+          const value = item.trim();
+          return value ? { label: value, value } : null;
+        }
+        if (!item || typeof item !== "object") return null;
+        const record = item as Record<string, unknown>;
+        const value = typeof record.value === "string" ? record.value.trim() : "";
+        const label = typeof record.label === "string" ? record.label.trim() : value;
+        if (!value) return null;
+        return {
+          label: label || value,
+          value,
+          count: typeof record.count === "number" ? record.count : undefined,
+        };
+      })
+      .filter((item): item is NotificationFilterOption => Boolean(item));
+  };
 
   return {
     data: Array.isArray(response.data) ? response.data : [],
@@ -181,6 +220,11 @@ export async function fetchNotificationPage(payload: NotificationFetchRequest) {
     cursorId: response.cursorId ?? null,
     nextCursorId: response.nextCursorId ?? null,
     hasNextPage: Boolean(response.hasNextPage),
+    filters: {
+      status: normalizeFilterOptions(response.filters?.status),
+      module: normalizeFilterOptions(response.filters?.module),
+      type: normalizeFilterOptions(response.filters?.type),
+    },
   } as NotificationFetchResult;
 }
 

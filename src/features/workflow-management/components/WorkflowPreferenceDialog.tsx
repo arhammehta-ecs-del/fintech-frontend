@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getBranchAppearance, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
 import { useToast } from "@/hooks/use-toast";
+import { formatNodePathDisplay } from "@/lib/nodePath";
 import { cn } from "@/lib/utils";
 import { getApiErrorMessage } from "@/services/client";
 import {
@@ -376,7 +377,7 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#5b6f9c]">Company</p>
             <p className="mt-2 truncate text-sm font-medium text-slate-900">
               {companyNode?.nodeName || "-"}
-              {companyNode?.nodePath ? ` (${companyNode.nodePath})` : ""}
+              {companyNode?.nodePath ? ` (${formatNodePathDisplay(companyNode.nodePath, { excludeRoot: true })})` : ""}
             </p>
           </div>
           <button
@@ -527,7 +528,7 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                         ) : null}
                       </h3>
                     </div>
-                    <p className="mt-2 break-all text-sm text-slate-500">{selectedNode.nodePath}</p>
+                    <p className="mt-2 break-all text-sm text-slate-500">{formatNodePathDisplay(selectedNode.nodePath, { excludeRoot: true })}</p>
                   </div>
                 </div>
 
@@ -618,6 +619,7 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     </Dialog>
   );
 }
+
 
 
 

@@ -74,6 +74,34 @@ const isDescendantNodePath = (parentPath: string, candidatePath: string) => {
   return candidate.startsWith(`${parent}/`) || candidate.startsWith(`${parent}.`);
 };
 
+const getNodeOptionCount = (option: UserFilterNodeOption) =>
+  typeof option.count === "number"
+    ? option.count
+    : typeof option.permissionCount === "number"
+      ? option.permissionCount
+      : undefined;
+
+const formatNodeOptionLevelLabel = (option: UserFilterNodeOption) => {
+  if (typeof option.level === "number" && Number.isFinite(option.level)) {
+    return `L${option.level}`;
+  }
+
+  const normalizedLevelCount = (option.levelCount || "").trim().toLowerCase();
+  if (!normalizedLevelCount) return "";
+  if (normalizedLevelCount === "root") return "L1";
+
+  const matchedLevel = normalizedLevelCount.match(/^level(\d+)$/);
+  if (!matchedLevel) return "";
+  return `L${Number(matchedLevel[1]) + 1}`;
+};
+
+const formatNodeOptionLabel = (option: UserFilterNodeOption) => {
+  const levelLabel = formatNodeOptionLevelLabel(option);
+  const count = getNodeOptionCount(option);
+  const baseLabel = levelLabel ? `${levelLabel} ${option.value}` : option.value;
+  return typeof count === "number" ? `${baseLabel} (${count})` : baseLabel;
+};
+
 type UserFiltersProps = {
   statusTab: MemberStatusTab;
   onStatusTabChange: (value: MemberStatusTab) => void;
@@ -633,7 +661,7 @@ export default function UserFilters(props: UserFiltersProps) {
                           })}
                         </div>
                       </div>
-                    </div>
+                      </div>
                     <RoleFilterDropdown
                       permissionSummary={permissionSummary}
                       selected={draft.roleFilters}
@@ -1066,6 +1094,10 @@ function NodeNameDropdown({
     [options],
   );
   const filteredOptions = normalizedOptions.filter((option) => option.value.toLowerCase().includes(search.toLowerCase()));
+  const optionByPath = useMemo(() => new Map(normalizedOptions.map((option) => [option.path, option])), [normalizedOptions]);
+  const selectedOption = selectedPaths.length > 0
+    ? optionByPath.get(selectedPaths[0])
+    : normalizedOptions.find((option) => option.value === selected[0]);
 
   useEffect(() => {
     if (!open) return;
@@ -1097,7 +1129,7 @@ function NodeNameDropdown({
           {selected.length === 0
             ? "Select node name"
             : selected.length === 1
-              ? `${selected[0]}${nodeAccessType[selected[0]]?.length ? ` (${nodeAccessType[selected[0]].join(", ")})` : ""}`
+              ? `${selectedOption ? formatNodeOptionLabel(selectedOption) : selected[0]}${nodeAccessType[selected[0]]?.length ? ` - ${nodeAccessType[selected[0]].join(", ")}` : ""}`
               : `${selected.length} selected`}
         </span>
         <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", open && "rotate-180")} />
@@ -1167,10 +1199,15 @@ function NodeNameDropdown({
                         className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
                       />
                       <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-800 break-words">{option.value}</p>
-                          {typeof option.level === "number" ? (
+                          {formatNodeOptionLevelLabel(option) ? (
                             <span className="shrink-0 inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-indigo-700 ring-1 ring-indigo-200/60">
-                              L{option.level}
+                              {formatNodeOptionLevelLabel(option)}
+                            </span>
+                          ) : null}
+                          <p className="text-sm font-medium text-slate-800 break-words">{option.value}</p>
+                          {typeof getNodeOptionCount(option) === "number" ? (
+                            <span className="shrink-0 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-700 ring-1 ring-amber-200/70">
+                              {getNodeOptionCount(option)}
                             </span>
                           ) : null}
                         </div>
@@ -1317,6 +1354,9 @@ function RoleFilterDropdown({
     />
   );
 }
+
+
+
 
 
 

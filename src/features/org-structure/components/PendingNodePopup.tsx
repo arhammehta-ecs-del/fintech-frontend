@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import type { OrgNode } from "@/contexts/AppContext";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { formatNodePathDisplay, splitNodePathSegments } from "@/lib/nodePath";
 
 type PendingNodePopupProps = {
   open: boolean;
@@ -76,7 +77,7 @@ const formatDiffValue = (value: unknown) => {
 };
 
 const getNodeDisplayNameFromPath = (value: string) => {
-  const segments = value.split(".").map((segment) => segment.trim()).filter(Boolean);
+  const segments = splitNodePathSegments(value, { excludeRoot: true });
   return segments[segments.length - 1] || value;
 };
 
@@ -92,7 +93,7 @@ const buildOrgDiffRows = (node: OrgNode) => {
     nodeType: formatDiffValue(oldData.nodeType),
     status: formatDiffValue(oldData.status),
     parentNodeName: formatDiffValue(parentFromOld.nodeName),
-    parentNodePath: formatDiffValue(parentFromOld.nodePath),
+    parentNodePath: formatNodePathDisplay(formatDiffValue(parentFromOld.nodePath), { excludeRoot: true }),
     workflowName: formatDiffValue(oldData.workflowName),
     alias: formatDiffValue(oldData.alias),
   };
@@ -106,7 +107,7 @@ const buildOrgDiffRows = (node: OrgNode) => {
     nodeType: formatDiffValue(newData.nodeType),
     status: formatDiffValue(newData.status),
     parentNodeName: formatDiffValue(parentFromNew.nodeName),
-    parentNodePath: formatDiffValue(parentFromNew.nodePath),
+    parentNodePath: formatNodePathDisplay(formatDiffValue(parentFromNew.nodePath), { excludeRoot: true }),
     workflowName: formatDiffValue(newData.workflowName),
     alias: formatDiffValue(newData.alias),
   };
@@ -224,7 +225,7 @@ export function PendingNodePopup({
     : isActiveUpdateRequest
       ? "Activation Approval"
       : "New Node Approval";
-  const nodePathSegments = node.nodePath.split(".").filter(Boolean);
+  const nodePathSegments = splitNodePathSegments(node.nodePath, { excludeRoot: true });
   const diffRows = buildOrgDiffRows(node);
   const metadataPillClassName = "inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200/70";
 
@@ -438,11 +439,11 @@ export function PendingNodePopup({
                       ? nodePathSegments.map((segment, index) => (
                         <span key={`${segment}-${index}`}>
                           {segment}
-                          {index < nodePathSegments.length - 1 ? "." : ""}
+                          {index < nodePathSegments.length - 1 ? " > " : ""}
                           <wbr />
                         </span>
                       ))
-                      : node.nodePath}
+                       : formatNodePathDisplay(node.nodePath, { excludeRoot: true })}
                   </span>
                 </div>
               </div>
@@ -782,6 +783,11 @@ export function PendingNodePopup({
     </div>
   );
 }
+
+
+
+
+
 
 
 

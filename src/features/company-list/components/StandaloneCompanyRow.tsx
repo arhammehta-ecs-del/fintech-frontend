@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { GripVertical, History, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DragPayload, VisibleColumn } from "@/features/company-list/types";
-import { formatDisplayDate, getCodeBadgeStyle, statusColors } from "@/features/company-list/utils";
+import { formatDisplayDate, getCodeBadgeStyle, getCompanyStatusDisplayLabel, statusColors } from "@/features/company-list/utils";
 
 type StandaloneCompanyRowProps = {
   company: Company;
@@ -121,7 +121,7 @@ export default function StandaloneCompanyRow({
         {showStatusColumn && visibleColumns.has("status") && (
           <td className="px-4 py-3">
             <Badge variant="outline" className={cn("px-2.5 py-0.5 text-[10px]", statusColors[company.status])}>
-              {company.status}
+              {getCompanyStatusDisplayLabel(company.status)}
             </Badge>
           </td>
         )}
@@ -158,3 +158,5 @@ export default function StandaloneCompanyRow({
     </tbody>
   );
 }
+
+

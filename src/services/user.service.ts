@@ -213,6 +213,8 @@ export type UserFilterNodeOption = {
   level?: number;
   nodeType?: string;
   levelCount?: string;
+  count?: number;
+  permissionCount?: number;
 };
 
 export type PermissionSummaryEntry = {
@@ -665,6 +667,8 @@ export async function fetchUserFilterDropdowns(
           level: typeof item?.level === "number" ? item.level : undefined,
           nodeType: typeof item?.nodeType === "string" ? item.nodeType.trim() : undefined,
           levelCount: typeof item?.levelCount === "string" ? item.levelCount.trim() : undefined,
+          count: typeof item?.count === "number" ? item.count : undefined,
+          permissionCount: typeof item?.permissionCount === "number" ? item.permissionCount : undefined,
         }))
         .filter((item) => item.value && item.path)
         .sort((a, b) => a.path.localeCompare(b.path))
@@ -873,5 +877,6 @@ export async function fetchUserDetails(
     statusTab === "pending" ? "Pending" : statusTab === "inactive" ? "Inactive" : "Active",
   );
 }
+
 
 

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { formatNodePathDisplay } from "@/lib/nodePath";
 import { AppSidebar } from "@/features/dashboard-layout/components/AppSidebar";
 import { getBranchAppearance, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,8 @@ import {
   fetchNotificationPage,
   fetchNotificationSettings,
   type NotificationFetchDateRange,
+  type NotificationFetchFilters,
+  type NotificationFilterOption,
   type NotificationFetchRefType,
   type NotificationFetchStatus,
   type NotificationSettingsCompany,
@@ -47,10 +50,10 @@ type AppTopBarProps = {
 
 type NotificationTone = "blue" | "green" | "orange" | "red" | "slate";
 type NotificationEntity = "User" | "Workflow" | "Org" | "Company List";
-type NotificationRefTypeFilter = "ALL" | "USER" | "WORKFLOW" | "ORG" | "COMPANY";
 type NotificationIntent = "approve" | "view";
 type NotificationStatusFilterValue = Exclude<NotificationFetchStatus, "ALL">;
-type NotificationModuleFilterValue = Exclude<NotificationRefTypeFilter, "ALL">;
+type NotificationModuleFilterValue = string;
+type NotificationTypeFilterValue = string;
 
 type NotificationItem = {
   id: string;
@@ -105,12 +108,12 @@ const MESSAGE_PREVIEW_LIMIT = 120;
 const EXPANDED_TRACK_BATCH_SIZE = 10;
 const DEFAULT_DATE_RANGE: NotificationFetchDateRange = "7DAYS";
 const DATE_RANGE_OPTIONS: NotificationFetchDateRange[] = ["7DAYS", "15DAYS", "1MONTH"];
-const STATUS_FILTER_OPTIONS: Array<{ value: NotificationStatusFilterValue; label: string }> = [
+const FALLBACK_STATUS_FILTER_OPTIONS: NotificationFilterOption[] = [
   { value: "READ", label: "Read" },
   { value: "UNREAD", label: "Unread" },
   { value: "HIDDEN", label: "Hidden" },
 ];
-const MODULE_FILTER_OPTIONS: Array<{ value: NotificationModuleFilterValue; label: string }> = [
+const FALLBACK_MODULE_FILTER_OPTIONS: NotificationFilterOption[] = [
   { value: "USER", label: "User" },
   { value: "WORKFLOW", label: "Workflow" },
   { value: "ORG", label: "Org" },
@@ -125,12 +128,40 @@ const NOTIFICATION_ACCENT_BORDER = "border-[hsla(235,60%,50%,0.16)]";
 const toggleArrayValue = <T extends string>(values: T[], value: T) =>
   values.includes(value) ? values.filter((current) => current !== value) : [...values, value];
 
-const toggleSingleSelectValue = <T extends string>(values: T[], value: T) =>
-  values.includes(value) ? [] : [value];
+const EMPTY_NOTIFICATION_FILTERS: NotificationFetchFilters = {
+  status: [],
+  module: [],
+  type: [],
+};
 
-const formatMultiFilterLabel = (values: string[], allLabel: string) => {
+const normalizeNotificationFilterKey = (value: string) => value.trim().toUpperCase();
+
+const dedupeNotificationFilterOptions = (options: NotificationFilterOption[]) =>
+  Array.from(
+    new Map(
+      options
+        .filter((option) => option.value.trim())
+        .map((option) => [
+          normalizeNotificationFilterKey(option.value),
+          {
+            ...option,
+            label: option.label.trim() || option.value.trim(),
+            value: option.value.trim(),
+          },
+        ]),
+    ).values(),
+  );
+
+const mergeNotificationFilterOptions = (
+  primary: NotificationFilterOption[],
+  fallback: NotificationFilterOption[],
+) => dedupeNotificationFilterOptions(primary.length > 0 ? primary : fallback);
+
+const formatMultiFilterLabel = (values: string[], allLabel: string, options: NotificationFilterOption[] = []) => {
   if (values.length === 0) return allLabel;
-  if (values.length === 1) return values[0];
+  if (values.length === 1) {
+    return options.find((option) => normalizeNotificationFilterKey(option.value) === normalizeNotificationFilterKey(values[0]))?.label ?? values[0];
+  }
   return `${values.length} Selected`;
 };
 
@@ -138,13 +169,16 @@ const filterNotificationsBySelection = (
   items: NotificationItem[],
   selectedStatusFilters: NotificationStatusFilterValue[],
   selectedModuleFilters: NotificationModuleFilterValue[],
+  selectedTypeFilters: NotificationTypeFilterValue[],
 ) =>
   items.filter((item) => {
-    const itemStatus = item.status;
-    const itemModule = (item.refType || "").trim().toUpperCase() as NotificationModuleFilterValue;
-    const matchesStatus = selectedStatusFilters.length === 0 || selectedStatusFilters.includes(itemStatus);
-    const matchesModule = selectedModuleFilters.length === 0 || selectedModuleFilters.includes(itemModule);
-    return matchesStatus && matchesModule;
+    const itemStatus = normalizeNotificationFilterKey(item.status);
+    const itemModule = normalizeNotificationFilterKey(item.refType || "");
+    const itemType = normalizeNotificationFilterKey(item.rawType || "");
+    const matchesStatus = selectedStatusFilters.length === 0 || selectedStatusFilters.some((value) => normalizeNotificationFilterKey(value) === itemStatus);
+    const matchesModule = selectedModuleFilters.length === 0 || selectedModuleFilters.some((value) => normalizeNotificationFilterKey(value) === itemModule);
+    const matchesType = selectedTypeFilters.length === 0 || selectedTypeFilters.some((value) => normalizeNotificationFilterKey(value) === itemType);
+    return matchesStatus && matchesModule && matchesType;
   });
 
 const formatRelativeTime = (occurredAt: string) => {
@@ -600,6 +634,8 @@ export function AppTopBar({
   const [profilePopoverOpen, setProfilePopoverOpen] = useState(false);
   const [notificationStatusFilters, setNotificationStatusFilters] = useState<NotificationStatusFilterValue[]>([]);
   const [notificationModuleFilters, setNotificationModuleFilters] = useState<NotificationModuleFilterValue[]>([]);
+  const [notificationTypeFilters, setNotificationTypeFilters] = useState<NotificationTypeFilterValue[]>([]);
+  const [notificationFilterOptions, setNotificationFilterOptions] = useState<NotificationFetchFilters>(EMPTY_NOTIFICATION_FILTERS);
   const [notificationDateRange, setNotificationDateRange] = useState<NotificationFetchDateRange>(DEFAULT_DATE_RANGE);
   const [customFromDate, setCustomFromDate] = useState("");
   const [customToDate, setCustomToDate] = useState("");
@@ -626,6 +662,7 @@ export function AppTopBar({
   const resetNotificationFilters = useCallback(() => {
     setNotificationStatusFilters([]);
     setNotificationModuleFilters([]);
+    setNotificationTypeFilters([]);
     setNotificationDateRange(DEFAULT_DATE_RANGE);
     setCustomFromDate("");
     setCustomToDate("");
@@ -649,19 +686,34 @@ export function AppTopBar({
 
   const activeDateRange = customFromDate && customToDate ? "CUSTOM" : notificationDateRange;
   const customDateRangeIsComplete = notificationDateRange !== "CUSTOM" || Boolean(customFromDate && customToDate);
+  const availableNotificationStatusOptions = useMemo(
+    () => mergeNotificationFilterOptions(notificationFilterOptions.status, FALLBACK_STATUS_FILTER_OPTIONS),
+    [notificationFilterOptions.status],
+  );
   const availableNotificationModuleOptions = useMemo(
-    () => MODULE_FILTER_OPTIONS.filter((option) => option.value !== "COMPANY" || currentUser?.isGlobal),
-    [currentUser?.isGlobal],
+    () =>
+      mergeNotificationFilterOptions(notificationFilterOptions.module, FALLBACK_MODULE_FILTER_OPTIONS).filter(
+        (option) => normalizeNotificationFilterKey(option.value) !== "COMPANY" || currentUser?.isGlobal,
+      ),
+    [currentUser?.isGlobal, notificationFilterOptions.module],
+  );
+  const availableNotificationTypeOptions = useMemo(
+    () => mergeNotificationFilterOptions(notificationFilterOptions.type, []),
+    [notificationFilterOptions.type],
   );
   const visibleNotifications = useMemo(
-    () => filterNotificationsBySelection(notifications, notificationStatusFilters, notificationModuleFilters),
-    [notifications, notificationModuleFilters, notificationStatusFilters],
+    () => filterNotificationsBySelection(notifications, notificationStatusFilters, notificationModuleFilters, notificationTypeFilters),
+    [notifications, notificationModuleFilters, notificationStatusFilters, notificationTypeFilters],
   );
   const visibleDialogNotifications = useMemo(
-    () => filterNotificationsBySelection(dialogNotifications, notificationStatusFilters, notificationModuleFilters),
-    [dialogNotifications, notificationModuleFilters, notificationStatusFilters],
+    () => filterNotificationsBySelection(dialogNotifications, notificationStatusFilters, notificationModuleFilters, notificationTypeFilters),
+    [dialogNotifications, notificationModuleFilters, notificationStatusFilters, notificationTypeFilters],
   );
-  const hasAnyNotificationFilter = notificationStatusFilters.length > 0 || notificationModuleFilters.length > 0;
+  const hasAnyNotificationFilter =
+    notificationStatusFilters.length > 0 ||
+    notificationModuleFilters.length > 0 ||
+    notificationTypeFilters.length > 0 ||
+    activeDateRange !== DEFAULT_DATE_RANGE;
   const selectedNotificationSettingsCompany = useMemo(
     () =>
       notificationSettingsCompanies.find((company) => company.companyCode === selectedNotificationSettingsCompanyCode)
@@ -897,17 +949,26 @@ export function AppTopBar({
     };
   }, []);
 
+  const updateNotificationFilterOptions = useCallback((filters: NotificationFetchFilters) => {
+    setNotificationFilterOptions((current) => ({
+      status: filters.status.length > 0 ? filters.status : current.status,
+      module: filters.module.length > 0 ? filters.module : current.module,
+      type: filters.type.length > 0 ? filters.type : current.type,
+    }));
+  }, []);
+
   const buildNotificationPayload = useCallback(
     (limit: number, offset: number) => ({
       limit,
       offset,
-      status: notificationStatusFilters[0] ?? ("ALL" as NotificationFetchStatus),
-      refType: notificationModuleFilters[0] ?? (null as NotificationFetchRefType),
+      status: notificationStatusFilters.length > 0 ? notificationStatusFilters : ("ALL" as NotificationFetchStatus),
+      refType: notificationModuleFilters.length > 0 ? notificationModuleFilters : (null as NotificationFetchRefType),
+      type: notificationTypeFilters.length > 0 ? notificationTypeFilters : null,
       dateRange: activeDateRange,
       fromDate: activeDateRange === "CUSTOM" ? toUtcDayStart(customFromDate) : null,
       toDate: activeDateRange === "CUSTOM" ? toUtcDayEnd(customToDate) : null,
     }),
-    [activeDateRange, customFromDate, customToDate, notificationModuleFilters, notificationStatusFilters],
+    [activeDateRange, customFromDate, customToDate, notificationModuleFilters, notificationStatusFilters, notificationTypeFilters],
   );
 
   const handleCustomFromDateChange = useCallback((value: string) => {
@@ -927,6 +988,7 @@ export function AppTopBar({
   const loadCompactNotifications = useCallback(async () => {
     try {
       const response = await fetchNotificationPage(buildNotificationPayload(COMPACT_NOTIFICATIONS_LIMIT, 0));
+      updateNotificationFilterOptions(response.filters);
       const mapped = response.data
         .map(mapPacketToNotification)
         .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
@@ -940,13 +1002,14 @@ export function AppTopBar({
       setNotifications([]);
       setAllNotificationCount(0);
     }
-  }, [buildNotificationPayload, mapPacketToNotification]);
+  }, [buildNotificationPayload, mapPacketToNotification, updateNotificationFilterOptions]);
 
   const loadDialogNotifications = useCallback(async () => {
     setDialogLoading(true);
     setDialogLoadingMore(false);
     try {
       const response = await fetchNotificationPage(buildNotificationPayload(DIALOG_PAGE_SIZE, COMPACT_NOTIFICATIONS_LIMIT));
+      updateNotificationFilterOptions(response.filters);
       const mapped = response.data
         .map(mapPacketToNotification)
         .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
@@ -965,7 +1028,7 @@ export function AppTopBar({
     } finally {
       setDialogLoading(false);
     }
-  }, [buildNotificationPayload, mapPacketToNotification, notifications]);
+  }, [buildNotificationPayload, mapPacketToNotification, notifications, updateNotificationFilterOptions]);
 
   useEffect(() => {
     if (!currentUser?.email) return;
@@ -1157,6 +1220,7 @@ export function AppTopBar({
     setDialogLoadingMore(true);
     try {
       const response = await fetchNotificationPage(buildNotificationPayload(DIALOG_PAGE_SIZE, dialogOffset));
+      updateNotificationFilterOptions(response.filters);
       const nextBatch = response.data
         .map(mapPacketToNotification)
         .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
@@ -1428,6 +1492,111 @@ export function AppTopBar({
     );
   };
 
+  const renderNotificationOptionLabel = (option: NotificationFilterOption) => (
+    <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+      <span className="truncate">{option.label}</span>
+      {typeof option.count === "number" ? (
+        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+          {option.count}
+        </span>
+      ) : null}
+    </span>
+  );
+
+  const renderNotificationFilterDropdown = <T extends string,>({
+    title,
+    allLabel,
+    selected,
+    options,
+    onChange,
+    compact,
+    minWidthClass,
+  }: {
+    title: string;
+    allLabel: string;
+    selected: T[];
+    options: NotificationFilterOption[];
+    onChange: (values: T[]) => void;
+    compact: boolean;
+    minWidthClass: string;
+  }) => {
+    const optionValues = options.map((option) => option.value as T);
+    const selectedKeys = new Set(selected.map(normalizeNotificationFilterKey));
+    const allSelected = options.length > 0 && optionValues.every((value) => selectedKeys.has(normalizeNotificationFilterKey(value)));
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              compact
+                ? `inline-flex h-9 ${minWidthClass} items-center justify-between gap-1.5 rounded-xl border px-2.5 text-[12px] font-medium transition`
+                : `inline-flex h-9 ${minWidthClass} items-center justify-between gap-1.5 rounded-xl border px-3 text-[13px] font-medium transition`,
+              selected.length > 0
+                ? NOTIFICATION_ACCENT_SOFT
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
+            )}
+          >
+            <span className="truncate">{formatMultiFilterLabel(selected, allLabel, options)}</span>
+            <ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className="max-h-[20rem] w-64 overflow-y-auto rounded-2xl border-slate-200 bg-white p-2 shadow-[0_22px_60px_rgba(15,23,42,0.18)]"
+        >
+          <div className="sticky top-0 z-10 -mx-1 bg-white px-1 pb-1">
+            <div className="px-2 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              {title}
+            </div>
+            <DropdownMenuCheckboxItem
+              checked={allSelected}
+              disabled={options.length === 0}
+              onCheckedChange={(checked) => onChange(checked ? optionValues : [])}
+              onSelect={(event) => event.preventDefault()}
+              className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
+            >
+              <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                <span>Select all</span>
+                {options.length > 0 ? (
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                    {options.length}
+                  </span>
+                ) : null}
+              </span>
+            </DropdownMenuCheckboxItem>
+            <button
+              type="button"
+              disabled={selected.length === 0}
+              onClick={() => onChange([])}
+              className="mt-1 w-full rounded-lg px-2 py-1.5 text-left text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Clear {title.toLowerCase()}
+            </button>
+          </div>
+          {options.length === 0 ? (
+            <div className="px-2 py-4 text-sm text-slate-500">No options available</div>
+          ) : (
+            options.map((option) => (
+              <DropdownMenuCheckboxItem
+                key={option.value}
+                checked={selectedKeys.has(normalizeNotificationFilterKey(option.value))}
+                onCheckedChange={() => {
+                  onChange(toggleArrayValue(selected, option.value as T));
+                }}
+                onSelect={(event) => event.preventDefault()}
+                className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
+              >
+                {renderNotificationOptionLabel(option)}
+              </DropdownMenuCheckboxItem>
+            ))
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
+
   const renderNotificationFilters = (compact = false) => (
     <div className={`flex flex-col gap-3 border-b border-slate-200 bg-white ${compact ? "px-4 py-3" : "px-4 py-4"}`}>
       <div
@@ -1435,108 +1604,52 @@ export function AppTopBar({
           "flex items-center",
           compact
             ? "flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            : "flex-nowrap gap-2",
+            : "flex-wrap gap-2",
         )}
       >
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                compact
-                  ? "inline-flex h-9 min-w-[104px] items-center justify-between gap-1.5 rounded-xl border px-2.5 text-[12px] font-medium transition"
-                  : "inline-flex h-9 min-w-[112px] items-center justify-between gap-1.5 rounded-xl border px-3 text-[13px] font-medium transition",
-                hasAnyNotificationFilter
-                  ? NOTIFICATION_ACCENT_SOFT
-                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
-              )}
-            >
-              <span className="truncate">{formatMultiFilterLabel(notificationStatusFilters, "All Status")}</span>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            className="w-52 rounded-2xl border-slate-200 bg-white p-2 shadow-[0_22px_60px_rgba(15,23,42,0.18)]"
+        {hasAnyNotificationFilter ? (
+          <button
+            type="button"
+            onClick={resetNotificationFilters}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-100 font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-800",
+              compact ? "h-8 px-2.5 text-[10px]" : "h-9 px-3 text-xs",
+            )}
           >
-            <div className="px-2 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Status
-            </div>
-            <DropdownMenuCheckboxItem
-              checked={notificationStatusFilters.length === 0}
-              onCheckedChange={() => {
-                setNotificationStatusFilters([]);
-              }}
-              onSelect={(event) => event.preventDefault()}
-              className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
-            >
-              <span>All</span>
-            </DropdownMenuCheckboxItem>
-            {STATUS_FILTER_OPTIONS.map((option) => (
-              <DropdownMenuCheckboxItem
-                key={option.value}
-                checked={notificationStatusFilters.includes(option.value)}
-                onCheckedChange={() => {
-                  setNotificationStatusFilters((current) => toggleSingleSelectValue(current, option.value));
-                }}
-                onSelect={(event) => event.preventDefault()}
-                className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
-              >
-                <span>{option.label}</span>
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <X className="h-3.5 w-3.5" />
+            Clear filters
+          </button>
+        ) : null}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                compact
-                  ? "inline-flex h-9 min-w-[104px] items-center justify-between gap-1.5 rounded-xl border px-2.5 text-[12px] font-medium transition"
-                  : "inline-flex h-9 min-w-[112px] items-center justify-between gap-1.5 rounded-xl border px-3 text-[13px] font-medium transition",
-                hasAnyNotificationFilter
-                  ? NOTIFICATION_ACCENT_SOFT
-                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
-              )}
-            >
-              <span className="truncate">{formatMultiFilterLabel(notificationModuleFilters, "All Module")}</span>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            className="w-56 rounded-2xl border-slate-200 bg-white p-2 shadow-[0_22px_60px_rgba(15,23,42,0.18)]"
-          >
-            <div className="px-2 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Module
-            </div>
-            <DropdownMenuCheckboxItem
-              checked={notificationModuleFilters.length === 0}
-              onCheckedChange={() => {
-                setNotificationModuleFilters([]);
-              }}
-              onSelect={(event) => event.preventDefault()}
-              className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
-            >
-              <span>All</span>
-            </DropdownMenuCheckboxItem>
-            {availableNotificationModuleOptions.map((option) => (
-              <DropdownMenuCheckboxItem
-                key={option.value}
-                checked={notificationModuleFilters.includes(option.value)}
-                onCheckedChange={() => {
-                  setNotificationModuleFilters((current) => toggleSingleSelectValue(current, option.value));
-                }}
-                onSelect={(event) => event.preventDefault()}
-                className="rounded-lg py-2.5 pl-8 pr-2 text-sm"
-              >
-                <span>{option.label}</span>
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {renderNotificationFilterDropdown<NotificationStatusFilterValue>({
+          title: "Status",
+          allLabel: "All Status",
+          selected: notificationStatusFilters,
+          options: availableNotificationStatusOptions,
+          onChange: setNotificationStatusFilters,
+          compact,
+          minWidthClass: "min-w-[116px]",
+        })}
+
+        {renderNotificationFilterDropdown<NotificationModuleFilterValue>({
+          title: "Module",
+          allLabel: "All Module",
+          selected: notificationModuleFilters,
+          options: availableNotificationModuleOptions,
+          onChange: setNotificationModuleFilters,
+          compact,
+          minWidthClass: "min-w-[116px]",
+        })}
+
+        {renderNotificationFilterDropdown<NotificationTypeFilterValue>({
+          title: "Type",
+          allLabel: "All Type",
+          selected: notificationTypeFilters,
+          options: availableNotificationTypeOptions,
+          onChange: setNotificationTypeFilters,
+          compact,
+          minWidthClass: "min-w-[116px]",
+        })}
 
         {DATE_RANGE_OPTIONS.map((option) => (
           <button
@@ -1785,7 +1898,7 @@ export function AppTopBar({
                 ) : null}
               </h3>
             </div>
-            <p className="mt-1 text-xs text-slate-500">{selectedNotificationSettingsNode.nodePath}</p>
+            <p className="mt-1 text-xs text-slate-500">{formatNodePathDisplay(selectedNotificationSettingsNode.nodePath, { excludeRoot: true })}</p>
           </div>
           <div className="rounded-2xl border border-[#dbe4ff] bg-white px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Node Level</p>
@@ -1987,11 +2100,16 @@ export function AppTopBar({
                       Mark all read
                     </button>
                   ) : null}
-                  <button type="button" onClick={() => {
-                    setAllNotificationsOpen(false);
-                    resetNotificationFilters();
-                  }} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="Close notifications">
-                    Ã—
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAllNotificationsOpen(false);
+                      resetNotificationFilters();
+                    }}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Close notifications"
+                  >
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               </DialogTitle>
@@ -2254,6 +2372,7 @@ export function AppTopBar({
     </header>
   );
 }
+
 
 
 

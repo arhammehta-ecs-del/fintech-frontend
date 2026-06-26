@@ -53,6 +53,14 @@ const fuzzyMatch = (text: string, query: string) => {
 
 const toApiToken = (value: string) => value.trim().replace(/\s+/g, "_").toUpperCase();
 const normalizeFilterValue = (value: string) => value.trim().toLowerCase().replace(/[_\s]+/g, " ");
+const formatWorkflowNodeFilterLabel = (input: { level?: number; name: string; count?: number }) => {
+  const parts = [
+    typeof input.level === "number" ? `L${input.level}` : "",
+    input.name.trim(),
+    typeof input.count === "number" ? String(input.count) : "",
+  ].filter(Boolean);
+  return parts.join(" ");
+};
 type WorkflowSubStatusValue = "initiate" | "modify";
 
 const buildWorkflowAppliedFilters = (input: {
@@ -502,23 +510,35 @@ export function useWorkflowManagement() {
                 const level = path ? path.split(".").length : undefined;
                 return {
                   value: workflow.nodeName,
-                  label: workflow.nodeName,
+                  label: formatWorkflowNodeFilterLabel({
+                    level: workflow.levelCount ?? level,
+                    name: workflow.nodeName,
+                  }),
                   path,
                   description: path || undefined,
-                  level,
+                  level: workflow.levelCount ?? level,
                 };
               }),
             ...filterNodeNameOptions,
           ].map((option) => [normalizeFilterValue(option.value), option]),
         ).values(),
-      ).sort((a, b) => {
-        if (a.path && b.path) {
-          return a.path.localeCompare(b.path);
-        }
-        if (a.path) return -1;
-        if (b.path) return 1;
-        return a.label.localeCompare(b.label);
-      }),
+      )
+        .map((option) => ({
+          ...option,
+          label: formatWorkflowNodeFilterLabel({
+            level: option.level,
+            name: option.value,
+            count: option.count,
+          }) || option.label || option.value,
+        }))
+        .sort((a, b) => {
+          if (a.path && b.path) {
+            return a.path.localeCompare(b.path);
+          }
+          if (a.path) return -1;
+          if (b.path) return 1;
+          return a.label.localeCompare(b.label);
+        }),
     [filterNodeNameOptions, workflows],
   );
   const nodeTypeOptions = useMemo(
@@ -938,6 +958,10 @@ export function useWorkflowManagement() {
     hasLoadedWorkflowsOnce,
   };
 }
+
+
+
+
 
 
 

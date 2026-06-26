@@ -8,6 +8,9 @@ export const statusColors: Record<CompanyStatus, string> = {
   Inactive: "rounded-md border border-rose-200 bg-rose-50/50 text-rose-600 font-medium shadow-none",
 };
 
+export const getCompanyStatusDisplayLabel = (status: CompanyStatus) =>
+  status === "Approved" ? "Active" : status;
+
 export const formatDisplayDate = (value: string, emptyFallback = "") => {
   if (!value) return emptyFallback;
 
@@ -174,3 +177,5 @@ export const getSelectedGroupInfo = (groups: GroupCompany[], selectedCompany: Co
   }
   return { name: selectedParentGroup.groupName, code: selectedParentGroup.code };
 };
+
+

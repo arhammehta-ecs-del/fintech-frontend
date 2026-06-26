@@ -21,6 +21,7 @@ import {
   getOrgNodePermissionChipTheme,
   getOrgNodeTheme,
 } from "@/features/user-management/orgNodeTheme";
+import { formatNodePathDisplay } from "@/lib/nodePath";
 import { getInitials as getSharedInitials } from "@/lib/userIdentity.utils";
 
 const PERMISSION_ACTIONS = ["manager", "user", "viewer"] as const;
@@ -335,33 +336,8 @@ export const createInitialUserOnboardingFormData = (): UserOnboardingFormData =>
   remark: "",
 });
 
-const toNodePathSegmentLabel = (segment: string) => segment.trim().replace(/_/g, " ");
-
-const splitNodePathSegments = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) return [];
-
-  const rawParts = trimmed.includes(">")
-    ? trimmed.split(">")
-    : trimmed.split(".");
-
-  return rawParts
-    .map((part) => toNodePathSegmentLabel(part))
-    .filter((part) => Boolean(part) && part.toUpperCase() !== "ROOT");
-};
-
-export const formatCollapsedNodePath = (value: string, keepLast = 3) => {
-  const segments = splitNodePathSegments(value);
-  if (segments.length === 0) return "";
-
-  const root = segments[0] ?? "";
-  const tail = segments.slice(1);
-  if (tail.length <= keepLast) {
-    return [root, ...tail].filter(Boolean).join(" > ");
-  }
-
-  return [root, "...", ...tail.slice(-keepLast)].filter(Boolean).join(" > ");
-};
+export const formatCollapsedNodePath = (value: string, keepLast = 3) =>
+  formatNodePathDisplay(value, { excludeRoot: true, keepLast });
 
 export const validateUserOnboardingStep = (step: number, formData: UserOnboardingFormData): ValidationErrors => {
   const errors: ValidationErrors = {};
@@ -405,3 +381,5 @@ export {
   getOrgNodeBadgeTheme,
   getOrgNodePermissionChipTheme,
 };
+
+

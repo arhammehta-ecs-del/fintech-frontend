@@ -9,6 +9,7 @@ import {
   getWorkflowPathPreview,
   isRootWorkflowNode,
 } from "@/features/workflow-management/utils/workflowRecord.utils";
+import { splitNodePathSegments } from "@/lib/nodePath";
 import { cn } from "@/lib/utils";
 
 type SummaryPreviewWorkflow = WorkflowRecord & {
@@ -141,14 +142,14 @@ const getWorkflowConditionCount = (levels: WorkflowLevel[]) =>
 
 const renderOrgPathBadge = (pathStr: string) => {
   if (!pathStr) return null;
-  const segments = pathStr.split(".").filter(Boolean);
+  const segments = splitNodePathSegments(pathStr);
   return (
     <div className="mt-1.5 flex flex-wrap items-center">
       <span className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-sky-200/80 bg-sky-50 px-2.5 py-1 text-[11px] font-medium tracking-[0.04em] text-sky-700">
         {segments.map((segment, i) => (
           <span key={i} className="flex items-center gap-1.5">
             <span>{segment}</span>
-            {i < segments.length - 1 && <span className="text-sky-300">/</span>}
+            {i < segments.length - 1 && <span className="text-sky-300">&gt;</span>}
           </span>
         ))}
       </span>
@@ -585,6 +586,9 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
     </div>
   );
 }
+
+
+
 
 
 

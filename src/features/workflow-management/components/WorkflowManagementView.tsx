@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Filter, Info, Plus, RefreshCw, Search, Settings, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
@@ -64,11 +65,10 @@ const tabCountBadgeClassName: Record<string, string> = {
 // Configurable thresholds and table templates.
 const WORKFLOW_NAME_WRAP_THRESHOLD = 40;
 const MODULE_NAME_ADAPT_THRESHOLD = 20;
-const NODE_NAME_TRUNCATE_THRESHOLD = 20;
 const DEFAULT_WORKFLOW_TABLE_GRID =
-  "md:grid-cols-[minmax(16ch,1.65fr)_minmax(9ch,0.95fr)_minmax(10ch,0.95fr)_minmax(13ch,1.2fr)_minmax(7ch,0.7fr)_minmax(9ch,0.8fr)_minmax(72px,0.45fr)]";
+  "md:grid-cols-[minmax(16ch,1.55fr)_minmax(9ch,0.9fr)_minmax(10ch,0.9fr)_minmax(16ch,1.45fr)_minmax(7ch,0.7fr)_minmax(9ch,0.8fr)_minmax(72px,0.45fr)]";
 const ADAPTIVE_PENDING_WORKFLOW_TABLE_GRID =
-  "md:grid-cols-[minmax(18ch,1.85fr)_minmax(9ch,0.95fr)_minmax(10ch,0.95fr)_minmax(12ch,1.15fr)_minmax(7ch,0.7fr)_minmax(9ch,0.8fr)_minmax(72px,0.45fr)]";
+  "md:grid-cols-[minmax(18ch,1.75fr)_minmax(9ch,0.9fr)_minmax(10ch,0.9fr)_minmax(16ch,1.4fr)_minmax(7ch,0.7fr)_minmax(9ch,0.8fr)_minmax(72px,0.45fr)]";
 
 const getLockErrorMessage = (error: unknown, fallback: string) => {
   const rawMessage =
@@ -85,6 +85,19 @@ const isDescendantNodePath = (parentPath: string, candidatePath: string) => {
   const normalizedCandidate = candidatePath.trim().toUpperCase();
   if (!normalizedParent || !normalizedCandidate || normalizedParent === normalizedCandidate) return false;
   return normalizedCandidate.startsWith(`${normalizedParent}.`) || normalizedCandidate.startsWith(`${normalizedParent}_`);
+};
+
+const getWorkflowNodeOptionCount = (option: { count?: number }) =>
+  typeof option.count === "number" ? option.count : undefined;
+
+const formatWorkflowNodeOptionLevelLabel = (option: { level?: number }) =>
+  typeof option.level === "number" && Number.isFinite(option.level) ? `L${option.level}` : "";
+
+const formatWorkflowNodeOptionLabel = (option: { value: string; count?: number; level?: number }) => {
+  const levelLabel = formatWorkflowNodeOptionLevelLabel(option);
+  const count = getWorkflowNodeOptionCount(option);
+  const baseLabel = levelLabel ? `${levelLabel} ${option.value}` : option.value;
+  return typeof count === "number" ? `${baseLabel} (${count})` : baseLabel;
 };
 
 const resolveWorkflowLockModuleValues = (workflow: NonNullable<typeof manageWorkflow>) => {
@@ -952,157 +965,159 @@ export default function WorkflowManagementView() {
                 </div>
 
                 <div className="max-h-[62vh] space-y-3.5 overflow-y-auto bg-white px-5 py-3.5">
-                  <div className="border-b border-slate-100 pb-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Workflow Filters
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <WorkflowNodeNameDropdown
-                      options={nodeNameOptions}
-                      selected={draftNodeNameFilters}
-                      onClearSelection={() => setDraftNodeNameFilters([])}
-                      onToggle={(option) => setDraftNodeNameFilters((current) => toggleValue(current, option.value))}
-                      onSelectAllChildren={(items) => {
-                        setDraftNodeNameFilters((current) => {
-                          const next = new Set(current);
-                          items.forEach((item) => next.add(item.value));
-                          return Array.from(next);
-                        });
-                      }}
-                    />
-                    <WorkflowFilterDropdown
-                      title="Node Type"
-                      placeholder="Select node type"
-                      options={nodeTypeOptions}
-                      selected={draftNodeTypeFilters}
-                      onClear={() => setDraftNodeTypeFilters([])}
-                      onToggle={(value) => setDraftNodeTypeFilters((current) => toggleValue(current, value))}
-                    />
-                    <WorkflowFilterDropdown
-                      title="Category"
-                      placeholder="Select categories"
-                      options={categoryOptions}
-                      selected={draftCategoryFilters}
-                      onClear={() => setDraftCategoryFilters([])}
-                      onToggle={(value) => setDraftCategoryFilters((current) => toggleValue(current, value))}
-                    />
-                    <WorkflowFilterDropdown
-                      title="Sub Category"
-                      placeholder="Select sub categories"
-                      options={subCategoryOptions}
-                      selected={draftSubCategoryFilters}
-                      onClear={() => setDraftSubCategoryFilters([])}
-                      onToggle={(value) => setDraftSubCategoryFilters((current) => toggleValue(current, value))}
-                    />
-                    <WorkflowFilterDropdown
-                      title="Status"
-                      placeholder="Select status"
-                      options={statusOptions}
-                      selected={draftStatusFilters}
-                      onClear={() => setDraftStatusFilters([])}
-                      onToggle={(value) => setDraftStatusFilters((current) => toggleValue(current, value))}
-                    />
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Sub Status (2)
-                        </Label>
-                        {draftSubStatusFilters.length > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => setDraftSubStatusFilters([])}
-                            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600 transition hover:text-blue-700"
-                          >
-                            Clear
-                          </button>
-                        ) : null}
-                      </div>
-                      <div className="rounded-lg border border-slate-200 px-3 py-2">
-                        <div className="flex items-center gap-4">
-                          {[
-                            { id: "workflow-sub-status-initiate", value: "initiate" as const, label: "New track" },
-                            { id: "workflow-sub-status-modify", value: "modify" as const, label: "In modification" },
-                          ].map((option) => {
-                            const isChecked = draftSubStatusFilters.includes(option.value);
-                            return (
-                              <label key={option.id} htmlFor={option.id} className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-[13px] text-slate-700">
-                                <input
-                                  id={option.id}
-                                  type="radio"
-                                  name="workflow-sub-status"
-                                  checked={isChecked}
-                                  onChange={(event) => {
-                                    if (!event.target.checked) return;
-                                    setDraftSubStatusFilters([option.value]);
-                                    if (option.value === "initiate") {
-                                      setDraftStatusFilters(["Pending"]);
-                                    }
-                                  }}
-                                  className="h-4 w-4 rounded-full border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                                />
-                                <span>{option.label}</span>
-                              </label>
-                            );
-                          })}
+                  <FilterSection title="Identity">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <WorkflowNodeNameDropdown
+                        options={nodeNameOptions}
+                        selected={draftNodeNameFilters}
+                        onClearSelection={() => setDraftNodeNameFilters([])}
+                        onToggle={(option) => setDraftNodeNameFilters((current) => toggleValue(current, option.value))}
+                        onSelectAllChildren={(items) => {
+                          setDraftNodeNameFilters((current) => {
+                            const next = new Set(current);
+                            items.forEach((item) => next.add(item.value));
+                            return Array.from(next);
+                          });
+                        }}
+                      />
+                      <WorkflowFilterDropdown
+                        title="Node Type"
+                        placeholder="Select node type"
+                        options={nodeTypeOptions}
+                        selected={draftNodeTypeFilters}
+                        onClear={() => setDraftNodeTypeFilters([])}
+                        onToggle={(value) => setDraftNodeTypeFilters((current) => toggleValue(current, value))}
+                      />
+                      <WorkflowFilterDropdown
+                        title="Category"
+                        placeholder="Select categories"
+                        options={categoryOptions}
+                        selected={draftCategoryFilters}
+                        onClear={() => setDraftCategoryFilters([])}
+                        onToggle={(value) => setDraftCategoryFilters((current) => toggleValue(current, value))}
+                      />
+                      <WorkflowFilterDropdown
+                        title="Sub Category"
+                        placeholder="Select sub categories"
+                        options={subCategoryOptions}
+                        selected={draftSubCategoryFilters}
+                        onClear={() => setDraftSubCategoryFilters([])}
+                        onToggle={(value) => setDraftSubCategoryFilters((current) => toggleValue(current, value))}
+                      />
+                    </div>
+                  </FilterSection>
+
+                  <FilterSection title="Activity">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <WorkflowFilterDropdown
+                        title="Status"
+                        placeholder="Select status"
+                        options={statusOptions}
+                        selected={draftStatusFilters}
+                        onClear={() => setDraftStatusFilters([])}
+                        onToggle={(value) => setDraftStatusFilters((current) => toggleValue(current, value))}
+                      />
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                            Sub Status (2)
+                          </Label>
+                          {draftSubStatusFilters.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => setDraftSubStatusFilters([])}
+                              className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600 transition hover:text-blue-700"
+                            >
+                              Clear
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="rounded-lg border border-slate-200 px-3 py-2">
+                          <div className="flex items-center gap-4">
+                            {[
+                              { id: "workflow-sub-status-initiate", value: "initiate" as const, label: "New track" },
+                              { id: "workflow-sub-status-modify", value: "modify" as const, label: "In modification" },
+                            ].map((option) => {
+                              const isChecked = draftSubStatusFilters.includes(option.value);
+                              return (
+                                <label key={option.id} htmlFor={option.id} className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-[13px] text-slate-700">
+                                  <input
+                                    id={option.id}
+                                    type="radio"
+                                    name="workflow-sub-status"
+                                    checked={isChecked}
+                                    onChange={(event) => {
+                                      if (!event.target.checked) return;
+                                      setDraftSubStatusFilters([option.value]);
+                                      if (option.value === "initiate") {
+                                        setDraftStatusFilters(["Pending"]);
+                                      }
+                                    }}
+                                    className="h-4 w-4 rounded-full border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                                  />
+                                  <span>{option.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <WorkflowFilterDropdown
-                      title="Workflow Levels"
-                      placeholder="Select workflow levels"
-                      options={workflowLevelOptions.map((option) => ({
-                        value: option.value,
-                        label: `${option.label} ${option.label === "1" ? "Level" : "Levels"}`,
-                        count: option.count,
-                      }))}
-                      selected={draftWorkflowLevelFilters}
-                      onClear={() => setDraftWorkflowLevelFilters([])}
-                      onToggle={(value) => setDraftWorkflowLevelFilters((current) => toggleValue(current, value))}
-                    />
-                    <div className="flex items-end gap-3">
-                      <WorkflowCompactLevelDropdown
-                        title="Level"
-                        placeholder="No."
-                        options={approverLevelOptions}
-                        value={draftApproverLevelFilters[0] ?? ""}
-                        onClear={() => setDraftApproverLevelFilters([])}
-                        onSelect={(value) => setDraftApproverLevelFilters((current) => (current[0] === value ? [] : [value]))}
+                      <WorkflowFilterDropdown
+                        title="Workflow Levels"
+                        placeholder="Select workflow levels"
+                        options={workflowLevelOptions.map((option) => ({
+                          value: option.value,
+                          label: `${option.label} ${option.label === "1" ? "Level" : "Levels"}`,
+                          count: option.count,
+                        }))}
+                        selected={draftWorkflowLevelFilters}
+                        onClear={() => setDraftWorkflowLevelFilters([])}
+                        onToggle={(value) => setDraftWorkflowLevelFilters((current) => toggleValue(current, value))}
                       />
-                      <div className="min-w-0 flex-1">
-                        <WorkflowFilterDropdown
-                          title="Approver Type"
-                          placeholder="Select type"
-                          options={approverTypeOptions.map((value) => ({ value, label: value }))}
-                          selected={draftApproverTypeFilters}
-                          onClear={() => setDraftApproverTypeFilters([])}
-                          onToggle={(value) => setDraftApproverTypeFilters((current) => toggleValue(current, value))}
+                      <div className="flex items-end gap-3">
+                        <WorkflowCompactLevelDropdown
+                          title="Level"
+                          placeholder="No."
+                          options={approverLevelOptions}
+                          value={draftApproverLevelFilters[0] ?? ""}
+                          onClear={() => setDraftApproverLevelFilters([])}
+                          onSelect={(value) => setDraftApproverLevelFilters((current) => (current[0] === value ? [] : [value]))}
                         />
+                        <div className="min-w-0 flex-1">
+                          <WorkflowFilterDropdown
+                            title="Approver Type"
+                            placeholder="Select type"
+                            options={approverTypeOptions.map((value) => ({ value, label: value }))}
+                            selected={draftApproverTypeFilters}
+                            onClear={() => setDraftApproverTypeFilters([])}
+                            onToggle={(value) => setDraftApproverTypeFilters((current) => toggleValue(current, value))}
+                          />
+                        </div>
                       </div>
+                      <WorkflowSingleSelectDropdown
+                        title="Linked Org Structure"
+                        placeholder="Select linked org structure"
+                        options={linkedOrgStructureOptions.map((value) => ({ value, label: value }))}
+                        value={draftLinkedOrgStructureFilters[0] ?? ""}
+                        onClear={() => setDraftLinkedOrgStructureFilters([])}
+                        onChange={(value) => setDraftLinkedOrgStructureFilters(value ? [value] : [])}
+                      />
+                      <WorkflowFilterDropdown
+                        title="Approver Count"
+                        placeholder="Select approver count"
+                        options={approverCountOptions.map((option) => ({
+                          value: option.value,
+                          label: `${option.label} ${option.label === "1" ? "Approver" : "Approvers"}`,
+                          count: option.count,
+                        }))}
+                        selected={draftApproverCountFilters}
+                        onClear={() => setDraftApproverCountFilters([])}
+                        onToggle={(value) =>
+                          setDraftApproverCountFilters((current) => toggleValue(current, value))
+                        }
+                      />
                     </div>
-                    <WorkflowSingleSelectDropdown
-                      title="Linked Org Structure"
-                      placeholder="Select linked org structure"
-                      options={linkedOrgStructureOptions.map((value) => ({ value, label: value }))}
-                      value={draftLinkedOrgStructureFilters[0] ?? ""}
-                      onClear={() => setDraftLinkedOrgStructureFilters([])}
-                      onChange={(value) => setDraftLinkedOrgStructureFilters(value ? [value] : [])}
-                    />
-                    <WorkflowFilterDropdown
-                      title="Approver Count"
-                      placeholder="Select approver count"
-                      options={approverCountOptions.map((option) => ({
-                        value: option.value,
-                        label: `${option.label} ${option.label === "1" ? "Approver" : "Approvers"}`,
-                        count: option.count,
-                      }))}
-                      selected={draftApproverCountFilters}
-                      onClear={() => setDraftApproverCountFilters([])}
-                      onToggle={(value) =>
-                        setDraftApproverCountFilters((current) => toggleValue(current, value))
-                      }
-                    />
-                  </div>
+                  </FilterSection>
                 </div>
                 <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3">
                   <Button
@@ -1293,11 +1308,10 @@ export default function WorkflowManagementView() {
                   <div className="min-w-0 text-sm text-slate-700">
                     <p
                       className={cn(
-                        "flex items-center gap-1.5 text-sm text-slate-700 [overflow-wrap:anywhere]",
+                        "flex flex-wrap items-start gap-1.5 text-sm leading-5 text-slate-700 break-words",
                         typeof workflow.levelCount === "number" &&
                           "before:shrink-0 before:rounded before:bg-indigo-100 before:px-1 before:py-0.5 before:text-[9px] before:font-bold before:tracking-wider before:text-indigo-700 before:content-[attr(data-level)]",
                       )}
-                      style={{ maxWidth: `${NODE_NAME_TRUNCATE_THRESHOLD}ch` }}
                       data-level={typeof workflow.levelCount === "number" ? `L${workflow.levelCount}` : undefined}
                       title={`${getWorkflowNodeDisplayName({
                         nodeName: workflow.nodeName,
@@ -1306,13 +1320,17 @@ export default function WorkflowManagementView() {
                         subModule: workflow.subModule,
                       }) || "—"}${workflow.nodeType ? ` (${formatSnakeCaseLabel(workflow.nodeType)})` : ""}`}
                     >
-                      {getWorkflowNodeDisplayName({
-                        nodeName: workflow.nodeName,
-                        nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
-                        module: workflow.rawModule || workflow.module,
-                        subModule: workflow.subModule,
-                      }) || "—"}
-                      {workflow.nodeType ? <span className="text-slate-500"> ({formatSnakeCaseLabel(workflow.nodeType)})</span> : null}
+                      <span className="min-w-0 break-words">
+                        {getWorkflowNodeDisplayName({
+                          nodeName: workflow.nodeName,
+                          nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
+                          module: workflow.rawModule || workflow.module,
+                          subModule: workflow.subModule,
+                        }) || "—"}
+                      </span>
+                      {workflow.nodeType ? (
+                        <span className="whitespace-nowrap text-slate-500">({formatSnakeCaseLabel(workflow.nodeType)})</span>
+                      ) : null}
                     </p>
                     {(() => {
                       const nodePath = workflow.nodePath || "";
@@ -1340,53 +1358,69 @@ export default function WorkflowManagementView() {
                         {isWorkflowUpdateRequest(workflow) ? "Pending" : workflow.status}
                       </span>
                       {isModificationInProgress ? (
-                        <div className="text-[12px] font-medium leading-4 text-amber-700">
-                          <span className="block">Modification</span>
-                          <span className="block">in progress</span>
-                        </div>
+                        <span className="inline-flex whitespace-nowrap text-[11px] font-medium leading-none text-amber-700">
+                          Modification in progress
+                        </span>
                       ) : null}
                     </div>
                   </div>
                   <div className="flex md:justify-center">
-                    <div className="flex items-center gap-1">
-                      {workflow.status !== "Pending" ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                          onClick={() => setHistoryWorkflow(workflow)}
-                          aria-label={`View history for ${workflow.name}`}
-                        >
-                          <History className="h-4 w-4" />
-                        </Button>
-                      ) : null}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
-                        onClick={() => {
-                          void openManageWorkflowPreview(workflow);
-                        }}
-                        aria-label={`Manage ${workflow.name}`}
-                      >
-                        <SlidersHorizontal className="h-4 w-4" />
-                      </Button>
-                      {workflow.status !== "Pending" && workflow.status !== "Inactive" ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={isModificationInProgress}
-                          className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700 disabled:text-slate-300 disabled:hover:bg-transparent disabled:hover:text-slate-300"
-                          onClick={() => {
-                            if (isModificationInProgress) return;
-                            void openManageWorkflowPreview(workflow, activeStatus, "delete");
-                          }}
-                          aria-label={`Delete ${workflow.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      ) : null}
-                    </div>
+                    <TooltipProvider delayDuration={120}>
+                      <div className="flex items-center gap-1">
+                        {workflow.status !== "Pending" ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                onClick={() => setHistoryWorkflow(workflow)}
+                                aria-label={`View history for ${workflow.name}`}
+                              >
+                                <History className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">View History</TooltipContent>
+                          </Tooltip>
+                        ) : null}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+                              onClick={() => {
+                                void openManageWorkflowPreview(workflow);
+                              }}
+                              aria-label={`Manage ${workflow.name}`}
+                            >
+                              <SlidersHorizontal className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">Manage Workflow</TooltipContent>
+                        </Tooltip>
+                        {workflow.status !== "Pending" && workflow.status !== "Inactive" ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={isModificationInProgress}
+                                className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700 disabled:text-slate-300 disabled:hover:bg-transparent disabled:hover:text-slate-300"
+                                onClick={() => {
+                                  if (isModificationInProgress) return;
+                                  void openManageWorkflowPreview(workflow, activeStatus, "delete");
+                                }}
+                                aria-label={`Delete ${workflow.name}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Delete Workflow</TooltipContent>
+                          </Tooltip>
+                        ) : null}
+                      </div>
+                    </TooltipProvider>
                   </div>
                 </div>
                 );
@@ -1668,6 +1702,16 @@ export default function WorkflowManagementView() {
   );
 }
 
+function FilterSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <div className="border-b border-slate-100 pb-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
 function WorkflowNodeNameDropdown({
   options,
   selected,
@@ -1693,6 +1737,9 @@ function WorkflowNodeNameDropdown({
       options.filter((option) => Boolean(option?.value?.trim()) && Boolean(option?.path?.trim())),
     [options],
   );
+  const selectedOption = selected.length === 1
+    ? normalizedOptions.find((option) => option.value === selected[0])
+    : null;
   const filteredOptions = normalizedOptions.filter((option) => {
     const query = search.toLowerCase();
     return !query || option.value.toLowerCase().includes(query) || (option.path || "").toLowerCase().includes(query);
@@ -1772,7 +1819,11 @@ function WorkflowNodeNameDropdown({
         )}
       >
         <span className="truncate">
-          {selected.length === 0 ? "Select node names" : selected.length === 1 ? selected[0] : `${selected.length} selected`}
+          {selected.length === 0
+            ? "Select node names"
+            : selected.length === 1
+              ? `${selectedOption ? formatWorkflowNodeOptionLabel(selectedOption) : selected[0]}`
+              : `${selected.length} selected`}
         </span>
         <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", open && "rotate-180")} />
       </Button>
@@ -1850,15 +1901,15 @@ function WorkflowNodeNameDropdown({
                             />
                             <div className="flex min-w-0 flex-1 flex-col gap-1">
                               <div className="flex flex-wrap items-center gap-1.5">
-                                <p className="break-words text-sm font-medium text-slate-800">{option.value}</p>
-                                {typeof option.level === "number" ? (
-                                  <span className="inline-flex shrink-0 items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-indigo-700 ring-1 ring-indigo-200/60">
-                                    L{option.level}
+                                {formatWorkflowNodeOptionLevelLabel(option) ? (
+                                  <span className="shrink-0 inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-indigo-700 ring-1 ring-indigo-200/60">
+                                    {formatWorkflowNodeOptionLevelLabel(option)}
                                   </span>
                                 ) : null}
-                                {typeof option.count === "number" ? (
-                                  <span className="shrink-0 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600">
-                                    {option.count}
+                                <p className="break-words text-sm font-medium text-slate-800">{option.value}</p>
+                                {typeof getWorkflowNodeOptionCount(option) === "number" ? (
+                                  <span className="shrink-0 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-700 ring-1 ring-amber-200/70">
+                                    {getWorkflowNodeOptionCount(option)}
                                   </span>
                                 ) : null}
                               </div>
@@ -2052,6 +2103,11 @@ function WorkflowSingleSelectDropdown({
     </div>
   );
 }
+
+
+
+
+
 
 
 

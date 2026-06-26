@@ -1,5 +1,6 @@
 import type { AppUser } from "@/contexts/AppContext";
 import { formatDateLabel } from "@/features/user-management/utils";
+import { formatNodePathDisplay } from "@/lib/nodePath";
 
 export const formatKey = (key: string) =>
   key.split("_").map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
@@ -100,33 +101,8 @@ export type GroupedByNode = Record<string, {
   }>>;
 }>;
 
-const formatPathSegment = (segment: string) =>
-  segment
-    .trim()
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .split(" ")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-
-const getParentSubtitleFromPath = (nodePath?: string) => {
-  const rawSegments = (nodePath || "")
-    .split(".")
-    .map((segment) => segment.trim())
-    .filter(Boolean);
-  if (rawSegments.length === 0) return "";
-
-  const root = rawSegments[0] ? formatPathSegment(rawSegments[0]) : "";
-  const remaining = rawSegments.slice(1).filter((segment) => segment.toUpperCase() !== "ROOT");
-  if (remaining.length === 0) return root;
-  if (remaining.length <= 3) {
-    return [root, ...remaining.map(formatPathSegment)].filter(Boolean).join(" > ");
-  }
-
-  const tail = remaining.slice(-3).map(formatPathSegment);
-  return [root, "...", ...tail].filter(Boolean).join(" > ");
-};
+const getParentSubtitleFromPath = (nodePath?: string) =>
+  formatNodePathDisplay(nodePath || "", { excludeRoot: true, keepLast: 3 });
 
 export function groupByNode(items: NonNullable<AppUser["accessDetails"]>): GroupedByNode {
   const result: GroupedByNode = {};
@@ -239,3 +215,4 @@ export const buildPreviewUserData = (member: AppUser) => {
     },
   };
 };
+

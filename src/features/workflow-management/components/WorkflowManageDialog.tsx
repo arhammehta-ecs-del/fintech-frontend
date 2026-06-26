@@ -949,40 +949,6 @@ export default function WorkflowManageDialog({
         <div className="space-y-5 overflow-y-auto bg-[linear-gradient(180deg,rgba(248,250,252,0.7)_0%,rgba(255,255,255,1)_12rem)] px-5 pb-5 pt-4">
           <SummaryPreview workflow={{ ...displayWorkflow, previousWorkflow }} />
 
-          {!isPending && !isHistoryPreviewActive && pendingStatus && onSubmitStatusUpdate ? (
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-              <div className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
-                {pendingStatus === "inactive" ? "Submit Inactive Request" : "Submit Active Request"}
-              </div>
-              <div className="space-y-3">
-                <Textarea
-                  value={statusRemark}
-                  onChange={(event) => setStatusRemark(event.target.value)}
-                  placeholder="Add remark"
-                  maxLength={250}
-                  className="h-11 min-h-0 resize-none"
-                />
-              </div>
-            </div>
-          ) : null}
-
-          {canDeleteWorkflow && !isPending && !isHistoryPreviewActive && showDeleteActions ? (
-            <div className="rounded-2xl border border-rose-200 bg-white p-5 shadow-sm">
-              <div className="mb-3 text-xs font-bold uppercase tracking-wider text-rose-600">
-                Submit Delete Request
-              </div>
-              <div className="space-y-3">
-                <Textarea
-                  value={deleteRemark}
-                  onChange={(event) => onDeleteRemarkChange?.(event.target.value)}
-                  placeholder={deleteRemarkPlaceholder}
-                  maxLength={250}
-                  className={cn("h-11 min-h-0 resize-none", deleteRemarkError ? "border-rose-500 focus-visible:ring-rose-500/30" : "")}
-                />
-                {deleteRemarkError ? <p className="text-xs text-rose-600">{deleteRemarkError}</p> : null}
-              </div>
-            </div>
-          ) : null}
 
           {canShowPendingActions && pendingDecision ? (
             <div ref={remarkCardRef} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
@@ -1005,7 +971,39 @@ export default function WorkflowManageDialog({
           ) : null}
         </div>
 
-        <div className="flex w-full items-center justify-end gap-2 border-t border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-6 py-4">
+        <div className="border-t border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-6 py-4">
+          {!isPending && !isHistoryPreviewActive && pendingStatus && onSubmitStatusUpdate ? (
+            <div className="mb-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+              <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                {pendingStatus === "inactive" ? "Submit Inactive Request" : "Submit Active Request"}
+              </div>
+              <Textarea
+                value={statusRemark}
+                onChange={(event) => setStatusRemark(event.target.value)}
+                placeholder="Add remark"
+                maxLength={250}
+                className="min-h-[88px] resize-none"
+              />
+            </div>
+          ) : null}
+
+          {canDeleteWorkflow && !isPending && !isHistoryPreviewActive && showDeleteActions ? (
+            <div className="mb-4 rounded-2xl border border-rose-200 bg-white p-4 shadow-sm">
+              <div className="mb-2 text-xs font-bold uppercase tracking-wider text-rose-600">
+                Submit Delete Request
+              </div>
+              <Textarea
+                value={deleteRemark}
+                onChange={(event) => onDeleteRemarkChange?.(event.target.value)}
+                placeholder={deleteRemarkPlaceholder}
+                maxLength={250}
+                className={cn("min-h-[88px] resize-none", deleteRemarkError ? "border-rose-500 focus-visible:ring-rose-500/30" : "")}
+              />
+              {deleteRemarkError ? <p className="mt-2 text-xs text-rose-600">{deleteRemarkError}</p> : null}
+            </div>
+          ) : null}
+
+          <div className="flex w-full items-center justify-end gap-2">
           {canShowPendingActions ? (
             pendingDecision === "approve" ? (
               <>
@@ -1106,11 +1104,14 @@ export default function WorkflowManageDialog({
               ) : null}
             </>
           )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
+
+
 
 
 
