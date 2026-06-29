@@ -98,6 +98,7 @@ type EventTone = "approved" | "pending" | "initiation" | "rejected" | "inactive"
 const getEventTone = (action: string, fallbackStatus: HistoryStatus): EventTone => {
   const normalized = action.trim().toLowerCase();
   if (normalized.includes("reject")) return "rejected";
+  if (normalized.includes("archive")) return "inactive";
   if (normalized.includes("inactive") || normalized.includes("deactivate")) return "inactive";
   if (
     normalized.includes("modify") ||
@@ -886,3 +887,4 @@ export function HistorySidebar({
 }
 
 export default HistorySidebar;
+

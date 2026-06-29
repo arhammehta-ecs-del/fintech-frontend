@@ -113,6 +113,7 @@ const FALLBACK_STATUS_FILTER_OPTIONS: NotificationFilterOption[] = [
   { value: "UNREAD", label: "Unread" },
   { value: "HIDDEN", label: "Hidden" },
 ];
+const DEFAULT_VISIBLE_NOTIFICATION_STATUS_FILTERS: NotificationStatusFilterValue[] = ["READ", "UNREAD"];
 const FALLBACK_MODULE_FILTER_OPTIONS: NotificationFilterOption[] = [
   { value: "USER", label: "User" },
   { value: "WORKFLOW", label: "Workflow" },
@@ -172,6 +173,37 @@ const areNotificationFilterValuesEqual = (left: string[], right: string[]) => {
   return leftValues.every((value, index) => value === rightValues[index]);
 };
 
+const getEffectiveNotificationStatusFilters = (values: NotificationStatusFilterValue[]) =>
+  values.length === 0 ? DEFAULT_VISIBLE_NOTIFICATION_STATUS_FILTERS : values;
+
+const normalizeNotificationStatusSelection = (values: NotificationStatusFilterValue[]) =>
+  areNotificationFilterValuesEqual(values, DEFAULT_VISIBLE_NOTIFICATION_STATUS_FILTERS) ? [] : values;
+
+const toggleNotificationStatusSelection = (
+  current: NotificationStatusFilterValue[],
+  value: NotificationStatusFilterValue,
+): NotificationStatusFilterValue[] => {
+  const effectiveCurrent = getEffectiveNotificationStatusFilters(current);
+
+  if (value === "HIDDEN") {
+    return effectiveCurrent.includes("HIDDEN") ? [] : ["HIDDEN"];
+  }
+
+  if (effectiveCurrent.includes("HIDDEN")) {
+    return [value];
+  }
+
+  const next = effectiveCurrent.includes(value)
+    ? effectiveCurrent.filter((currentValue) => currentValue !== value)
+    : [...effectiveCurrent, value];
+
+  if (next.length === 0) {
+    return effectiveCurrent;
+  }
+
+  return next.filter((currentValue): currentValue is NotificationStatusFilterValue => currentValue !== "HIDDEN");
+};
+
 const filterNotificationsBySelection = (
   items: NotificationItem[],
   selectedStatusFilters: NotificationStatusFilterValue[],
@@ -179,10 +211,11 @@ const filterNotificationsBySelection = (
   selectedTypeFilters: NotificationTypeFilterValue[],
 ) =>
   items.filter((item) => {
+    const effectiveStatusFilters = getEffectiveNotificationStatusFilters(selectedStatusFilters);
     const itemStatus = normalizeNotificationFilterKey(item.status);
     const itemModule = normalizeNotificationFilterKey(item.refType || "");
     const itemType = normalizeNotificationFilterKey(item.rawType || "");
-    const matchesStatus = selectedStatusFilters.length === 0 || selectedStatusFilters.some((value) => normalizeNotificationFilterKey(value) === itemStatus);
+    const matchesStatus = effectiveStatusFilters.some((value) => normalizeNotificationFilterKey(value) === itemStatus);
     const matchesModule = selectedModuleFilters.length === 0 || selectedModuleFilters.some((value) => normalizeNotificationFilterKey(value) === itemModule);
     const matchesType = selectedTypeFilters.length === 0 || selectedTypeFilters.some((value) => normalizeNotificationFilterKey(value) === itemType);
     return matchesStatus && matchesModule && matchesType;
@@ -635,6 +668,7 @@ export function AppTopBar({
   const [dialogOffset, setDialogOffset] = useState(COMPACT_NOTIFICATIONS_LIMIT);
   const [dialogHasNextPage, setDialogHasNextPage] = useState(false);
   const [unreadTotalCount, setUnreadTotalCount] = useState(0);
+  const [hiddenTotalCount, setHiddenTotalCount] = useState(0);
   const [allNotificationCount, setAllNotificationCount] = useState(0);
   const [allNotificationsOpen, setAllNotificationsOpen] = useState(false);
   const [notificationsPopoverOpen, setNotificationsPopoverOpen] = useState(false);
@@ -722,6 +756,14 @@ export function AppTopBar({
   const availableNotificationTypeOptions = useMemo(
     () => mergeNotificationFilterOptions(notificationFilterOptions.type, []),
     [notificationFilterOptions.type],
+  );
+  const selectedNotificationStatusFilters = useMemo(
+    () => getEffectiveNotificationStatusFilters(notificationStatusFilters),
+    [notificationStatusFilters],
+  );
+  const draftSelectedNotificationStatusFilters = useMemo(
+    () => getEffectiveNotificationStatusFilters(draftNotificationStatusFilters),
+    [draftNotificationStatusFilters],
   );
   const hasPendingNotificationFilterChanges =
     !areNotificationFilterValuesEqual(notificationStatusFilters, draftNotificationStatusFilters) ||
@@ -1046,9 +1088,11 @@ export function AppTopBar({
         response.unreadCount
         ?? mapped.filter((item) => item.unread).length,
       );
+      setHiddenTotalCount(response.hiddenCount ?? 0);
     } catch {
       setNotifications([]);
       setAllNotificationCount(0);
+      setHiddenTotalCount(0);
     }
   }, [buildNotificationPayload, mapPacketToNotification, updateNotificationFilterOptions]);
 
@@ -1068,6 +1112,7 @@ export function AppTopBar({
       setDialogNotifications(combined);
       const resolvedAllCount = response.allCount || response.count || combined.length;
       setAllNotificationCount(resolvedAllCount);
+      setHiddenTotalCount(response.hiddenCount ?? 0);
       setDialogOffset(COMPACT_NOTIFICATIONS_LIMIT + response.data.length);
       setDialogHasNextPage(COMPACT_NOTIFICATIONS_LIMIT + response.data.length < resolvedAllCount);
     } catch {
@@ -1136,16 +1181,26 @@ export function AppTopBar({
 
   const unreadCountBadgeLabel = unreadTotalCount > 99 ? "99+" : String(unreadTotalCount);
   const visibleHiddenNotificationsCount = visibleNotifications.filter((item) => item.status === "HIDDEN").length;
-  const hiddenStatusSelected = notificationStatusFilters.includes("HIDDEN");
+  const hiddenStatusSelected = selectedNotificationStatusFilters.includes("HIDDEN");
+  const readTotalCount = Math.max(0, allNotificationCount - unreadTotalCount - hiddenTotalCount);
+  const filteredNotificationTotalCount = hiddenStatusSelected
+    ? hiddenTotalCount
+    : selectedNotificationStatusFilters.includes("READ") && selectedNotificationStatusFilters.includes("UNREAD")
+      ? Math.max(0, allNotificationCount - hiddenTotalCount)
+      : selectedNotificationStatusFilters.includes("READ")
+        ? readTotalCount
+        : selectedNotificationStatusFilters.includes("UNREAD")
+          ? unreadTotalCount
+          : allNotificationCount;
   const notificationCountLabel = hasAnyNotificationFilter
     ? String(hiddenStatusSelected ? visibleHiddenNotificationsCount : visibleNotifications.length)
-    : allNotificationCount > 99
+    : filteredNotificationTotalCount > 99
       ? "99+"
-      : String(allNotificationCount || notifications.length);
+      : String(filteredNotificationTotalCount || visibleNotifications.length);
   const unreadCountLabel = unreadTotalCount === 1 ? "1 unread" : `${unreadTotalCount} unread`;
-  const remainingNotificationCount = Math.max(0, allNotificationCount - notifications.length);
-  const dialogRemainingNotificationCount = Math.max(0, allNotificationCount - dialogNotifications.length);
-  const shouldShowSeeAll = allNotificationCount > notifications.length;
+  const remainingNotificationCount = Math.max(0, filteredNotificationTotalCount - visibleNotifications.length);
+  const dialogRemainingNotificationCount = Math.max(0, filteredNotificationTotalCount - visibleDialogNotifications.length);
+  const shouldShowSeeAll = remainingNotificationCount > 0;
 
   const toggleNotificationExpansion = (id: string) => {
     setExpandedNotificationIds((current) => {
@@ -1568,6 +1623,9 @@ export function AppTopBar({
     onChange,
     compact,
     minWidthClass,
+    displaySelected,
+    toggleValue,
+    selectAllValues,
   }: {
     title: string;
     allLabel: string;
@@ -1576,10 +1634,14 @@ export function AppTopBar({
     onChange: (values: T[]) => void;
     compact: boolean;
     minWidthClass: string;
+    displaySelected?: T[];
+    toggleValue?: (current: T[], value: T) => T[];
+    selectAllValues?: T[];
   }) => {
     const optionValues = options.map((option) => option.value as T);
-    const selectedKeys = new Set(selected.map(normalizeNotificationFilterKey));
-    const allSelected = options.length > 0 && optionValues.every((value) => selectedKeys.has(normalizeNotificationFilterKey(value)));
+    const effectiveSelected = displaySelected ?? selected;
+    const selectedKeys = new Set(effectiveSelected.map(normalizeNotificationFilterKey));
+    const allSelected = options.length > 0 && (selectAllValues ?? optionValues).every((value) => selectedKeys.has(normalizeNotificationFilterKey(value)));
 
     return (
       <DropdownMenu modal={false}>
@@ -1595,7 +1657,7 @@ export function AppTopBar({
                 : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
             )}
           >
-            <span className="min-w-0 whitespace-normal break-words leading-4">{formatMultiFilterLabel(selected, allLabel, options)}</span>
+            <span className="min-w-0 whitespace-normal break-words leading-4">{formatMultiFilterLabel(effectiveSelected, allLabel, options)}</span>
             <ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
           </button>
         </DropdownMenuTrigger>
@@ -1606,7 +1668,7 @@ export function AppTopBar({
           <div className="bg-white px-1 pb-2">
             <div className="flex items-center justify-between gap-3 px-2 pb-1 pt-1">
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                {title}{selected.length > 0 ? ` (${selected.length})` : ""}
+                {title}{effectiveSelected.length > 0 ? ` (${effectiveSelected.length})` : ""}
               </div>
               {selected.length > 0 ? (
                 <button
@@ -1620,7 +1682,7 @@ export function AppTopBar({
                 <button
                   type="button"
                   disabled={options.length === 0 || allSelected}
-                  onClick={() => onChange(optionValues)}
+                  onClick={() => onChange(selectAllValues ?? optionValues)}
                   className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-600 transition-colors hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Select all
@@ -1637,7 +1699,7 @@ export function AppTopBar({
                   key={option.value}
                   checked={selectedKeys.has(normalizeNotificationFilterKey(option.value))}
                   onCheckedChange={() => {
-                    onChange(toggleArrayValue(selected, option.value as T));
+                    onChange(toggleValue ? toggleValue(effectiveSelected, option.value as T) : toggleArrayValue(selected, option.value as T));
                   }}
                   onSelect={(event) => event.preventDefault()}
                   className="items-start rounded-lg py-2.5 pl-8 pr-2 text-sm"
@@ -1654,14 +1716,17 @@ export function AppTopBar({
 
   const renderNotificationFilters = (compact = false) => (
     <div className={`flex flex-col gap-2.5 border-b border-slate-200 bg-white ${compact ? "px-4 py-3" : "px-4 py-3"}`}>
-      <div className="flex min-w-0 items-center justify-between gap-3">
+      <div className="grid gap-2.5 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {renderNotificationFilterDropdown<NotificationStatusFilterValue>({
             title: "Status",
             allLabel: "All Status",
             selected: draftNotificationStatusFilters,
+            displaySelected: draftSelectedNotificationStatusFilters,
             options: availableNotificationStatusOptions,
-            onChange: setDraftNotificationStatusFilters,
+            onChange: (values) => setDraftNotificationStatusFilters(normalizeNotificationStatusSelection(values)),
+            toggleValue: toggleNotificationStatusSelection,
+            selectAllValues: DEFAULT_VISIBLE_NOTIFICATION_STATUS_FILTERS,
             compact,
             minWidthClass: "min-w-[116px]",
           })}
@@ -1687,36 +1752,23 @@ export function AppTopBar({
           })}
         </div>
 
-        <div className="flex shrink-0 flex-col items-stretch gap-1">
-          <button
-            type="button"
-            onClick={applyNotificationFilters}
-            disabled={!hasPendingNotificationFilterChanges || !draftCustomDateRangeIsComplete}
-            className={cn(
-              "inline-flex min-h-7 min-w-[4.5rem] items-center justify-center rounded-full font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-              compact ? "px-3 py-1 text-[10px]" : "px-4 py-1 text-xs",
-              hasPendingNotificationFilterChanges && draftCustomDateRangeIsComplete
-                ? NOTIFICATION_ACCENT_SOLID
-                : "border border-slate-200 bg-white text-slate-500",
-            )}
-          >
-            Apply
-          </button>
-          <button
-            type="button"
-            onClick={resetNotificationFilters}
-            disabled={!hasAnyNotificationFilter}
-            className={cn(
-              "inline-flex min-h-7 min-w-[4.5rem] items-center justify-center rounded-full border border-slate-200 bg-slate-100 font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50",
-              compact ? "px-3 py-1 text-[10px]" : "px-4 py-1 text-xs",
-            )}
-          >
-            Clear
-          </button>
-        </div>
-
+        <button
+          type="button"
+          onClick={applyNotificationFilters}
+          disabled={!hasPendingNotificationFilterChanges || !draftCustomDateRangeIsComplete}
+          className={cn(
+            "inline-flex min-h-7 min-w-[4.5rem] items-center justify-center rounded-full font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:self-center",
+            compact ? "px-3 py-1 text-[10px]" : "px-4 py-1 text-xs",
+            hasPendingNotificationFilterChanges && draftCustomDateRangeIsComplete
+              ? NOTIFICATION_ACCENT_SOLID
+              : "border border-slate-200 bg-white text-slate-500",
+          )}
+        >
+          Apply
+        </button>
       </div>
-      <div className="flex w-full min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden">
+      <div className="grid gap-2.5 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+        <div className="flex w-full min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden">
           {DATE_RANGE_OPTIONS.map((option) => (
             <button
               key={option}
@@ -1758,7 +1810,20 @@ export function AppTopBar({
           >
             Custom
           </button>
-        </div>
+          </div>
+
+        <button
+          type="button"
+          onClick={resetNotificationFilters}
+          disabled={!hasAnyNotificationFilter}
+          className={cn(
+            "inline-flex min-h-7 min-w-[4.5rem] items-center justify-center rounded-full border border-slate-200 bg-slate-100 font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50 md:self-center",
+            compact ? "px-3 py-1 text-[10px]" : "px-4 py-1 text-xs",
+          )}
+        >
+          Clear
+        </button>
+      </div>
       {draftNotificationDateRange === "CUSTOM" ? (
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           <input
@@ -2123,7 +2188,7 @@ export function AppTopBar({
                     onClick={() => void handleSeeAllNotifications()}
                     className="w-full rounded-full border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
                   >
-                    See all notifications {remainingNotificationCount > 0 ? `+${remainingNotificationCount}` : ""}
+                    {hiddenStatusSelected ? "Show hidden notifications" : "See all notifications"} {remainingNotificationCount > 0 ? `+${remainingNotificationCount}` : ""}
                   </button>
                 </div>
               ) : null}
@@ -2237,7 +2302,7 @@ export function AppTopBar({
                 >
                   {dialogLoadingMore
                     ? "Loading..."
-                    : `See more notifications${dialogRemainingNotificationCount > 0 ? ` +${dialogRemainingNotificationCount}` : ""}`}
+                    : `${hiddenStatusSelected ? "See more hidden notifications" : "See more notifications"}${dialogRemainingNotificationCount > 0 ? ` +${dialogRemainingNotificationCount}` : ""}`}
                 </button>
               </div>
             ) : null}

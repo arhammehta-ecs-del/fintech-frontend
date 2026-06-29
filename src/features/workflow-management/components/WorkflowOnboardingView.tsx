@@ -39,6 +39,7 @@ export default function WorkflowOnboardingView({
     workflowOptions,
     selectedWorkflowLevelsHash,
     remarks,
+    remarkTouched,
     levels,
     isRMUsedGlobally,
     currentLevelComplete,
@@ -53,6 +54,7 @@ export default function WorkflowOnboardingView({
     setWorkflowType,
     setSelectedWorkflowLevelsHash,
     setRemarks,
+    setRemarkTouched,
     updateLevelApprover,
     addApproverToLevel,
     removeApproverFromLevel,
@@ -137,6 +139,9 @@ export default function WorkflowOnboardingView({
     </div>
   );
 
+  const isUpdateRemarkRequired = resolvedMode === "edit";
+  const showUpdateRemarkError = isUpdateRemarkRequired && remarkTouched && !remarks.trim();
+
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {step === 3 ? (
@@ -148,15 +153,19 @@ export default function WorkflowOnboardingView({
               <div className="flex items-end gap-2">
                 <div className="flex w-full flex-col gap-1.5">
                   <label className="text-xs font-semibold text-slate-700">
-                    Remark <span className="text-rose-500">*</span>
+                    Remark{isUpdateRemarkRequired ? <span className="text-rose-500"> *</span> : null}
                   </label>
                   <Textarea
                     value={remarks}
-                    onChange={(event) => setRemarks(event.target.value)}
-                    placeholder="Enter remark for this edit request"
-                    className="h-11 min-h-0 w-full resize-none text-sm"
+                    onChange={(event) => {
+                      setRemarks(event.target.value);
+                      if (event.target.value.trim()) setRemarkTouched(false);
+                    }}
+                    placeholder={isUpdateRemarkRequired ? "Enter remark" : "Enter remark (optional)"}
+                    className={`h-11 min-h-0 w-full resize-none text-sm ${showUpdateRemarkError ? "border-rose-500 focus-visible:ring-rose-500/30" : ""}`}
                     maxLength={250}
                   />
+                  {showUpdateRemarkError ? <p className="text-xs text-rose-600">Please enter a remark.</p> : null}
                 </div>
               </div>
             </div>
@@ -187,7 +196,6 @@ export default function WorkflowOnboardingView({
             <Select
               value={selectedWorkflowLevelsHash || "__none__"}
               onValueChange={(value) => setSelectedWorkflowLevelsHash(value === "__none__" ? "" : value)}
-              disabled={hasNoApproverSelected}
             >
               <SelectTrigger className="h-11 w-[220px] border-[hsl(235,60%,50%)]/30 text-[hsl(235,60%,50%)]">
                 <SelectValue placeholder="Select Workflow" />
@@ -209,7 +217,7 @@ export default function WorkflowOnboardingView({
               "bg-[hsl(235,60%,50%)] hover:bg-[hsl(235,60%,45%)] shadow-[0_10px_24px_rgba(30,35,80,0.22)]"
             }`}
           >
-            {step === 1 ? "Next Step" : step === 2 ? "Generate Summary" : resolvedMode === "edit" ? "Update Workflow" : "Publish Workflow"}
+            {step === 1 ? "Next Step" : step === 2 ? "Generate Summary" : resolvedMode === "edit" ? "Update Workflow" : "Submit Workflow"}
             {step < 3 ? <ChevronRight className="h-4 w-4" /> : <Rocket className="h-4 w-4" />}
           </button>
         </div>
@@ -227,6 +235,10 @@ export default function WorkflowOnboardingView({
     </div>
   );
 }
+
+
+
+
 
 
 

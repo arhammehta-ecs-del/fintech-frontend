@@ -10,6 +10,7 @@ import {
   isRootWorkflowNode,
 } from "@/features/workflow-management/utils/workflowRecord.utils";
 import { splitNodePathSegments } from "@/lib/nodePath";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 type SummaryPreviewWorkflow = WorkflowRecord & {
@@ -129,7 +130,7 @@ const renderAliasDiff = (currentValue: string, previousValue?: string) => {
     <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center">
       <span className="max-w-full break-words rounded-lg border border-rose-200 bg-rose-50/80 px-3 py-2 text-[14px] font-medium leading-5 text-rose-700">{prev}</span>
       <span className="text-slate-400">-&gt;</span>
-      <span className="max-w-full break-words rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[14px] font-semibold leading-5 text-violet-700">{next}</span>
+      <span className="max-w-full break-words rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[14px] font-semibold leading-5 text-emerald-800">{next}</span>
     </div>
   );
 };
@@ -219,8 +220,8 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
   const summaryLevels = toSummaryLevels(workflow.levels);
   const previousWorkflow = workflow.previousWorkflow ?? null;
   const hasComparisonData = Boolean(previousWorkflow);
-  const [levelsExpanded, setLevelsExpanded] = useState(true);
-  const [linkedOrgExpanded, setLinkedOrgExpanded] = useState(true);
+  const [levelsExpanded, setLevelsExpanded] = useState(!hasComparisonData);
+  const [linkedOrgExpanded, setLinkedOrgExpanded] = useState(!hasComparisonData);
   const [collapsedLevels, setCollapsedLevels] = useState<Record<number, boolean>>({});
   const previousSummaryLevels = useMemo(
     () => (previousWorkflow ? toSummaryLevels(previousWorkflow.levels) : []),
@@ -240,6 +241,17 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
       .map(([id, pair]) => ({ id, ...pair }));
   }, [summaryLevels, previousSummaryLevels]);
 
+
+  const hasLevelChanges = useMemo(
+    () =>
+      hasComparisonData &&
+      mergedLevels.some(({ current, previous }) => {
+        if (current && !previous) return true;
+        if (previous && !current) return true;
+        return Boolean(current && previous && levelSignature(current) !== levelSignature(previous));
+      }),
+    [hasComparisonData, mergedLevels],
+  );
 
   const linkedOrgStructureNodes = useMemo(() => {
     const linkedRows = Array.isArray(workflow.linkedOrgStructure) ? workflow.linkedOrgStructure : [];
@@ -297,8 +309,16 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
   const displayPreviousAlias = previousWorkflowAlias || derivedPreviousAlias || "-";
   const displayCurrentAlias = explicitCurrentAlias || derivedCurrentAlias || "-";
 
+  useEffect(() => {
+    setLevelsExpanded(!hasComparisonData || hasLevelChanges);
+  }, [hasComparisonData, hasLevelChanges, workflow.id]);
+
+  useEffect(() => {
+    setLinkedOrgExpanded(!hasComparisonData);
+  }, [hasComparisonData, workflow.id]);
+
   return (
-    <div className="px-2 py-1 md:px-4">
+    <div className="px-2 pb-1 pt-0 md:px-4">
       <div className="rounded-2xl border border-indigo-200 bg-[#DDE6FF] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] space-y-4">
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100/70">
           <div className="border-b border-slate-200/80 bg-white px-5 py-4">
@@ -402,9 +422,14 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
 
               </div>
             </div>
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm">
-              <ChevronDown className={cn("h-4 w-4 transition-transform", levelsExpanded && "rotate-180")} />
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm">
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", levelsExpanded && "rotate-180")} />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">{levelsExpanded ? "Collapse levels" : "Expand levels"}</TooltipContent>
+            </Tooltip>
           </button>
           {levelsExpanded ? (
             <div className="p-4 space-y-3 bg-slate-50/30">
@@ -546,7 +571,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
       </div>
 
       {linkedOrgStructureNodes.length > 0 ? (
-        <div className="mt-6 overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white shadow-sm">
+        <div className="mt-4 overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white shadow-sm">
           <button
             type="button"
             onClick={() => setLinkedOrgExpanded((current) => !current)}
@@ -563,9 +588,14 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
                 </h4>
               </div>
             </div>
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm">
-              <ChevronDown className={cn("h-4 w-4 transition-transform", linkedOrgExpanded && "rotate-180")} />
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm">
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", linkedOrgExpanded && "rotate-180")} />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">{linkedOrgExpanded ? "Collapse linked org structure" : "Expand linked org structure"}</TooltipContent>
+            </Tooltip>
           </button>
           {linkedOrgExpanded ? (
             <div className="max-h-[25.5rem] space-y-3 overflow-y-auto p-4 pr-3">
@@ -594,6 +624,9 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
     </div>
   );
 }
+
+
+
 
 
 

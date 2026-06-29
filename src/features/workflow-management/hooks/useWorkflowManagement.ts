@@ -445,11 +445,11 @@ export function useWorkflowManagement() {
     }
   };
 
-  const loadWorkflowFilterOptions = useCallback(async () => {
+  const loadWorkflowFilterOptions = useCallback(async (appliedOverride: WorkflowDropdownAppliedFilters | null | undefined = undefined) => {
     setIsFilterLoading(true);
     try {
       const dropdowns = await fetchWorkflowFilterDropdowns(
-        isFilterRequestActive ? dropdownAppliedFilters : null
+        appliedOverride === undefined ? (isFilterRequestActive ? dropdownAppliedFilters : null) : appliedOverride
       );
       setFilterNodeNameOptions(dropdowns.nodeName);
       setFilterNodeTypeOptions(dropdowns.nodeType);

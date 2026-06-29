@@ -331,12 +331,12 @@ export function useUserManagement() {
     [appliedFilters, currentUser?.companyCode, debouncedSearch, effectiveStatusTab, getCountForTab, isFilterRequestActive, maybeShowActivityToast, pageSize, setUsers, toast],
   );
 
-  const loadFilterOptions = useCallback(async () => {
+  const loadFilterOptions = useCallback(async (appliedOverride: UserAppliedFilters | null | undefined = undefined) => {
     setIsFilterLoading(true);
     try {
       const dropdowns = await fetchUserFilterDropdowns(
         "USER_ACC",
-        isFilterRequestActive ? appliedFilters : null,
+        appliedOverride === undefined ? (isFilterRequestActive ? appliedFilters : null) : appliedOverride,
       );
       setFilterDropdowns(dropdowns);
     } catch (error) {

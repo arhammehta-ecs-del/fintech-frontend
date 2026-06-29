@@ -96,6 +96,14 @@ function HorizontalInfo({
 const approverLabel = (option: string) => APPROVAL_OPTIONS.find((entry) => entry.id === option)?.label || "Not Assigned";
 const levelSignature = (level: WorkflowLevel) => `${level.type}:${level.approvals.map((approval) => approval.option || "").join("|")}`;
 
+const levelToneClasses = [
+  "border-indigo-200 bg-indigo-50 text-indigo-700",
+  "border-orange-200 bg-orange-50 text-orange-700",
+  "border-sky-200 bg-sky-50 text-sky-700",
+  "border-emerald-200 bg-emerald-50 text-emerald-700",
+  "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700",
+];
+
 const renderNodeValue = (nodeNameLabel: string, wfNode: string, nodeLevelCount?: number) => (
   <div className="flex flex-col gap-0.5">
     <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
@@ -127,6 +135,13 @@ export default function WorkflowStepSummary({
   previous = null,
 }: WorkflowStepSummaryProps) {
   const currentLevels = levels.slice(0, visibleLevels);
+  const hasNodeDiff = Boolean(
+    previous && (
+      previous.nodeNameLabel !== nodeNameLabel ||
+      previous.wfNode !== wfNode ||
+      previous.nodeLevelCount !== nodeLevelCount
+    ),
+  );
   const previousLevels = previous?.levels?.slice(0, previous.visibleLevels) ?? [];
   const mergedLevels = Array.from(
     new Set([...currentLevels.map((level) => level.id), ...previousLevels.map((level) => level.id)]),
@@ -162,7 +177,7 @@ export default function WorkflowStepSummary({
                 <HorizontalInfo
                   label="Node Name"
                   value={renderNodeValue(nodeNameLabel, wfNode, nodeLevelCount)}
-                  previousValue={previous ? renderNodeValue(previous.nodeNameLabel, previous.wfNode, previous.nodeLevelCount) : undefined}
+                  previousValue={hasNodeDiff && previous ? renderNodeValue(previous.nodeNameLabel, previous.wfNode, previous.nodeLevelCount) : undefined}
                   icon={<Building2 className="h-3.5 w-3.5 text-slate-400" />}
                 />
               </div>
@@ -214,7 +229,18 @@ export default function WorkflowStepSummary({
                       ].join(" ")}
                     >
                       <div className="flex min-h-[52px] items-center gap-4 pl-1 pr-2">
-                        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-slate-100/80 text-[10px] font-black text-slate-500 ring-1 ring-slate-200">
+                        <div
+                          className={[
+                            "flex h-8 w-8 flex-none items-center justify-center rounded-lg border text-[10px] font-black",
+                            isRemovedLevel
+                              ? "border-rose-200 bg-rose-100 text-rose-700"
+                              : isNewLevel
+                                ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                                : hasLevelDiff
+                                  ? "border-amber-200 bg-amber-100 text-amber-700"
+                                  : levelToneClasses[(id - 1) % levelToneClasses.length],
+                          ].join(" ")}
+                        >
                           L{id}
                         </div>
                         <div className="flex flex-1 flex-wrap items-center gap-4">
@@ -273,4 +299,6 @@ export default function WorkflowStepSummary({
     </div>
   );
 }
+
+
 

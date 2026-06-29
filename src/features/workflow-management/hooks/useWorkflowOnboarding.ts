@@ -117,6 +117,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
   const [workflowOptions, setWorkflowOptions] = useState<Array<{ levelsHash: string; label: string }>>([]);
   const [selectedWorkflowLevelsHash, setSelectedWorkflowLevelsHash] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [remarkTouched, setRemarkTouched] = useState(false);
   const [levels, setLevels] = useState(INITIAL_LEVELS);
   const [seedSnapshot, setSeedSnapshot] = useState<{
     wfName: string;
@@ -491,6 +492,12 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
       const normalizedSubModule = wfModule.trim();
       const nextRemarks = remarks.trim();
 
+      if (mode === "edit" && !nextRemarks) {
+        setRemarkTouched(true);
+        setErrorMsg("Please enter a remark to update the workflow.");
+        return;
+      }
+
       if (mode === "edit" && seedWorkflow) {
         const target = {
           module: (seedWorkflow.rawModule || seedWorkflow.module || "").trim(),
@@ -540,13 +547,13 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
         workflowType: toApiWorkflowType(workflowType),
         ...(normalizedNodePath ? { nodePath: normalizedNodePath } : {}),
         levels: payloadLevels,
-        levelsHash: hasNoApproverSelected ? null : selectedWorkflowLevelsHash.trim() || null,
+        levelsHash: selectedWorkflowLevelsHash.trim() || null,
       });
       await onPublished?.();
     } catch (error) {
-      const message = getApiErrorMessage(error, "Failed to publish workflow. Please try again.");
+      const message = getApiErrorMessage(error, "Failed to submit workflow. Please try again.");
       setErrorMsg(message);
-      toast({ title: "Failed to publish workflow", description: message, variant: "destructive" });
+      toast({ title: "Failed to submit workflow", description: message, variant: "destructive" });
     }
   };
 
@@ -572,6 +579,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     workflowOptions,
     selectedWorkflowLevelsHash,
     remarks,
+    remarkTouched,
     levels,
     isRMUsedGlobally,
     currentLevelComplete,
@@ -587,6 +595,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     setWorkflowType,
     setSelectedWorkflowLevelsHash,
     setRemarks,
+    setRemarkTouched,
     updateLevelApprover,
     addApproverToLevel,
     removeApproverFromLevel,
@@ -610,6 +619,11 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
       };
       return acc;
     }, {});
+
+
+
+
+
 
 
 

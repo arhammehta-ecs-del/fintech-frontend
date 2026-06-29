@@ -391,8 +391,8 @@ export default function UserFilters(props: UserFiltersProps) {
                     variant="ghost"
                     size="sm"
                     className="text-[12px] font-semibold text-blue-600 hover:text-blue-700"
-                    onClick={() => {
-                      onClearAdvancedFilters();
+                    onClick={async () => {
+                      await onClearAdvancedFilters();
                       setDraft(buildEmptyDraft());
                     }}
                   >

@@ -838,9 +838,10 @@ export function UserManagementView() {
         onboardingDateRange={onboardingDateRange}
         onboardingDateFrom={onboardingDateFrom}
         onboardingDateTo={onboardingDateTo}
-        onClearAdvancedFilters={() => {
+        onClearAdvancedFilters={async () => {
           clearImpactedPreview();
           clearAdvancedFilters();
+          await loadFilterOptions(null);
         }}
         onOpenFilters={loadFilterOptions}
         onApplyAdvancedFilters={(filters) => {

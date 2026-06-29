@@ -950,9 +950,10 @@ export default function WorkflowManagementView() {
                       variant="ghost"
                       size="sm"
                       className="h-7 rounded-lg px-2.5 text-[12px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                      onClick={() => {
+                      onClick={async () => {
                         clearDraftFilters();
                         clearColumnFilters();
+                        await loadWorkflowFilterOptions(null);
                       }}
                     >
                       Clear all
@@ -1204,7 +1205,7 @@ export default function WorkflowManagementView() {
                       className={cn(
                         "h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm",
                         hasNewWorkflowEvent &&
-                          "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
+                        "border-[#3553e9] bg-[#3553e9] text-white shadow-[0_10px_24px_rgba(53,83,233,0.22)] hover:bg-[#3553e9] hover:text-white",
                       )}
                     >
                       <RefreshCw className="h-4 w-4" />
@@ -1231,29 +1232,29 @@ export default function WorkflowManagementView() {
             <h3 className="text-xl font-semibold text-slate-800">
               {activeStatus} Workflows ({filteredWorkflows.length})
             </h3>
-           
+
           </div>
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end lg:w-auto">
-              <Button
-                variant="outline"
-                className="w-full border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 sm:w-auto"
-                onClick={() => setWorkflowPreferenceDialogOpen(true)}
-              >
-                Set Preference
-              </Button>
-                            <Button
-                className="w-full lg:w-auto bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.22)] hover:bg-[hsl(235,60%,45%)]"
-                onClick={() => {
-                  setOnboardingMode("create");
-                  setWorkflowSeedForEdit(null);
-                  void handleOpenAddWorkflowDialog();
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Workflow
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              className="w-full border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 sm:w-auto"
+              onClick={() => setWorkflowPreferenceDialogOpen(true)}
+            >
+              Set Preference
+            </Button>
+            <Button
+              className="w-full lg:w-auto bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.22)] hover:bg-[hsl(235,60%,45%)]"
+              onClick={() => {
+                setOnboardingMode("create");
+                setWorkflowSeedForEdit(null);
+                void handleOpenAddWorkflowDialog();
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Workflow
+            </Button>
           </div>
+        </div>
 
         {filteredWorkflows.length === 0 ? (
           <div className="p-8 text-sm text-slate-500">No {activeStatus.toLowerCase()} workflows available.</div>
@@ -1273,152 +1274,152 @@ export default function WorkflowManagementView() {
               {paginatedWorkflows.map((workflow) => {
                 const isModificationInProgress = Boolean(workflow.isPending);
                 return (
-                <div
-                  key={workflow.id}
-                  className={cn(
-                    "grid grid-cols-1 gap-2 p-4 transition-colors duration-150 hover:bg-slate-100 md:items-center md:gap-x-4",
-                    workflowGridTemplateClass,
-                  )}
-                >
-                  <div className="min-w-0">
-                    <div
-                      className={cn(
-                        "text-sm font-semibold text-slate-800",
-                        shouldUseAdaptivePendingLayout
-                          ? "[overflow-wrap:anywhere]"
-                          : "truncate whitespace-nowrap",
-                      )}
-                      style={shouldUseAdaptivePendingLayout ? { maxWidth: `${WORKFLOW_NAME_WRAP_THRESHOLD}ch` } : undefined}
-                      title={workflow.workflowName || workflow.name || workflow.alias || "-"}
-                    >
-                      {workflow.workflowName || workflow.name || workflow.alias || "—"}
-                    </div>
-                  </div>
-                  <div className="truncate whitespace-nowrap text-sm font-medium text-violet-700" title={workflow.alias}>{workflow.alias}</div>
                   <div
-                    className="truncate whitespace-nowrap text-sm text-slate-700"
-                    title={workflow.module || workflow.rawModule || workflow.workflowAlias || workflow.workflowName || "-"}
+                    key={workflow.id}
+                    className={cn(
+                      "grid grid-cols-1 gap-2 p-4 transition-colors duration-150 hover:bg-slate-100 md:items-center md:gap-x-4",
+                      workflowGridTemplateClass,
+                    )}
                   >
-                    {workflow.module || workflow.rawModule || workflow.workflowAlias || workflow.workflowName || "—"}
-                  </div>
-                  <div className="min-w-0 text-sm text-slate-700">
-                    <p
-                      className={cn(
-                        "flex items-center gap-1.5 truncate text-sm leading-5 text-slate-700",
-                        typeof workflow.levelCount === "number" &&
-                          "before:shrink-0 before:rounded before:bg-indigo-100 before:px-1 before:py-0.5 before:text-[9px] before:font-bold before:tracking-wider before:text-indigo-700 before:content-[attr(data-level)]",
-                      )}
-                      data-level={typeof workflow.levelCount === "number" ? `L${workflow.levelCount}` : undefined}
-                      title={`${getWorkflowNodeDisplayName({
-                        nodeName: workflow.nodeName,
-                        nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
-                        module: workflow.rawModule || workflow.module,
-                        subModule: workflow.subModule,
-                      }) || "—"}${workflow.nodeType ? ` (${formatSnakeCaseLabel(workflow.nodeType)})` : ""}`}
+                    <div className="min-w-0">
+                      <div
+                        className={cn(
+                          "text-sm font-semibold text-slate-800",
+                          shouldUseAdaptivePendingLayout
+                            ? "[overflow-wrap:anywhere]"
+                            : "truncate whitespace-nowrap",
+                        )}
+                        style={shouldUseAdaptivePendingLayout ? { maxWidth: `${WORKFLOW_NAME_WRAP_THRESHOLD}ch` } : undefined}
+                        title={workflow.workflowName || workflow.name || workflow.alias || "-"}
+                      >
+                        {workflow.workflowName || workflow.name || workflow.alias || "—"}
+                      </div>
+                    </div>
+                    <div className="truncate whitespace-nowrap text-sm font-medium text-violet-700" title={workflow.alias}>{workflow.alias}</div>
+                    <div
+                      className="truncate whitespace-nowrap text-sm text-slate-700"
+                      title={workflow.module || workflow.rawModule || workflow.workflowAlias || workflow.workflowName || "-"}
                     >
-                      <span className="min-w-0 truncate">
-                        {getWorkflowNodeDisplayName({
+                      {workflow.module || workflow.rawModule || workflow.workflowAlias || workflow.workflowName || "—"}
+                    </div>
+                    <div className="min-w-0 text-sm text-slate-700">
+                      <p
+                        className={cn(
+                          "flex items-center gap-1.5 truncate text-sm leading-5 text-slate-700",
+                          typeof workflow.levelCount === "number" &&
+                          "before:shrink-0 before:rounded before:bg-indigo-100 before:px-1 before:py-0.5 before:text-[9px] before:font-bold before:tracking-wider before:text-indigo-700 before:content-[attr(data-level)]",
+                        )}
+                        data-level={typeof workflow.levelCount === "number" ? `L${workflow.levelCount}` : undefined}
+                        title={`${getWorkflowNodeDisplayName({
                           nodeName: workflow.nodeName,
                           nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
                           module: workflow.rawModule || workflow.module,
                           subModule: workflow.subModule,
-                        }) || "—"}
-                      </span>
-                      {workflow.nodeType ? (
-                        <span className="whitespace-nowrap text-slate-500">({formatSnakeCaseLabel(workflow.nodeType)})</span>
-                      ) : null}
-                    </p>
-                    {(() => {
-                      const nodePath = resolveWorkflowNodePath(workflow);
-                      const nodeType = (workflow.nodeType || "").toUpperCase();
-                      const nodeDepth = nodePath.split(".").map((part) => part.trim()).filter(Boolean).length;
-                      const isRootByType = nodeType === "ROOT";
-                      const isRootByPath = nodeDepth <= 1;
-                      const showPath = Boolean(nodePath) && !isRootByType && !isRootByPath;
-                      if (!showPath) return null;
-                      
-                      const pathPreview = formatCollapsedNodePath(nodePath, 3);
-                      return pathPreview ? <NodePathMarquee text={pathPreview} /> : null;
-                    })()}
-                  </div>
-                  <div className="truncate whitespace-nowrap text-sm text-slate-700">{workflow.nodeType}</div>
-                  <div>
-                    <div className="flex flex-col items-start gap-1">
-                      <span
-                        className={cn(
-                          "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
-                          statusBadgeClassName[isWorkflowUpdateRequest(workflow) ? "Pending" : workflow.status]
-                            ?? "border-slate-200 bg-slate-50 text-slate-700",
-                        )}
+                        }) || "—"}${workflow.nodeType ? ` (${formatSnakeCaseLabel(workflow.nodeType)})` : ""}`}
                       >
-                        {isWorkflowUpdateRequest(workflow) ? "Pending" : workflow.status}
-                      </span>
-                      {isModificationInProgress ? (
-                        <span className="inline-flex whitespace-nowrap text-[11px] font-medium leading-none text-amber-700">
-                          Modification in progress
+                        <span className="min-w-0 truncate">
+                          {getWorkflowNodeDisplayName({
+                            nodeName: workflow.nodeName,
+                            nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
+                            module: workflow.rawModule || workflow.module,
+                            subModule: workflow.subModule,
+                          }) || "—"}
                         </span>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="flex md:justify-center">
-                    <TooltipProvider delayDuration={120}>
-                      <div className="flex items-center gap-1">
-                        {workflow.status !== "Pending" ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                                onClick={() => setHistoryWorkflow(workflow)}
-                                aria-label={`View history for ${workflow.name}`}
-                              >
-                                <History className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">View History</TooltipContent>
-                          </Tooltip>
+                        {workflow.nodeType ? (
+                          <span className="whitespace-nowrap text-slate-500">({formatSnakeCaseLabel(workflow.nodeType)})</span>
                         ) : null}
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
-                              onClick={() => {
-                                void openManageWorkflowPreview(workflow);
-                              }}
-                              aria-label={`Manage ${workflow.name}`}
-                            >
-                              <SlidersHorizontal className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">Manage Workflow</TooltipContent>
-                        </Tooltip>
-                        {workflow.status !== "Pending" && workflow.status !== "Inactive" ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                disabled={isModificationInProgress}
-                                className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700 disabled:text-slate-300 disabled:hover:bg-transparent disabled:hover:text-slate-300"
-                                onClick={() => {
-                                  if (isModificationInProgress) return;
-                                  void openManageWorkflowPreview(workflow, activeStatus, "delete");
-                                }}
-                                aria-label={`Delete ${workflow.name}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">Delete Workflow</TooltipContent>
-                          </Tooltip>
+                      </p>
+                      {(() => {
+                        const nodePath = resolveWorkflowNodePath(workflow);
+                        const nodeType = (workflow.nodeType || "").toUpperCase();
+                        const nodeDepth = nodePath.split(".").map((part) => part.trim()).filter(Boolean).length;
+                        const isRootByType = nodeType === "ROOT";
+                        const isRootByPath = nodeDepth <= 1;
+                        const showPath = Boolean(nodePath) && !isRootByType && !isRootByPath;
+                        if (!showPath) return null;
+
+                        const pathPreview = formatCollapsedNodePath(nodePath, 3);
+                        return pathPreview ? <NodePathMarquee text={pathPreview} /> : null;
+                      })()}
+                    </div>
+                    <div className="truncate whitespace-nowrap text-sm text-slate-700">{workflow.nodeType}</div>
+                    <div>
+                      <div className="flex flex-col items-start gap-1">
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
+                            statusBadgeClassName[isWorkflowUpdateRequest(workflow) ? "Pending" : workflow.status]
+                            ?? "border-slate-200 bg-slate-50 text-slate-700",
+                          )}
+                        >
+                          {isWorkflowUpdateRequest(workflow) ? "Pending" : workflow.status}
+                        </span>
+                        {isModificationInProgress ? (
+                          <span className="inline-flex whitespace-nowrap text-[11px] font-medium leading-none text-amber-700">
+                            Modification in progress
+                          </span>
                         ) : null}
                       </div>
-                    </TooltipProvider>
+                    </div>
+                    <div className="flex md:justify-center">
+                      <TooltipProvider delayDuration={120}>
+                        <div className="flex items-center gap-1">
+                          {workflow.status !== "Pending" ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                  onClick={() => setHistoryWorkflow(workflow)}
+                                  aria-label={`View history for ${workflow.name}`}
+                                >
+                                  <History className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">View History</TooltipContent>
+                            </Tooltip>
+                          ) : null}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+                                onClick={() => {
+                                  void openManageWorkflowPreview(workflow);
+                                }}
+                                aria-label={`Manage ${workflow.name}`}
+                              >
+                                <SlidersHorizontal className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Manage Workflow</TooltipContent>
+                          </Tooltip>
+                          {workflow.status !== "Pending" && workflow.status !== "Inactive" ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  disabled={isModificationInProgress}
+                                  className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700 disabled:text-slate-300 disabled:hover:bg-transparent disabled:hover:text-slate-300"
+                                  onClick={() => {
+                                    if (isModificationInProgress) return;
+                                    void openManageWorkflowPreview(workflow, activeStatus, "delete");
+                                  }}
+                                  aria-label={`Delete ${workflow.name}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">Delete Workflow</TooltipContent>
+                            </Tooltip>
+                          ) : null}
+                        </div>
+                      </TooltipProvider>
+                    </div>
                   </div>
-                </div>
                 );
               })}
             </div>
@@ -1495,28 +1496,28 @@ export default function WorkflowManagementView() {
       </Dialog>
       {manageWorkflow && typeof document !== "undefined"
         ? createPortal(
-            <div
-              className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm transition-[top,left,width,height,opacity] duration-300"
-              style={
-                canUseSplitManageHistory
-                  ? {
-                      top: `${shellOffset.top}px`,
-                      left: `${shellOffset.left}px`,
-                      width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
-                      height: `calc(100vh - ${shellOffset.top}px)`,
-                      transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
-                    }
-                  : {
-                      top: "0px",
-                      left: "0px",
-                      width: "100vw",
-                      height: "100vh",
-                      transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
-                    }
-              }
-            />,
-            document.body,
-          )
+          <div
+            className="fixed z-[49] bg-slate-900/40 backdrop-blur-sm transition-[top,left,width,height,opacity] duration-300"
+            style={
+              canUseSplitManageHistory
+                ? {
+                  top: `${shellOffset.top}px`,
+                  left: `${shellOffset.left}px`,
+                  width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
+                  height: `calc(100vh - ${shellOffset.top}px)`,
+                  transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
+                }
+                : {
+                  top: "0px",
+                  left: "0px",
+                  width: "100vw",
+                  height: "100vh",
+                  transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
+                }
+            }
+          />,
+          document.body,
+        )
         : null}
       <WorkflowHistorySidebar
         isOpen={!!historyWorkflow || manageHistoryOpen}
@@ -1665,12 +1666,12 @@ export default function WorkflowManagementView() {
         contentStyle={
           canUseSplitManageHistory
             ? {
-                top: `${shellOffset.top}px`,
-                left: `${shellOffset.left}px`,
-                width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
-                height: `calc(100vh - ${shellOffset.top}px)`,
-                transform: "translate(0, 0)",
-              }
+              top: `${shellOffset.top}px`,
+              left: `${shellOffset.left}px`,
+              width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
+              height: `calc(100vh - ${shellOffset.top}px)`,
+              transform: "translate(0, 0)",
+            }
             : undefined
         }
         preventOutsideClose={canUseSplitManageHistory}
@@ -1824,121 +1825,121 @@ function WorkflowNodeNameDropdown({
       </Button>
       {open && typeof document !== "undefined"
         ? createPortal(
-            <div
-              ref={menuRef}
-              className="fixed z-[160] rounded-lg border border-slate-200 bg-white p-3 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
-              style={{
-                top: menuPosition.top,
-                left: menuPosition.left,
-                width: menuPosition.width,
-                maxHeight: menuPosition.maxHeight,
-              }}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Node Name</div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => {
-                    if (isSearchExpanded) {
+          <div
+            ref={menuRef}
+            className="fixed z-[160] rounded-lg border border-slate-200 bg-white p-3 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
+            style={{
+              top: menuPosition.top,
+              left: menuPosition.left,
+              width: menuPosition.width,
+              maxHeight: menuPosition.maxHeight,
+            }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Node Name</div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  if (isSearchExpanded) {
+                    setSearch("");
+                    setIsSearchExpanded(false);
+                    return;
+                  }
+                  setIsSearchExpanded(true);
+                }}
+                className="h-9 w-9 rounded-lg border-slate-200 bg-slate-50 text-slate-600 shadow-none hover:border-slate-300 hover:bg-white"
+                aria-label={isSearchExpanded ? "Close node name search" : "Open node name search"}
+              >
+                {isSearchExpanded ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+              </Button>
+            </div>
+            <div className={cn("overflow-hidden transition-all duration-250 ease-out", isSearchExpanded ? "mt-2 max-h-12 opacity-100" : "max-h-0 opacity-0")}>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    if (event.key === "Escape") {
                       setSearch("");
                       setIsSearchExpanded(false);
-                      return;
                     }
-                    setIsSearchExpanded(true);
                   }}
-                  className="h-9 w-9 rounded-lg border-slate-200 bg-slate-50 text-slate-600 shadow-none hover:border-slate-300 hover:bg-white"
-                  aria-label={isSearchExpanded ? "Close node name search" : "Open node name search"}
-                >
-                  {isSearchExpanded ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-                </Button>
+                  placeholder="Search node name..."
+                  className="h-9 rounded-xl border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] shadow-none"
+                  autoComplete="off"
+                  autoFocus={isSearchExpanded}
+                />
               </div>
-              <div className={cn("overflow-hidden transition-all duration-250 ease-out", isSearchExpanded ? "mt-2 max-h-12 opacity-100" : "max-h-0 opacity-0")}>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    onKeyDown={(event) => {
-                      event.stopPropagation();
-                      if (event.key === "Escape") {
-                        setSearch("");
-                        setIsSearchExpanded(false);
-                      }
-                    }}
-                    placeholder="Search node name..."
-                    className="h-9 rounded-xl border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] shadow-none"
-                    autoComplete="off"
-                    autoFocus={isSearchExpanded}
-                  />
-                </div>
-              </div>
-              <div className="mt-2 overflow-auto pr-1" style={{ maxHeight: Math.max(120, menuPosition.maxHeight - (isSearchExpanded ? 92 : 48)) }}>
-                <div className="space-y-2">
-                  {filteredOptions.map((option) => {
-                    const isSelected = selected.includes(option.value);
-                    const childOptions = normalizedOptions.filter((candidate) => isDescendantNodePath(option.path || "", candidate.path || ""));
-                    const selectableChildOptions = childOptions.filter((candidate) => !selected.includes(candidate.value));
-                    return (
-                      <div
-                        key={`${option.path}-${option.value}`}
-                        className={cn("rounded-lg border p-2", isSelected ? "border-blue-200 bg-blue-50/40" : "border-slate-100")}
-                        style={{ marginLeft: `${((option.level ?? 1) - 1) * 16}px` }}
-                      >
-                        <div className="flex flex-col gap-1.5">
-                          <label className="flex min-w-0 cursor-pointer items-start gap-2">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => onToggle(option)}
-                              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                            />
-                            <div className="flex min-w-0 flex-1 flex-col gap-1">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                {formatWorkflowNodeOptionLevelLabel(option) ? (
-                                  <span className="shrink-0 inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-indigo-700 ring-1 ring-indigo-200/60">
-                                    {formatWorkflowNodeOptionLevelLabel(option)}
-                                  </span>
-                                ) : null}
-                                <p className="break-words text-sm font-medium text-slate-800">{option.value}</p>
-                                {typeof getWorkflowNodeOptionCount(option) === "number" ? (
-                                  <span className="shrink-0 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-700 ring-1 ring-amber-200/70">
-                                    {getWorkflowNodeOptionCount(option)}
-                                  </span>
-                                ) : null}
-                              </div>
-                              {option.path ? <p className="break-all pl-0 text-[10px] text-slate-500">{option.path}</p> : null}
+            </div>
+            <div className="mt-2 overflow-auto pr-1" style={{ maxHeight: Math.max(120, menuPosition.maxHeight - (isSearchExpanded ? 92 : 48)) }}>
+              <div className="space-y-2">
+                {filteredOptions.map((option) => {
+                  const isSelected = selected.includes(option.value);
+                  const childOptions = normalizedOptions.filter((candidate) => isDescendantNodePath(option.path || "", candidate.path || ""));
+                  const selectableChildOptions = childOptions.filter((candidate) => !selected.includes(candidate.value));
+                  return (
+                    <div
+                      key={`${option.path}-${option.value}`}
+                      className={cn("rounded-lg border p-2", isSelected ? "border-blue-200 bg-blue-50/40" : "border-slate-100")}
+                      style={{ marginLeft: `${((option.level ?? 1) - 1) * 16}px` }}
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        <label className="flex min-w-0 cursor-pointer items-start gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => onToggle(option)}
+                            className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                          />
+                          <div className="flex min-w-0 flex-1 flex-col gap-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {formatWorkflowNodeOptionLevelLabel(option) ? (
+                                <span className="shrink-0 inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-indigo-700 ring-1 ring-indigo-200/60">
+                                  {formatWorkflowNodeOptionLevelLabel(option)}
+                                </span>
+                              ) : null}
+                              <p className="break-words text-sm font-medium text-slate-800">{option.value}</p>
+                              {typeof getWorkflowNodeOptionCount(option) === "number" ? (
+                                <span className="shrink-0 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-700 ring-1 ring-amber-200/70">
+                                  {getWorkflowNodeOptionCount(option)}
+                                </span>
+                              ) : null}
                             </div>
-                          </label>
-                        </div>
-                        {isSelected && childOptions.length > 0 ? (
-                          <div className="mt-2 flex items-center justify-between rounded-lg border border-blue-100 bg-white/80 px-2.5 py-1.5">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                              Child Nodes ({childOptions.length})
-                            </p>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className={cn(
-                                "h-7 rounded-full border-blue-200 px-2.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-50",
-                                selectableChildOptions.length === 0 && "opacity-70",
-                              )}
-                              onClick={() => onSelectAllChildren(childOptions)}
-                            >
-                              Select all child
-                            </Button>
+                            {option.path ? <p className="break-all pl-0 text-[10px] text-slate-500">{option.path}</p> : null}
                           </div>
-                        ) : null}
+                        </label>
                       </div>
-                    );
-                  })}
-                </div>
+                      {isSelected && childOptions.length > 0 ? (
+                        <div className="mt-2 flex items-center justify-between rounded-lg border border-blue-100 bg-white/80 px-2.5 py-1.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                            Child Nodes ({childOptions.length})
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className={cn(
+                              "h-7 rounded-full border-blue-200 px-2.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-50",
+                              selectableChildOptions.length === 0 && "opacity-70",
+                            )}
+                            onClick={() => onSelectAllChildren(childOptions)}
+                          >
+                            Select all child
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
-            </div>,
-            document.body,
-          )
+            </div>
+          </div>,
+          document.body,
+        )
         : null}
     </div>
   );

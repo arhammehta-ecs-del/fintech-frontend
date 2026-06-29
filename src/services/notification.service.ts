@@ -64,6 +64,7 @@ type NotificationFetchResponse = {
   count?: number;
   allCount?: number;
   unreadCount?: number;
+  hiddenCount?: number;
   limit?: number;
   offset?: number;
   status?: string;
@@ -78,6 +79,7 @@ export type NotificationFetchResult = {
   count: number;
   allCount: number;
   unreadCount: number | null;
+  hiddenCount: number | null;
   limit: number;
   offset: number;
   status: string;
@@ -174,6 +176,7 @@ export async function fetchNotificationPage(payload: NotificationFetchRequest) {
       count: response.length,
       allCount: response.length,
       unreadCount: null,
+      hiddenCount: null,
       limit: payload.limit,
       offset: payload.offset,
       status: Array.isArray(payload.status) ? payload.status.join(",") : payload.status,
@@ -214,6 +217,7 @@ export async function fetchNotificationPage(payload: NotificationFetchRequest) {
     count: Number(response.count ?? 0),
     allCount: Number(response.allCount ?? response.count ?? 0),
     unreadCount: typeof response.unreadCount === "number" ? response.unreadCount : null,
+    hiddenCount: typeof response.hiddenCount === "number" ? response.hiddenCount : null,
     limit: Number(response.limit ?? payload.limit),
     offset: Number(response.offset ?? payload.offset),
     status: String(response.status ?? payload.status),
