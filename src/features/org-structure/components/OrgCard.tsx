@@ -5,7 +5,6 @@ import {
   getBranchAppearance,
   getNodeAccentBackground,
   getNodeAccentBorderLeft,
-  getNodeIcon,
   getNodeTheme,
   getPlusButtonAccentClass,
 } from "@/features/org-structure/nodeTheme.utils";
@@ -30,7 +29,6 @@ export function OrgCard({
   onCreateNode,
 }: OrgCardProps) {
   const theme = getNodeTheme(node.nodeType);
-  const Icon = getNodeIcon(node.nodeType);
   const isRoot = node.nodeType.trim().toUpperCase() === "ROOT";
   const appearance = getBranchAppearance(branchIndex, branchDepth, isRoot);
   const accentBackgroundClass = getNodeAccentBackground(branchIndex, branchDepth, isRoot);
@@ -41,6 +39,15 @@ export function OrgCard({
   const hasUpdateRequest = (node.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
   const isPendingVisualState = Boolean(node.isPending);
   const showPendingSubtext = !isRoot && isPendingVisualState;
+  const displayLevelCount =
+    typeof node.levelCount === "number"
+      ? node.levelCount
+      : isRoot
+        ? 1
+        : node.nodePath
+          .split(".")
+          .map((segment) => segment.trim())
+          .filter(Boolean).length || undefined;
 
   return (
     <div className="group relative">
@@ -60,8 +67,15 @@ export function OrgCard({
           hasUpdateRequest && "border-orange-300 bg-orange-50/40"
         )}
       >
-        <div className={cn("flex items-center justify-center rounded-full", isRoot ? "h-8 w-8 bg-white text-indigo-600 shadow-sm" : "h-7 w-7 bg-white/75")}>
-          <Icon className={cn(isRoot ? "h-4 w-4 text-indigo-600" : "h-3.5 w-3.5", !isRoot && theme.iconColor)} />
+        <div
+          className={cn(
+            "flex items-center justify-center rounded-xl font-bold tabular-nums",
+            isRoot
+              ? "h-8 min-w-[2rem] border border-indigo-200 bg-white px-2 text-[11px] text-indigo-600 shadow-sm"
+              : "h-7 min-w-[2.25rem] border border-slate-300 bg-white px-2 text-[11px] text-slate-700 shadow-sm",
+          )}
+        >
+          {typeof displayLevelCount === "number" ? `L${displayLevelCount}` : "L-"}
         </div>
         <div className="min-w-0">
           <p className={cn("truncate font-semibold", isRoot ? "text-[16px] font-bold tracking-[-0.01em] text-white" : "text-[16px]")}>{node.name}</p>

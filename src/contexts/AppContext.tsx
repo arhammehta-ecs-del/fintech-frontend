@@ -42,6 +42,7 @@ export interface OrgNode {
   id: string;
   uuid?: string;
   isPending?: boolean;
+  levelCount?: number;
   impactSummary?: {
     userAccess: Array<{
       name: string;
@@ -246,4 +247,5 @@ export function useAppContext() {
   if (!ctx) throw new Error("useAppContext must be used within AppProvider");
   return ctx;
 }
+
 

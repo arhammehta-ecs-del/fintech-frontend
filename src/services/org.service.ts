@@ -95,6 +95,31 @@ const getNullableString = (record: RawCompanyRecord, keys: string[]) => {
   return null;
 };
 
+const getNumber = (source: unknown, keys: string[]) => {
+  if (typeof source !== "object" || source === null) return undefined;
+  const record = source as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+      const parsed = Number(value.trim());
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+
+  return undefined;
+};
+
+const getLevelCountFromPath = (nodePath: string, nodeType?: string) => {
+  if ((nodeType || "").trim().toUpperCase() === "ROOT") return 1;
+  const segments = nodePath
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  return segments.length || undefined;
+};
+
 const mapImpactSummary = (value: unknown): OrgNode["impactSummary"] | undefined => {
   if (typeof value !== "object" || value === null) return undefined;
 
@@ -203,15 +228,6 @@ const mapOrgNode = (record: RawOrgRecord, status: OrgNode["status"] = "Active"):
       ? "ACTIVE"
       : null;
 
-  const getNumber = (source: unknown, keys: string[]) => {
-    if (typeof source !== "object" || source === null) return undefined;
-    const s = source as Record<string, unknown>;
-    for (const key of keys) {
-      if (typeof s[key] === "number") return s[key] as number;
-    }
-    return undefined;
-  };
-
   const affectedUserAccessCount = getNumber(record, ["affectedUserAccessCount"]) ?? getNumber(pendingRequest, ["affectedUserAccessCount"]);
   const affectedWorkflowCount = getNumber(record, ["affectedWorkflowCount"]) ?? getNumber(pendingRequest, ["affectedWorkflowCount"]);
   const impactSummary = mapImpactSummary(record) ?? mapImpactSummary(pendingRequest) ?? mapImpactSummary(pendingRequestNewData);
@@ -310,15 +326,6 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
       ? "ACTIVE"
       : null;
 
-  const getNumber = (source: unknown, keys: string[]) => {
-    if (typeof source !== "object" || source === null) return undefined;
-    const s = source as Record<string, unknown>;
-    for (const key of keys) {
-      if (typeof s[key] === "number") return s[key] as number;
-    }
-    return undefined;
-  };
-
   const affectedUserAccessCount = getNumber(record, ["affectedUserAccessCount"]) ?? getNumber(requestData, ["affectedUserAccessCount"]);
   const affectedWorkflowCount = getNumber(record, ["affectedWorkflowCount"]) ?? getNumber(requestData, ["affectedWorkflowCount"]);
   const impactSummary = mapImpactSummary(record) ?? mapImpactSummary(requestData) ?? mapImpactSummary(requestData.newData);
@@ -333,6 +340,11 @@ const mapPendingOrgRequest = (record: RawOrgRequestRecord): OrgNode | null => {
       : parentNodePath
         ? `${parentNodePath}.${normalizePathSegment(newNodeName)}`
         : "");
+  const levelCount =
+    getNumber(record, ["levelCount"]) ??
+    getNumber(requestData, ["levelCount"]) ??
+    getNumber(pendingNewData, ["levelCount"]) ??
+    getLevelCountFromPath(derivedNodePath, nodeType);
 
   return {
     id: requestId || derivedNodePath || `pending-${normalizePathSegment(newNodeName)}`,
@@ -383,15 +395,6 @@ const mergePendingUpdatesIntoActiveNodes = (activeNodes: OrgNode[], pendingRecor
       typeof requestData.oldData === "object" && requestData.oldData !== null
         ? (requestData.oldData as Record<string, unknown>)
         : undefined;
-
-    const getNumber = (source: unknown, keys: string[]) => {
-      if (typeof source !== "object" || source === null) return undefined;
-      const s = source as Record<string, unknown>;
-      for (const key of keys) {
-        if (typeof s[key] === "number") return s[key] as number;
-      }
-      return undefined;
-    };
 
     const affectedUserAccessCount = getNumber(record, ["affectedUserAccessCount"]) ?? getNumber(requestData, ["affectedUserAccessCount"]);
     const affectedWorkflowCount = getNumber(record, ["affectedWorkflowCount"]) ?? getNumber(requestData, ["affectedWorkflowCount"]);
@@ -633,3 +636,4 @@ export async function fetchUsersByNodePathCount(nodePath: string) {
   }
   return payload.data;
 }
+

@@ -158,6 +158,7 @@ type CompanyNodeWithWorkflows = {
   nodeName: string;
   nodePath: string;
   nodeType: string;
+  levelCount?: number;
   roleCode?: string;
   roleName?: string;
   selectedWorkflow?: CompanyNodeWorkflow | null;
@@ -591,6 +592,7 @@ export async function fetchCompanyNodesWithAccess(subCategory: string, filter = 
         nodeName: readString(record.nodeName).trim(),
         nodePath: readString(record.nodePath).trim(),
         nodeType: readString(record.nodeType).trim(),
+        levelCount: readNumber(record.levelCount) ?? getLevelCountFromPath(readString(record.nodePath).trim(), readString(record.nodeType).trim()),
         roleCode: readString(record.roleCode).trim().toUpperCase() || undefined,
         roleName: readString(record.roleName).trim() || undefined,
         selectedWorkflow,
@@ -877,6 +879,7 @@ export async function fetchUserDetails(
     statusTab === "pending" ? "Pending" : statusTab === "inactive" ? "Inactive" : "Active",
   );
 }
+
 
 
 

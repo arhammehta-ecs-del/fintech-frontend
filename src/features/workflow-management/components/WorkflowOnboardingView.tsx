@@ -45,6 +45,7 @@ export default function WorkflowOnboardingView({
     hasNoApproverSelected,
     selectedModuleLabel,
     selectedNodeNameLabel,
+    selectedNodeLevelCount,
     seedSnapshot,
     setWfName,
     setWfModule,
@@ -70,8 +71,8 @@ export default function WorkflowOnboardingView({
     <div
       className={
         step === 3
-          ? "mt-3 min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-[#fcfcfd]"
-          : "mt-3 h-full overflow-hidden rounded-2xl border border-slate-200 bg-[#fcfcfd]"
+          ? "mt-6 min-h-0 flex-1 overflow-hidden"
+          : "mt-6 h-full overflow-hidden"
       }
     >
       {step === 1 ? (
@@ -116,6 +117,8 @@ export default function WorkflowOnboardingView({
           moduleLabel={selectedModuleLabel}
           workflowType={workflowType || "-"}
           nodeNameLabel={selectedNodeNameLabel}
+          nodeLevelCount={selectedNodeLevelCount}
+          wfNode={wfNode}
           levels={levels}
           visibleLevels={visibleLevels}
           previous={resolvedMode === "edit" && seedSnapshot ? {
@@ -124,6 +127,8 @@ export default function WorkflowOnboardingView({
             moduleLabel: seedSnapshot.selectedModuleLabel,
             workflowType: workflowType || "-",
             nodeNameLabel: seedSnapshot.selectedNodeNameLabel,
+            nodeLevelCount: seedSnapshot.selectedNodeLevelCount,
+            wfNode: seedSnapshot.wfNode,
             levels: seedSnapshot.levels,
             visibleLevels: seedSnapshot.visibleLevels,
           } : null}
@@ -222,4 +227,6 @@ export default function WorkflowOnboardingView({
     </div>
   );
 }
+
+
 

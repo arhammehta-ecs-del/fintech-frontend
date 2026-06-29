@@ -8,6 +8,7 @@ import { createWorkflow } from "@/services/workflow.service";
 import { acquireEditLock } from "@/services/edit-lock.service";
 import type { ModuleGroup, WorkflowStep, WorkflowTypeScope } from "@/features/workflow-management/components/onboarding/types";
 import { createResetLevels, getCategoryLabel, INITIAL_LEVELS, formatTokenLabel, toApiApprover, toApiWorkflowType } from "@/features/workflow-management/utils/workflowOnboarding.utils";
+import { formatSnakeCaseLabel } from "@/features/workflow-management/utils/workflowRecord.utils";
 import type { WorkflowRecord } from "@/features/workflow-management/types/workflow.types";
 
 type UseWorkflowOnboardingOptions = {
@@ -83,6 +84,11 @@ const getVisibleLevelCount = (levels: typeof INITIAL_LEVELS) => {
   return 1;
 };
 
+const getNodeLabelWithType = (nodeName: string, nodeType?: string) => {
+  const formattedType = formatSnakeCaseLabel(nodeType || "").trim();
+  return formattedType ? `${nodeName} (${formattedType})` : nodeName;
+};
+
 export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "create", seedWorkflow = null }: UseWorkflowOnboardingOptions) {
   const { currentUser } = useAppContext();
   const { toast } = useToast();
@@ -99,10 +105,11 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
   const [workflowType, setWorkflowType] = useState<WorkflowTypeScope | "">("");
 
   const [moduleGroups, setModuleGroups] = useState<ModuleGroup[]>([]);
-  const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string; nodeType?: string }>>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string; nodeType?: string; levelCount?: number }>>([]);
   const [companyNodesWithWorkflows, setCompanyNodesWithWorkflows] = useState<
     Array<{
       nodePath: string;
+      levelCount?: number;
       selectedWorkflow?: { levelsHash: string; name: string; alias?: string; selected?: boolean } | null;
       workflows: Array<{ levelsHash: string; name: string; alias?: string; selected?: boolean }>;
     }>
@@ -116,6 +123,8 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     wfAlias: string;
     selectedModuleLabel: string;
     selectedNodeNameLabel: string;
+    selectedNodeLevelCount?: number;
+    wfNode: string;
     levels: typeof INITIAL_LEVELS;
     visibleLevels: number;
   } | null>(null);
@@ -137,8 +146,14 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     [moduleGroups, wfModule],
   );
 
-  const selectedNodeNameLabel = useMemo(
-    () => departmentOptions.find((option) => option.value === wfNode)?.label || "-",
+  const selectedNodeNameLabel = useMemo(() => {
+    const selectedNode = departmentOptions.find((option) => option.value === wfNode);
+    if (!selectedNode) return "-";
+    return getNodeLabelWithType(selectedNode.label, selectedNode.nodeType);
+  }, [departmentOptions, wfNode]);
+
+  const selectedNodeLevelCount = useMemo(
+    () => departmentOptions.find((option) => option.value === wfNode)?.levelCount,
     [departmentOptions, wfNode],
   );
 
@@ -213,9 +228,16 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
             const label = node.nodeName.trim();
             const value = node.nodePath.trim();
             if (!label || !value) return acc;
-            if (!acc.has(value)) acc.set(value, { label, value, nodeType: node.nodeType.trim() });
+            if (!acc.has(value)) {
+              acc.set(value, {
+                label,
+                value,
+                nodeType: node.nodeType.trim(),
+                levelCount: typeof node.levelCount === "number" ? node.levelCount : undefined,
+              });
+            }
             return acc;
-          }, new Map<string, { label: string; value: string; nodeType?: string }>())
+          }, new Map<string, { label: string; value: string; nodeType?: string; levelCount?: number }>())
             .values(),
         );
         setDepartmentOptions(nextDepartments);
@@ -223,6 +245,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
         setCompanyNodesWithWorkflows(
           nodes.map((node) => ({
             nodePath: node.nodePath.trim(),
+            levelCount: typeof node.levelCount === "number" ? node.levelCount : undefined,
             selectedWorkflow: node.selectedWorkflow,
             workflows: node.workflows,
           })),
@@ -332,7 +355,9 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
       wfName: seedWorkflow.name || "",
       wfAlias: seedWorkflow.alias === "-" ? "" : seedWorkflow.alias || "",
       selectedModuleLabel: seedWorkflow.module || "-",
-      selectedNodeNameLabel: seedWorkflow.nodeName || "-",
+      selectedNodeNameLabel: getNodeLabelWithType(seedWorkflow.nodeName || "-", seedWorkflow.nodeType || ""),
+      selectedNodeLevelCount: seedWorkflow.levelCount,
+      wfNode: seedWorkflow.nodePath || "",
       levels: snapshotLevels,
       visibleLevels: snapshotVisibleLevels,
     });
@@ -553,6 +578,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
     hasNoApproverSelected,
     selectedModuleLabel,
     selectedNodeNameLabel,
+    selectedNodeLevelCount,
     seedSnapshot,
     setWfName,
     setWfAlias,
@@ -584,3 +610,8 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
       };
       return acc;
     }, {});
+
+
+
+
+

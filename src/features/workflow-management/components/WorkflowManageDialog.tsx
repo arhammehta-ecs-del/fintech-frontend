@@ -690,13 +690,13 @@ export default function WorkflowManageDialog({
             event.preventDefault();
           }
         }}
-        className={cn("flex max-h-[92vh] w-[min(96vw,64rem)] max-w-[64rem] flex-col overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white p-0 shadow-[0_24px_70px_rgba(15,23,42,0.22)]", contentClassName)}
+        className={cn("flex max-h-[92vh] w-[min(96vw,64rem)] max-w-[64rem] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-xl", contentClassName)}
         style={contentStyle}
       >
         <DialogDescription className="sr-only">
           Review workflow details, approval chain, history, and submit approve or reject actions.
         </DialogDescription>
-        <DialogHeader className="border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-indigo-50/30 px-6 pb-0 pt-5">
+        <DialogHeader className="border-b border-slate-100 bg-white px-6 pb-4 pt-5">
           {viewContextTitle ? (
             <div className={cn("-mx-6 -mt-4 mb-4 flex items-center justify-center gap-3 px-6 py-1.5 text-center", viewContextClassName)}>
               <div className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/70 ring-1 ring-black/5">
@@ -863,9 +863,9 @@ export default function WorkflowManageDialog({
           </div>
           {canShowPendingActions ? (
             <div className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-1.5">
-              <div className={cn("text-[12px]", shouldUseCompactInitiatorStrip && "overflow-x-auto")}>
+              <div className="text-[12px]">
                 {shouldUseCompactInitiatorStrip ? (
-                  <div className="flex min-w-max flex-nowrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {initiatorName ? (
                       <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] text-slate-600 ring-1 ring-slate-200/70">
                         <UserCheck size={12} className="text-slate-400" />
@@ -946,7 +946,7 @@ export default function WorkflowManageDialog({
           ) : null}
         </DialogHeader>
 
-        <div className="space-y-5 overflow-y-auto bg-[linear-gradient(180deg,rgba(248,250,252,0.7)_0%,rgba(255,255,255,1)_12rem)] px-5 pb-5 pt-4">
+        <div className="space-y-5 overflow-y-auto bg-slate-50/30 px-5 pb-5 pt-4">
           <SummaryPreview workflow={{ ...displayWorkflow, previousWorkflow }} />
 
 
@@ -971,7 +971,7 @@ export default function WorkflowManageDialog({
           ) : null}
         </div>
 
-        <div className="border-t border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-6 py-4">
+        <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-4">
           {!isPending && !isHistoryPreviewActive && pendingStatus && onSubmitStatusUpdate ? (
             <div className="mb-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
               <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">

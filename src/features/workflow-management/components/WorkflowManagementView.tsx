@@ -1461,12 +1461,12 @@ export default function WorkflowManagementView() {
           <DialogDescription className="sr-only">
             Create a new workflow by configuring name, alias, module, node, and approval levels.
           </DialogDescription>
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-            <div className="flex items-center gap-2">
-              <div className="rounded-lg bg-blue-600 p-1.5">
-                <Settings className="h-4 w-4 text-white" />
+          <div className="flex items-center justify-between border-b border-slate-200 px-7 py-5">
+            <div className="flex items-center gap-3.5">
+              <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+                <Settings className="h-5 w-5" />
               </div>
-              <h2 className="text-sm font-semibold text-slate-900">{onboardingMode === "edit" ? "Edit Workflow" : "Add Workflow"}</h2>
+              <h2 className="text-lg font-bold tracking-tight text-slate-900">{onboardingMode === "edit" ? "Edit Workflow" : "Add Workflow"}</h2>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -1659,7 +1659,7 @@ export default function WorkflowManagementView() {
         overlayClassName="hidden"
         contentClassName={
           canUseSplitManageHistory
-            ? "flex h-full max-h-none w-auto max-w-none flex-col overflow-hidden rounded-none p-0 transition-[top,left,width,height,transform] duration-300 will-change-[width] data-[state=open]:animate-none data-[state=closed]:animate-none"
+            ? "flex h-full max-h-none w-auto max-w-none flex-col overflow-hidden rounded-none p-0 transition-none data-[state=open]:animate-none data-[state=closed]:animate-none"
             : undefined
         }
         contentStyle={
@@ -1670,7 +1670,6 @@ export default function WorkflowManagementView() {
                 width: `calc(100vw - ${shellOffset.left}px - ${computedHistoryPanelWidth}px)`,
                 height: `calc(100vh - ${shellOffset.top}px)`,
                 transform: "translate(0, 0)",
-                transitionTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
               }
             : undefined
         }

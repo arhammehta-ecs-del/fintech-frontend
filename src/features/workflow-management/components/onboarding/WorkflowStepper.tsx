@@ -17,9 +17,9 @@ function StepNode({ active, done, id, label }: { active: boolean; done: boolean;
       <div
         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
           active
-            ? "bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.18)]"
+            ? "bg-[hsl(235,60%,50%)] text-white"
             : done
-              ? "bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.18)]"
+              ? "bg-[hsl(235,60%,50%)] text-white"
               : "bg-slate-100 text-slate-400"
         }`}
       >

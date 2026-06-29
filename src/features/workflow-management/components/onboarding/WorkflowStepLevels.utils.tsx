@@ -4,7 +4,7 @@ import type { WorkflowLevel } from "./types";
 
 export const FLOW_ARROW_ID = "workflow-level-flow-arrow";
 export const STAGE_WIDTH = 980;
-export const CARD_WIDTH = 330;
+export const CARD_WIDTH = 360;
 export const CARD_HEIGHT_SINGLE = 178;
 export const CARD_HEIGHT_DOUBLE = 256;
 export const LEFT_X = 48;

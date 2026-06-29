@@ -9,8 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { ModuleGroup, WorkflowTypeScope } from "./types";
 import { WORKFLOW_TYPE_SCOPE_OPTIONS } from "./workflowTypeScope.constants";
-import { getWorkflowPathPreview } from "@/features/workflow-management/utils/workflowRecord.utils";
-import { isRootWorkflowNode } from "@/features/workflow-management/utils/workflowRecord.utils";
+import { formatSnakeCaseLabel, getWorkflowPathPreview, isRootWorkflowNode } from "@/features/workflow-management/utils/workflowRecord.utils";
 
 type WorkflowStepInputsProps = {
   mode?: "create" | "edit";
@@ -19,12 +18,17 @@ type WorkflowStepInputsProps = {
   wfNode: string;
   workflowType: WorkflowTypeScope | "";
   moduleGroups: ModuleGroup[];
-  departmentOptions: Array<{ value: string; label: string }>;
+  departmentOptions: Array<{ value: string; label: string; nodeType?: string; levelCount?: number }>;
   showMetaErrors: boolean;
   onSetWfName: (value: string) => void;
   onSetWfModule: (value: string) => void;
   onSetWfNode: (value: string) => void;
   onSetWorkflowType: (value: WorkflowTypeScope) => void;
+};
+
+const getNodeOptionLabel = (option: { label: string; nodeType?: string }) => {
+  const nodeType = formatSnakeCaseLabel(option.nodeType || "").trim();
+  return nodeType ? `${option.label} (${nodeType})` : option.label;
 };
 
 function InputField({
@@ -41,17 +45,17 @@ function InputField({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="space-y-2 group">
-      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.14em] group-focus-within:text-blue-600 transition-colors">
+    <div className="group space-y-1">
+      <label className="ml-1 text-xs font-bold uppercase tracking-wider text-slate-500 transition-colors group-focus-within:text-primary">
         {label}
       </label>
       <div className="relative">
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 transition-transform group-focus-within:scale-110">{icon}</div>
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-primary">{icon}</div>
         <input
           value={value}
           placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
-          className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm font-semibold text-slate-800 outline-none transition-all focus:border-blue-300 focus:ring-2 focus:ring-blue-50"
+          className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm placeholder:text-slate-300 focus:border-primary focus:ring-0 focus-visible:outline-none"
         />
       </div>
     </div>
@@ -77,8 +81,8 @@ function SearchableFieldDropdown({
   icon: ReactNode;
   placeholder: string;
   value: string;
-  selectedLabel: string;
-  options: Array<{ value: string; label: string; pathLabel?: string; groupLabel?: string }>;
+  selectedLabel: ReactNode;
+  options: Array<{ value: string; label: string; pathLabel?: string; groupLabel?: string; levelCount?: number }>;
   onChange: (value: string) => void;
   keepOpenOnSelect?: boolean;
   workflowType?: WorkflowTypeScope | "";
@@ -102,8 +106,8 @@ function SearchableFieldDropdown({
   }, [options, searchTerm]);
 
   return (
-    <div className="space-y-2 group">
-      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.14em] group-focus-within:text-blue-600 transition-colors">
+    <div className="group space-y-1">
+      <label className="ml-1 text-xs font-bold uppercase tracking-wider text-slate-500 transition-colors group-focus-within:text-primary">
         {label}
       </label>
       <DropdownMenu
@@ -122,16 +126,16 @@ function SearchableFieldDropdown({
       >
         <DropdownMenuTrigger asChild>
           <div className="relative">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">{icon}</span>
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-primary">{icon}</span>
             <button
               type="button"
               disabled={disabled}
               className={cn(
-                "flex h-[50px] w-full items-center justify-between rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-left text-sm font-semibold text-slate-800 transition-all focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-50",
-                disabled && "cursor-not-allowed bg-slate-50 text-slate-500",
+                "flex h-11 w-full items-center justify-between rounded-md border border-slate-200 bg-white pl-11 pr-4 text-left text-sm transition-all focus:border-primary focus:outline-none focus:ring-0",
+                disabled && "cursor-not-allowed bg-slate-100 text-slate-500",
               )}
             >
-              <span className="truncate">{hasValue ? selectedLabel : placeholder}</span>
+              <div className="min-w-0 flex-1">{hasValue ? selectedLabel : <span className="truncate block">{placeholder}</span>}</div>
               <ChevronDown className="h-4 w-4 text-slate-400" />
             </button>
           </div>
@@ -186,68 +190,84 @@ function SearchableFieldDropdown({
 
           <div className="max-h-[260px] overflow-y-auto px-1 pb-1 pt-1">
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((option) => (
-                <DropdownMenuItem
-                  key={option.value}
-                  className="relative flex items-start rounded-md py-2.5 pl-8 pr-2"
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    onChange(option.value);
-                    if (!keepOpenOnSelect) setOpen(false);
-                  }}
-                >
-                  {value === option.value ? (
-                    <Check className="absolute left-2 top-2.5 h-4 w-4 text-blue-600" />
-                  ) : null}
-                  <div className="min-w-0 w-full">
-                    {option.groupLabel ? (
-                      <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{option.groupLabel}</p>
+              filteredOptions.map((option, index) => {
+                const showGroupHeader = option.groupLabel && (index === 0 || filteredOptions[index - 1].groupLabel !== option.groupLabel);
+                const optionIndentLevel = Math.max(0, (option.levelCount ?? 1) - 1);
+                
+                return (
+                  <div key={option.value}>
+                    {showGroupHeader ? (
+                      <div className="px-3 py-1.5 mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-primary">
+                        {option.groupLabel}
+                      </div>
                     ) : null}
-                    <p className="truncate pr-1 text-sm font-semibold text-slate-700">{option.label}</p>
-                    {option.pathLabel ? (
-                      <span className="mt-1 inline-flex w-full max-w-full rounded-md border border-sky-100 bg-sky-50/70 px-1.5 py-1 font-mono text-[10px] leading-[1.15] tracking-[0.02em] text-sky-700">
-                        <span className="block max-w-full truncate">{option.pathLabel}</span>
-                      </span>
+                    <DropdownMenuItem
+                      className="relative flex items-start rounded-md py-2.5 pl-8 pr-2"
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        onChange(option.value);
+                        if (!keepOpenOnSelect) setOpen(false);
+                      }}
+                    >
+                      {value === option.value ? (
+                        <Check className="absolute left-2 top-2.5 h-4 w-4 text-blue-600" />
+                      ) : null}
+                      <div className="min-w-0 w-full" style={{ paddingLeft: `${optionIndentLevel * 18}px` }}>
+                        <p className="flex items-center gap-2 pr-1 text-sm font-semibold text-slate-700">
+                          {typeof option.levelCount === "number" ? (
+                            <span className="inline-flex shrink-0 items-center rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none tracking-[0.12em] text-indigo-700">
+                              L{option.levelCount}
+                            </span>
+                          ) : null}
+                          <span className="truncate">{option.label}</span>
+                        </p>
+                        {option.pathLabel ? (
+                          <span className="mt-1 block max-w-full truncate text-[11px] font-medium leading-4 tracking-normal text-slate-600 antialiased">
+                            {option.pathLabel}
+                          </span>
+                        ) : null}
+                      </div>
+                    </DropdownMenuItem>
+                    {value === option.value && showWorkflowTypeOptions && workflowTypeOptions?.length ? (
+                      <div className="ml-8 mr-2 mb-2 mt-1 space-y-1.5 border-l-2 border-slate-100 pl-3">
+                        {workflowTypeOptions.map((wtOption) => {
+                          const isSelected = workflowType === wtOption.value;
+                          return (
+                            <button
+                              key={wtOption.value}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onWorkflowTypeChange?.(wtOption.value);
+                              }}
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-semibold transition",
+                                isSelected
+                                  ? "border-primary/40 bg-primary/5 text-primary"
+                                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700 hover:bg-slate-50",
+                              )}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className={cn(isSelected ? "text-primary/70" : "text-slate-400")}>+</span>
+                                {wtOption.label}
+                              </span>
+                              <span className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-[1.5px]", isSelected ? "border-primary" : "border-slate-300")}>
+                                {isSelected && <span className="block h-2 w-2 rounded-full bg-primary" />}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     ) : null}
                   </div>
-                </DropdownMenuItem>
-              ))
+                );
+              })
             ) : (
               <p className="px-2 py-4 text-center text-[12px] text-slate-500">No options found</p>
             )}
           </div>
 
-          {showWorkflowTypeOptions && workflowTypeOptions?.length ? (
-            <div className="mt-2 border-t border-slate-200 px-1 pt-2">
-              <p className="pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Workflow Type</p>
-              <div className="space-y-1.5">
-                {workflowTypeOptions.map((option) => {
-                  const isSelected = workflowType === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => onWorkflowTypeChange?.(option.value)}
-                      className={cn(
-                        "flex w-full items-center justify-between rounded-md border px-2.5 py-2 text-left text-sm font-semibold transition",
-                        isSelected
-                          ? "border-blue-300 bg-blue-50 text-blue-700"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300",
-                      )}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="text-slate-400">+</span>
-                        {option.label}
-                      </span>
-                      <span className={cn("h-5 w-5 rounded-full border-2", isSelected ? "border-blue-600" : "border-slate-300")}>
-                        <span className={cn("m-[3px] block h-2.5 w-2.5 rounded-full", isSelected ? "bg-blue-600" : "bg-transparent")} />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
+
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -286,12 +306,22 @@ export default function WorkflowStepInputs({
   const selectedModuleLabel =
     moduleOptions.find((option) => option.value === wfModule)?.label || "Select module";
   const shouldShowWorkflowTypeOptions = Boolean(wfModule.trim());
-  const selectedNodeLabel =
-    departmentOptions.find((option) => option.value === wfNode)?.label || "Select node name";
+  const selectedNodeOption = departmentOptions.find((option) => option.value === wfNode);
+  const selectedNodeLabel = selectedNodeOption ? (
+    <span className="flex min-w-0 items-center gap-2">
+      {typeof selectedNodeOption.levelCount === "number" ? (
+        <span className="inline-flex shrink-0 items-center rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none tracking-[0.12em] text-indigo-700">
+          L{selectedNodeOption.levelCount}
+        </span>
+      ) : null}
+      <span className="truncate">{getNodeOptionLabel(selectedNodeOption)}</span>
+    </span>
+  ) : "Select node name";
   const nodeOptions = departmentOptions.map((option) => ({
     value: option.value,
-    label: option.label,
+    label: getNodeOptionLabel(option),
     pathLabel: isRootWorkflowNode(option.value) ? undefined : getWorkflowPathPreview(option.value, 3),
+    levelCount: option.levelCount,
   }));
 
   useEffect(() => {
@@ -307,14 +337,9 @@ export default function WorkflowStepInputs({
   }, [wfNode, nodeOptions, onSetWfNode]);
 
   return (
-    <div className="h-full overflow-auto p-6 custom-scrollbar">
-      <div className="mx-auto w-full max-w-5xl p-2">
-        <div className="mb-7">
-          <h2 className="text-3xl font-semibold tracking-tight text-slate-900">Base Parameters</h2>
-          <p className="mt-1 text-sm text-slate-500">Define your workflow metadata.</p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-x-7 gap-y-6 md:grid-cols-2">
+    <div className="h-full overflow-auto p-6 md:p-8 custom-scrollbar animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div className="mx-auto w-full max-w-4xl">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
           <div>
             <InputField
               label="Workflow Name"
@@ -366,3 +391,12 @@ export default function WorkflowStepInputs({
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
