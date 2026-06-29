@@ -10,7 +10,7 @@ import {
   isRootWorkflowNode,
 } from "@/features/workflow-management/utils/workflowRecord.utils";
 import { splitNodePathSegments } from "@/lib/nodePath";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 type SummaryPreviewWorkflow = WorkflowRecord & {
@@ -422,14 +422,16 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
 
               </div>
             </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm">
-                  <ChevronDown className={cn("h-4 w-4 transition-transform", levelsExpanded && "rotate-180")} />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">{levelsExpanded ? "Collapse levels" : "Expand levels"}</TooltipContent>
-            </Tooltip>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm">
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", levelsExpanded && "rotate-180")} />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">{levelsExpanded ? "Collapse levels" : "Expand levels"}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </button>
           {levelsExpanded ? (
             <div className="p-4 space-y-3 bg-slate-50/30">
@@ -588,14 +590,16 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
                 </h4>
               </div>
             </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm">
-                  <ChevronDown className={cn("h-4 w-4 transition-transform", linkedOrgExpanded && "rotate-180")} />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">{linkedOrgExpanded ? "Collapse linked org structure" : "Expand linked org structure"}</TooltipContent>
-            </Tooltip>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm">
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", linkedOrgExpanded && "rotate-180")} />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">{linkedOrgExpanded ? "Collapse linked org structure" : "Expand linked org structure"}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </button>
           {linkedOrgExpanded ? (
             <div className="max-h-[25.5rem] space-y-3 overflow-y-auto p-4 pr-3">
@@ -624,6 +628,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
     </div>
   );
 }
+
 
 
 

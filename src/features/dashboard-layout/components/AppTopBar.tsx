@@ -1182,16 +1182,19 @@ export function AppTopBar({
   const unreadCountBadgeLabel = unreadTotalCount > 99 ? "99+" : String(unreadTotalCount);
   const visibleHiddenNotificationsCount = visibleNotifications.filter((item) => item.status === "HIDDEN").length;
   const hiddenStatusSelected = selectedNotificationStatusFilters.includes("HIDDEN");
+  const hasExplicitStatusFilter = notificationStatusFilters.length > 0;
   const readTotalCount = Math.max(0, allNotificationCount - unreadTotalCount - hiddenTotalCount);
-  const filteredNotificationTotalCount = hiddenStatusSelected
-    ? hiddenTotalCount
-    : selectedNotificationStatusFilters.includes("READ") && selectedNotificationStatusFilters.includes("UNREAD")
-      ? Math.max(0, allNotificationCount - hiddenTotalCount)
-      : selectedNotificationStatusFilters.includes("READ")
-        ? readTotalCount
-        : selectedNotificationStatusFilters.includes("UNREAD")
-          ? unreadTotalCount
-          : allNotificationCount;
+  const filteredNotificationTotalCount = !hasExplicitStatusFilter
+    ? allNotificationCount
+    : hiddenStatusSelected
+      ? hiddenTotalCount
+      : selectedNotificationStatusFilters.includes("READ") && selectedNotificationStatusFilters.includes("UNREAD")
+        ? Math.max(0, allNotificationCount - hiddenTotalCount)
+        : selectedNotificationStatusFilters.includes("READ")
+          ? readTotalCount
+          : selectedNotificationStatusFilters.includes("UNREAD")
+            ? unreadTotalCount
+            : allNotificationCount;
   const notificationCountLabel = hasAnyNotificationFilter
     ? String(hiddenStatusSelected ? visibleHiddenNotificationsCount : visibleNotifications.length)
     : filteredNotificationTotalCount > 99
@@ -2510,23 +2513,4 @@ export function AppTopBar({
     </header>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

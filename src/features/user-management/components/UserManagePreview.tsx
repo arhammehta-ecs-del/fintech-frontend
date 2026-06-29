@@ -262,6 +262,8 @@ export function UserManagePreview({
     : (member.basicDetails?.requestType || "").trim().toUpperCase();
   const requestOldData = isHistoryPreviewActive ? historyOldData : toRecord(member.basicDetails?.requestOldData);
   const requestNewData = isHistoryPreviewActive ? historyNewData : toRecord(member.basicDetails?.requestNewData);
+  const hasRequestOldData = Object.keys(requestOldData).length > 0;
+  const hasRequestNewData = Object.keys(requestNewData).length > 0;
   const requestOldBasicDetails = toRecord(requestOldData.basicDetails);
   const requestNewBasicDetails = toRecord(requestNewData.basicDetails);
   const isPendingMember = member.status === "Pending" || Boolean(member.isPending);
@@ -281,12 +283,12 @@ export function UserManagePreview({
   const canShowHistoryComparison =
     isHistoryPreviewActive &&
     isHistoryUpdatePreview &&
-    (Object.keys(requestOldData).length > 0 || Object.keys(requestNewData).length > 0);
+    (hasRequestOldData || hasRequestNewData);
   const canShowPendingRequestComparison =
     !isHistoryPreviewActive &&
     currentTab === "pending" &&
     requestType === "UPDATE" &&
-    (Object.keys(requestOldData).length > 0 || Object.keys(requestNewData).length > 0);
+    (hasRequestOldData || hasRequestNewData);
   const canShowAccessComparison = canShowHistoryComparison || canShowPendingRequestComparison;
   const comparisonOldData = canShowHistoryComparison ? historyOldData : canShowPendingRequestComparison ? requestOldData : {};
   const comparisonNewData = canShowHistoryComparison ? historyNewData : canShowPendingRequestComparison ? requestNewData : {};
@@ -295,7 +297,9 @@ export function UserManagePreview({
   const canTogglePreviousUpdated =
     requestType === "UPDATE" &&
     (canShowPendingActions || canShowAccessComparison) &&
-    (Object.keys(requestOldData).length > 0 || Object.keys(requestNewData).length > 0);
+    (hasRequestOldData || hasRequestNewData);
+  const shouldShowNodeChangeComparison = canShowAccessComparison || canTogglePreviousUpdated;
+  const shouldShowDiffActionBadges = currentTab === "pending" && shouldShowNodeChangeComparison;
   const selectedRequestData = showPreviousData ? requestOldData : requestNewData;
   const selectedRequestBasicDetails = showPreviousData ? requestOldBasicDetails : requestNewBasicDetails;
   const readRequestedBasicValue = (field: string, fallback: unknown) => {
@@ -492,7 +496,7 @@ export function UserManagePreview({
     current: GroupedByNode,
     previous: GroupedByNode,
   ): Array<[string, GroupedByNode[string]]> => {
-    const previousKeys = canTogglePreviousUpdated ? Object.keys(previous) : [];
+    const previousKeys = shouldShowNodeChangeComparison ? Object.keys(previous) : [];
     const getNodeDepth = (nodeKey: string) =>
       nodeKey
         .split(".")
@@ -542,6 +546,7 @@ export function UserManagePreview({
     currentGroup: GroupedByNode[string] | undefined,
     previousGroup: GroupedByNode[string] | undefined,
   ): "unchanged" | "added" | "removed" | "changed" => {
+    if (!shouldShowNodeChangeComparison) return "unchanged";
     if (currentGroup && !previousGroup) return "added";
     if (!currentGroup && previousGroup) return "removed";
     if (!currentGroup || !previousGroup) return "unchanged";
@@ -549,8 +554,39 @@ export function UserManagePreview({
       ? "unchanged"
       : "changed";
   };
+  const getPreviousNodeCategories = (nodes: GroupedByNode, key: string) =>
+    shouldShowNodeChangeComparison ? nodes[key]?.categories ?? {} : {};
   const primaryEntries = buildAccessEntries(primaryByNode, previousPrimaryByNode);
   const secondaryEntries = buildAccessEntries(secondaryByNode, previousSecondaryByNode);
+  const hasFieldDifference = (oldValue: unknown, newValue: unknown) => readString(oldValue).trim() !== readString(newValue).trim();
+  const hasNameBasicDetailsChange =
+    shouldShowNodeChangeComparison && hasFieldDifference(requestOldBasicDetails.name, requestNewBasicDetails.name);
+  const hasNonNameBasicDetailsChanges =
+    shouldShowNodeChangeComparison && [
+      hasFieldDifference(requestOldBasicDetails.email, requestNewBasicDetails.email),
+      hasFieldDifference(requestOldBasicDetails.phone, requestNewBasicDetails.phone),
+      hasFieldDifference(requestOldBasicDetails.designation, requestNewBasicDetails.designation),
+      hasFieldDifference(requestOldBasicDetails.employeeId, requestNewBasicDetails.employeeId),
+      hasFieldDifference(
+        requestOldBasicDetails.reportingManagerName || requestOldBasicDetails.reportingManager,
+        requestNewBasicDetails.reportingManagerName || requestNewBasicDetails.reportingManager,
+      ),
+      hasFieldDifference(
+        requestOldBasicDetails.reportingManagerEmail || requestOldBasicDetails.reportingManager,
+        requestNewBasicDetails.reportingManagerEmail || requestNewBasicDetails.reportingManager,
+      ),
+      hasFieldDifference(requestOldBasicDetails.status, requestNewBasicDetails.status),
+    ].some(Boolean);
+  const hasAnyBasicDetailsChanges = hasNameBasicDetailsChange || hasNonNameBasicDetailsChanges;
+  const hasAnyAccessChanges =
+    shouldShowNodeChangeComparison &&
+    [...primaryEntries, ...secondaryEntries].some(([key]) => {
+      const currentGroup = primaryByNode[key] ?? secondaryByNode[key];
+      const previousGroup = previousPrimaryByNode[key] ?? previousSecondaryByNode[key];
+      return getNodeChangeState(currentGroup, previousGroup) !== "unchanged";
+    });
+  const shouldForceExpandedComparison =
+    shouldShowNodeChangeComparison && !hasAnyBasicDetailsChanges && !hasAnyAccessChanges;
   const globalAccessNode = primaryItems.find((item) => {
     const roleCategory = (item.roleCategory || "").trim().toUpperCase();
     const roleSubCategory = (item.roleSubCategory || "").trim().toUpperCase();
@@ -685,13 +721,30 @@ export function UserManagePreview({
     Boolean(previousStatusLabel) &&
     Boolean(nextStatusLabel) &&
     previousStatusLabel !== nextStatusLabel;
-  const shouldAutoExpandAllCards = currentTab === "active" || currentTab === "inactive" || shouldShowStatusTransition;
+  const shouldForceExpandedWhenOldDataMissing =
+    currentTab === "pending" &&
+    !hasRequestOldData &&
+    hasRequestNewData;
+  const shouldAutoExpandAllCards =
+    currentTab === "active" ||
+    currentTab === "inactive" ||
+    shouldShowStatusTransition ||
+    shouldForceExpandedComparison ||
+    shouldForceExpandedWhenOldDataMissing;
+  const canToggleAccessExpansion = !shouldForceExpandedComparison && !shouldForceExpandedWhenOldDataMissing;
   const shouldPinChangedCardsInCollapsedPendingView = currentTab === "pending" && !isExpanded;
+  const shouldAutoExpandBasicDetails =
+    currentTab !== "pending"
+      ? true
+      : shouldShowNodeChangeComparison && hasNonNameBasicDetailsChanges;
   useEffect(() => {
     setIsExpanded(shouldAutoExpandAllCards);
     setCollapsedFocusedKey(null);
     setCollapsedDismissedKey(null);
   }, [historyDetailOverride, member.id, shouldAutoExpandAllCards]);
+  useEffect(() => {
+    setIsBasicDetailsExpanded(shouldAutoExpandBasicDetails);
+  }, [historyDetailOverride, member.id, shouldAutoExpandBasicDetails]);
   const formatStatusLabel = (value: string) =>
     value
       .toLowerCase()
@@ -1039,9 +1092,18 @@ export function UserManagePreview({
               <span className="text-[13px] font-black uppercase tracking-[0.18em] text-slate-500">Access Rights</span>
               <button
                 type="button"
-                onClick={() => setIsExpanded((v) => !v)}
-                className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 shadow-sm transition hover:border-[rgb(53,83,233)] hover:text-[rgb(53,83,233)]"
-                title={isExpanded ? "Collapse" : "Expand"}
+                onClick={() => {
+                  if (!canToggleAccessExpansion) return;
+                  setIsExpanded((v) => !v);
+                }}
+                disabled={!canToggleAccessExpansion}
+                className={cn(
+                  "flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 shadow-sm transition",
+                  canToggleAccessExpansion
+                    ? "hover:border-[rgb(53,83,233)] hover:text-[rgb(53,83,233)]"
+                    : "cursor-not-allowed opacity-50",
+                )}
+                title={canToggleAccessExpansion ? (isExpanded ? "Collapse" : "Expand") : "No differences to collapse"}
               >
                 {isExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
               </button>
@@ -1090,7 +1152,11 @@ export function UserManagePreview({
                         <div className="flex items-start gap-3">
                           <span className="min-w-[132px] shrink-0 text-slate-500">Designation</span>
                           <span className="text-slate-400">:</span>
-                          <span className="min-w-0 flex-1 font-semibold text-slate-900">{formattedDesignation || "-"}</span>
+                          <span className="min-w-0 flex-1">
+                            {canTogglePreviousUpdated
+                              ? renderDiffValue(formattedDesignation || "-", previousDesignationLabel, hasAnyBasicField("designation"))
+                              : <span className="font-semibold text-slate-900">{formattedDesignation || "-"}</span>}
+                          </span>
                         </div>
                         {shouldShowEmployeeId ? (
                           <div className="flex items-start gap-3">
@@ -1152,9 +1218,10 @@ export function UserManagePreview({
                                     parentSubtitle={group.parentSubtitle}
                                     nodeIndex={idx}
                                     categories={group.categories}
-                                    previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
+                                    previousCategories={getPreviousNodeCategories(previousPrimaryByNode, key)}
                                     changeState={changeState}
                                     isPrimary
+                                    showChangeIndicators={shouldShowDiffActionBadges}
                                   />
                                 </div>
                               );
@@ -1217,10 +1284,11 @@ export function UserManagePreview({
                               parentSubtitle={group.parentSubtitle}
                               nodeIndex={idx}
                               categories={group.categories}
-                              previousCategories={previousSecondaryByNode[key]?.categories ?? {}}
+                              previousCategories={getPreviousNodeCategories(previousSecondaryByNode, key)}
                               changeState={changeState}
                               addedLabel={group.hasAutoGeneratedAccess && !group.hasUserManagedAccess ? "Auto Generated" : "Added"}
                               isPrimary={false}
+                                    showChangeIndicators={shouldShowDiffActionBadges}
                             />
                           );
                         })}
@@ -1276,7 +1344,11 @@ export function UserManagePreview({
                           <div className="flex items-start gap-2.5">
                             <span className="min-w-[92px] shrink-0 text-slate-500">Designation</span>
                             <span className="text-slate-400">:</span>
-                            <span className="min-w-0 flex-1 font-semibold text-slate-900">{formattedDesignation || "-"}</span>
+                            <span className="min-w-0 flex-1">
+                              {canTogglePreviousUpdated
+                                ? renderDiffValue(formattedDesignation || "-", previousDesignationLabel, hasAnyBasicField("designation"))
+                                : <span className="font-semibold text-slate-900">{formattedDesignation || "-"}</span>}
+                            </span>
                           </div>
                         </div>
                         {!shouldShowGlobalManagerBadge ? (
@@ -1315,16 +1387,20 @@ export function UserManagePreview({
                       </div>
                     ) : (
                       <div className="rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2">
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div className="min-w-0">
-                            <div className="text-slate-500">Name</div>
-                            {canTogglePreviousUpdated
-                              ? renderDiffValue(userData.name || "-", previousName, hasAnyBasicField("name"))
-                              : <div className="truncate font-semibold text-slate-900">{userData.name || "-"}</div>}
+                        <div className="space-y-1.5 text-sm">
+                          <div className="flex items-start gap-3">
+                            <span className="min-w-[132px] shrink-0 text-slate-500">Name</span>
+                            <span className="text-slate-400">:</span>
+                            <span className="min-w-0 flex-1">
+                              {canTogglePreviousUpdated
+                                ? renderDiffValue(userData.name || "-", previousName, hasAnyBasicField("name"))
+                                : <span className="truncate font-semibold text-slate-900">{userData.name || "-"}</span>}
+                            </span>
                           </div>
-                          <div className="min-w-0">
-                            <div className="text-slate-500">Email</div>
-                            <div className="truncate font-semibold text-slate-900">{userData.email || "-"}</div>
+                          <div className="flex items-start gap-3">
+                            <span className="min-w-[132px] shrink-0 text-slate-500">Email</span>
+                            <span className="text-slate-400">:</span>
+                            <span className="min-w-0 flex-1 truncate font-semibold text-slate-900">{userData.email || "-"}</span>
                           </div>
                         </div>
                       </div>
@@ -1357,10 +1433,11 @@ export function UserManagePreview({
                                     parentSubtitle={group.parentSubtitle}
                                     nodeIndex={idx}
                                     categories={group.categories}
-                                  previousCategories={previousPrimaryByNode[key]?.categories ?? {}}
+                                  previousCategories={getPreviousNodeCategories(previousPrimaryByNode, key)}
                                   changeState={changeState}
                                   addedLabel={group.hasAutoGeneratedAccess && !group.hasUserManagedAccess ? "Auto Generated" : "Added"}
                                   isPrimary
+                                    showChangeIndicators={shouldShowDiffActionBadges}
                                   stackRows
                                   onClose={shouldKeepExpanded
                                       ? undefined
@@ -1433,10 +1510,11 @@ export function UserManagePreview({
                                   parentSubtitle={group.parentSubtitle}
                                   nodeIndex={idx}
                                   categories={group.categories}
-                                  previousCategories={previousSecondaryByNode[key]?.categories ?? {}}
+                                  previousCategories={getPreviousNodeCategories(previousSecondaryByNode, key)}
                                   changeState={changeState}
                                   addedLabel={group.hasAutoGeneratedAccess && !group.hasUserManagedAccess ? "Auto Generated" : "Added"}
                                   isPrimary={false}
+                                    showChangeIndicators={shouldShowDiffActionBadges}
                                   onClose={shouldKeepExpanded
                                     ? undefined
                                     : () => {
@@ -1617,4 +1695,13 @@ export function UserManagePreview({
 }
 
 export default UserManagePreview;
+
+
+
+
+
+
+
+
+
 
