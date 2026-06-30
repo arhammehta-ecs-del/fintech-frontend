@@ -61,13 +61,15 @@ const tabCountBadgeClassName: Record<string, string> = {
   Inactive: "bg-rose-100 text-rose-700",
 };
 
-// Configurable thresholds and table templates.
-const WORKFLOW_NAME_WRAP_THRESHOLD = 40;
-const MODULE_NAME_ADAPT_THRESHOLD = 20;
-const DEFAULT_WORKFLOW_TABLE_GRID =
-  "md:grid-cols-[minmax(15ch,1.45fr)_minmax(8ch,0.82fr)_minmax(9ch,0.86fr)_minmax(14ch,1.18fr)_minmax(6ch,0.52fr)_minmax(8.75ch,0.72fr)_minmax(72px,0.4fr)]";
-const ADAPTIVE_PENDING_WORKFLOW_TABLE_GRID =
-  "md:grid-cols-[minmax(17ch,1.62fr)_minmax(8ch,0.82fr)_minmax(9ch,0.86fr)_minmax(14ch,1.15fr)_minmax(6ch,0.52fr)_minmax(8.75ch,0.72fr)_minmax(72px,0.4fr)]";
+type WorkflowTableColumnTemplate = {
+  workflow: number;
+  alias: number;
+  module: number;
+  node: number;
+  type: number;
+  status: number;
+  manage: number;
+};
 
 const getLockErrorMessage = (error: unknown, fallback: string) => {
   const rawMessage =
@@ -87,12 +89,66 @@ const getWorkflowNodeHeading = (workflow: {
   module?: string;
   subModule?: string;
   nodeType?: string;
-}) => `${getWorkflowNodeDisplayName({
-  nodeName: workflow.nodeName,
-  nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
-  module: workflow.rawModule || workflow.module,
-  subModule: workflow.subModule,
-}) || ""} ${workflow.nodeType ? `(${formatSnakeCaseLabel(workflow.nodeType)})` : ""}`.trim();
+}) =>
+  `${getWorkflowNodeDisplayName({
+    nodeName: workflow.nodeName,
+    nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
+    module: workflow.rawModule || workflow.module,
+    subModule: workflow.subModule,
+  }) || ""} ${workflow.nodeType ? `(${formatSnakeCaseLabel(workflow.nodeType)})` : ""}`.trim();
+
+const buildWorkflowColumnTemplate = (workflows: typeof paginatedWorkflows): WorkflowTableColumnTemplate => {
+  const metrics = workflows.reduce(
+    (accumulator, workflow) => ({
+      workflow: Math.max(accumulator.workflow, (workflow.workflowName || workflow.name || workflow.alias || "").trim().length),
+      alias: Math.max(accumulator.alias, (workflow.alias || "").trim().length),
+      module: Math.max(accumulator.module, (workflow.module || workflow.rawModule || "").trim().length),
+      node: Math.max(accumulator.node, getWorkflowNodeHeading(workflow).length),
+      type: Math.max(accumulator.type, formatSnakeCaseLabel(workflow.nodeType || "").trim().length),
+    }),
+    { workflow: 16, alias: 10, module: 12, node: 24, type: 10 },
+  );
+
+  const baseWeights: WorkflowTableColumnTemplate = {
+    workflow: 18,
+    alias: 12,
+    module: 14,
+    node: 27,
+    type: 10,
+    status: 11,
+    manage: 8,
+  };
+
+  const workflowBoost = Math.min(Math.max(metrics.workflow - 34, 0) * 0.45, 12);
+  const moduleBoost = Math.min(Math.max(metrics.module - 20, 0) * 0.35, 7);
+  const nodeBoost = Math.min(Math.max(metrics.node - 40, 0) * 0.6, 16);
+  const typeBoost = Math.min(Math.max(metrics.type - 14, 0) * 0.2, 3);
+  const reclaim = workflowBoost + moduleBoost + nodeBoost + typeBoost;
+
+  const weights: WorkflowTableColumnTemplate = {
+    workflow: baseWeights.workflow + workflowBoost,
+    alias: Math.max(10, baseWeights.alias - reclaim * 0.1),
+    module: baseWeights.module + moduleBoost,
+    node: baseWeights.node + nodeBoost,
+    type: baseWeights.type + typeBoost,
+    status: Math.max(9, baseWeights.status - reclaim * 0.35),
+    manage: Math.max(6, baseWeights.manage - reclaim * 0.25),
+  };
+
+  const total = Object.values(weights).reduce((sum, value) => sum + value, 0);
+  return {
+    workflow: Number(((weights.workflow / total) * 100).toFixed(2)),
+    alias: Number(((weights.alias / total) * 100).toFixed(2)),
+    module: Number(((weights.module / total) * 100).toFixed(2)),
+    node: Number(((weights.node / total) * 100).toFixed(2)),
+    type: Number(((weights.type / total) * 100).toFixed(2)),
+    status: Number(((weights.status / total) * 100).toFixed(2)),
+    manage: Number(((weights.manage / total) * 100).toFixed(2)),
+  };
+};
+
+const buildWorkflowGridTemplate = (template: WorkflowTableColumnTemplate) =>
+  `${template.workflow}% ${template.alias}% ${template.module}% ${template.node}% ${template.type}% ${template.status}% ${template.manage}%`;
 
 const isDescendantNodePath = (parentPath: string, candidatePath: string) => {
   const normalizedParent = parentPath.trim().toUpperCase();
@@ -394,19 +450,10 @@ export default function WorkflowManagementView() {
   const isNotificationsPanelOpen = useNotificationsPanelOpen();
   const isAnyWorkflowDialogOpen = addDialogOpen || Boolean(manageWorkflow);
   const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
-  const shouldUseAdaptivePendingLayout = useMemo(
-    () =>
-      paginatedWorkflows.some(
-        (workflow) =>
-          (workflow.name || workflow.workflowName || "").trim().length > WORKFLOW_NAME_WRAP_THRESHOLD ||
-          (workflow.module || workflow.rawModule || "").trim().length > MODULE_NAME_ADAPT_THRESHOLD ||
-          getWorkflowNodeHeading(workflow).length > 40,
-      ),
+  const workflowGridTemplate = useMemo(
+    () => buildWorkflowGridTemplate(buildWorkflowColumnTemplate(paginatedWorkflows)),
     [paginatedWorkflows],
   );
-  const workflowGridTemplateClass = shouldUseAdaptivePendingLayout
-    ? ADAPTIVE_PENDING_WORKFLOW_TABLE_GRID
-    : DEFAULT_WORKFLOW_TABLE_GRID;
   const totalWorkflowsForTab =
     activeStatus === "Pending"
       ? statusCounts.pending
@@ -1273,8 +1320,8 @@ export default function WorkflowManagementView() {
         {filteredWorkflows.length === 0 ? (
           <div className="p-8 text-sm text-slate-500">No {activeStatus.toLowerCase()} workflows available.</div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto">
-            <div className={cn("sticky top-0 z-20 grid grid-cols-1 gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur md:items-center md:gap-x-4", workflowGridTemplateClass)}>
+          <div className="min-h-0 flex-1 overflow-auto" style={{ ["--workflow-grid-template" as string]: workflowGridTemplate }}>
+            <div className="sticky top-0 z-20 grid grid-cols-1 gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur md:items-center md:gap-x-4 md:[grid-template-columns:var(--workflow-grid-template)]">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Workflow</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Alias</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Module</div>
@@ -1291,20 +1338,11 @@ export default function WorkflowManagementView() {
                 return (
                   <div
                     key={workflow.id}
-                    className={cn(
-                      "grid grid-cols-1 gap-2 p-4 transition-colors duration-150 hover:bg-slate-100 md:items-center md:gap-x-3",
-                      workflowGridTemplateClass,
-                    )}
+                    className="grid grid-cols-1 gap-2 p-4 transition-colors duration-150 hover:bg-slate-100 md:items-center md:gap-x-3 md:[grid-template-columns:var(--workflow-grid-template)]"
                   >
                     <div className="min-w-0">
                       <div
-                        className={cn(
-                          "text-sm font-semibold text-slate-800",
-                          shouldUseAdaptivePendingLayout
-                            ? "[overflow-wrap:anywhere]"
-                            : "truncate whitespace-nowrap",
-                        )}
-                        style={shouldUseAdaptivePendingLayout ? { maxWidth: `${WORKFLOW_NAME_WRAP_THRESHOLD}ch` } : undefined}
+                        className="truncate whitespace-nowrap text-sm font-semibold text-slate-800"
                         title={workflow.workflowName || workflow.name || workflow.alias || "-"}
                       >
                         {workflow.workflowName || workflow.name || workflow.alias || "—"}
@@ -1312,7 +1350,7 @@ export default function WorkflowManagementView() {
                     </div>
                     <div className="truncate whitespace-nowrap text-sm font-medium text-violet-700" title={workflow.alias}>{workflow.alias}</div>
                     <div
-                      className="min-w-0 break-words text-sm text-slate-700"
+                      className="truncate whitespace-nowrap text-sm text-slate-700"
                       title={workflow.module || workflow.rawModule || workflow.workflowAlias || workflow.workflowName || "-"}
                     >
                       {workflow.module || workflow.rawModule || workflow.workflowAlias || workflow.workflowName || "—"}
@@ -1320,7 +1358,7 @@ export default function WorkflowManagementView() {
                     <div className="min-w-0 text-sm text-slate-700">
                       <p
                         className={cn(
-                          "flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 text-sm leading-5 text-slate-700",
+                          "flex min-w-0 items-center gap-1.5 truncate text-sm leading-5 text-slate-700",
                           typeof workflow.levelCount === "number" &&
                           "before:shrink-0 before:rounded before:bg-indigo-100 before:px-1 before:py-0.5 before:text-[9px] before:font-bold before:tracking-wider before:text-indigo-700 before:content-[attr(data-level)]",
                         )}
@@ -1332,7 +1370,7 @@ export default function WorkflowManagementView() {
                           subModule: workflow.subModule,
                         }) || "—"}${workflow.nodeType ? ` (${formatSnakeCaseLabel(workflow.nodeType)})` : ""}`}
                       >
-                        <span className="min-w-0 break-words font-medium text-slate-700">
+                        <span className="min-w-0 truncate font-medium text-slate-700">
                           {getWorkflowNodeDisplayName({
                             nodeName: workflow.nodeName,
                             nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
@@ -1357,7 +1395,7 @@ export default function WorkflowManagementView() {
                         return pathPreview ? <NodePathMarquee text={pathPreview} /> : null;
                       })()}
                     </div>
-                    <div className="min-w-0 break-words text-sm text-slate-700">{formatSnakeCaseLabel(workflow.nodeType || "") || "-"}</div>
+                    <div className="truncate whitespace-nowrap text-sm text-slate-700">{formatSnakeCaseLabel(workflow.nodeType || "") || "-"}</div>
                     <div>
                       <div className="flex flex-col items-center gap-1 md:items-center">
                         <span
