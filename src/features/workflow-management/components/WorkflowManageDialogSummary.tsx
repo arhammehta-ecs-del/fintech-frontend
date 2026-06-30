@@ -205,8 +205,8 @@ const renderConnectorDiff = ({
 
   const label = next || prev || "-";
   const colorClass =
-    label === "AND" ? "border-slate-300 bg-slate-100 text-slate-600" :
-      label === "OR" ? "border-slate-300 bg-slate-100 text-slate-600" :
+    label === "AND" ? "border-violet-200 bg-violet-100 text-violet-700 font-bold" :
+      label === "OR" ? "border-violet-200 bg-violet-100 text-violet-700 font-bold" :
         "bg-slate-100 text-slate-500 border-slate-200";
 
   return (
@@ -449,11 +449,18 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
                   const slotCount = Math.max(currentApprovals.length, previousApprovals.length);
                   const isCollapsed = collapsedLevels[id] ?? false;
                   const normalAccentColors = [
-                    "border-l-indigo-500",
-                    "border-l-orange-500",
-                    "border-l-sky-500",
-                    "border-l-emerald-500",
-                    "border-l-fuchsia-500"
+                    "border-l-indigo-300",
+                    "border-l-sky-300",
+                    "border-l-teal-300",
+                    "border-l-blue-300",
+                    "border-l-violet-300"
+                  ];
+                  const normalBadgeColors = [
+                    "border-indigo-300 bg-indigo-100 text-indigo-700 font-bold",
+                    "border-sky-300 bg-sky-100 text-sky-700 font-bold",
+                    "border-teal-300 bg-teal-100 text-teal-700 font-bold",
+                    "border-blue-300 bg-blue-100 text-blue-700 font-bold",
+                    "border-violet-300 bg-violet-100 text-violet-700 font-bold"
                   ];
                   const levelAccentClass = isRemoved
                     ? "border-l-rose-500"
@@ -488,7 +495,7 @@ export function SummaryPreview({ workflow }: { workflow: SummaryPreviewWorkflow 
                                 ? "border-emerald-200 bg-emerald-100 text-emerald-700"
                                 : isChanged
                                   ? "border-amber-200 bg-amber-100 text-amber-700"
-                                  : "border-slate-200 bg-slate-100 text-slate-600",
+                                  : normalBadgeColors[(id - 1) % normalBadgeColors.length],
                           )}
                         >
                           L{id}

@@ -97,11 +97,11 @@ const approverLabel = (option: string) => APPROVAL_OPTIONS.find((entry) => entry
 const levelSignature = (level: WorkflowLevel) => `${level.type}:${level.approvals.map((approval) => approval.option || "").join("|")}`;
 
 const levelToneClasses = [
-  "border-indigo-200 bg-indigo-50 text-indigo-700",
-  "border-orange-200 bg-orange-50 text-orange-700",
-  "border-sky-200 bg-sky-50 text-sky-700",
-  "border-emerald-200 bg-emerald-50 text-emerald-700",
-  "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700",
+  "border-indigo-300 bg-indigo-100 text-indigo-700 font-bold",
+  "border-sky-300 bg-sky-100 text-sky-700 font-bold",
+  "border-teal-300 bg-teal-100 text-teal-700 font-bold",
+  "border-blue-300 bg-blue-100 text-blue-700 font-bold",
+  "border-violet-300 bg-violet-100 text-violet-700 font-bold",
 ];
 
 const renderNodeValue = (nodeNameLabel: string, wfNode: string, nodeLevelCount?: number) => (
@@ -154,11 +154,11 @@ export default function WorkflowStepSummary({
     }));
 
   const normalAccentColors = [
-    "border-l-indigo-500",
-    "border-l-orange-500",
-    "border-l-sky-500",
-    "border-l-emerald-500",
-    "border-l-fuchsia-500",
+    "border-l-indigo-300",
+    "border-l-sky-300",
+    "border-l-teal-300",
+    "border-l-blue-300",
+    "border-l-violet-300"
   ];
 
   return (

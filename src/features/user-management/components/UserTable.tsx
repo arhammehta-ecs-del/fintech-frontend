@@ -25,6 +25,14 @@ type UserTableProps = {
   onDelete?: (member: AppUser) => void;
 };
 
+type UserTableColumnTemplate = {
+  name: number;
+  designation: number;
+  node: number;
+  contact: number;
+  manage: number;
+};
+
 const getPrimaryNodeMeta = (member: AppUser) => {
   const accessEntries = member.accessDetails ?? [];
   const preferredAccess =
@@ -60,6 +68,81 @@ const getPrimaryNodeMeta = (member: AppUser) => {
 };
 
 const normalizeAccessValue = (value: string) => value.trim().toUpperCase();
+
+const toTitleCase = (value: string) =>
+  value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : "";
+
+const getNodeLabelLength = (nodeName: string, nodeType: string) =>
+  `${nodeName.trim()} ${nodeType ? `(${toTitleCase(nodeType)})` : ""}`.trim().length;
+
+const buildColumnTemplate = (
+  members: AppUser[],
+  linkedAccessContext?: UserTableProps["linkedAccessContext"],
+): UserTableColumnTemplate => {
+  const metrics = members.reduce(
+    (accumulator, member) => {
+      const nameLength = (member.name || "").trim().length;
+      const emailLength = (member.email || "").trim().length;
+      const designationLength = (member.designation || "").trim().length;
+      const matchedAccessMeta = getMatchedAccessMeta(member, linkedAccessContext);
+      const baseNodeMeta = getPrimaryNodeMeta(member);
+      const activeNodeMeta = matchedAccessMeta
+        ? {
+            departmentLabel: matchedAccessMeta.nodeName,
+            nodeType: matchedAccessMeta.nodeType,
+          }
+        : {
+            departmentLabel: baseNodeMeta.departmentLabel,
+            nodeType: baseNodeMeta.nodeType,
+          };
+      const nodeLabelLength = getNodeLabelLength(activeNodeMeta.departmentLabel || "", activeNodeMeta.nodeType || "");
+
+      return {
+        name: Math.max(accumulator.name, nameLength),
+        email: Math.max(accumulator.email, emailLength),
+        designation: Math.max(accumulator.designation, designationLength),
+        node: Math.max(accumulator.node, nodeLabelLength),
+      };
+    },
+    { name: 18, email: 24, designation: 14, node: 24 },
+  );
+
+  const baseWeights: UserTableColumnTemplate = {
+    name: 28,
+    designation: 16,
+    node: 30,
+    contact: 14,
+    manage: 12,
+  };
+
+  const nameOverflow = Math.max(metrics.name - 40, 0);
+  const emailOverflow = Math.max(metrics.email - 32, 0);
+  const nodeOverflow = Math.max(metrics.node - 40, 0);
+  const designationOverflow = Math.max(metrics.designation - 22, 0);
+
+  const nameBoost = Math.min(nameOverflow * 0.45 + emailOverflow * 0.15, 14);
+  const nodeBoost = Math.min(nodeOverflow * 0.6, 18);
+  const designationBoost = Math.min(designationOverflow * 0.25, 5);
+  const totalBoost = nameBoost + nodeBoost + designationBoost;
+
+  const weights: UserTableColumnTemplate = {
+    name: baseWeights.name + nameBoost,
+    designation: baseWeights.designation + designationBoost,
+    node: baseWeights.node + nodeBoost,
+    contact: Math.max(12, baseWeights.contact - totalBoost * 0.35),
+    manage: Math.max(9, baseWeights.manage - totalBoost * 0.45),
+  };
+
+  const total = Object.values(weights).reduce((sum, value) => sum + value, 0);
+
+  return {
+    name: Number(((weights.name / total) * 100).toFixed(2)),
+    designation: Number(((weights.designation / total) * 100).toFixed(2)),
+    node: Number(((weights.node / total) * 100).toFixed(2)),
+    contact: Number(((weights.contact / total) * 100).toFixed(2)),
+    manage: Number(((weights.manage / total) * 100).toFixed(2)),
+  };
+};
 
 const getMatchedAccessMeta = (
   member: AppUser,
@@ -196,59 +279,7 @@ export default function UserTable({
   const [historyOpenForUser, setHistoryOpenForUser] = useState<AppUser | null>(null);
 
   const columnTemplate = useMemo(() => {
-    const metrics = paginatedMembers.reduce(
-      (accumulator, member) => {
-        const nameLength = `${member.name || ""} ${(member.email || "")}`.trim().length;
-        const designationLength = (member.designation || "").trim().length;
-        const matchedAccessMeta = getMatchedAccessMeta(member, linkedAccessContext);
-        const baseNodeMeta = getPrimaryNodeMeta(member);
-        const activeNodeMeta = matchedAccessMeta
-          ? {
-              departmentLabel: matchedAccessMeta.nodeName,
-              primaryNodePath: matchedAccessMeta.nodePath,
-              showPath: matchedAccessMeta.showPath,
-              nodeType: matchedAccessMeta.nodeType,
-            }
-          : baseNodeMeta;
-        const displayNodeType = activeNodeMeta.nodeType
-          ? activeNodeMeta.nodeType.charAt(0).toUpperCase() + activeNodeMeta.nodeType.slice(1).toLowerCase()
-          : "";
-        const nodeLength = `${activeNodeMeta.departmentLabel || ""} ${displayNodeType} ${activeNodeMeta.primaryNodePath || ""}`.trim().length;
-
-        return {
-          name: Math.max(accumulator.name, nameLength),
-          designation: Math.max(accumulator.designation, designationLength),
-          node: Math.max(accumulator.node, nodeLength),
-        };
-      },
-      { name: 18, designation: 14, node: 24 },
-    );
-
-    const baseWeights = { name: 22, designation: 18, node: 22, contact: 18, manage: 20 };
-    const nodeBoost = Math.min(Math.max(metrics.node - 30, 0) * 0.55, 16);
-    const nameBoost = Math.min(Math.max(metrics.name - 24, 0) * 0.3, 8);
-    const designationBoost = Math.min(Math.max(metrics.designation - 18, 0) * 0.2, 4);
-    const reclaimFromStaticColumns = Math.min(nodeBoost + nameBoost + designationBoost, 18);
-
-    let weights = {
-      name: baseWeights.name + nameBoost,
-      designation: baseWeights.designation + designationBoost,
-      node: baseWeights.node + nodeBoost,
-      contact: Math.max(14, baseWeights.contact - reclaimFromStaticColumns * 0.35),
-      manage: Math.max(10, baseWeights.manage - reclaimFromStaticColumns * 0.65),
-    };
-
-    const total = Object.values(weights).reduce((sum, value) => sum + value, 0);
-    const scale = 100 / total;
-    weights = {
-      name: Number((weights.name * scale).toFixed(2)),
-      designation: Number((weights.designation * scale).toFixed(2)),
-      node: Number((weights.node * scale).toFixed(2)),
-      contact: Number((weights.contact * scale).toFixed(2)),
-      manage: Number((weights.manage * scale).toFixed(2)),
-    };
-
-    return weights;
+    return buildColumnTemplate(paginatedMembers, linkedAccessContext);
   }, [linkedAccessContext, paginatedMembers]);
 
   if (isLoading) {
@@ -350,9 +381,7 @@ export default function UserTable({
                         }
                       : baseNodeMeta;
                     const formattedPath = activeNodeMeta.showPath ? formatCollapsedNodePath(activeNodeMeta.primaryNodePath) : "";
-                    const displayNodeType = activeNodeMeta.nodeType
-                      ? activeNodeMeta.nodeType.charAt(0).toUpperCase() + activeNodeMeta.nodeType.slice(1).toLowerCase()
-                      : "";
+                    const displayNodeType = toTitleCase(activeNodeMeta.nodeType || "");
 
                     return (
                       <div className="min-w-0 max-w-full space-y-1">
