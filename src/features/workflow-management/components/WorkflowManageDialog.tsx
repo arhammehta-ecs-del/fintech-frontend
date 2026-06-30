@@ -1084,13 +1084,6 @@ const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
             </div>
           ) : null}
         </DialogHeader>
-
-        <style dangerouslySetInnerHTML={{ __html: `
-          .dark-dialog-scrollbar::-webkit-scrollbar { width: 10px; height: 10px; }
-          .dark-dialog-scrollbar::-webkit-scrollbar-track { background: transparent; }
-          .dark-dialog-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
-          .dark-dialog-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; border: 2px solid transparent; background-clip: padding-box; }
-        `}} />
         <div className="dark-dialog-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50/30 px-5 pb-5 pt-2">
           <SummaryPreview workflow={{ ...displayWorkflow, previousWorkflow }} />
 
@@ -1257,6 +1250,7 @@ const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
     </Dialog>
   );
 }
+
 
 
 

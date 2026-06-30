@@ -97,17 +97,54 @@
 
   /* Global sleek scrollbar styling */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-slate-200 rounded-full;
+    background: #94a3b8;
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-300;
+    background: #64748b;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .custom-scrollbar,
+  .dark-dialog-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar,
+  .dark-dialog-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track,
+  .dark-dialog-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb,
+  .dark-dialog-scrollbar::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover,
+  .dark-dialog-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+    border: 2px solid transparent;
+    background-clip: padding-box;
   }
 
   /* Sidebar-specific scrollbar – blends with the dark surface */
@@ -303,4 +340,5 @@
 .api-marquee-wrap:hover .api-marquee-track {
   animation: api-marquee 9s linear infinite;
 }
+
 

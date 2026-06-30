@@ -234,19 +234,10 @@ export default function WorkflowOnboardingView({
           </button>
         </div>
       </div>
-
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-            .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
-            .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-          `,
-        }}
-      />
     </div>
   );
 }
+
 
 
 

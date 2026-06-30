@@ -4,6 +4,16 @@ import { AppSidebar } from "@/features/dashboard-layout/components/AppSidebar";
 import { AppTopBar } from "@/features/dashboard-layout/components/AppTopBar";
 import { SessionTimeoutDialog } from "@/features/dashboard-layout/components/SessionTimeoutDialog";
 import { useSessionTimeout } from "@/features/dashboard-layout/hooks/useSessionTimeout";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAppContext } from "@/contexts/AppContext";
 import { logout } from "@/services/auth.service";
 
@@ -39,6 +49,7 @@ export default function DashboardLayout() {
     return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
   });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -68,7 +79,7 @@ export default function DashboardLayout() {
           collapsed={collapsed}
           locationPathname={location.pathname}
           onToggleCollapsed={() => setCollapsed((current) => !current)}
-          onLogout={logoutNow}
+          onLogout={() => setLogoutConfirmOpen(true)}
         />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
@@ -81,7 +92,7 @@ export default function DashboardLayout() {
             users={users}
             currentUser={currentUser}
             navigate={navigate}
-            onLogout={logoutNow}
+            onLogout={() => setLogoutConfirmOpen(true)}
           />
 
           <main className={`min-h-0 flex-1 ${isCompanyListRoute ? "overflow-hidden" : "overflow-auto"}`}>
@@ -103,9 +114,27 @@ export default function DashboardLayout() {
         onLogoutNow={logoutNow}
         onStaySignedIn={resetTimer}
       />
+
+      <AlertDialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Logout</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to logout?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void logoutNow();
+              }}
+            >
+              Yes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-
-
-

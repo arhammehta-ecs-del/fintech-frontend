@@ -343,7 +343,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     <div
       className={cn(
         "flex overflow-hidden bg-[#fcfcfd]",
-        embedded ? "h-[calc(100vh-184px)] min-h-[680px] rounded-lg border border-slate-200" : "h-[calc(100vh-56px)]",
+        embedded ? "md:h-[calc(100dvh-10.5rem)] md:min-h-[680px] rounded-lg border border-slate-200" : "h-[calc(100vh-56px)]",
       )}
     >
       <div className={cn("relative flex w-full items-stretch overflow-hidden", hasHorizontalOverflow ? "pb-12" : "pb-0")}>
@@ -703,6 +703,9 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
 export default function OrgStructureViewPage() {
   return <OrgStructureView />;
 }
+
+
+
 
 
 
