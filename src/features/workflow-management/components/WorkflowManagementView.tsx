@@ -110,29 +110,29 @@ const buildWorkflowColumnTemplate = (workflows: typeof paginatedWorkflows): Work
   );
 
   const baseWeights: WorkflowTableColumnTemplate = {
-    workflow: 18,
+    workflow: 23,
     alias: 12,
-    module: 14,
-    node: 27,
+    module: 16,
+    node: 18,
     type: 10,
-    status: 11,
+    status: 13,
     manage: 8,
   };
 
-  const workflowBoost = Math.min(Math.max(metrics.workflow - 34, 0) * 0.45, 12);
-  const moduleBoost = Math.min(Math.max(metrics.module - 20, 0) * 0.35, 7);
-  const nodeBoost = Math.min(Math.max(metrics.node - 40, 0) * 0.6, 16);
-  const typeBoost = Math.min(Math.max(metrics.type - 14, 0) * 0.2, 3);
+  const workflowBoost = Math.min(Math.max(metrics.workflow - 34, 0) * 0.42, 10);
+  const moduleBoost = Math.min(Math.max(metrics.module - 20, 0) * 0.32, 6);
+  const nodeBoost = Math.min(Math.max(metrics.node - 40, 0) * 0.75, 18);
+  const typeBoost = Math.min(Math.max(metrics.type - 14, 0) * 0.18, 3);
   const reclaim = workflowBoost + moduleBoost + nodeBoost + typeBoost;
 
   const weights: WorkflowTableColumnTemplate = {
     workflow: baseWeights.workflow + workflowBoost,
-    alias: Math.max(10, baseWeights.alias - reclaim * 0.1),
+    alias: Math.max(10, baseWeights.alias - reclaim * 0.08),
     module: baseWeights.module + moduleBoost,
     node: baseWeights.node + nodeBoost,
     type: baseWeights.type + typeBoost,
-    status: Math.max(9, baseWeights.status - reclaim * 0.35),
-    manage: Math.max(6, baseWeights.manage - reclaim * 0.25),
+    status: Math.max(10, baseWeights.status - reclaim * 0.18),
+    manage: Math.max(6, baseWeights.manage - reclaim * 0.14),
   };
 
   const total = Object.values(weights).reduce((sum, value) => sum + value, 0);
