@@ -1,5 +1,5 @@
 import { ChevronRight, Rocket } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import WorkflowStepper from "@/features/workflow-management/components/onboarding/WorkflowStepper";
@@ -65,9 +65,20 @@ export default function WorkflowOnboardingView({
     handleBack,
   } = useWorkflowOnboarding({ isOpen, onPublished, mode, seedWorkflow });
 
+  const remarkSectionRef = useRef<HTMLDivElement | null>(null);
+  const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
+
   useEffect(() => {
     onStepChange?.(step);
   }, [onStepChange, step]);
+
+  useEffect(() => {
+    if (!(resolvedMode === "edit" && remarkTouched && !remarks.trim())) return;
+    requestAnimationFrame(() => {
+      remarkSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      remarkInputRef.current?.focus();
+    });
+  }, [remarkTouched, remarks, resolvedMode]);
 
   const stepContent = (
     <div
@@ -149,13 +160,14 @@ export default function WorkflowOnboardingView({
           <div className="flex min-h-full flex-col p-5">
             <WorkflowStepper step={step} />
             {stepContent}
-            <div className="mt-4 border-t border-slate-200 bg-white px-1 pt-4">
+            <div ref={remarkSectionRef} className="mt-4 border-t border-slate-200 bg-white px-1 pt-4">
               <div className="flex items-end gap-2">
                 <div className="flex w-full flex-col gap-1.5">
                   <label className="text-xs font-semibold text-slate-700">
                     Remark{isUpdateRemarkRequired ? <span className="text-rose-500"> *</span> : null}
                   </label>
                   <Textarea
+                    ref={remarkInputRef}
                     value={remarks}
                     onChange={(event) => {
                       setRemarks(event.target.value);

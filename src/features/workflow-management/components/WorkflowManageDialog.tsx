@@ -377,6 +377,10 @@ export default function WorkflowManageDialog({
 
   const remarkCardRef = useRef<HTMLDivElement | null>(null);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const statusRemarkCardRef = useRef<HTMLDivElement | null>(null);
+  const statusRemarkInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const deleteRemarkCardRef = useRef<HTMLDivElement | null>(null);
+  const deleteRemarkInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [remark, setRemark] = useState("");
   const [remarkTouched, setRemarkTouched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -415,6 +419,22 @@ export default function WorkflowManageDialog({
       remarkInputRef.current?.focus();
     });
   }, [pendingDecision]);
+
+  useEffect(() => {
+    if (!pendingStatus || !statusRemarkTouched || statusRemark.trim()) return;
+    requestAnimationFrame(() => {
+      statusRemarkCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      statusRemarkInputRef.current?.focus();
+    });
+  }, [pendingStatus, statusRemark, statusRemarkTouched]);
+
+  useEffect(() => {
+    if (!showDeleteActions || !deleteRemarkError) return;
+    requestAnimationFrame(() => {
+      deleteRemarkCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      deleteRemarkInputRef.current?.focus();
+    });
+  }, [deleteRemarkError, showDeleteActions]);
 
   useEffect(() => {
     if (!open || !workflow || initialAction !== "delete" || showDeleteActions || workflow.status === "Inactive") return;
@@ -736,7 +756,13 @@ const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
 
   const handleSubmitPendingAction = async () => {
     setRemarkTouched(true);
-    if (!isRemarkValid || !pendingDecision) return;
+    if (!isRemarkValid || !pendingDecision) {
+      requestAnimationFrame(() => {
+        remarkCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        remarkInputRef.current?.focus();
+      });
+      return;
+    }
     setIsSubmitting(true);
     try {
       await onSubmitAction(workflow, pendingDecision, remark.trim());
@@ -772,7 +798,13 @@ const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
 
   const handleSubmitStatusUpdate = async () => {
     setStatusRemarkTouched(true);
-    if (!onSubmitStatusUpdate || !pendingStatus || !statusRemark.trim()) return;
+    if (!onSubmitStatusUpdate || !pendingStatus || !statusRemark.trim()) {
+      requestAnimationFrame(() => {
+        statusRemarkCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        statusRemarkInputRef.current?.focus();
+      });
+      return;
+    }
     setStatusSubmitting(true);
     try {
       await onSubmitStatusUpdate({
@@ -1086,11 +1118,12 @@ const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
 
         <div className="shrink-0 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
           {!isPending && !isHistoryPreviewActive && pendingStatus && onSubmitStatusUpdate ? (
-            <div className="mb-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+            <div ref={statusRemarkCardRef} className="mb-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
               <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                 {pendingStatus === "inactive" ? "Submit Inactive Request" : "Submit Active Request"}
               </div>
               <Textarea
+                ref={statusRemarkInputRef}
                 value={statusRemark}
                 onChange={(event) => setStatusRemark(event.target.value)}
                 placeholder="Add remark"
@@ -1101,11 +1134,12 @@ const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
           ) : null}
 
           {canDeleteWorkflow && !isPending && !isHistoryPreviewActive && showDeleteActions ? (
-            <div className="mb-4 rounded-2xl border border-rose-200 bg-white p-4 shadow-sm">
+            <div ref={deleteRemarkCardRef} className="mb-4 rounded-2xl border border-rose-200 bg-white p-4 shadow-sm">
               <div className="mb-2 text-xs font-bold uppercase tracking-wider text-rose-600">
                 Submit Delete Request
               </div>
               <Textarea
+                ref={deleteRemarkInputRef}
                 value={deleteRemark}
                 onChange={(event) => onDeleteRemarkChange?.(event.target.value)}
                 placeholder={deleteRemarkPlaceholder}
@@ -1126,7 +1160,7 @@ const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
                   <Button
                     className="rounded-xl bg-emerald-600 px-4 text-white hover:bg-emerald-700"
                     onClick={() => void handleSubmitPendingAction()}
-                    disabled={!isRemarkValid || isSubmitting}
+                    disabled={isSubmitting}
                   >
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                     Approve
@@ -1137,7 +1171,7 @@ const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
                   <Button
                     variant="outline"
                     onClick={() => void handleSubmitPendingAction()}
-                    disabled={!isRemarkValid || isSubmitting}
+                    disabled={isSubmitting}
                     className="rounded-xl border-[rgb(220,38,38)] bg-[rgb(220,38,38)] px-4 text-white hover:bg-[rgb(220,38,38)] hover:text-white"
                   >
                     <X className="mr-2 h-4 w-4" />
