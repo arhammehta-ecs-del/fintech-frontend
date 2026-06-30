@@ -808,7 +808,7 @@ export function UserManagementView() {
   }, [pageMemberCount, pageSize, safePage, totalMembersForTab]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <UserFilters
         statusTab={statusTab}
         onStatusTabChange={(value) => {
@@ -873,17 +873,17 @@ export function UserManagementView() {
         permissionSummary={permissionSummary}
       />
 
-      <Card className="overflow-hidden border-slate-200 shadow-sm md:flex md:h-[calc(100dvh-19.5rem)] md:min-h-[500px] md:flex-col">
-        <CardHeader className="flex flex-col gap-4 border-b border-slate-200 bg-white sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-800">
+      <Card className="overflow-hidden border-slate-200 shadow-sm md:flex md:h-[calc(100dvh-15rem)] md:min-h-[600px] md:flex-col">
+        <CardHeader className="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-800">
               {statusTab === "inactive" ? <EyeOff className="h-4 w-4" /> : <Users className="h-4 w-4" />}
               {displayStatusHeading} ({displayMemberCount})
             </CardTitle>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-                        <Button
+            <Button
               size="sm"
               className="bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.22)] hover:bg-[hsl(235,60%,45%)]"
               onClick={() => {
@@ -1247,5 +1247,9 @@ export function UserManagementView() {
     </div>
   );
 }
+
+
+
+
 
 

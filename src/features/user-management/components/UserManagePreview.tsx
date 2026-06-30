@@ -1580,7 +1580,7 @@ export function UserManagePreview({
                 onBlur={() => setRemarkTouched(true)}
                 maxLength={100}
                 placeholder={`Enter remark for ${pendingDecision === "approve" ? "approval" : "rejection"}`}
-                className="mt-3 min-h-[88px]"
+                className="mt-3 h-11 min-h-0 resize-none"
               />
               {showRemarkError ? <p className="mt-2 text-xs text-rose-600">Please enter a remark.</p> : null}
             </div>
@@ -1695,6 +1695,7 @@ export function UserManagePreview({
 }
 
 export default UserManagePreview;
+
 
 
 

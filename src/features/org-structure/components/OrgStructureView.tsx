@@ -343,7 +343,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     <div
       className={cn(
         "flex overflow-hidden bg-[#fcfcfd]",
-        embedded ? "h-[calc(100vh-220px)] min-h-[640px] rounded-lg border border-slate-200" : "h-[calc(100vh-56px)]",
+        embedded ? "h-[calc(100vh-184px)] min-h-[680px] rounded-lg border border-slate-200" : "h-[calc(100vh-56px)]",
       )}
     >
       <div className={cn("relative flex w-full items-stretch overflow-hidden", hasHorizontalOverflow ? "pb-12" : "pb-0")}>
@@ -354,16 +354,15 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
               embedded ? "overflow-y-auto overscroll-contain" : "overflow-y-auto",
             )}
           >
-            <div className={cn("px-9", embedded ? "pt-[10px]" : "pt-10")}>
-              <div className="mb-4 flex items-start justify-between gap-4">
-                <div>
-                  <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-slate-900">Organisation Structure</h1>
-                  <div className="mt-1 flex items-center gap-1.5 overflow-hidden text-[13px] text-slate-400">
-                    <span className="transition-all duration-300 hover:text-slate-600">{companyName}</span>
+            <div className={cn("px-9", embedded ? "pt-3" : "pt-8")}>
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 overflow-hidden text-[13px] text-slate-400">
+                    <span className="truncate text-sm font-semibold text-slate-700 transition-all duration-300 hover:text-slate-900">{companyName}</span>
                     <span className="opacity-40">·</span>
                     <span
                       key={`${displayedCount}-${pendingCount}-${showPending ? "show" : "hide"}`}
-                      className="inline-flex items-center gap-1 animate-[fadeInUp_0.3s_ease-out] font-medium"
+                      className="inline-flex items-center gap-1 whitespace-nowrap animate-[fadeInUp_0.3s_ease-out] font-medium"
                     >
                       {showPending && pendingCount > 0 ? (
                         <>
@@ -375,14 +374,14 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                       )}
                     </span>
                     {!showPending && pendingCount > 0 && (
-                      <span className="ml-1 text-[11px] font-normal text-amber-500/80 italic animate-pulse">
+                      <span className="ml-1 whitespace-nowrap text-[11px] font-normal text-amber-500/80 italic animate-pulse">
                         (+{pendingCount} Pending)
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
                   {hasPending ? (
                     <button
                       type="button"
@@ -492,7 +491,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                 />
               ) : (
                 <div className="flex min-h-[520px] items-center justify-center text-center">
-                  <div>
+                  <div className="min-w-0">
                     <Building2 className="mx-auto h-10 w-10 text-slate-300" />
                     <p className="mt-4 text-base font-medium text-slate-700">
                       {orgLoading ? "Loading organisation structure..." : "No organisation structure available"}
@@ -704,3 +703,5 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
 export default function OrgStructureViewPage() {
   return <OrgStructureView />;
 }
+
+

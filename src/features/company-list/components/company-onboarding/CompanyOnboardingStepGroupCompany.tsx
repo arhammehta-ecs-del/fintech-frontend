@@ -83,7 +83,7 @@ export function CompanyOnboardingStepGroupCompany({
               onChange={(event) => onRemarksChange(event.target.value)}
               placeholder="Optional: add context for the new group"
               rows={4}
-              className="min-h-[96px]"
+              className="h-11 min-h-0 resize-none"
             />
           </div>
         </div>
@@ -170,7 +170,7 @@ export function CompanyOnboardingStepGroupCompany({
               onChange={(event) => onRemarksChange(event.target.value)}
               placeholder="Optional: add context for onboarding under this group"
               rows={4}
-              className="min-h-[96px]"
+              className="h-11 min-h-0 resize-none"
             />
           </div>
         </div>
@@ -189,7 +189,7 @@ export function CompanyOnboardingStepGroupCompany({
               onChange={(event) => onRemarksChange(event.target.value)}
               placeholder="Optional: add context for independent onboarding"
               rows={4}
-              className="min-h-[96px]"
+              className="h-11 min-h-0 resize-none"
             />
           </div>
         </div>
@@ -199,3 +199,4 @@ export function CompanyOnboardingStepGroupCompany({
 }
 
 export default CompanyOnboardingStepGroupCompany;
+

@@ -294,7 +294,7 @@ export function CompanyPreviewDialog({
                     onBlur={() => setRemarkTouched(true)}
                     maxLength={100}
                     placeholder={`Enter remark for ${pendingDecision === "approve" ? "approval" : "rejection"}`}
-                    className="min-h-[88px]"
+                    className="h-11 min-h-0 resize-none"
                   />
                   {showRemarkError ? <p className="text-xs text-destructive">Please enter a remark.</p> : null}
                 </div>
@@ -357,4 +357,5 @@ export function CompanyPreviewDialog({
     </Dialog>
   );
 }
+
 

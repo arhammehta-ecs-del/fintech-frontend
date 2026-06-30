@@ -65,9 +65,9 @@ const tabCountBadgeClassName: Record<string, string> = {
 const WORKFLOW_NAME_WRAP_THRESHOLD = 40;
 const MODULE_NAME_ADAPT_THRESHOLD = 20;
 const DEFAULT_WORKFLOW_TABLE_GRID =
-  "md:grid-cols-[minmax(16ch,1.55fr)_minmax(9ch,0.9fr)_minmax(10ch,0.9fr)_minmax(16ch,1.45fr)_minmax(7ch,0.7fr)_minmax(9ch,0.8fr)_minmax(72px,0.45fr)]";
+  "md:grid-cols-[minmax(15ch,1.45fr)_minmax(8ch,0.82fr)_minmax(9ch,0.86fr)_minmax(14ch,1.18fr)_minmax(6ch,0.52fr)_minmax(8.75ch,0.72fr)_minmax(72px,0.4fr)]";
 const ADAPTIVE_PENDING_WORKFLOW_TABLE_GRID =
-  "md:grid-cols-[minmax(18ch,1.75fr)_minmax(9ch,0.9fr)_minmax(10ch,0.9fr)_minmax(16ch,1.4fr)_minmax(7ch,0.7fr)_minmax(9ch,0.8fr)_minmax(72px,0.45fr)]";
+  "md:grid-cols-[minmax(17ch,1.62fr)_minmax(8ch,0.82fr)_minmax(9ch,0.86fr)_minmax(14ch,1.15fr)_minmax(6ch,0.52fr)_minmax(8.75ch,0.72fr)_minmax(72px,0.4fr)]";
 
 const getLockErrorMessage = (error: unknown, fallback: string) => {
   const rawMessage =
@@ -1226,7 +1226,7 @@ export default function WorkflowManagementView() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm md:flex md:h-[calc(100dvh-19.5rem)] md:min-h-[500px] md:flex-col">
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm md:flex md:h-[calc(100dvh-15rem)] md:min-h-[600px] md:flex-col">
         <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <h3 className="text-xl font-semibold text-slate-800">
@@ -1266,18 +1266,19 @@ export default function WorkflowManagementView() {
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Module</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Node Name</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Type</div>
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Status</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 md:text-center">Status</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 md:text-center">Manage</div>
             </div>
 
             <div className="divide-y divide-slate-100">
               {paginatedWorkflows.map((workflow) => {
-                const isModificationInProgress = Boolean(workflow.isPending);
+                const workflowRequestType = (workflow.pendingRequestType || "").trim().toUpperCase();
+                const isModificationInProgress = workflow.status === "Pending" ? workflowRequestType !== "" && workflowRequestType !== "INITIATE" : Boolean(workflow.isPending);
                 return (
                   <div
                     key={workflow.id}
                     className={cn(
-                      "grid grid-cols-1 gap-2 p-4 transition-colors duration-150 hover:bg-slate-100 md:items-center md:gap-x-4",
+                      "grid grid-cols-1 gap-2 p-4 transition-colors duration-150 hover:bg-slate-100 md:items-center md:gap-x-3",
                       workflowGridTemplateClass,
                     )}
                   >
@@ -1344,7 +1345,7 @@ export default function WorkflowManagementView() {
                     </div>
                     <div className="truncate whitespace-nowrap text-sm text-slate-700">{workflow.nodeType}</div>
                     <div>
-                      <div className="flex flex-col items-start gap-1">
+                      <div className="flex flex-col items-center gap-1 md:items-center">
                         <span
                           className={cn(
                             "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
@@ -2099,26 +2100,5 @@ function WorkflowSingleSelectDropdown({
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

@@ -49,7 +49,7 @@ export function RemarkDialog({
             placeholder="Enter your remark here..."
             value={remark}
             onChange={(e) => setRemark(e.target.value)}
-            className="min-h-[100px]"
+            className="h-11 min-h-0 resize-none"
           />
         </div>
         <DialogFooter>
@@ -68,3 +68,4 @@ export function RemarkDialog({
     </Dialog>
   );
 }
+

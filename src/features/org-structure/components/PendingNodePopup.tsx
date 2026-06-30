@@ -717,7 +717,7 @@ export function PendingNodePopup({
                   }}
                   maxLength={REMARK_MAX_LENGTH}
                   placeholder={`Enter remark for ${pendingDecision === "approve" ? "approval" : "rejection"}`}
-                  className={cn("h-11 min-h-11 resize-none overflow-hidden rounded-xl py-3 shadow-sm", remarkError ? "border-rose-300 focus-visible:ring-rose-400" : "border-slate-200 focus-visible:ring-sky-400/30")}
+                  className={cn("h-11 min-h-0 resize-none overflow-hidden rounded-xl py-3 shadow-sm", remarkError ? "border-rose-300 focus-visible:ring-rose-400" : "border-slate-200 focus-visible:ring-sky-400/30")}
                 />
                 {remarkError ? <p className="text-xs font-medium text-rose-600">{remarkError}</p> : null}
               </div>
@@ -783,6 +783,7 @@ export function PendingNodePopup({
     </div>
   );
 }
+
 
 
 

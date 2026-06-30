@@ -648,7 +648,7 @@ export default function WorkflowManageDialog({
     Boolean(previousStatusLabel) &&
     Boolean(nextStatusLabel) &&
     previousStatusLabel !== nextStatusLabel;
-  const shouldSuppressHistoryPreviewEvent = Boolean(pendingDecision || showDeleteActions || pendingStatus);
+  const shouldSuppressHistoryPreviewEvent = Boolean(showDeleteActions || pendingStatus);
   const effectiveHistoryPreviewEvent = shouldSuppressHistoryPreviewEvent
     ? null
     : historyDetailOverride?.previewEvent ?? (currentTab === "Pending" && isHistoryOpen ? historyPreviewEvent : null);
@@ -680,45 +680,45 @@ export default function WorkflowManageDialog({
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(" ");
   const viewContextTitle = effectiveHistoryPreviewEvent
-    ? effectiveHistoryPreviewEvent.action
-    : showDeleteActions
-      ? "Delete Workflow"
+  ? effectiveHistoryPreviewEvent.action
+  : showDeleteActions
+    ? "Delete Workflow"
+    : canShowPendingActions && impactBadgeLabel
+      ? impactBadgeLabel
       : pendingDecision
         ? pendingDecision === "approve"
           ? "Approval Remark"
           : "Rejection Remark"
-        : canShowPendingActions && impactBadgeLabel
-          ? impactBadgeLabel
-          : shouldShowStatusTransition
-            ? `${formatStatusLabel(previousStatusLabel)} to ${formatStatusLabel(nextStatusLabel)}`
-            : "";
-  const viewContextClassName = effectiveHistoryPreviewEvent
-    ? historyEventStripClassName
-    : showDeleteActions
-      ? "border-rose-200/60 bg-rose-50 text-rose-700"
+        : shouldShowStatusTransition
+          ? `${formatStatusLabel(previousStatusLabel)} to ${formatStatusLabel(nextStatusLabel)}`
+          : "";
+const viewContextClassName = effectiveHistoryPreviewEvent
+  ? historyEventStripClassName
+  : showDeleteActions
+    ? "border-rose-200/60 bg-rose-50 text-rose-700"
+    : canShowPendingActions && impactBadgeLabel
+      ? impactBadgeCls || "border-amber-200/60 bg-amber-50 text-amber-700"
       : pendingDecision
         ? pendingDecision === "approve"
           ? "border-emerald-200/60 bg-emerald-50 text-emerald-700"
           : "border-rose-200/60 bg-rose-50 text-rose-700"
-        : canShowPendingActions && impactBadgeLabel
-          ? impactBadgeCls || "border-amber-200/60 bg-amber-50 text-amber-700"
-          : shouldShowStatusTransition
-            ? "border-sky-200/60 bg-sky-50 text-sky-700"
-            : "border-slate-200 bg-slate-50 text-slate-700";
-  const ViewContextIcon = effectiveHistoryPreviewEvent
-    ? HistoryEventIcon
-    : showDeleteActions
-      ? Trash2
+        : shouldShowStatusTransition
+          ? "border-sky-200/60 bg-sky-50 text-sky-700"
+          : "border-slate-200 bg-slate-50 text-slate-700";
+const ViewContextIcon = effectiveHistoryPreviewEvent
+  ? HistoryEventIcon
+  : showDeleteActions
+    ? Trash2
+    : canShowPendingActions && impactBadgeLabel
+      ? Clock
       : pendingDecision
         ? pendingDecision === "approve"
           ? ShieldCheck
           : CircleX
-        : canShowPendingActions && impactBadgeLabel
-          ? Clock
-          : shouldShowStatusTransition
-            ? ArrowLeftRight
-            : Settings2;
-  const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
+        : shouldShowStatusTransition
+          ? ArrowLeftRight
+          : Settings2;
+const viewContextLevelCount = effectiveHistoryPreviewEvent?.levelCount;
 
   const handleStartPendingAction = async (action: "approve" | "reject") => {
     const shouldOpen = await onStartPendingAction?.(workflow, action);
@@ -797,7 +797,7 @@ export default function WorkflowManageDialog({
             event.preventDefault();
           }
         }}
-        className={cn("flex max-h-[92vh] w-[min(96vw,64rem)] max-w-[64rem] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-xl", contentClassName)}
+        className={cn("flex h-[92vh] max-h-[92vh] w-[min(96vw,64rem)] max-w-[64rem] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-xl", contentClassName)}
         style={contentStyle}
       >
         <DialogDescription className="sr-only">
@@ -805,7 +805,7 @@ export default function WorkflowManageDialog({
         </DialogDescription>
         <DialogHeader className="border-b border-slate-100 bg-white px-6 pb-4 pt-5">
           {viewContextTitle ? (
-            <div className={cn("-mx-6 -mt-4 mb-4 flex items-center justify-center gap-3 px-6 py-1.5 text-center", viewContextClassName)}>
+            <div className={cn("-mx-6 -mt-5 mb-4 flex min-h-[2.75rem] items-center justify-center gap-3 px-6 py-2 text-center", viewContextClassName)}>
               <div className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/70 ring-1 ring-black/5">
                 <ViewContextIcon className="h-3.5 w-3.5" />
               </div>
@@ -1053,7 +1053,7 @@ export default function WorkflowManageDialog({
           ) : null}
         </DialogHeader>
 
-        <div className="space-y-4 overflow-y-auto bg-slate-50/30 px-5 pb-5 pt-2">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50/30 px-5 pb-5 pt-2">
           <SummaryPreview workflow={{ ...displayWorkflow, previousWorkflow }} />
 
 
@@ -1078,7 +1078,7 @@ export default function WorkflowManageDialog({
           ) : null}
         </div>
 
-        <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-4">
+        <div className="shrink-0 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
           {!isPending && !isHistoryPreviewActive && pendingStatus && onSubmitStatusUpdate ? (
             <div className="mb-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
               <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -1089,7 +1089,7 @@ export default function WorkflowManageDialog({
                 onChange={(event) => setStatusRemark(event.target.value)}
                 placeholder="Add remark"
                 maxLength={250}
-                className="min-h-[88px] resize-none"
+                className="h-11 min-h-0 resize-none"
               />
             </div>
           ) : null}
@@ -1104,7 +1104,7 @@ export default function WorkflowManageDialog({
                 onChange={(event) => onDeleteRemarkChange?.(event.target.value)}
                 placeholder={deleteRemarkPlaceholder}
                 maxLength={250}
-                className={cn("min-h-[88px] resize-none", deleteRemarkError ? "border-rose-500 focus-visible:ring-rose-500/30" : "")}
+                className={cn("h-11 min-h-0 resize-none", deleteRemarkError ? "border-rose-500 focus-visible:ring-rose-500/30" : "")}
               />
               {deleteRemarkError ? <p className="mt-2 text-xs text-rose-600">{deleteRemarkError}</p> : null}
             </div>
@@ -1217,6 +1217,10 @@ export default function WorkflowManageDialog({
     </Dialog>
   );
 }
+
+
+
+
 
 
 

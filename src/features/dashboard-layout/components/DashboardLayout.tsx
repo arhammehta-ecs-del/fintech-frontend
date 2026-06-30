@@ -8,12 +8,32 @@ import { useAppContext } from "@/contexts/AppContext";
 import { logout } from "@/services/auth.service";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "dashboard-sidebar-collapsed";
+const settingsTabTitles: Record<string, string> = {
+  org: "Org Structure",
+  users: "User Management",
+  roles: "Roles",
+  workflows: "Workflows",
+};
+
+const getPageTitle = (pathname: string, search: string) => {
+  if (pathname === "/") return "Seed Control Panel";
+  if (pathname === "/companies") return "Company List";
+  if (pathname === "/monitoring") return "API Monitoring";
+  if (pathname === "/profile") return "My Profile";
+  if (pathname === "/settings") {
+    const activeTab = new URLSearchParams(search).get("tab") ?? "org";
+    const activeTabTitle = settingsTabTitles[activeTab];
+    return activeTabTitle ? `Company Settings / ${activeTabTitle}` : "Company Settings";
+  }
+  return "Admin Portal";
+};
 
 export default function DashboardLayout() {
   const { setIsAuthenticated, setCurrentUser, users, currentUser } = useAppContext();
   const navigate = useNavigate();
   const location = useLocation();
   const isCompanyListRoute = location.pathname === "/companies";
+  const pageTitle = getPageTitle(location.pathname, location.search);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
@@ -57,6 +77,7 @@ export default function DashboardLayout() {
             onMobileNavOpenChange={setMobileNavOpen}
             onToggleCollapsed={() => setCollapsed((current) => !current)}
             locationPathname={location.pathname}
+            pageTitle={pageTitle}
             users={users}
             currentUser={currentUser}
             navigate={navigate}
@@ -85,5 +106,6 @@ export default function DashboardLayout() {
     </div>
   );
 }
+
 
 

@@ -105,7 +105,7 @@ export function OrgStatusUpdatePopup({
               value={remarks}
               onChange={(event) => onRemarksChange(event.target.value)}
               placeholder="Enter remarks for this status update..."
-              className="min-h-[88px] rounded-xl border-slate-200 bg-white text-[14px]"
+              className="h-11 min-h-0 resize-none rounded-xl border-slate-200 bg-white text-[14px]"
               maxLength={250}
             />
             <p className="text-right text-[11px] text-slate-400">{remarks.length}/250</p>
@@ -141,3 +141,4 @@ export function OrgStatusUpdatePopup({
 }
 
 export default OrgStatusUpdatePopup;
+

@@ -19,15 +19,11 @@ export default function CompanySettings() {
   const activeTab = searchParams.get("tab") ?? "org";
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Company Settings</h1>
-      </div>
-
+    <div className="space-y-4">
       <Tabs
         value={activeTab}
         onValueChange={(tab) => setSearchParams(tab === "org" ? {} : { tab })}
-        className="space-y-4"
+        className="space-y-3"
       >
         <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-full border border-slate-200 bg-white p-1.5 shadow-sm whitespace-nowrap">
           <TabsTrigger value="org" className={settingsTabClassName}>Org Structure</TabsTrigger>
@@ -42,13 +38,13 @@ export default function CompanySettings() {
           </FeatureErrorBoundary>
         </TabsContent>
 
-        <TabsContent value="users">
+        <TabsContent value="users" className="mt-0">
           <FeatureErrorBoundary featureName="User Management">
             <UserManagementView />
           </FeatureErrorBoundary>
         </TabsContent>
 
-        <TabsContent value="roles">
+        <TabsContent value="roles" className="mt-0">
           <FeatureErrorBoundary featureName="Roles">
             <Card className="shadow-sm">
               <CardContent className="py-6">
@@ -58,7 +54,7 @@ export default function CompanySettings() {
           </FeatureErrorBoundary>
         </TabsContent>
 
-        <TabsContent value="workflows">
+        <TabsContent value="workflows" className="mt-0">
           <FeatureErrorBoundary featureName="Workflows">
             <Suspense
               fallback={
@@ -75,4 +71,8 @@ export default function CompanySettings() {
     </div>
   );
 }
+
+
+
+
 
