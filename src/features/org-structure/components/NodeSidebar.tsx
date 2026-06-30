@@ -283,54 +283,79 @@ function NodeSidebarContent({
           </div>
         ) : (
           <div className="space-y-4">
-            {permissionSections.map((section) => (
-              <div key={section.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60">
-                <div className="border-b border-slate-200 bg-white/70 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    {section.label}
-                  </p>
-                </div>
-                <div className="grid grid-cols-[minmax(0,1fr)_64px_64px_64px] gap-3 border-b border-slate-200 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                  <span>Access Group</span>
-                  <span className="text-center">Checker</span>
-                  <span className="text-center">Maker</span>
-                  <span className="text-center">Viewer</span>
-                </div>
-                {section.rows.map((row) => (
-                  <div
-                    key={`${section.key}-${row.key}`}
-                    className="grid grid-cols-[minmax(0,1fr)_64px_64px_64px] items-start gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
-                  >
-                    <span className="pr-2 text-sm font-medium leading-5 text-slate-700 break-words">{row.label}</span>
-                    {ACTIONS.map((action) => (
-                      <button
-                        type="button"
-                        key={`${row.label}-${action}`}
-                        disabled={row.counts[action] === 0}
-                        onClick={() => {
-                          if (!department?.name || !department?.nodePath || row.counts[action] === 0) return;
-                          onNavigateToUsers({
-                            nodeName: displayDepartment?.name || department.name,
-                            nodePath: displayDepartment?.nodePath || department.nodePath,
-                            category: row.categoryKey,
-                            subCategory: row.key,
-                            action,
-                          });
-                        }}
-                        className={cn(
-                          "mx-auto inline-flex min-h-7 min-w-[32px] items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold transition",
-                          row.counts[action] === 0
-                            ? "cursor-not-allowed border-slate-200 bg-white text-slate-500/70"
-                            : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100",
-                        )}
-                      >
-                        {row.counts[action] === 0 ? "-" : row.counts[action]}
-                      </button>
-                    ))}
+            {permissionSections.map((section) => {
+              const sectionTotal = section.rows.reduce(
+                (sum, row) => sum + row.counts.checker + row.counts.maker + row.counts.viewer,
+                0,
+              );
+
+              if (sectionTotal === 0) {
+                return (
+                  <div key={section.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60">
+                    <div className="flex items-center justify-between bg-white/80 px-4 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        {section.label}
+                      </p>
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+                        ({sectionTotal})
+                      </span>
+                    </div>
                   </div>
-                ))}
-              </div>
-            ))}
+                );
+              }
+
+              return (
+                <div key={section.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60">
+                  <div className="flex items-center justify-between border-b border-slate-200 bg-white/70 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      {section.label}
+                    </p>
+                    <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">
+                      ({sectionTotal})
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_64px_64px_64px] gap-3 border-b border-slate-200 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    <span>Access Group</span>
+                    <span className="text-center">Checker</span>
+                    <span className="text-center">Maker</span>
+                    <span className="text-center">Viewer</span>
+                  </div>
+                  {section.rows.map((row) => (
+                    <div
+                      key={`${section.key}-${row.key}`}
+                      className="grid grid-cols-[minmax(0,1fr)_64px_64px_64px] items-start gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
+                    >
+                      <span className="break-words pr-2 text-sm font-medium leading-5 text-slate-700">{row.label}</span>
+                      {ACTIONS.map((action) => (
+                        <button
+                          type="button"
+                          key={`${row.label}-${action}`}
+                          disabled={row.counts[action] === 0}
+                          onClick={() => {
+                            if (!department?.name || !department?.nodePath || row.counts[action] === 0) return;
+                            onNavigateToUsers({
+                              nodeName: displayDepartment?.name || department.name,
+                              nodePath: displayDepartment?.nodePath || department.nodePath,
+                              category: row.categoryKey,
+                              subCategory: row.key,
+                              action,
+                            });
+                          }}
+                          className={cn(
+                            "mx-auto inline-flex min-h-7 min-w-[32px] items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold transition",
+                            row.counts[action] === 0
+                              ? "cursor-not-allowed border-slate-200 bg-white text-slate-500/70"
+                              : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100",
+                          )}
+                        >
+                          {row.counts[action] === 0 ? "-" : row.counts[action]}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
