@@ -147,12 +147,10 @@ function NodePathMarquee({ text }: { text: string }) {
   const marqueeTravelPx = textWidthPx + MARQUEE_GAP_PX;
 
   return (
-    <span className="mt-1 inline-flex max-w-full items-center gap-1.5">
+    <span className="mt-1 inline-flex max-w-full items-center gap-1.5" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
       {overflowPx > 0 ? (
         <span
           className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-600 transition hover:border-sky-300 hover:bg-sky-100"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
           aria-label="Preview full node path"
           role="img"
         >
@@ -222,14 +220,14 @@ export default function UserTable({
 
   return (
     <>
-    <table className="min-w-[980px] w-full table-fixed">
+    <table className="min-w-[1120px] w-full table-auto">
       <thead className="bg-slate-50">
         <tr className="border-b border-slate-200">
-          <th className="sticky top-0 z-20 w-[24%] bg-slate-50 pl-7 pr-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Name</th>
-          <th className="sticky top-0 z-20 w-[21%] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Designation</th>
-          <th className="sticky top-0 z-20 w-[23%] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Node Name</th>
-          <th className="sticky top-0 z-20 w-[16%] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Contact Number</th>
-          <th className="sticky top-0 z-20 w-[16%] bg-slate-50 px-4 py-4 text-center text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Manage</th>
+          <th className="sticky top-0 z-20 w-[24%] min-w-[220px] bg-slate-50 pl-7 pr-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Name</th>
+          <th className="sticky top-0 z-20 w-[16%] min-w-[140px] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Designation</th>
+          <th className="sticky top-0 z-20 w-[34%] min-w-[320px] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Node Name</th>
+          <th className="sticky top-0 z-20 w-[14%] min-w-[140px] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Contact Number</th>
+          <th className="sticky top-0 z-20 w-[12%] min-w-[120px] bg-slate-50 px-4 py-4 text-center text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Manage</th>
         </tr>
       </thead>
       <tbody>
@@ -294,20 +292,20 @@ export default function UserTable({
                   : "";
                 
                 return (
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 truncate text-sm text-slate-700">
+                  <div className="min-w-0 max-w-full space-y-1">
+                    <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 text-sm text-slate-700">
                       {typeof activeNodeMeta.levelCount === "number" ? (
-                        <span className="shrink-0 rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-bold tracking-wider text-indigo-700">
+                        <span className="mt-0.5 shrink-0 rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-bold tracking-wider text-indigo-700">
                           L{activeNodeMeta.levelCount}
                         </span>
                       ) : null}
-                      {activeNodeMeta.departmentLabel || "—"}
+                      <span className="min-w-0 break-all font-medium text-slate-700">{activeNodeMeta.departmentLabel || "—"}</span>
                       {displayNodeType ? (
-                        <span className="ml-1 text-[13px] text-slate-500">({displayNodeType})</span>
+                        <span className="shrink-0 text-[13px] text-slate-500">({displayNodeType})</span>
                       ) : null}
-                    </p>
+                    </div>
                     {matchedAccessMeta ? (
-                      <p className="mt-1 truncate text-[12px] font-medium text-[#3553e9]">
+                      <p className="text-[12px] font-medium text-[#3553e9] break-words">
                         {`${matchedAccessMeta.roleLabel} access • ${matchedAccessMeta.subCategoryLabel}`}
                       </p>
                     ) : null}
@@ -428,5 +426,4 @@ export default function UserTable({
     </>
   );
 }
-
 

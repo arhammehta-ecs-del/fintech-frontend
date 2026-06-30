@@ -99,7 +99,7 @@ function NodePathMarquee({ text }: { text: string }) {
   const marqueeTravelPx = textWidthPx + MARQUEE_GAP_PX;
 
   return (
-    <span className="mt-2 inline-flex max-w-full items-center gap-1.5">
+    <span className="mt-2 inline-flex max-w-full items-center gap-1.5" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
       {overflowPx > 0 ? (
         <span
           className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-600 transition hover:border-sky-300 hover:bg-sky-100"
@@ -200,6 +200,7 @@ function NodeSidebarContent({
 
   return (
     <div className="flex h-full min-h-full w-full flex-col">
+      <style>{"@keyframes org-node-path-marquee{from{transform:translateX(0)}to{transform:translateX(calc(-1 * var(--node-path-shift, 0px)))}}"}</style>
       <div className="shrink-0 border-b border-black/10 px-6 pb-6 pt-4 lg:pt-5">
         <div className="mb-3 flex items-start justify-end gap-2">
           <button
@@ -387,3 +388,4 @@ export function NodeSidebar({
 }
 
 export default NodeSidebar;
+

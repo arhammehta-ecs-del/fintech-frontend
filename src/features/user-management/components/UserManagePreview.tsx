@@ -1466,10 +1466,10 @@ export function UserManagePreview({
                                       P{idx + 1}
                                     </div>
                                     <div className="min-w-0">
-                                      <div className={cn("truncate text-sm font-semibold text-slate-700", isRemovedNode && "text-slate-500 line-through")}>
+                                      <div className={cn("break-words text-sm font-semibold leading-5 text-slate-700", isRemovedNode && "text-slate-500 line-through")}>
                                         {getNodeTitleWithType(group.nodeName, group.nodeType)}
                                       </div>
-                                      {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
+                                      {group.parentSubtitle ? <div className="break-all text-[11px] font-medium leading-5 text-slate-500">{group.parentSubtitle}</div> : null}
                                     </div>
                                     <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
                                   </button>
@@ -1542,10 +1542,10 @@ export function UserManagePreview({
                                     S{idx + 1}
                                   </div>
                                   <div className="min-w-0">
-                                    <div className={cn("truncate text-sm font-semibold text-slate-700", isRemovedNode && "text-slate-500 line-through")}>
+                                    <div className={cn("break-words text-sm font-semibold leading-5 text-slate-700", isRemovedNode && "text-slate-500 line-through")}>
                                       {getNodeTitleWithType(group.nodeName, group.nodeType)}
                                     </div>
-                                    {group.parentSubtitle ? <div className="truncate text-[11px] font-medium text-slate-500">{group.parentSubtitle}</div> : null}
+                                    {group.parentSubtitle ? <div className="break-all text-[11px] font-medium leading-5 text-slate-500">{group.parentSubtitle}</div> : null}
                                   </div>
                                   <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
                                 </button>
@@ -1695,14 +1695,4 @@ export function UserManagePreview({
 }
 
 export default UserManagePreview;
-
-
-
-
-
-
-
-
-
-
 
