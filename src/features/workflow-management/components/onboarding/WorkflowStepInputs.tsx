@@ -76,6 +76,8 @@ function SearchableFieldDropdown({
   onWorkflowTypeChange,
   showWorkflowTypeOptions = false,
   disabled = false,
+  contentClassName,
+  optionPathClassName,
 }: {
   label: string;
   icon: ReactNode;
@@ -90,6 +92,8 @@ function SearchableFieldDropdown({
   onWorkflowTypeChange?: (value: WorkflowTypeScope) => void;
   showWorkflowTypeOptions?: boolean;
   disabled?: boolean;
+  contentClassName?: string;
+  optionPathClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -142,7 +146,10 @@ function SearchableFieldDropdown({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[320px] border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
+          className={cn(
+            "w-[var(--radix-dropdown-menu-trigger-width)] min-w-[320px] border border-slate-200 bg-white p-2 shadow-[0_16px_34px_rgba(15,23,42,0.12)]",
+            contentClassName,
+          )}
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <div className="mt-1 flex items-center justify-between gap-2 px-1">
@@ -219,10 +226,15 @@ function SearchableFieldDropdown({
                               L{option.levelCount}
                             </span>
                           ) : null}
-                          <span className="truncate">{option.label}</span>
+                          <span className="min-w-0 break-words">{option.label}</span>
                         </p>
                         {option.pathLabel ? (
-                          <span className="mt-1 block max-w-full truncate text-[11px] font-medium leading-4 tracking-normal text-slate-600 antialiased">
+                          <span
+                            className={cn(
+                              "mt-1 block max-w-full text-[11px] font-medium leading-4 tracking-normal text-slate-600 antialiased",
+                              optionPathClassName ?? "truncate",
+                            )}
+                          >
                             {option.pathLabel}
                           </span>
                         ) : null}
@@ -383,6 +395,8 @@ export default function WorkflowStepInputs({
               options={nodeOptions}
               onChange={onSetWfNode}
               disabled={isEditMode}
+              contentClassName="w-[min(560px,calc(100vw-2rem))] min-w-[420px] max-w-[640px]"
+              optionPathClassName="mt-1 block max-w-full overflow-x-auto whitespace-nowrap pb-1 text-[11px] font-medium leading-4 tracking-normal text-slate-600 antialiased"
             />
             {showMetaErrors && !wfNode.trim() ? <p className="mt-1 text-xs font-semibold text-red-500">Required</p> : null}
           </div>

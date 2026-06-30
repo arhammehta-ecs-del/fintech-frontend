@@ -81,6 +81,8 @@ const getLockErrorMessage = (error: unknown, fallback: string) => {
 
 const readWorkflowString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
+const WORKFLOW_NODE_TYPE_WRAP_THRESHOLD = 44;
+
 const getWorkflowNodeHeading = (workflow: {
   nodeName?: string;
   orgStructure?: { nodePath?: string | null } | null;
@@ -1364,32 +1366,42 @@ export default function WorkflowManagementView() {
                       {workflow.module || workflow.rawModule || workflow.workflowAlias || workflow.workflowName || "—"}
                     </div>
                     <div className="min-w-0 text-sm text-slate-700">
-                      <p
-                        className={cn(
-                          "flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 text-sm leading-5 text-slate-700",
-                          typeof workflow.levelCount === "number" &&
-                          "before:shrink-0 before:rounded before:bg-indigo-100 before:px-1 before:py-0.5 before:text-[9px] before:font-bold before:tracking-wider before:text-indigo-700 before:content-[attr(data-level)]",
-                        )}
-                        data-level={typeof workflow.levelCount === "number" ? `L${workflow.levelCount}` : undefined}
-                        title={`${getWorkflowNodeDisplayName({
-                          nodeName: workflow.nodeName,
-                          nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
-                          module: workflow.rawModule || workflow.module,
-                          subModule: workflow.subModule,
-                        }) || "—"}${workflow.nodeType ? ` (${formatSnakeCaseLabel(workflow.nodeType)})` : ""}`}
-                      >
-                        <span className="min-w-0 break-words font-medium text-slate-700">
-                          {getWorkflowNodeDisplayName({
+                      {(() => {
+                        const nodeDisplayName =
+                          getWorkflowNodeDisplayName({
                             nodeName: workflow.nodeName,
                             nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
                             module: workflow.rawModule || workflow.module,
                             subModule: workflow.subModule,
-                          }) || "—"}
-                        </span>
-                        {workflow.nodeType ? (
-                          <span className="shrink-0 whitespace-nowrap text-slate-500">({formatSnakeCaseLabel(workflow.nodeType)})</span>
-                        ) : null}
-                      </p>
+                          }) || "-";
+                        const nodeTypeLabel = formatSnakeCaseLabel(workflow.nodeType || "").trim();
+                        const shouldWrapNodeType = `${nodeDisplayName}${nodeTypeLabel ? ` (${nodeTypeLabel})` : ""}`.length > WORKFLOW_NODE_TYPE_WRAP_THRESHOLD;
+
+                        return (
+                          <p
+                            className={cn(
+                              "min-w-0 text-sm leading-5 text-slate-700",
+                              typeof workflow.levelCount === "number" &&
+                                "before:mr-2 before:inline-flex before:shrink-0 before:rounded before:bg-indigo-100 before:px-1 before:py-0.5 before:text-[9px] before:font-bold before:tracking-wider before:text-indigo-700 before:content-[attr(data-level)]",
+                              shouldWrapNodeType ? "space-y-1" : "whitespace-nowrap",
+                            )}
+                            data-level={typeof workflow.levelCount === "number" ? `L${workflow.levelCount}` : undefined}
+                            title={`${nodeDisplayName}${nodeTypeLabel ? ` (${nodeTypeLabel})` : ""}`}
+                          >
+                            {shouldWrapNodeType ? (
+                              <>
+                                <span className="block min-w-0 break-words font-medium text-slate-700">{nodeDisplayName}</span>
+                                {nodeTypeLabel ? <span className="block text-slate-500">({nodeTypeLabel})</span> : null}
+                              </>
+                            ) : (
+                              <span className="inline min-w-0 font-medium text-slate-700">
+                                {nodeDisplayName}
+                                {nodeTypeLabel ? <span className="text-slate-500"> ({nodeTypeLabel})</span> : null}
+                              </span>
+                            )}
+                          </p>
+                        );
+                      })()}
                       {(() => {
                         const nodePath = resolveWorkflowNodePath(workflow);
                         const nodeType = (workflow.nodeType || "").toUpperCase();
