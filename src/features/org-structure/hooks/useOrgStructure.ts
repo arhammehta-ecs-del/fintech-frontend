@@ -376,6 +376,7 @@ export function useOrgStructure() {
         id: node.id,
         name: node.name,
         parentId: parentNode?.id ?? null,
+        levelCount: node.levelCount,
         nodeType: node.nodeType,
         nodePath: node.nodePath,
         status: node.status ?? "Active",
@@ -557,3 +558,4 @@ export function useOrgStructure() {
     },
   };
 }
+

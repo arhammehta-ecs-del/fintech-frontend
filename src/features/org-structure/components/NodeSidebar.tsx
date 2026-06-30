@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, History, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { History, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatCollapsedNodePath } from "@/features/user-management/utils";
 import type { DepartmentSidebarDepartment } from "@/features/org-structure/types";
 
 export type { DepartmentSidebarDepartment };
@@ -10,10 +11,6 @@ type PermissionMatrixRow = {
   key: string;
   label: string;
   counts: Record<PermissionAction, number>;
-};
-type BreadcrumbItem = {
-  label: string;
-  isEllipsis?: boolean;
 };
 
 const ACTIONS: PermissionAction[] = ["checker", "maker", "viewer"];
@@ -29,20 +26,120 @@ const initRowCounts = (): Record<PermissionAction, number> => ({
   viewer: 0,
 });
 
-const buildCompactBreadcrumbs = (breadcrumbs: string[]): BreadcrumbItem[] => {
-  const clean = breadcrumbs.map((crumb) => crumb.trim()).filter(Boolean);
-  if (clean.length <= 4) return clean.map((label) => ({ label }));
+const formatNodeTypeLabel = (value?: string) => {
+  const normalized = (value || "").trim();
+  if (!normalized) return "Node";
 
-  return [
-    { label: clean[0] },
-    { label: "...", isEllipsis: true },
-    ...clean.slice(-3).map((label) => ({ label })),
-  ];
+  return normalized
+    .toLowerCase()
+    .split(/[\s_]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
 };
+
+const getNodeLevel = (department: DepartmentSidebarDepartment | null) => {
+  if (!department) return null;
+  if (typeof department.levelCount === "number" && Number.isFinite(department.levelCount)) {
+    return department.levelCount;
+  }
+
+  const nodeType = (department.nodeType || "").trim().toUpperCase();
+  if (nodeType === "ROOT") return 1;
+
+  const nodePath = (department.nodePath || "").trim();
+  if (!nodePath) return null;
+
+  const pathSegments = nodePath
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  return pathSegments.length || null;
+};
+
+function NodePathMarquee({ text }: { text: string }) {
+  const MARQUEE_DURATION_SECONDS = 6;
+  const MARQUEE_GAP_PX = 24;
+  const viewportRef = useRef<HTMLSpanElement | null>(null);
+  const textRef = useRef<HTMLSpanElement | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const [overflowPx, setOverflowPx] = useState(0);
+  const [textWidthPx, setTextWidthPx] = useState(0);
+
+  useEffect(() => {
+    const measure = () => {
+      const viewport = viewportRef.current;
+      const label = textRef.current;
+      if (!viewport || !label) return;
+      const fullTextWidth = Math.ceil(label.scrollWidth);
+      const nextOverflow = Math.max(0, Math.ceil(fullTextWidth - viewport.clientWidth));
+      setTextWidthPx(fullTextWidth);
+      setOverflowPx(nextOverflow);
+    };
+
+    measure();
+    const viewport = viewportRef.current;
+    if (!viewport || typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    if (textRef.current) observer.observe(textRef.current);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [text]);
+
+  const shouldAnimate = isHovered && overflowPx > 0;
+  const marqueeTravelPx = textWidthPx + MARQUEE_GAP_PX;
+
+  return (
+    <span className="mt-2 inline-flex max-w-full items-center gap-1.5">
+      {overflowPx > 0 ? (
+        <span
+          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-600 transition hover:border-sky-300 hover:bg-sky-100"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          aria-label="Preview full node path"
+          role="img"
+        >
+          <Info className="h-3 w-3" />
+        </span>
+      ) : null}
+      <span className="inline-flex min-w-0 max-w-full rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-semibold leading-none tracking-normal text-sky-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
+        <span ref={viewportRef} className="block max-w-full overflow-hidden whitespace-nowrap">
+          <span
+            className={shouldAnimate ? "inline-flex items-center whitespace-nowrap will-change-transform" : "inline-flex items-center whitespace-nowrap"}
+            style={shouldAnimate
+              ? {
+                animation: `org-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
+                ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
+              }
+              : undefined}
+          >
+            <span ref={textRef} className="inline-block whitespace-nowrap antialiased">
+              {text}
+            </span>
+            {overflowPx > 0 ? (
+              <span aria-hidden className="inline-flex items-center whitespace-nowrap">
+                <span className="inline-block" style={{ width: `${MARQUEE_GAP_PX}px` }} />
+                <span className="inline-block whitespace-nowrap antialiased">{text}</span>
+              </span>
+            ) : null}
+          </span>
+        </span>
+      </span>
+    </span>
+  );
+}
 
 function NodeSidebarContent({
   department,
-  breadcrumbs,
   permissionRows,
   countsLoading,
   onNavigateToUsers,
@@ -51,7 +148,6 @@ function NodeSidebarContent({
   onRequestStatusChange,
 }: {
   department: DepartmentSidebarDepartment | null;
-  breadcrumbs: string[];
   permissionRows: PermissionMatrixRow[];
   countsLoading: boolean;
   onNavigateToUsers: (input: { nodeName: string; nodePath: string; category: string; subCategory: string; action: PermissionAction }) => void;
@@ -61,6 +157,7 @@ function NodeSidebarContent({
 }) {
   const [showPrevious, setShowPrevious] = useState(false);
   const isUpdateRequest = (department?.pendingRequestType || "").trim().toUpperCase() === "UPDATE";
+
   useEffect(() => {
     setShowPrevious(false);
   }, [department?.id]);
@@ -74,20 +171,32 @@ function NodeSidebarContent({
     const nextName = readString(sourceRecord.nodeName) || readString(sourceRecord.newNodeName);
     const nextType = readString(sourceRecord.nodeType);
     const nextPath = readString(sourceRecord.nodePath) || readString(sourceRecord.targetNodePath);
+
     if (nextName) next.name = nextName;
     if (nextType) next.nodeType = nextType;
     if (nextPath) next.nodePath = nextPath;
+
+    const levelValue = sourceRecord.levelCount;
+    if (typeof levelValue === "number" && Number.isFinite(levelValue)) next.levelCount = levelValue;
+    if (typeof levelValue === "string") {
+      const parsedLevel = Number(levelValue.trim());
+      if (Number.isFinite(parsedLevel)) next.levelCount = parsedLevel;
+    }
+
     const statusValue = typeof sourceRecord.status === "string" ? sourceRecord.status.trim().toUpperCase() : "";
     if (statusValue === "ACTIVE") next.status = "Active";
     if (statusValue === "INACTIVE") next.status = "Inactive";
     return next;
   }, [department, isUpdateRequest, showPrevious]);
+
   const effectiveStatus = displayDepartment?.status === "Inactive" ? "Inactive" : "Active";
   const isRootDepartment = String(displayDepartment?.nodeType || department?.nodeType || "").trim().toUpperCase() === "ROOT";
   const isStatusToggleLocked = Boolean(department?.isPending) || isUpdateRequest;
-
-  const showBreadcrumbs = breadcrumbs.length > 1 || breadcrumbs[0] !== (department?.name ?? "Organisation");
-  const compactBreadcrumbs = buildCompactBreadcrumbs(breadcrumbs);
+  const currentNodeName = (displayDepartment?.name || department?.name || "Organisation").trim() || "Organisation";
+  const currentNodeType = formatNodeTypeLabel(displayDepartment?.nodeType || department?.nodeType);
+  const currentNodeLevel = getNodeLevel(displayDepartment || department);
+  const currentNodePath = (displayDepartment?.nodePath || department?.nodePath || "").trim();
+  const formattedNodePath = !isRootDepartment && currentNodePath ? formatCollapsedNodePath(currentNodePath, 3) : "";
 
   return (
     <div className="flex h-full min-h-full w-full flex-col">
@@ -118,17 +227,20 @@ function NodeSidebarContent({
         </div>
 
         <div className="min-w-0">
-          {showBreadcrumbs ? (
-            <div className="flex items-center gap-1.5 text-[11px] text-[#9a988f]">
-              {compactBreadcrumbs.map((crumb, index) => (
-                <div key={`${crumb.label}-${index}`} className="flex min-w-0 items-center gap-1.5">
-                  {index > 0 ? <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#c8c6bc]" /> : null}
-                  <span className={cn("truncate", crumb.isEllipsis ? "text-[#b6b4aa]" : undefined)}>{crumb.label}</span>
-                </div>
-              ))}
+          <div className="flex min-w-0 items-center gap-2">
+            {currentNodeLevel ? (
+              <span className="inline-flex h-7 shrink-0 items-center justify-center rounded-md bg-violet-100 px-2 text-[11px] font-bold text-violet-700">
+                L{currentNodeLevel}
+              </span>
+            ) : null}
+            <div className="min-w-0 text-[22px] font-semibold leading-tight tracking-[-0.02em] text-slate-900">
+              <span className="break-words">{currentNodeName}</span>
+              <span className="ml-2 text-[18px] font-medium text-slate-500">({currentNodeType})</span>
             </div>
-          ) : null}
+          </div>
+          {formattedNodePath ? <NodePathMarquee text={formattedNodePath} /> : null}
         </div>
+
         {!isRootDepartment ? (
           <div className="mt-4 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 shadow-sm">
             <button
@@ -248,8 +360,6 @@ export function NodeSidebar({
   onOpenHistory: (input?: { nodeName: string; nodePath: string }) => void;
   onRequestStatusChange?: (department: DepartmentSidebarDepartment, isActive: boolean) => void;
 }) {
-  const breadcrumbs = department?.breadcrumbs?.length ? department.breadcrumbs : [department?.name ?? "Organisation"];
-
   return (
     <aside
       className={cn(
@@ -261,7 +371,6 @@ export function NodeSidebar({
     >
       <NodeSidebarContent
         department={department}
-        breadcrumbs={breadcrumbs}
         permissionRows={permissionRows}
         countsLoading={countsLoading}
         onNavigateToUsers={onNavigateToUsers}

@@ -8,6 +8,7 @@ export type DepartmentSidebarDepartment = {
   id: string;
   name: string;
   parentId?: string | null;
+  levelCount?: number;
   nodeType?: string;
   nodePath?: string;
   status?: "Active" | "Inactive" | "Pending";
@@ -47,3 +48,4 @@ export type PositionedNode = {
   y: number;
   children: PositionedNode[];
 };
+
