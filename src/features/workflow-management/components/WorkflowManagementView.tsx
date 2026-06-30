@@ -112,19 +112,19 @@ const buildWorkflowColumnTemplate = (workflows: typeof paginatedWorkflows): Work
   );
 
   const baseWeights: WorkflowTableColumnTemplate = {
-    workflow: 23,
+    workflow: 21,
     alias: 12,
-    module: 16,
-    node: 18,
-    type: 10,
-    status: 13,
-    manage: 8,
+    module: 15,
+    node: 16,
+    type: 13,
+    status: 14,
+    manage: 9,
   };
 
-  const workflowBoost = Math.min(Math.max(metrics.workflow - 34, 0) * 0.42, 10);
-  const moduleBoost = Math.min(Math.max(metrics.module - 20, 0) * 0.32, 6);
-  const nodeBoost = Math.min(Math.max(metrics.node - 40, 0) * 0.75, 18);
-  const typeBoost = Math.min(Math.max(metrics.type - 14, 0) * 0.18, 3);
+  const workflowBoost = Math.min(Math.max(metrics.workflow - 34, 0) * 0.34, 8);
+  const moduleBoost = Math.min(Math.max(metrics.module - 20, 0) * 0.24, 4);
+  const nodeBoost = Math.min(Math.max(metrics.node - 40, 0) * 0.46, 10);
+  const typeBoost = Math.min(Math.max(metrics.type - 14, 0) * 0.28, 4);
   const reclaim = workflowBoost + moduleBoost + nodeBoost + typeBoost;
 
   const weights: WorkflowTableColumnTemplate = {
@@ -133,8 +133,8 @@ const buildWorkflowColumnTemplate = (workflows: typeof paginatedWorkflows): Work
     module: baseWeights.module + moduleBoost,
     node: baseWeights.node + nodeBoost,
     type: baseWeights.type + typeBoost,
-    status: Math.max(10, baseWeights.status - reclaim * 0.18),
-    manage: Math.max(6, baseWeights.manage - reclaim * 0.14),
+    status: Math.max(11, baseWeights.status - reclaim * 0.12),
+    manage: Math.max(7, baseWeights.manage - reclaim * 0.08),
   };
 
   const total = Object.values(weights).reduce((sum, value) => sum + value, 0);
@@ -1331,7 +1331,7 @@ export default function WorkflowManagementView() {
           <div className="p-8 text-sm text-slate-500">No {activeStatus.toLowerCase()} workflows available.</div>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" style={{ ["--workflow-grid-template" as string]: workflowGridTemplate }}>
-            <div className="sticky top-0 z-20 grid grid-cols-1 gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur md:items-center md:gap-x-4 md:[grid-template-columns:var(--workflow-grid-template)]">
+            <div className="sticky top-0 z-20 grid grid-cols-1 gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur md:items-center md:gap-x-6 md:[grid-template-columns:var(--workflow-grid-template)]">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Workflow</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Alias</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Module</div>
@@ -1348,7 +1348,7 @@ export default function WorkflowManagementView() {
                 return (
                   <div
                     key={workflow.id}
-                    className="grid grid-cols-1 gap-2 p-4 transition-colors duration-150 hover:bg-slate-100 md:items-center md:gap-x-4 md:[grid-template-columns:var(--workflow-grid-template)]"
+                    className="grid grid-cols-1 gap-2 p-4 transition-colors duration-150 hover:bg-slate-100 md:items-center md:gap-x-6 md:[grid-template-columns:var(--workflow-grid-template)]"
                   >
                     <div className="min-w-0">
                       <div
@@ -1415,7 +1415,7 @@ export default function WorkflowManagementView() {
                         return pathPreview ? <NodePathMarquee text={pathPreview} /> : null;
                       })()}
                     </div>
-                    <div className="truncate whitespace-nowrap pl-2 text-sm text-slate-700">{formatSnakeCaseLabel(workflow.nodeType || "") || "-"}</div>
+                    <div className="truncate whitespace-nowrap text-sm text-slate-700">{formatSnakeCaseLabel(workflow.nodeType || "") || "-"}</div>
                     <div>
                       <div className="flex flex-col items-center gap-1 md:items-center">
                         <span
