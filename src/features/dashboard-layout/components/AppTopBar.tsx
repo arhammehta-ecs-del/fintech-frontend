@@ -1203,6 +1203,7 @@ export function AppTopBar({
       ? "99+"
       : String(filteredNotificationTotalCount || visibleNotifications.length);
   const unreadCountLabel = unreadTotalCount === 1 ? "1 unread" : `${unreadTotalCount} unread`;
+  const markAllAsReadCount = new Set([...notifications, ...dialogNotifications].filter((item) => item.unread).map((item) => item.id)).size;
   const remainingNotificationCount = Math.max(0, filteredNotificationTotalCount - visibleNotifications.length);
   const dialogRemainingNotificationCount = Math.max(0, filteredNotificationTotalCount - visibleDialogNotifications.length);
   const shouldShowSeeAll = remainingNotificationCount > 0;
@@ -1725,7 +1726,7 @@ export function AppTopBar({
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {renderNotificationFilterDropdown<NotificationStatusFilterValue>({
             title: "Status",
-            allLabel: "All Status",
+            allLabel: "Select Status",
             selected: draftNotificationStatusFilters,
             displaySelected: draftSelectedNotificationStatusFilters,
             options: availableNotificationStatusOptions,
@@ -1738,7 +1739,7 @@ export function AppTopBar({
 
           {renderNotificationFilterDropdown<NotificationModuleFilterValue>({
             title: "Module",
-            allLabel: "All Module",
+            allLabel: "Select Module",
             selected: draftNotificationModuleFilters,
             options: availableNotificationModuleOptions,
             onChange: setDraftNotificationModuleFilters,
@@ -1748,7 +1749,7 @@ export function AppTopBar({
 
           {renderNotificationFilterDropdown<NotificationTypeFilterValue>({
             title: "Type",
-            allLabel: "All Type",
+            allLabel: "Select Type",
             selected: draftNotificationTypeFilters,
             options: availableNotificationTypeOptions,
             onChange: setDraftNotificationTypeFilters,
@@ -2165,7 +2166,7 @@ export function AppTopBar({
                     onClick={() => void markAllAsRead()}
                     className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200"
                   >
-                    Mark all read
+                    {`Mark all read (${markAllAsReadCount})`}
                   </button>
                 ) : null}
               </div>
@@ -2233,7 +2234,7 @@ export function AppTopBar({
                       onClick={() => void markAllAsRead()}
                       className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200"
                     >
-                      Mark all read
+                      {`Mark all read (${markAllAsReadCount})`}
                     </button>
                   ) : null}
                   <button
@@ -2515,5 +2516,9 @@ export function AppTopBar({
     </header>
   );
 }
+
+
+
+
 
 

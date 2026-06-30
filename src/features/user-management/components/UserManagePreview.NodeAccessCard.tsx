@@ -196,13 +196,8 @@ export function NodeAccessCard({
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex min-w-0 flex-wrap items-start gap-2">
             <div className={cn("min-w-0 break-words text-[18px] font-semibold leading-tight text-slate-800", isRemovedNode && "text-slate-500 line-through")}>
-              {nodeName}
+              {nodeName}{formattedNodeType ? ` (${formattedNodeType})` : ""}
             </div>
-            {formattedNodeType ? (
-              <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">
-                {formattedNodeType}
-              </span>
-            ) : null}
             {isRemovedNode ? (
               <span className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-rose-600">
                 Removed
@@ -221,7 +216,7 @@ export function NodeAccessCard({
               </span>
             ) : null}
             {shouldShowSourceTagBadge ? (
-              <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-sky-700">
+              <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">
                 Auto Generated
               </span>
             ) : null}
@@ -325,4 +320,6 @@ export function NodeAccessCard({
     </div>
   );
 }
+
+
 

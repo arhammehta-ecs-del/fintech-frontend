@@ -298,17 +298,13 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
         return nextWorkflowOptions.some((option) => option.levelsHash === normalizedCurrent) ? normalizedCurrent : "";
       }
 
+
       const selectedFromNode =
         matchedNode?.selectedWorkflow?.levelsHash?.trim() ||
         matchedNode?.workflows.find((workflow) => workflow.selected)?.levelsHash?.trim() ||
         "";
       if (selectedFromNode && nextWorkflowOptions.some((option) => option.levelsHash === selectedFromNode)) {
         return selectedFromNode;
-      }
-
-      const seededLevelsHash = mode === "edit" ? (seedWorkflow?.levelsHash || "").trim() : "";
-      if (seededLevelsHash && nextWorkflowOptions.some((option) => option.levelsHash === seededLevelsHash)) {
-        return seededLevelsHash;
       }
 
       return "";
@@ -331,7 +327,7 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
       setWfModule(seedWorkflow.subModule || "");
       setWfNode(seedWorkflow.nodePath || "");
       setWorkflowType("ALL CHILD");
-      setSelectedWorkflowLevelsHash(seedWorkflow.levelsHash || "");
+      setSelectedWorkflowLevelsHash("");
       setLevels(nextLevels);
       return;
     }
@@ -619,6 +615,10 @@ export function useWorkflowOnboarding({ isOpen = false, onPublished, mode = "cre
       };
       return acc;
     }, {});
+
+
+
+
 
 
 

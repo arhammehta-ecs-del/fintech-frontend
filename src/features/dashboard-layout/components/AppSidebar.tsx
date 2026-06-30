@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Activity, Building2, LayoutDashboard, List, LogOut, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -39,6 +40,31 @@ export function AppSidebar({
   onNavigate,
   onLogout,
 }: AppSidebarProps) {
+  const [tooltipsEnabled, setTooltipsEnabled] = useState(!collapsed);
+  const previousCollapsedRef = useRef(collapsed);
+
+  useEffect(() => {
+    const wasCollapsed = previousCollapsedRef.current;
+    previousCollapsedRef.current = collapsed;
+
+    if (!collapsed) {
+      setTooltipsEnabled(false);
+      return;
+    }
+
+    if (wasCollapsed === collapsed) {
+      setTooltipsEnabled(true);
+      return;
+    }
+
+    setTooltipsEnabled(false);
+    const timer = window.setTimeout(() => {
+      setTooltipsEnabled(true);
+    }, 320);
+
+    return () => window.clearTimeout(timer);
+  }, [collapsed]);
+
   const handleInteractiveClick = () => {
     onNavigate?.();
   };
@@ -117,7 +143,7 @@ export function AppSidebar({
     return (
       <div key={item.path} className="sidebar-nav-item">
         {collapsed ? (
-          <Tooltip delayDuration={0}>
+          <Tooltip delayDuration={0} disableHoverableContent open={tooltipsEnabled ? undefined : false}>
             <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
             <TooltipContent
               side="right"
@@ -174,7 +200,7 @@ export function AppSidebar({
 
   /* ── Sidebar content ─────────────────────────────────────────────────── */
   const navContent = (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
       <div className="relative z-10 flex h-full flex-col">
         {/* ── Brand header ────────────────────────────────────────────── */}
         <div
@@ -205,7 +231,7 @@ export function AppSidebar({
           <div className="space-y-0.5">
             {renderNavItem(settingsNavItem)}
             {collapsed ? (
-              <Tooltip delayDuration={0}>
+              <Tooltip delayDuration={0} disableHoverableContent open={tooltipsEnabled ? undefined : false}>
                 <TooltipTrigger asChild>{logoutButton}</TooltipTrigger>
                 <TooltipContent
                   side="right"

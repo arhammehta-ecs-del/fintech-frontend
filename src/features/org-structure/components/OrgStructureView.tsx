@@ -13,7 +13,7 @@ import { collectNodeTrail } from "@/features/org-structure/orgNode.utils";
 import { countNodes, countPendingNodes, filterPendingNodes, hasPendingNodes } from "@/features/org-structure/components/OrgStructureView.utils";
 import { getApiErrorMessage } from "@/services/client";
 import { cn } from "@/lib/utils";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import type { NewNodeType } from "@/features/org-structure/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -120,6 +120,9 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [historyViewContext, setHistoryViewContext] = useState<"active" | "pending">("active");
   const [shellOffset, setShellOffset] = useState({ top: 56, left: 0 });
   const [isRefreshTooltipOpen, setIsRefreshTooltipOpen] = useState(false);
+  const [isRefreshTriggerVisible, setIsRefreshTriggerVisible] = useState(true);
+  const [isSidebarTransitioning, setIsSidebarTransitioning] = useState(false);
+  const refreshTriggerRef = useRef<HTMLButtonElement | null>(null);
   const isNotificationsPanelOpen = useNotificationsPanelOpen();
   const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
   const isAnyOrgDialogOpen = isNewNodePopupOpen || Boolean(pendingNodeForReview) || Boolean(statusUpdateNode);
@@ -135,6 +138,20 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     setHistoryViewContext("active");
   };
 
+  useEffect(() => {
+    const refreshTrigger = refreshTriggerRef.current;
+    if (!refreshTrigger || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsRefreshTriggerVisible(entry?.isIntersecting ?? false);
+      },
+      { threshold: 0.1 },
+    );
+
+    observer.observe(refreshTrigger);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     const syncShellOffset = () => {
       const topBar = document.querySelector("header");
@@ -346,7 +363,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         embedded ? "md:h-[calc(100dvh-10.5rem)] md:min-h-[680px] rounded-lg border border-slate-200" : "h-[calc(100vh-56px)]",
       )}
     >
-      <div className={cn("relative flex w-full items-stretch overflow-hidden", hasHorizontalOverflow ? "pb-12" : "pb-0")}>
+      <div className={cn("relative isolate flex w-full items-stretch overflow-hidden", hasHorizontalOverflow ? "pb-12" : "pb-0")}>
         <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden border-r border-slate-200/80">
           <div
             className={cn(
@@ -408,9 +425,10 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
                   ) : null}
                   <div className="relative flex h-10 w-10 items-center justify-center">
                     <TooltipProvider delayDuration={120}>
-                      <Tooltip open={(!isAnyOrgDialogOpen && !isNotificationsPanelOpen && hasNewOrgEvent) || isRefreshTooltipOpen}>
+                      <Tooltip open={(!isSidebarTransitioning && (((!isAnyOrgDialogOpen && !isNotificationsPanelOpen && hasNewOrgEvent && isRefreshTriggerVisible) || isRefreshTooltipOpen)))}>
                         <TooltipTrigger asChild>
                           <button
+                            ref={refreshTriggerRef}
                             type="button"
                             aria-label="Refresh organisation structure"
                             onMouseEnter={() => setIsRefreshTooltipOpen(true)}
@@ -454,10 +472,10 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
 
             <div
               ref={graphContentRef}
-              className="relative px-9 pb-10"
+              className="relative z-0 px-9 pb-10"
             >
               {orgStructure ? (
-                <div className="absolute right-9 top-1 z-10 flex items-center gap-2">
+                <div className="absolute right-9 top-1 z-20 flex items-center gap-2">
                   <button
                     type="button"
                     onClick={zoomOut}
@@ -504,7 +522,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
           </div>
           <div
             className={cn(
-              "absolute inset-y-0 right-0 z-20 w-full max-w-[420px] overflow-hidden bg-white shadow-[-18px_0_32px_rgba(15,23,42,0.08)] transition-[transform,opacity] duration-500 lg:hidden",
+              "absolute inset-y-0 right-0 z-40 w-full max-w-[420px] overflow-hidden bg-white shadow-[-18px_0_32px_rgba(15,23,42,0.08)] transition-[transform,opacity] duration-500 lg:hidden",
               sidebarOpen ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-full opacity-0",
             )}
             style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
@@ -531,7 +549,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
 
         <div
           className={cn(
-            "hidden shrink-0 overflow-hidden border-l border-slate-200 bg-white transition-[width,opacity] duration-500 lg:block",
+            "relative z-30 hidden shrink-0 overflow-hidden border-l border-slate-200 bg-white transition-[width,opacity] duration-500 lg:block",
             sidebarOpen ? "w-[420px] opacity-100" : "w-0 opacity-0",
           )}
           style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
@@ -558,7 +576,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
         {orgStructure && hasHorizontalOverflow ? (
           <div
             className={cn(
-              "absolute bottom-0 left-0 right-0 z-30 border-t border-slate-200/80 bg-[#fcfcfd]/95 px-6 py-3 backdrop-blur",
+              "absolute bottom-0 left-0 right-0 z-20 border-t border-slate-200/80 bg-[#fcfcfd]/95 px-6 py-3 backdrop-blur",
               sidebarOpen ? "lg:right-[420px]" : "lg:right-0",
             )}
           >
@@ -703,6 +721,10 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
 export default function OrgStructureViewPage() {
   return <OrgStructureView />;
 }
+
+
+
+
 
 
 
