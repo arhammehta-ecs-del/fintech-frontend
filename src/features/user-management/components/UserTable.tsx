@@ -230,7 +230,7 @@ function NodePathMarquee({ text }: { text: string }) {
   const marqueeTravelPx = textWidthPx + MARQUEE_GAP_PX;
 
   return (
-    <span className="mt-1 inline-flex max-w-full items-center gap-1.5" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+    <span className="mt-1 inline-flex w-full min-w-0 max-w-full items-center gap-1.5" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
       {overflowPx > 0 ? (
         <span
           className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-600 transition hover:border-sky-300 hover:bg-sky-100"
@@ -307,7 +307,7 @@ export default function UserTable({
 
   return (
     <>
-      <table className="min-w-[1120px] w-full table-auto">
+      <table className="min-w-[1120px] w-full table-fixed">
         <colgroup>
           <col style={{ width: `${columnTemplate.name}%` }} />
           <col style={{ width: `${columnTemplate.designation}%` }} />
@@ -391,7 +391,7 @@ export default function UserTable({
                               L{activeNodeMeta.levelCount}
                             </span>
                           ) : null}
-                          <span className="min-w-0 break-all font-medium text-slate-700">{activeNodeMeta.departmentLabel || "-"}</span>
+                          <span className="min-w-0 break-words font-medium text-slate-700">{activeNodeMeta.departmentLabel || "-"}</span>
                           {displayNodeType ? (
                             <span className="shrink-0 text-[13px] text-slate-500">({displayNodeType})</span>
                           ) : null}
