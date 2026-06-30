@@ -1346,7 +1346,7 @@ export default function WorkflowManagementView() {
                 return (
                   <div
                     key={workflow.id}
-                    className="grid grid-cols-1 gap-2 p-4 transition-colors duration-150 hover:bg-slate-100 md:items-center md:gap-x-3 md:[grid-template-columns:var(--workflow-grid-template)]"
+                    className="grid grid-cols-1 gap-2 p-4 transition-colors duration-150 hover:bg-slate-100 md:items-center md:gap-x-4 md:[grid-template-columns:var(--workflow-grid-template)]"
                   >
                     <div className="min-w-0">
                       <div
@@ -1366,7 +1366,7 @@ export default function WorkflowManagementView() {
                     <div className="min-w-0 text-sm text-slate-700">
                       <p
                         className={cn(
-                          "flex min-w-0 items-center gap-1.5 truncate text-sm leading-5 text-slate-700",
+                          "flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 text-sm leading-5 text-slate-700",
                           typeof workflow.levelCount === "number" &&
                           "before:shrink-0 before:rounded before:bg-indigo-100 before:px-1 before:py-0.5 before:text-[9px] before:font-bold before:tracking-wider before:text-indigo-700 before:content-[attr(data-level)]",
                         )}
@@ -1378,7 +1378,7 @@ export default function WorkflowManagementView() {
                           subModule: workflow.subModule,
                         }) || "—"}${workflow.nodeType ? ` (${formatSnakeCaseLabel(workflow.nodeType)})` : ""}`}
                       >
-                        <span className="min-w-0 truncate font-medium text-slate-700">
+                        <span className="min-w-0 break-words font-medium text-slate-700">
                           {getWorkflowNodeDisplayName({
                             nodeName: workflow.nodeName,
                             nodePath: workflow.orgStructure?.nodePath || workflow.nodePath,
@@ -1387,7 +1387,7 @@ export default function WorkflowManagementView() {
                           }) || "—"}
                         </span>
                         {workflow.nodeType ? (
-                          <span className="whitespace-nowrap text-slate-500">({formatSnakeCaseLabel(workflow.nodeType)})</span>
+                          <span className="shrink-0 whitespace-nowrap text-slate-500">({formatSnakeCaseLabel(workflow.nodeType)})</span>
                         ) : null}
                       </p>
                       {(() => {
@@ -1403,7 +1403,7 @@ export default function WorkflowManagementView() {
                         return pathPreview ? <NodePathMarquee text={pathPreview} /> : null;
                       })()}
                     </div>
-                    <div className="truncate whitespace-nowrap text-sm text-slate-700">{formatSnakeCaseLabel(workflow.nodeType || "") || "-"}</div>
+                    <div className="truncate whitespace-nowrap pl-2 text-sm text-slate-700">{formatSnakeCaseLabel(workflow.nodeType || "") || "-"}</div>
                     <div>
                       <div className="flex flex-col items-center gap-1 md:items-center">
                         <span
