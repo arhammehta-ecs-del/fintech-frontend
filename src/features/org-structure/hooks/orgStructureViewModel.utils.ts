@@ -10,17 +10,79 @@ export type PermissionAction = "checker" | "maker" | "viewer";
 export type PermissionMatrixRow = {
   key: string;
   label: string;
+  categoryKey: string;
   counts: Record<PermissionAction, number>;
 };
 
-export const SYSTEM_ROWS: Array<{ key: string; label: string }> = [
-  { key: "ORG_STR", label: "Org Structure" },
-  { key: "USER_ACC", label: "User Access" },
-  { key: "WORK_FLOW", label: "Workflow" },
-];
+export type PermissionMatrixSection = {
+  key: string;
+  label: string;
+  rows: PermissionMatrixRow[];
+};
 
-export const buildEmptyPermissionRows = (): PermissionMatrixRow[] =>
-  SYSTEM_ROWS.map((row) => ({ key: row.key, label: row.label, counts: { checker: 0, maker: 0, viewer: 0 } }));
+type NodePathCountItem = {
+  label?: string;
+  count?: number;
+  permissionlevel?: string;
+};
+
+type NodePathCountPayload = Record<string, Record<string, NodePathCountItem[]>>;
+
+const SYSTEM_ROW_LABELS: Record<string, string> = {
+  ORG_STR: "Org Structure",
+  USER_ACC: "User Access",
+  WORK_FLOW: "Workflow",
+};
+
+const formatTokenLabel = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+
+export const formatPermissionSectionLabel = (value: string) => formatTokenLabel(value);
+
+export const formatPermissionRowLabel = (value: string) => SYSTEM_ROW_LABELS[value.trim().toUpperCase()] || formatTokenLabel(value);
+
+export const buildEmptyPermissionSections = (): PermissionMatrixSection[] => [];
+
+export const buildPermissionSectionsFromCounts = (payload: NodePathCountPayload): PermissionMatrixSection[] =>
+  Object.entries(payload)
+    .map(([categoryKey, groups]) => {
+      if (typeof groups !== "object" || groups === null) return null;
+
+      const rows = Object.entries(groups)
+        .map(([rowKey, entries]) => {
+          const counts = { checker: 0, maker: 0, viewer: 0 } satisfies Record<PermissionAction, number>;
+          (Array.isArray(entries) ? entries : []).forEach((entry) => {
+            const level = String(entry.permissionlevel || "").trim().toUpperCase();
+            const count = typeof entry.count === "number" ? entry.count : 0;
+            if (level === "MANAGER") counts.checker = count;
+            if (level === "USER") counts.maker = count;
+            if (level === "VIEWER") counts.viewer = count;
+          });
+
+          return {
+            key: rowKey,
+            label: formatPermissionRowLabel(rowKey),
+            categoryKey,
+            counts,
+          } satisfies PermissionMatrixRow;
+        })
+        .sort((left, right) => left.label.localeCompare(right.label, undefined, { sensitivity: "base" }));
+
+      if (rows.length === 0) return null;
+
+      return {
+        key: categoryKey,
+        label: formatPermissionSectionLabel(categoryKey),
+        rows,
+      } satisfies PermissionMatrixSection;
+    })
+    .filter((section): section is PermissionMatrixSection => Boolean(section));
 
 export const centerSelectedNode = (treeElement: HTMLDivElement, selectedId: string) => {
   const escapedId = selectedId.replace(/"/g, '\\"');

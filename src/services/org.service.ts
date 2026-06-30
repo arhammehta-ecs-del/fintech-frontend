@@ -61,7 +61,7 @@ type NodePathCountItem = {
 type NodePathCountResponse = {
   message?: string;
   code?: number;
-  data?: Record<string, NodePathCountItem[]>;
+  data?: Record<string, Record<string, NodePathCountItem[]>>;
 };
 
 const COMPANY_ORG_PATH = "/api/v1/company-settings/org/fetch";
@@ -636,4 +636,5 @@ export async function fetchUsersByNodePathCount(nodePath: string) {
   }
   return payload.data;
 }
+
 

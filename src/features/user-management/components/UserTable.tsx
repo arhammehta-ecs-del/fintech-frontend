@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ArrowUpDown, SlidersHorizontal, Users, History, Trash2, Info } from "lucide-react";
 import { maskContactNumber, getInitials, getAvatarColor, formatCollapsedNodePath } from "@/features/user-management/utils";
 import UserHistorySidebar from "./UserHistorySidebar";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatRoleTokenLabel, getPermissionActionLabelFromText } from "@/features/user-management/roleLabels";
 
 type UserTableProps = {
@@ -163,9 +163,9 @@ function NodePathMarquee({ text }: { text: string }) {
             className={shouldAnimate ? "inline-flex items-center whitespace-nowrap will-change-transform" : "inline-flex items-center whitespace-nowrap"}
             style={shouldAnimate
               ? {
-                animation: `user-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
-                ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
-              }
+                  animation: `user-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
+                  ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
+                }
               : undefined}
           >
             <span ref={textRef} className="inline-block whitespace-nowrap antialiased">
@@ -195,6 +195,62 @@ export default function UserTable({
 }: UserTableProps) {
   const [historyOpenForUser, setHistoryOpenForUser] = useState<AppUser | null>(null);
 
+  const columnTemplate = useMemo(() => {
+    const metrics = paginatedMembers.reduce(
+      (accumulator, member) => {
+        const nameLength = `${member.name || ""} ${(member.email || "")}`.trim().length;
+        const designationLength = (member.designation || "").trim().length;
+        const matchedAccessMeta = getMatchedAccessMeta(member, linkedAccessContext);
+        const baseNodeMeta = getPrimaryNodeMeta(member);
+        const activeNodeMeta = matchedAccessMeta
+          ? {
+              departmentLabel: matchedAccessMeta.nodeName,
+              primaryNodePath: matchedAccessMeta.nodePath,
+              showPath: matchedAccessMeta.showPath,
+              nodeType: matchedAccessMeta.nodeType,
+            }
+          : baseNodeMeta;
+        const displayNodeType = activeNodeMeta.nodeType
+          ? activeNodeMeta.nodeType.charAt(0).toUpperCase() + activeNodeMeta.nodeType.slice(1).toLowerCase()
+          : "";
+        const nodeLength = `${activeNodeMeta.departmentLabel || ""} ${displayNodeType} ${activeNodeMeta.primaryNodePath || ""}`.trim().length;
+
+        return {
+          name: Math.max(accumulator.name, nameLength),
+          designation: Math.max(accumulator.designation, designationLength),
+          node: Math.max(accumulator.node, nodeLength),
+        };
+      },
+      { name: 18, designation: 14, node: 24 },
+    );
+
+    const baseWeights = { name: 22, designation: 18, node: 22, contact: 18, manage: 20 };
+    const nodeBoost = Math.min(Math.max(metrics.node - 30, 0) * 0.55, 16);
+    const nameBoost = Math.min(Math.max(metrics.name - 24, 0) * 0.3, 8);
+    const designationBoost = Math.min(Math.max(metrics.designation - 18, 0) * 0.2, 4);
+    const reclaimFromStaticColumns = Math.min(nodeBoost + nameBoost + designationBoost, 18);
+
+    let weights = {
+      name: baseWeights.name + nameBoost,
+      designation: baseWeights.designation + designationBoost,
+      node: baseWeights.node + nodeBoost,
+      contact: Math.max(14, baseWeights.contact - reclaimFromStaticColumns * 0.35),
+      manage: Math.max(10, baseWeights.manage - reclaimFromStaticColumns * 0.65),
+    };
+
+    const total = Object.values(weights).reduce((sum, value) => sum + value, 0);
+    const scale = 100 / total;
+    weights = {
+      name: Number((weights.name * scale).toFixed(2)),
+      designation: Number((weights.designation * scale).toFixed(2)),
+      node: Number((weights.node * scale).toFixed(2)),
+      contact: Number((weights.contact * scale).toFixed(2)),
+      manage: Number((weights.manage * scale).toFixed(2)),
+    };
+
+    return weights;
+  }, [linkedAccessContext, paginatedMembers]);
+
   if (isLoading) {
     return (
       <div className="flex min-h-[260px] items-center justify-center">
@@ -220,134 +276,114 @@ export default function UserTable({
 
   return (
     <>
-    <table className="min-w-[1120px] w-full table-auto">
-      <thead className="bg-slate-50">
-        <tr className="border-b border-slate-200">
-          <th className="sticky top-0 z-20 w-[24%] min-w-[220px] bg-slate-50 pl-7 pr-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Name</th>
-          <th className="sticky top-0 z-20 w-[16%] min-w-[140px] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Designation</th>
-          <th className="sticky top-0 z-20 w-[34%] min-w-[320px] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Node Name</th>
-          <th className="sticky top-0 z-20 w-[14%] min-w-[140px] bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Contact Number</th>
-          <th className="sticky top-0 z-20 w-[12%] min-w-[120px] bg-slate-50 px-4 py-4 text-center text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Manage</th>
-        </tr>
-      </thead>
-      <tbody>
-        {paginatedMembers.map((member) => {
-          const isPending = Boolean(member.isPending);
-          const requestType = (member.basicDetails?.requestType || "").trim().toUpperCase();
-          const isPendingLikeMember = isPending || member.status === "Pending";
-          const showModificationInProgress = isPendingLikeMember && requestType !== "INITIATE";
-          const canDeleteMember = member.status !== "Pending" && member.status !== "Inactive";
+      <table className="min-w-[1120px] w-full table-auto">
+        <colgroup>
+          <col style={{ width: `${columnTemplate.name}%` }} />
+          <col style={{ width: `${columnTemplate.designation}%` }} />
+          <col style={{ width: `${columnTemplate.node}%` }} />
+          <col style={{ width: `${columnTemplate.contact}%` }} />
+          <col style={{ width: `${columnTemplate.manage}%` }} />
+        </colgroup>
+        <thead className="bg-slate-50">
+          <tr className="border-b border-slate-200">
+            <th className="sticky top-0 z-20 bg-slate-50 px-7 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Name</th>
+            <th className="sticky top-0 z-20 bg-slate-50 px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Designation</th>
+            <th className="sticky top-0 z-20 bg-slate-50 px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Node Name</th>
+            <th className="sticky top-0 z-20 bg-slate-50 px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Contact Number</th>
+            <th className="sticky top-0 z-20 bg-slate-50 px-5 py-4 text-center text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Manage</th>
+          </tr>
+        </thead>
+        <tbody>
+          {paginatedMembers.map((member) => {
+            const isPending = Boolean(member.isPending);
+            const requestType = (member.basicDetails?.requestType || "").trim().toUpperCase();
+            const isPendingLikeMember = isPending || member.status === "Pending";
+            const showModificationInProgress = isPendingLikeMember && requestType !== "INITIATE";
+            const canDeleteMember = member.status !== "Pending" && member.status !== "Inactive";
 
-          return (
-          <tr key={member.email} className="border-b border-slate-200 transition-colors duration-150 hover:bg-slate-100">
-            <td className="pl-7 pr-4 py-4">
-              <button
-                type="button"
-                onClick={() => onView(member)}
-                className="flex items-center gap-3 text-left"
-              >
-                {(() => {
-                  const avatar = getAvatarColor(member.name || member.email || member.id);
-                  return (
-                    <Avatar className={`h-10 w-10 ${avatar.bg}`}>
-                      <AvatarFallback className={`${avatar.bg} ${avatar.text} font-semibold`}>
-                        {getInitials(member.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                  );
-                })()}
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[15px] font-medium text-slate-900">{member.name}</span>
-                    {member.pendingApprovalCount && member.pendingApprovalCount > 0 ? (
-                      <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 shadow-sm">
-                        Pending tracks: {member.pendingApprovalCount}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="text-[13px] text-slate-500">{member.email || "No email"}</div>
-                  {showModificationInProgress ? (
-                    <div className="mt-0.5 text-[12px] font-medium leading-5 text-amber-700">Modification in progress</div>
-                  ) : null}
-                </div>
-              </button>
-            </td>
-            <td className="px-4 py-4 text-sm text-slate-700">{member.designation || "—"}</td>
-            <td className="px-4 py-4 text-sm text-slate-600">
-              {(() => {
-                const matchedAccessMeta = getMatchedAccessMeta(member, linkedAccessContext);
-                const baseNodeMeta = getPrimaryNodeMeta(member);
-                const activeNodeMeta = matchedAccessMeta
-                  ? {
-                    departmentLabel: matchedAccessMeta.nodeName,
-                    primaryNodePath: matchedAccessMeta.nodePath,
-                    showPath: matchedAccessMeta.showPath,
-                    nodeType: matchedAccessMeta.nodeType,
-                    levelCount: matchedAccessMeta.levelCount,
-                  }
-                  : baseNodeMeta;
-                const formattedPath = activeNodeMeta.showPath ? formatCollapsedNodePath(activeNodeMeta.primaryNodePath) : "";
-                const displayNodeType = activeNodeMeta.nodeType
-                  ? activeNodeMeta.nodeType.charAt(0).toUpperCase() + activeNodeMeta.nodeType.slice(1).toLowerCase()
-                  : "";
-                
-                return (
-                  <div className="min-w-0 max-w-full space-y-1">
-                    <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 text-sm text-slate-700">
-                      {typeof activeNodeMeta.levelCount === "number" ? (
-                        <span className="mt-0.5 shrink-0 rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-bold tracking-wider text-indigo-700">
-                          L{activeNodeMeta.levelCount}
-                        </span>
-                      ) : null}
-                      <span className="min-w-0 break-all font-medium text-slate-700">{activeNodeMeta.departmentLabel || "—"}</span>
-                      {displayNodeType ? (
-                        <span className="shrink-0 text-[13px] text-slate-500">({displayNodeType})</span>
+            return (
+              <tr key={member.email} className="border-b border-slate-200 transition-colors duration-150 hover:bg-slate-100">
+                <td className="px-7 py-4 align-top">
+                  <button
+                    type="button"
+                    onClick={() => onView(member)}
+                    className="flex items-center gap-3 text-left"
+                  >
+                    {(() => {
+                      const avatar = getAvatarColor(member.name || member.email || member.id);
+                      return (
+                        <Avatar className={`h-10 w-10 ${avatar.bg}`}>
+                          <AvatarFallback className={`${avatar.bg} ${avatar.text} font-semibold`}>
+                            {getInitials(member.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                      );
+                    })()}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[15px] font-medium text-slate-900">{member.name}</span>
+                        {member.pendingApprovalCount && member.pendingApprovalCount > 0 ? (
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 shadow-sm">
+                            Pending tracks: {member.pendingApprovalCount}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-[13px] text-slate-500">{member.email || "No email"}</div>
+                      {showModificationInProgress ? (
+                        <div className="mt-0.5 text-[12px] font-medium leading-5 text-amber-700">Modification in progress</div>
                       ) : null}
                     </div>
-                    {matchedAccessMeta ? (
-                      <p className="text-[12px] font-medium text-[#3553e9] break-words">
-                        {`${matchedAccessMeta.roleLabel} access • ${matchedAccessMeta.subCategoryLabel}`}
-                      </p>
-                    ) : null}
-                    {formattedPath ? (
-                      <NodePathMarquee text={formattedPath} />
-                    ) : null}
-                  </div>
-                );
-              })()}
-            </td>
-            <td className="px-4 py-4 font-mono text-sm text-slate-600">{maskContactNumber(member.phone)}</td>
-            <td className="px-4 py-4">
-              <TooltipProvider delayDuration={120}>
-                <div className="flex items-center justify-center gap-3">
-                  {historyOpenForUser ? (
-                    <>
-                      {member.status !== "Pending" ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                          onClick={() => setHistoryOpenForUser(member)}
-                          aria-label={`View history for ${member.name || member.email}`}
-                        >
-                          <History className="h-4 w-4" />
-                        </Button>
-                      ) : null}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
-                        onClick={() => onView(member)}
-                        aria-label={`Manage ${member.name || member.email || "member"}`}
-                      >
-                        <SlidersHorizontal className="h-4 w-4" />
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      {member.status !== "Pending" ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
+                  </button>
+                </td>
+                <td className="px-5 py-4 align-top text-sm text-slate-700">{member.designation || "-"}</td>
+                <td className="px-5 py-4 align-top text-sm text-slate-600">
+                  {(() => {
+                    const matchedAccessMeta = getMatchedAccessMeta(member, linkedAccessContext);
+                    const baseNodeMeta = getPrimaryNodeMeta(member);
+                    const activeNodeMeta = matchedAccessMeta
+                      ? {
+                          departmentLabel: matchedAccessMeta.nodeName,
+                          primaryNodePath: matchedAccessMeta.nodePath,
+                          showPath: matchedAccessMeta.showPath,
+                          nodeType: matchedAccessMeta.nodeType,
+                          levelCount: matchedAccessMeta.levelCount,
+                        }
+                      : baseNodeMeta;
+                    const formattedPath = activeNodeMeta.showPath ? formatCollapsedNodePath(activeNodeMeta.primaryNodePath) : "";
+                    const displayNodeType = activeNodeMeta.nodeType
+                      ? activeNodeMeta.nodeType.charAt(0).toUpperCase() + activeNodeMeta.nodeType.slice(1).toLowerCase()
+                      : "";
+
+                    return (
+                      <div className="min-w-0 max-w-full space-y-1">
+                        <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 text-sm text-slate-700">
+                          {typeof activeNodeMeta.levelCount === "number" ? (
+                            <span className="mt-0.5 shrink-0 rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-bold tracking-wider text-indigo-700">
+                              L{activeNodeMeta.levelCount}
+                            </span>
+                          ) : null}
+                          <span className="min-w-0 break-all font-medium text-slate-700">{activeNodeMeta.departmentLabel || "-"}</span>
+                          {displayNodeType ? (
+                            <span className="shrink-0 text-[13px] text-slate-500">({displayNodeType})</span>
+                          ) : null}
+                        </div>
+                        {matchedAccessMeta ? (
+                          <p className="break-words text-[12px] font-medium text-[#3553e9]">
+                            {`${matchedAccessMeta.roleLabel} access - ${matchedAccessMeta.subCategoryLabel}`}
+                          </p>
+                        ) : null}
+                        {formattedPath ? <NodePathMarquee text={formattedPath} /> : null}
+                      </div>
+                    );
+                  })()}
+                </td>
+                <td className="px-5 py-4 align-top font-mono text-sm text-slate-600">{maskContactNumber(member.phone)}</td>
+                <td className="px-5 py-4 align-top">
+                  <TooltipProvider delayDuration={120}>
+                    <div className="flex items-center justify-center gap-3">
+                      {historyOpenForUser ? (
+                        <>
+                          {member.status !== "Pending" ? (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -357,13 +393,7 @@ export default function UserTable({
                             >
                               <History className="h-4 w-4" />
                             </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">View History</TooltipContent>
-                        </Tooltip>
-                      ) : null}
-
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                          ) : null}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -373,56 +403,87 @@ export default function UserTable({
                           >
                             <SlidersHorizontal className="h-4 w-4" />
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">Manage User</TooltipContent>
-                      </Tooltip>
+                        </>
+                      ) : (
+                        <>
+                          {member.status !== "Pending" ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                  onClick={() => setHistoryOpenForUser(member)}
+                                  aria-label={`View history for ${member.name || member.email}`}
+                                >
+                                  <History className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">View History</TooltipContent>
+                            </Tooltip>
+                          ) : null}
 
-                      {onDelete && canDeleteMember ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              disabled={isPending}
-                              className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:bg-rose-50 disabled:text-rose-300 disabled:opacity-40"
-                              onClick={() => {
-                                if (isPending) return;
-                                onDelete(member);
-                              }}
-                              aria-label={`Delete ${member.name || member.email || "member"}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">Delete User</TooltipContent>
-                        </Tooltip>
-                      ) : null}
-                    </>
-                  )}
-                </div>
-              </TooltipProvider>
-            </td>
-          </tr>
-          );
-        })}
-      </tbody>
-    </table>
-    <UserHistorySidebar
-      isOpen={!!historyOpenForUser}
-      onClose={() => setHistoryOpenForUser(null)}
-      user={historyOpenForUser}
-      onOpenHistoryDetail={(detail, sourceId) => {
-        if (!historyOpenForUser) return;
-        setHistoryOpenForUser(null);
-        onOpenHistoryDetail?.(historyOpenForUser, detail, sourceId);
-      }}
-    />
-    <style
-      dangerouslySetInnerHTML={{
-        __html:
-          "@keyframes user-node-path-marquee{from{transform:translateX(0)}to{transform:translateX(calc(-1 * var(--node-path-shift, 0px)))}}",
-      }}
-    />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+                                onClick={() => onView(member)}
+                                aria-label={`Manage ${member.name || member.email || "member"}`}
+                              >
+                                <SlidersHorizontal className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Manage User</TooltipContent>
+                          </Tooltip>
+
+                          {onDelete && canDeleteMember ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  disabled={isPending}
+                                  className="h-8 w-8 text-rose-600 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:bg-rose-50 disabled:text-rose-300 disabled:opacity-40"
+                                  onClick={() => {
+                                    if (isPending) return;
+                                    onDelete(member);
+                                  }}
+                                  aria-label={`Delete ${member.name || member.email || "member"}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">Delete User</TooltipContent>
+                            </Tooltip>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
+                  </TooltipProvider>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <UserHistorySidebar
+        isOpen={!!historyOpenForUser}
+        onClose={() => setHistoryOpenForUser(null)}
+        user={historyOpenForUser}
+        onOpenHistoryDetail={(detail, sourceId) => {
+          if (!historyOpenForUser) return;
+          setHistoryOpenForUser(null);
+          onOpenHistoryDetail?.(historyOpenForUser, detail, sourceId);
+        }}
+      />
+      <style
+        dangerouslySetInnerHTML={{
+          __html:
+            "@keyframes user-node-path-marquee{from{transform:translateX(0)}to{transform:translateX(calc(-1 * var(--node-path-shift, 0px)))}}",
+        }}
+      />
     </>
   );
 }

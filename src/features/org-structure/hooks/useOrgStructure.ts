@@ -14,11 +14,11 @@ import {
   MIN_ZOOM,
   VIEWPORT_EDGE_PADDING,
   ZOOM_STEP,
-  buildEmptyPermissionRows,
+  buildEmptyPermissionSections,
+  buildPermissionSectionsFromCounts,
   centerSelectedNode,
   getInitialZoomForOverflow,
-  type PermissionMatrixRow,
-  SYSTEM_ROWS,
+  type PermissionMatrixSection,
   performPendingNodeAction,
 } from "@/features/org-structure/hooks/orgStructureViewModel.utils";
 
@@ -50,7 +50,7 @@ export function useOrgStructure() {
   const [statusUpdateWorkflowHash, setStatusUpdateWorkflowHash] = useState("");
   const [statusUpdateRemarks, setStatusUpdateRemarks] = useState("");
   const [statusUpdateWorkflowOptions, setStatusUpdateWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
-  const [nodePermissionRows, setNodePermissionRows] = useState<PermissionMatrixRow[]>(buildEmptyPermissionRows);
+  const [nodePermissionSections, setNodePermissionSections] = useState<PermissionMatrixSection[]>(buildEmptyPermissionSections);
   const [nodePermissionLoading, setNodePermissionLoading] = useState(false);
   const [hasNewOrgEvent, setHasNewOrgEvent] = useState(false);
   const treeScrollRef = useRef<HTMLDivElement | null>(null);
@@ -334,28 +334,16 @@ export function useOrgStructure() {
       setNodePermissionLoading(true);
       void fetchUsersByNodePathCount(node.nodePath)
         .then((data) => {
-          const normalizedRows = SYSTEM_ROWS.map((row) => {
-            const entries = Array.isArray(data[row.key]) ? data[row.key] : [];
-            const counts = { checker: 0, maker: 0, viewer: 0 };
-            entries.forEach((entry) => {
-              const level = String(entry.permissionlevel || "").trim().toUpperCase();
-              const count = typeof entry.count === "number" ? entry.count : 0;
-              if (level === "MANAGER") counts.checker = count;
-              if (level === "USER") counts.maker = count;
-              if (level === "VIEWER") counts.viewer = count;
-            });
-            return { key: row.key, label: row.label, counts };
-          });
-          setNodePermissionRows(normalizedRows);
+          setNodePermissionSections(buildPermissionSectionsFromCounts(data));
         })
         .catch(() => {
-          setNodePermissionRows(buildEmptyPermissionRows());
+          setNodePermissionSections(buildEmptyPermissionSections());
         })
         .finally(() => {
           setNodePermissionLoading(false);
         });
     } else {
-      setNodePermissionRows(buildEmptyPermissionRows());
+      setNodePermissionSections(buildEmptyPermissionSections());
       setNodePermissionLoading(false);
     }
 
@@ -537,7 +525,7 @@ export function useOrgStructure() {
 
   return {
     companyCode, orgStructure, selectedDepartment, sidebarOpen, orgLoading, orgError, canvasWidth, bottomScrollContentWidth,
-    hasHorizontalOverflow, zoom, isNewNodePopupOpen, newNodeParent, pendingNodeForReview, nodePermissionRows,
+    hasHorizontalOverflow, zoom, isNewNodePopupOpen, newNodeParent, pendingNodeForReview, nodePermissionSections,
     nodePermissionLoading, treeScrollRef, bottomScrollRef, graphContentRef, companyName, nodeCount, canZoomOut, canZoomIn,
     viewportEdgePadding: VIEWPORT_EDGE_PADDING, setCanvasWidth, setIsNewNodePopupOpen, setNewNodeParent, newNodeWorkflowOptions,
     setPendingNodeForReview, handleOpenNewNodePopup, handleCreateNode, handleDepartmentClick, handleSidebarOpenChange,
@@ -558,4 +546,5 @@ export function useOrgStructure() {
     },
   };
 }
+
 

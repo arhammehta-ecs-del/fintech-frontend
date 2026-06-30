@@ -86,7 +86,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     zoomOut,
     zoomIn,
     pendingNodeForReview,
-    nodePermissionRows,
+    nodePermissionSections,
     nodePermissionLoading,
     setPendingNodeForReview,
     handleApproveNode,
@@ -514,7 +514,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
               open={sidebarOpen}
               onOpenChange={handleSidebarOpenChange}
               department={selectedDepartment}
-              permissionRows={nodePermissionRows}
+              permissionSections={nodePermissionSections}
               countsLoading={nodePermissionLoading}
               onNavigateToUsers={handleNavigateToUsers}
               onOpenHistory={(input) => {
@@ -541,7 +541,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
             open={sidebarOpen}
             onOpenChange={handleSidebarOpenChange}
             department={selectedDepartment}
-            permissionRows={nodePermissionRows}
+            permissionSections={nodePermissionSections}
             countsLoading={nodePermissionLoading}
             onNavigateToUsers={handleNavigateToUsers}
             onOpenHistory={(input) => {
@@ -703,5 +703,6 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
 export default function OrgStructureViewPage() {
   return <OrgStructureView />;
 }
+
 
 

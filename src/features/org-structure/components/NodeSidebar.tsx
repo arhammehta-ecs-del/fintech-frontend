@@ -2,29 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { History, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCollapsedNodePath } from "@/features/user-management/utils";
+import {
+  type PermissionAction,
+  type PermissionMatrixSection,
+} from "@/features/org-structure/hooks/orgStructureViewModel.utils";
 import type { DepartmentSidebarDepartment } from "@/features/org-structure/types";
 
 export type { DepartmentSidebarDepartment };
 
-type PermissionAction = "checker" | "maker" | "viewer";
-type PermissionMatrixRow = {
-  key: string;
-  label: string;
-  counts: Record<PermissionAction, number>;
-};
-
 const ACTIONS: PermissionAction[] = ["checker", "maker", "viewer"];
-const SYSTEM_ROWS: Array<{ key: string; label: string }> = [
-  { key: "ORG_STR", label: "Org Structure" },
-  { key: "USER_ACC", label: "User Access" },
-  { key: "WORK_FLOW", label: "Workflow" },
-];
-
-const initRowCounts = (): Record<PermissionAction, number> => ({
-  checker: 0,
-  maker: 0,
-  viewer: 0,
-});
 
 const formatNodeTypeLabel = (value?: string) => {
   const normalized = (value || "").trim();
@@ -103,8 +89,6 @@ function NodePathMarquee({ text }: { text: string }) {
       {overflowPx > 0 ? (
         <span
           className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-600 transition hover:border-sky-300 hover:bg-sky-100"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
           aria-label="Preview full node path"
           role="img"
         >
@@ -117,9 +101,9 @@ function NodePathMarquee({ text }: { text: string }) {
             className={shouldAnimate ? "inline-flex items-center whitespace-nowrap will-change-transform" : "inline-flex items-center whitespace-nowrap"}
             style={shouldAnimate
               ? {
-                animation: `org-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
-                ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
-              }
+                  animation: `org-node-path-marquee ${MARQUEE_DURATION_SECONDS}s linear infinite`,
+                  ["--node-path-shift" as string]: `${marqueeTravelPx}px`,
+                }
               : undefined}
           >
             <span ref={textRef} className="inline-block whitespace-nowrap antialiased">
@@ -140,7 +124,7 @@ function NodePathMarquee({ text }: { text: string }) {
 
 function NodeSidebarContent({
   department,
-  permissionRows,
+  permissionSections,
   countsLoading,
   onNavigateToUsers,
   onClose,
@@ -148,7 +132,7 @@ function NodeSidebarContent({
   onRequestStatusChange,
 }: {
   department: DepartmentSidebarDepartment | null;
-  permissionRows: PermissionMatrixRow[];
+  permissionSections: PermissionMatrixSection[];
   countsLoading: boolean;
   onNavigateToUsers: (input: { nodeName: string; nodePath: string; category: string; subCategory: string; action: PermissionAction }) => void;
   onClose: () => void;
@@ -291,52 +275,64 @@ function NodeSidebarContent({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50/60">
-          <div className="grid grid-cols-[minmax(0,1fr)_64px_64px_64px] gap-2 border-b border-slate-200 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-            <span>System Access</span>
-            <span className="text-center">Checker</span>
-            <span className="text-center">Maker</span>
-            <span className="text-center">Viewer</span>
+        {countsLoading ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-4 text-xs text-slate-500">Loading access counts...</div>
+        ) : permissionSections.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/40 px-4 py-5 text-sm text-slate-500">
+            No access counts available for this node.
           </div>
-
-          {countsLoading ? (
-            <div className="px-3 py-4 text-xs text-slate-500">Loading access counts...</div>
-          ) : (
-            permissionRows.map((row) => (
-              <div
-                key={row.label}
-                className="grid grid-cols-[minmax(0,1fr)_64px_64px_64px] items-center gap-2 border-b border-slate-100 px-3 py-3 last:border-b-0"
-              >
-                <span className="truncate text-sm font-medium text-slate-700">{row.label}</span>
-                {ACTIONS.map((action) => (
-                  <button
-                    type="button"
-                    key={`${row.label}-${action}`}
-                    disabled={row.counts[action] === 0}
-                    onClick={() => {
-                      if (!department?.name || !department?.nodePath || row.counts[action] === 0) return;
-                      onNavigateToUsers({
-                        nodeName: displayDepartment?.name || department.name,
-                        nodePath: displayDepartment?.nodePath || department.nodePath,
-                        category: "SYSTEM_ACCESS",
-                        subCategory: row.key,
-                        action,
-                      });
-                    }}
-                    className={cn(
-                      "mx-auto inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold transition",
-                      row.counts[action] === 0
-                        ? "cursor-not-allowed border-slate-200 bg-white text-slate-500/70"
-                        : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100",
-                    )}
+        ) : (
+          <div className="space-y-4">
+            {permissionSections.map((section) => (
+              <div key={section.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60">
+                <div className="border-b border-slate-200 bg-white/70 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    {section.label}
+                  </p>
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_64px_64px_64px] gap-3 border-b border-slate-200 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  <span>Access Group</span>
+                  <span className="text-center">Checker</span>
+                  <span className="text-center">Maker</span>
+                  <span className="text-center">Viewer</span>
+                </div>
+                {section.rows.map((row) => (
+                  <div
+                    key={`${section.key}-${row.key}`}
+                    className="grid grid-cols-[minmax(0,1fr)_64px_64px_64px] items-start gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
                   >
-                    {row.counts[action] === 0 ? "-" : row.counts[action]}
-                  </button>
+                    <span className="pr-2 text-sm font-medium leading-5 text-slate-700 break-words">{row.label}</span>
+                    {ACTIONS.map((action) => (
+                      <button
+                        type="button"
+                        key={`${row.label}-${action}`}
+                        disabled={row.counts[action] === 0}
+                        onClick={() => {
+                          if (!department?.name || !department?.nodePath || row.counts[action] === 0) return;
+                          onNavigateToUsers({
+                            nodeName: displayDepartment?.name || department.name,
+                            nodePath: displayDepartment?.nodePath || department.nodePath,
+                            category: row.categoryKey,
+                            subCategory: row.key,
+                            action,
+                          });
+                        }}
+                        className={cn(
+                          "mx-auto inline-flex min-h-7 min-w-[32px] items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold transition",
+                          row.counts[action] === 0
+                            ? "cursor-not-allowed border-slate-200 bg-white text-slate-500/70"
+                            : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100",
+                        )}
+                      >
+                        {row.counts[action] === 0 ? "-" : row.counts[action]}
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -346,7 +342,7 @@ export function NodeSidebar({
   open,
   onOpenChange,
   department,
-  permissionRows,
+  permissionSections,
   countsLoading,
   onNavigateToUsers,
   onOpenHistory,
@@ -355,7 +351,7 @@ export function NodeSidebar({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   department: DepartmentSidebarDepartment | null;
-  permissionRows: PermissionMatrixRow[];
+  permissionSections: PermissionMatrixSection[];
   countsLoading: boolean;
   onNavigateToUsers: (input: { nodeName: string; nodePath: string; category: string; subCategory: string; action: PermissionAction }) => void;
   onOpenHistory: (input?: { nodeName: string; nodePath: string }) => void;
@@ -372,7 +368,7 @@ export function NodeSidebar({
     >
       <NodeSidebarContent
         department={department}
-        permissionRows={permissionRows}
+        permissionSections={permissionSections}
         countsLoading={countsLoading}
         onNavigateToUsers={onNavigateToUsers}
         onClose={() => onOpenChange(false)}
@@ -388,4 +384,3 @@ export function NodeSidebar({
 }
 
 export default NodeSidebar;
-
