@@ -148,7 +148,15 @@ const buildWorkflowColumnTemplate = (workflows: typeof paginatedWorkflows): Work
 };
 
 const buildWorkflowGridTemplate = (template: WorkflowTableColumnTemplate) =>
-  `${template.workflow}% ${template.alias}% ${template.module}% ${template.node}% ${template.type}% ${template.status}% ${template.manage}%`;
+  [
+    `minmax(0, ${template.workflow}fr)`,
+    `minmax(0, ${template.alias}fr)`,
+    `minmax(0, ${template.module}fr)`,
+    `minmax(0, ${template.node}fr)`,
+    `minmax(0, ${template.type}fr)`,
+    `minmax(0, ${template.status}fr)`,
+    `minmax(48px, ${template.manage}fr)`,
+  ].join(" ");
 
 const isDescendantNodePath = (parentPath: string, candidatePath: string) => {
   const normalizedParent = parentPath.trim().toUpperCase();
@@ -1320,7 +1328,7 @@ export default function WorkflowManagementView() {
         {filteredWorkflows.length === 0 ? (
           <div className="p-8 text-sm text-slate-500">No {activeStatus.toLowerCase()} workflows available.</div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto" style={{ ["--workflow-grid-template" as string]: workflowGridTemplate }}>
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" style={{ ["--workflow-grid-template" as string]: workflowGridTemplate }}>
             <div className="sticky top-0 z-20 grid grid-cols-1 gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur md:items-center md:gap-x-4 md:[grid-template-columns:var(--workflow-grid-template)]">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Workflow</div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Alias</div>

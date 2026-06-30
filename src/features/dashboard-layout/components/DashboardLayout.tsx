@@ -17,8 +17,8 @@ const settingsTabTitles: Record<string, string> = {
 
 const getPageTitle = (pathname: string, search: string) => {
   if (pathname === "/") return "Seed Control Panel";
-  if (pathname === "/companies") return "Company List";
-  if (pathname === "/monitoring") return "API Monitoring";
+  if (pathname === "/companies") return "";
+  if (pathname === "/monitoring") return "";
   if (pathname === "/profile") return "My Profile";
   if (pathname === "/settings") {
     const activeTab = new URLSearchParams(search).get("tab") ?? "org";
