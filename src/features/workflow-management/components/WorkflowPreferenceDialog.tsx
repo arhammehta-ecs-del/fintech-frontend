@@ -244,6 +244,22 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     ));
   }, [firstMatchingWorkflowPreferenceNodePath, nodeSearch, open]);
 
+  useEffect(() => {
+    if (!open || !selectedNodePath) return;
+
+    const scrollToSelectedNode = () => {
+      selectedNodeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    };
+
+    const frame = window.requestAnimationFrame(scrollToSelectedNode);
+    const timeoutId = window.setTimeout(scrollToSelectedNode, 80);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeoutId);
+    };
+  }, [collapsedNodePaths, open, selectedNodePath, visibleWorkflowPreferenceFlowNodes]);
+
   const toggleNodeBranch = (nodePath: string) => {
     setCollapsedNodePaths((current) =>
       current.includes(nodePath) ? current.filter((path) => path !== nodePath) : [...current, nodePath],

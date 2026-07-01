@@ -123,6 +123,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const [isRefreshTriggerVisible, setIsRefreshTriggerVisible] = useState(true);
   const [isSidebarTransitioning, setIsSidebarTransitioning] = useState(false);
   const refreshTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const previousSidebarOpenRef = useRef(sidebarOpen);
   const isNotificationsPanelOpen = useNotificationsPanelOpen();
   const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
   const isAnyOrgDialogOpen = isNewNodePopupOpen || Boolean(pendingNodeForReview) || Boolean(statusUpdateNode);
@@ -152,6 +153,34 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
     observer.observe(refreshTrigger);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    const wasSidebarOpen = previousSidebarOpenRef.current;
+    previousSidebarOpenRef.current = sidebarOpen;
+
+    if (wasSidebarOpen === sidebarOpen) return;
+
+    setIsSidebarTransitioning(true);
+    setIsRefreshTooltipOpen(false);
+
+    const sideBar = document.querySelector("aside");
+    const handleSidebarTransitionEnd = (event: Event) => {
+      const transitionEvent = event as TransitionEvent;
+      if (transitionEvent.target !== sideBar) return;
+      if (transitionEvent.propertyName && transitionEvent.propertyName !== "width") return;
+      setIsSidebarTransitioning(false);
+    };
+
+    sideBar?.addEventListener("transitionend", handleSidebarTransitionEnd);
+    const fallbackTimer = window.setTimeout(() => {
+      setIsSidebarTransitioning(false);
+    }, 360);
+
+    return () => {
+      sideBar?.removeEventListener("transitionend", handleSidebarTransitionEnd);
+      window.clearTimeout(fallbackTimer);
+    };
+  }, [sidebarOpen]);
   useEffect(() => {
     const syncShellOffset = () => {
       const topBar = document.querySelector("header");

@@ -893,6 +893,29 @@ export function AppTopBar({
     focusNotificationSettingsNode(firstMatchingNotificationSettingsNodePath);
   }, [firstMatchingNotificationSettingsNodePath, focusNotificationSettingsNode, notificationSettingsSearch, selectedNotificationSettingsNodePath]);
 
+  useEffect(() => {
+    if (!notificationSettingsOpen || !selectedNotificationSettingsNodePath) return;
+
+    const scrollToSelectedNode = () => {
+      const selectedNode = notificationSettingsSelectedNodeRef.current
+        ?? notificationSettingsNodeButtonRefs.current[selectedNotificationSettingsNodePath];
+      selectedNode?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    };
+
+    const frame = window.requestAnimationFrame(scrollToSelectedNode);
+    const timeoutId = window.setTimeout(scrollToSelectedNode, 80);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    collapsedNotificationSettingsNodePaths,
+    notificationSettingsOpen,
+    notificationSettingsSearch,
+    notificationSettingsVisibleFlowNodes,
+    selectedNotificationSettingsNodePath,
+  ]);
   const toggleNotificationSettingsBranch = useCallback((nodePath: string) => {
     setCollapsedNotificationSettingsNodePaths((current) => {
       const isCollapsed = current.includes(nodePath);
