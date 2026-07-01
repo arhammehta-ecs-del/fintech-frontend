@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Check, ChevronDown, Loader2, LogOut, Menu, Settings, ShieldCheck, User, X } from "lucide-react";
+import { ArrowRight, Bell, Check, ChevronDown, Loader2, LogOut, Menu, Search, Settings, ShieldCheck, User, X } from "lucide-react";
 import type { NavigateFunction } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -451,6 +452,9 @@ const formatNodeTypeLabel = (value?: string) =>
 const hasEnabledNotificationSetting = (settings: NotificationSettingsModule[]) =>
   settings.some((setting) => Boolean(setting.isEnabled));
 
+const countEnabledNotificationSettings = (settings: NotificationSettingsModule[]) =>
+  settings.filter((setting) => Boolean(setting.isEnabled)).length;
+
 const getNodePathSegments = (nodePath: string) =>
   nodePath
     .split(".")
@@ -701,6 +705,8 @@ export function AppTopBar({
   const [notificationSettingsSubmitError, setNotificationSettingsSubmitError] = useState("");
   const [notificationSettingsArrowPosition, setNotificationSettingsArrowPosition] = useState<{ left: number; top: number } | null>(null);
   const [collapsedNotificationSettingsNodePaths, setCollapsedNotificationSettingsNodePaths] = useState<string[]>([]);
+  const [notificationSettingsSearch, setNotificationSettingsSearch] = useState("");
+  const [notificationSettingsSearchExpanded, setNotificationSettingsSearchExpanded] = useState(false);
   const notificationSettingsPanelsRef = useRef<HTMLDivElement | null>(null);
   const notificationSettingsNodesScrollRef = useRef<HTMLDivElement | null>(null);
   const notificationSettingsLeftPanelRef = useRef<HTMLDivElement | null>(null);
@@ -817,6 +823,24 @@ export function AppTopBar({
     () => flattenNotificationSettingsTree(selectedNotificationSettingsCompany?.nodes ?? [], collapsedNotificationSettingsNodePaths),
     [collapsedNotificationSettingsNodePaths, selectedNotificationSettingsCompany],
   );
+  const notificationSettingsVisibleFlowNodes = useMemo(() => {
+    const query = notificationSettingsSearch.trim().toLowerCase();
+    if (!query) return notificationSettingsFlowNodes;
+
+    const expandedFlowNodes = flattenNotificationSettingsTree(selectedNotificationSettingsCompany?.nodes ?? [], []);
+    const visiblePaths = new Set<string>();
+
+    expandedFlowNodes.forEach((item) => {
+      const nodeName = item.node.nodeName.toLowerCase();
+      const nodePath = item.node.nodePath.toLowerCase();
+      if (nodeName.includes(query) || nodePath.includes(query)) {
+        visiblePaths.add(item.node.nodePath);
+        getNotificationSettingsAncestorPaths(item.node.nodePath).forEach((ancestorPath) => visiblePaths.add(ancestorPath));
+      }
+    });
+
+    return expandedFlowNodes.filter((item) => visiblePaths.has(item.node.nodePath));
+  }, [notificationSettingsFlowNodes, notificationSettingsSearch, selectedNotificationSettingsCompany]);
   const selectedNotificationSettingsNode = useMemo(
     () =>
       selectedNotificationSettingsCompany
@@ -1463,6 +1487,8 @@ export function AppTopBar({
       setNotificationSettingsSubmitError("");
       setNotificationSettingsCompanies(cloneNotificationSettingsCompanies(notificationSettingsInitialCompanies));
       setCollapsedNotificationSettingsNodePaths([]);
+      setNotificationSettingsSearch("");
+      setNotificationSettingsSearchExpanded(false);
     }
   }, [notificationSettingsInitialCompanies]);
 
@@ -1878,115 +1904,151 @@ export function AppTopBar({
     }
 
     return (
-      <div
-        ref={notificationSettingsNodesScrollRef}
-        className="custom-scrollbar min-h-0 max-h-[32rem] overflow-y-auto overflow-x-hidden rounded-xl border border-[#dbe4ff] bg-white"
-        style={{ scrollbarGutter: "stable", WebkitOverflowScrolling: "touch" }}
-      >
-        <div className="space-y-2 p-3">
-          {notificationSettingsFlowNodes.map((item) => {
-            const appearance = getBranchAppearance(item.branchIndex, item.branchDepth, item.isRoot);
-            const borderLeftClass = item.isRoot
-              ? "border-l-indigo-400"
-              : getNodeAccentBorderLeft(item.branchIndex, item.branchDepth, item.isRoot);
-            const isSelected = selectedNotificationSettingsNodePath === item.node.nodePath;
-            const isEnabled = getNotificationSettingsNodeToggleState(item.node);
-            const hasChildren = item.node.children.length > 0;
-            const isCollapsed = collapsedNotificationSettingsNodePaths.includes(item.node.nodePath);
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div
+          className={cn(
+            "overflow-hidden transition-all duration-200 ease-out",
+            notificationSettingsSearchExpanded ? "mb-3 max-h-16 opacity-100" : "max-h-0 opacity-0",
+          )}
+        >
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={notificationSettingsSearch}
+              onChange={(event) => setNotificationSettingsSearch(event.target.value)}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Escape") {
+                  setNotificationSettingsSearch("");
+                  setNotificationSettingsSearchExpanded(false);
+                }
+              }}
+              placeholder="Search node name or path..."
+              className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] shadow-none"
+              autoComplete="off"
+              autoFocus={notificationSettingsSearchExpanded}
+            />
+          </div>
+        </div>
+        <div
+          ref={notificationSettingsNodesScrollRef}
+          className="custom-scrollbar min-h-0 max-h-[32rem] flex-1 overflow-y-auto overflow-x-hidden rounded-xl border border-[#dbe4ff] bg-white"
+          style={{ scrollbarGutter: "stable", WebkitOverflowScrolling: "touch" }}
+        >
+          <div className="space-y-2 p-3">
+            {notificationSettingsVisibleFlowNodes.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
+                No matching nodes found.
+              </div>
+            ) : notificationSettingsVisibleFlowNodes.map((item) => {
+              const appearance = getBranchAppearance(item.branchIndex, item.branchDepth, item.isRoot);
+              const borderLeftClass = item.isRoot
+                ? "border-l-indigo-400"
+                : getNodeAccentBorderLeft(item.branchIndex, item.branchDepth, item.isRoot);
+              const isSelected = selectedNotificationSettingsNodePath === item.node.nodePath;
+              const isEnabled = getNotificationSettingsNodeToggleState(item.node);
+              const hasChildren = item.node.children.length > 0;
+              const isCollapsed = collapsedNotificationSettingsNodePaths.includes(item.node.nodePath);
+              const enabledModuleCount = countEnabledNotificationSettings(item.node.settings);
+              const totalModuleCount = item.node.settings.length;
 
-            return (
-              <div key={item.node.nodePath} className="w-full" style={{ paddingLeft: `${item.depth * 20}px` }}>
-                <div
-                  ref={(node) => {
-                    registerNotificationSettingsNodeButton(item.node.nodePath)(node);
-                    if (isSelected) {
-                      notificationSettingsSelectedNodeRef.current = node;
-                    } else if (notificationSettingsSelectedNodeRef.current === node) {
-                      notificationSettingsSelectedNodeRef.current = null;
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => focusNotificationSettingsNode(item.node.nodePath)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      focusNotificationSettingsNode(item.node.nodePath);
-                    }
-                  }}
-                  className={cn(
-                    "group relative w-full overflow-hidden rounded-2xl border bg-white px-4 py-4 text-left shadow-sm transition-all duration-200",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
-                    isSelected
-                      ? item.isRoot
-                        ? "border border-indigo-200 bg-indigo-50/70 text-slate-800 shadow-[0_10px_22px_rgba(99,102,241,0.16)] border-l-[4px] border-l-indigo-400"
+              return (
+                <div key={item.node.nodePath} className="w-full" style={{ paddingLeft: `${item.depth * 20}px` }}>
+                  <div
+                    ref={(node) => {
+                      registerNotificationSettingsNodeButton(item.node.nodePath)(node);
+                      if (isSelected) {
+                        notificationSettingsSelectedNodeRef.current = node;
+                      } else if (notificationSettingsSelectedNodeRef.current === node) {
+                        notificationSettingsSelectedNodeRef.current = null;
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => focusNotificationSettingsNode(item.node.nodePath)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        focusNotificationSettingsNode(item.node.nodePath);
+                      }
+                    }}
+                    className={cn(
+                      "group relative w-full overflow-hidden rounded-2xl border bg-white px-4 py-4 text-left shadow-sm transition-all duration-200",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                      isSelected
+                        ? item.isRoot
+                          ? "border border-indigo-200 bg-indigo-50/70 text-slate-800 shadow-[0_10px_22px_rgba(99,102,241,0.16)] border-l-[4px] border-l-indigo-400"
+                          : cn(
+                            "border-[rgb(53,83,233)] shadow-[0_0_0_3px_rgba(53,83,233,0.08)] bg-[rgb(53,83,233,0.02)] border-l-[4px]",
+                            borderLeftClass,
+                          )
                         : cn(
-                          "border-[rgb(53,83,233)] shadow-[0_0_0_3px_rgba(53,83,233,0.08)] bg-[rgb(53,83,233,0.02)] border-l-[4px]",
+                          item.isRoot
+                            ? "border border-indigo-100 bg-indigo-50/35 text-slate-800 shadow-[0_6px_16px_rgba(99,102,241,0.1)]"
+                            : appearance.defaultSurfaceClass,
+                          appearance.hoverBorderClass,
+                          "border-l-[4px]",
                           borderLeftClass,
-                        )
-                      : cn(
-                        item.isRoot
-                          ? "border border-indigo-100 bg-indigo-50/35 text-slate-800 shadow-[0_6px_16px_rgba(99,102,241,0.1)]"
-                          : appearance.defaultSurfaceClass,
-                        appearance.hoverBorderClass,
-                        "border-l-[4px]",
-                        borderLeftClass,
-                      ),
-                  )}
-                >
-                  <span
-                    className={cn("absolute left-0 top-0 h-full w-[4px] rounded-r-full", item.isRoot ? "bg-indigo-400" : borderLeftClass)}
-                    aria-hidden="true"
-                  />
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-center gap-2">
-                        {hasChildren ? (
-                          <button
-                            type="button"
-                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              toggleNotificationSettingsBranch(item.node.nodePath);
-                            }}
-                            aria-label={isCollapsed ? `Expand ${item.node.nodeName}` : `Collapse ${item.node.nodeName}`}
-                          >
-                            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isCollapsed ? "-rotate-90" : "rotate-0")} />
-                          </button>
-                        ) : (
-                          <span className="h-6 w-6 shrink-0" aria-hidden="true" />
-                        )}
-                        <span className="inline-flex rounded-md bg-[#eef2ff] px-2 py-0.5 text-[11px] font-bold tracking-[0.16em] text-[#4f46e5]">
-                          {formatNodeLevelLabel(item.node.levelCount || item.depth + 1)}
-                        </span>
-                        <div className={cn("truncate text-base font-semibold", "text-slate-800")}>{item.node.nodeName}</div>
-                      </div>
-                    </div>
-                    <div
-                      className="shrink-0"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                      }}
-                    >
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="inline-flex">
-                            <Switch
-                              checked={isEnabled}
-                              disabled={notificationSettingsSaving}
-                              onCheckedChange={(checked) => handleNotificationSettingsNodeToggle(item.node.nodePath, checked)}
-                              aria-label={`Toggle notifications for ${item.node.nodeName}`}
-                            />
+                        ),
+                    )}
+                  >
+                    <span
+                      className={cn("absolute left-0 top-0 h-full w-[4px] rounded-r-full", item.isRoot ? "bg-indigo-400" : borderLeftClass)}
+                      aria-hidden="true"
+                    />
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-2">
+                          {hasChildren ? (
+                            <button
+                              type="button"
+                              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleNotificationSettingsBranch(item.node.nodePath);
+                              }}
+                              aria-label={isCollapsed ? `Expand ${item.node.nodeName}` : `Collapse ${item.node.nodeName}`}
+                            >
+                              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isCollapsed ? "-rotate-90" : "rotate-0")} />
+                            </button>
+                          ) : (
+                            <span className="h-6 w-6 shrink-0" aria-hidden="true" />
+                          )}
+                          <span className="inline-flex rounded-md bg-[#eef2ff] px-2 py-0.5 text-[11px] font-bold tracking-[0.16em] text-[#4f46e5]">
+                            {formatNodeLevelLabel(item.node.levelCount || item.depth + 1)}
                           </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">{isEnabled ? "Enabled" : "Disabled"}</TooltipContent>
-                      </Tooltip>
+                          <div className={cn("truncate text-base font-semibold", "text-slate-800")}>{item.node.nodeName}</div>
+                          <span className="inline-flex shrink-0 rounded-full border border-[#dbe4ff] bg-[#f7f9ff] px-2.5 py-1 text-[11px] font-semibold text-[#4f6fd9]">
+                            {enabledModuleCount}/{totalModuleCount}
+                          </span>
+                        </div>
+                      </div>
+                      <div
+                        className="shrink-0"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                        }}
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                              <Switch
+                                checked={isEnabled}
+                                disabled={notificationSettingsSaving}
+                                onCheckedChange={(checked) => handleNotificationSettingsNodeToggle(item.node.nodePath, checked)}
+                                aria-label={`Toggle notifications for ${item.node.nodeName}`}
+                              />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">{isEnabled ? "Enabled" : "Disabled"}</TooltipContent>
+                        </Tooltip>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -2013,6 +2075,8 @@ export function AppTopBar({
     }
 
     const nodeEnabled = getNotificationSettingsNodeToggleState(selectedNotificationSettingsNode);
+    const enabledModuleCount = countEnabledNotificationSettings(selectedNotificationSettingsNode.settings);
+    const totalModuleCount = selectedNotificationSettingsNode.settings.length;
 
     return (
       <div className="min-h-0 overflow-auto rounded-2xl border border-[#dbe4ff] bg-white p-5 shadow-[0_18px_40px_rgba(148,163,184,0.12)]">
@@ -2058,9 +2122,14 @@ export function AppTopBar({
         </div>
 
         <div className="mt-5 space-y-3">
-          <div className="inline-flex flex-col">
-            <p className="text-sm font-semibold text-slate-800">Module Notifications</p>
-            <span className="mt-1 h-px w-16 rounded-full bg-slate-300" aria-hidden="true" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="inline-flex flex-col">
+              <p className="text-sm font-semibold text-slate-800">Module Notifications</p>
+              <span className="mt-1 h-px w-16 rounded-full bg-slate-300" aria-hidden="true" />
+            </div>
+            <span className="rounded-full border border-[#dbe4ff] bg-[#f7f9ff] px-3 py-1 text-xs font-semibold text-[#4f6fd9]">
+              {enabledModuleCount}/{totalModuleCount}
+            </span>
           </div>
           {selectedNotificationSettingsNode.settings.length > 0 ? (
             selectedNotificationSettingsNode.settings.map((setting) => (
@@ -2408,8 +2477,25 @@ export function AppTopBar({
                   </div>
                 ) : null}
                 <div ref={notificationSettingsLeftPanelRef} className={cn("flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-white p-5", NOTIFICATION_ACCENT_BORDER)}>
-                  <div className="mb-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
                     <h3 className="text-base font-semibold text-slate-800">Organization Nodes</h3>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        if (notificationSettingsSearchExpanded) {
+                          setNotificationSettingsSearch("");
+                          setNotificationSettingsSearchExpanded(false);
+                          return;
+                        }
+                        setNotificationSettingsSearchExpanded(true);
+                      }}
+                      className="h-9 w-9 rounded-lg border-slate-200 bg-slate-50 text-slate-600 shadow-none hover:border-slate-300 hover:bg-white"
+                      aria-label={notificationSettingsSearchExpanded ? "Close organization nodes search" : "Open organization nodes search"}
+                    >
+                      {notificationSettingsSearchExpanded ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+                    </Button>
                   </div>
                   {renderNotificationSettingsNodeTree()}
                 </div>
@@ -2516,6 +2602,8 @@ export function AppTopBar({
     </header>
   );
 }
+
+
 
 
 

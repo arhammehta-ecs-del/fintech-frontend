@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, ChevronDown, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Search, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getBranchAppearance, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
 import { useToast } from "@/hooks/use-toast";
@@ -123,6 +124,8 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
   const [initialSelection, setInitialSelection] = useState<NodeSelectionMap>({});
   const [arrowPosition, setArrowPosition] = useState<{ left: number; top: number } | null>(null);
   const [collapsedNodePaths, setCollapsedNodePaths] = useState<string[]>([]);
+  const [nodeSearch, setNodeSearch] = useState("");
+  const [isNodeSearchExpanded, setIsNodeSearchExpanded] = useState(false);
   const panelsRef = useRef<HTMLDivElement | null>(null);
   const leftPanelRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
@@ -141,6 +144,24 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     () => flattenWorkflowPreferenceTree(workflowPreferenceTree, collapsedNodePaths),
     [collapsedNodePaths, workflowPreferenceTree],
   );
+  const visibleWorkflowPreferenceFlowNodes = useMemo(() => {
+    const query = nodeSearch.trim().toLowerCase();
+    if (!query) return workflowPreferenceFlowNodes;
+
+    const expandedFlowNodes = flattenWorkflowPreferenceTree(workflowPreferenceTree, []);
+    const matchingPaths = new Set<string>();
+
+    expandedFlowNodes.forEach((item) => {
+      const nodeName = item.node.nodeName.toLowerCase();
+      const nodePath = item.node.nodePath.toLowerCase();
+      if (nodeName.includes(query) || nodePath.includes(query)) {
+        const segments = item.node.nodePath.split(".").map((segment) => segment.trim()).filter(Boolean);
+        segments.forEach((_, index) => matchingPaths.add(segments.slice(0, index + 1).join(".")));
+      }
+    });
+
+    return expandedFlowNodes.filter((item) => matchingPaths.has(item.node.nodePath));
+  }, [nodeSearch, workflowPreferenceFlowNodes, workflowPreferenceTree]);
   const pendingChangeCount = useMemo(() => countPendingChanges(selectionDraft, initialSelection), [initialSelection, selectionDraft]);
   const pendingChanges = pendingChangeCount > 0;
   const getSelectedModuleCountForNode = (nodePath: string, modules: WorkflowPreferenceDialogNode["modules"]) =>
@@ -188,6 +209,12 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     return () => {
       isMounted = false;
     };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) return;
+    setNodeSearch("");
+    setIsNodeSearchExpanded(false);
   }, [open]);
 
   const toggleNodeBranch = (nodePath: string) => {
@@ -401,8 +428,48 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
           ) : null}
 
           <div ref={leftPanelRef} className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[#dbe4ff] bg-white p-5">
-            <div className="mb-4 shrink-0">
+            <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
               <h3 className="text-base font-semibold text-slate-800">Organization Nodes</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isNodeSearchExpanded) {
+                    setNodeSearch("");
+                    setIsNodeSearchExpanded(false);
+                    return;
+                  }
+                  setIsNodeSearchExpanded(true);
+                }}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition-colors hover:border-slate-300 hover:bg-white"
+                aria-label={isNodeSearchExpanded ? "Close organization nodes search" : "Open organization nodes search"}
+              >
+                {isNodeSearchExpanded ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+              </button>
+            </div>
+            <div
+              className={cn(
+                "overflow-hidden transition-all duration-200 ease-out",
+                isNodeSearchExpanded ? "mb-3 max-h-16 opacity-100" : "max-h-0 opacity-0",
+              )}
+            >
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={nodeSearch}
+                  onChange={(event) => setNodeSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    if (event.key === "Escape") {
+                      setNodeSearch("");
+                      setIsNodeSearchExpanded(false);
+                    }
+                  }}
+                  placeholder="Search node name or path..."
+                  className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] shadow-none"
+                  autoComplete="off"
+                  autoFocus={isNodeSearchExpanded}
+                />
+              </div>
             </div>
             <div
               className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden pr-3"
@@ -414,8 +481,10 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
                 <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">{loadError}</div>
               ) : nodes.length === 0 ? (
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">No workflow preferences available.</div>
+              ) : visibleWorkflowPreferenceFlowNodes.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">No matching nodes found.</div>
               ) : (
-                workflowPreferenceFlowNodes.map((item) => {
+                visibleWorkflowPreferenceFlowNodes.map((item) => {
                   const appearance = getBranchAppearance(item.branchIndex, item.branchDepth, item.isRoot);
                   const borderLeftClass = item.isRoot
                     ? "border-l-indigo-400"
@@ -619,11 +688,4 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     </Dialog>
   );
 }
-
-
-
-
-
-
-
 

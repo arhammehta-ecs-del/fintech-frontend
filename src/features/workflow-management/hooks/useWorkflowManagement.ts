@@ -164,6 +164,7 @@ export function useWorkflowManagement() {
   const { toast } = useToast();
   const toastRef = useRef(toast);
   const isFetchingRef = useRef(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeStatus, setActiveStatus] = useState<WorkflowStatus>("Active");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -255,7 +256,10 @@ export function useWorkflowManagement() {
     ) => {
       if (isFetchingRef.current) return;
       isFetchingRef.current = true;
-      if (showLoader) setPage(params.targetPage);
+      if (showLoader) {
+        setPage(params.targetPage);
+        setIsLoading(true);
+      }
       try {
         const type = activeStatus === "Pending" ? "pending" : activeStatus === "Inactive" ? "inactive" : "active";
         const response = await fetchWorkflowsPaginated(type, {
@@ -290,6 +294,7 @@ export function useWorkflowManagement() {
         const fallbackTotalPages = Math.max(1, Math.ceil((targetCount || mapped.length) / pageSize));
         setResolvedTotalPages(Math.max(response.pageInfo.totalPages || 0, fallbackTotalPages));
       } finally {
+        if (showLoader) setIsLoading(false);
         isFetchingRef.current = false;
       }
     },
@@ -932,6 +937,7 @@ export function useWorkflowManagement() {
     addDialogOpen,
     setAddDialogOpen,
     handleOpenAddWorkflowDialog,
+    isLoading,
     page,
     setPage,
     pageSize,
@@ -958,6 +964,7 @@ export function useWorkflowManagement() {
     hasLoadedWorkflowsOnce,
   };
 }
+
 
 
 

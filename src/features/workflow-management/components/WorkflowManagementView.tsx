@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Filter, Info, Plus, RefreshCw, Search, Settings, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { ArrowUpDown, ChevronDown, Filter, Info, Plus, RefreshCw, Search, Settings, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -362,6 +362,7 @@ export default function WorkflowManagementView() {
     addDialogOpen,
     setAddDialogOpen,
     handleOpenAddWorkflowDialog,
+    isLoading,
     pageSize,
     setPageSize,
     historyWorkflow,
@@ -1305,7 +1306,14 @@ export default function WorkflowManagementView() {
           </div>
         </div>
 
-        {filteredWorkflows.length === 0 ? (
+        {isLoading ? (
+          <div className="flex min-h-[260px] items-center justify-center">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <ArrowUpDown className="h-4 w-4 animate-spin" />
+              Loading workflows...
+            </div>
+          </div>
+        ) : filteredWorkflows.length === 0 ? (
           <div className="p-8 text-sm text-slate-500">No {activeStatus.toLowerCase()} workflows available.</div>
         ) : (
           <div className="min-h-0 flex-1 overflow-auto">
@@ -1481,7 +1489,7 @@ export default function WorkflowManagementView() {
             </div>
           </div>
         )}
-        {filteredWorkflows.length > 0 ? (
+        {!isLoading && filteredWorkflows.length > 0 ? (
           <PaginationFooter
             currentCount={filteredWorkflows.length}
             recordCurrentCount={paginatedWorkflows.length}
@@ -2155,4 +2163,5 @@ function WorkflowSingleSelectDropdown({
     </div>
   );
 }
+
 
