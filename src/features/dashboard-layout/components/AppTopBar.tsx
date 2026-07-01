@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { matchesNodeSearchQuery } from "@/lib/nodeSearch";
 import { formatNodePathDisplay } from "@/lib/nodePath";
 import { AppSidebar } from "@/features/dashboard-layout/components/AppSidebar";
 import { getBranchAppearance, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
@@ -823,23 +824,41 @@ export function AppTopBar({
     () => flattenNotificationSettingsTree(selectedNotificationSettingsCompany?.nodes ?? [], collapsedNotificationSettingsNodePaths),
     [collapsedNotificationSettingsNodePaths, selectedNotificationSettingsCompany],
   );
-  const notificationSettingsVisibleFlowNodes = useMemo(() => {
+  const { firstMatchingNotificationSettingsNodePath, notificationSettingsVisibleFlowNodes } = useMemo(() => {
     const query = notificationSettingsSearch.trim().toLowerCase();
-    if (!query) return notificationSettingsFlowNodes;
+    if (!query) {
+      return {
+        firstMatchingNotificationSettingsNodePath: "",
+        notificationSettingsVisibleFlowNodes: notificationSettingsFlowNodes,
+      };
+    }
 
     const expandedFlowNodes = flattenNotificationSettingsTree(selectedNotificationSettingsCompany?.nodes ?? [], []);
     const visiblePaths = new Set<string>();
+    const directMatchingNodePaths: string[] = [];
 
     expandedFlowNodes.forEach((item) => {
-      const nodeName = item.node.nodeName.toLowerCase();
-      const nodePath = item.node.nodePath.toLowerCase();
-      if (nodeName.includes(query) || nodePath.includes(query)) {
+      const matchesQuery = matchesNodeSearchQuery(
+        {
+          nodeName: item.node.nodeName,
+          nodePath: item.node.nodePath,
+          nodeType: item.node.nodeType,
+          companyName: selectedNotificationSettingsCompany?.companyName,
+          companyCode: selectedNotificationSettingsCompany?.companyCode,
+        },
+        query,
+      );
+      if (matchesQuery) {
+        directMatchingNodePaths.push(item.node.nodePath);
         visiblePaths.add(item.node.nodePath);
         getNotificationSettingsAncestorPaths(item.node.nodePath).forEach((ancestorPath) => visiblePaths.add(ancestorPath));
       }
     });
 
-    return expandedFlowNodes.filter((item) => visiblePaths.has(item.node.nodePath));
+    return {
+      firstMatchingNotificationSettingsNodePath: directMatchingNodePaths[0] ?? "",
+      notificationSettingsVisibleFlowNodes: expandedFlowNodes.filter((item) => visiblePaths.has(item.node.nodePath)),
+    };
   }, [notificationSettingsFlowNodes, notificationSettingsSearch, selectedNotificationSettingsCompany]);
   const selectedNotificationSettingsNode = useMemo(
     () =>
@@ -867,6 +886,12 @@ export function AppTopBar({
     expandNotificationSettingsPath(nodePath);
     setSelectedNotificationSettingsNodePath(nodePath);
   }, [expandNotificationSettingsPath]);
+
+  useEffect(() => {
+    if (!notificationSettingsSearch.trim() || !firstMatchingNotificationSettingsNodePath) return;
+    if (selectedNotificationSettingsNodePath === firstMatchingNotificationSettingsNodePath) return;
+    focusNotificationSettingsNode(firstMatchingNotificationSettingsNodePath);
+  }, [firstMatchingNotificationSettingsNodePath, focusNotificationSettingsNode, notificationSettingsSearch, selectedNotificationSettingsNodePath]);
 
   const toggleNotificationSettingsBranch = useCallback((nodePath: string) => {
     setCollapsedNotificationSettingsNodePaths((current) => {
@@ -2602,11 +2627,4 @@ export function AppTopBar({
     </header>
   );
 }
-
-
-
-
-
-
-
 

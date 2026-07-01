@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getBranchAppearance, getNodeAccentBorderLeft } from "@/features/org-structure/nodeTheme.utils";
 import { useToast } from "@/hooks/use-toast";
+import { matchesNodeSearchQuery } from "@/lib/nodeSearch";
 import { formatNodePathDisplay } from "@/lib/nodePath";
 import { cn } from "@/lib/utils";
 import { getApiErrorMessage } from "@/services/client";
@@ -144,24 +145,42 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     () => flattenWorkflowPreferenceTree(workflowPreferenceTree, collapsedNodePaths),
     [collapsedNodePaths, workflowPreferenceTree],
   );
-  const visibleWorkflowPreferenceFlowNodes = useMemo(() => {
+  const { firstMatchingWorkflowPreferenceNodePath, visibleWorkflowPreferenceFlowNodes } = useMemo(() => {
     const query = nodeSearch.trim().toLowerCase();
-    if (!query) return workflowPreferenceFlowNodes;
+    if (!query) {
+      return {
+        firstMatchingWorkflowPreferenceNodePath: "",
+        visibleWorkflowPreferenceFlowNodes: workflowPreferenceFlowNodes,
+      };
+    }
 
     const expandedFlowNodes = flattenWorkflowPreferenceTree(workflowPreferenceTree, []);
     const matchingPaths = new Set<string>();
+    const directMatchingNodePaths: string[] = [];
 
     expandedFlowNodes.forEach((item) => {
-      const nodeName = item.node.nodeName.toLowerCase();
-      const nodePath = item.node.nodePath.toLowerCase();
-      if (nodeName.includes(query) || nodePath.includes(query)) {
+      const matchesQuery = matchesNodeSearchQuery(
+        {
+          nodeName: item.node.nodeName,
+          nodePath: item.node.nodePath,
+          nodeType: item.node.nodeType,
+          companyName: companyNode?.nodeName,
+          companyCode: companyNode?.nodePath,
+        },
+        query,
+      );
+      if (matchesQuery) {
+        directMatchingNodePaths.push(item.node.nodePath);
         const segments = item.node.nodePath.split(".").map((segment) => segment.trim()).filter(Boolean);
         segments.forEach((_, index) => matchingPaths.add(segments.slice(0, index + 1).join(".")));
       }
     });
 
-    return expandedFlowNodes.filter((item) => matchingPaths.has(item.node.nodePath));
-  }, [nodeSearch, workflowPreferenceFlowNodes, workflowPreferenceTree]);
+    return {
+      firstMatchingWorkflowPreferenceNodePath: directMatchingNodePaths[0] ?? "",
+      visibleWorkflowPreferenceFlowNodes: expandedFlowNodes.filter((item) => matchingPaths.has(item.node.nodePath)),
+    };
+  }, [companyNode?.nodeName, companyNode?.nodePath, nodeSearch, workflowPreferenceFlowNodes, workflowPreferenceTree]);
   const pendingChangeCount = useMemo(() => countPendingChanges(selectionDraft, initialSelection), [initialSelection, selectionDraft]);
   const pendingChanges = pendingChangeCount > 0;
   const getSelectedModuleCountForNode = (nodePath: string, modules: WorkflowPreferenceDialogNode["modules"]) =>
@@ -216,6 +235,14 @@ export default function WorkflowPreferenceDialog({ open, onOpenChange, onPrefere
     setNodeSearch("");
     setIsNodeSearchExpanded(false);
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!nodeSearch.trim() || !firstMatchingWorkflowPreferenceNodePath) return;
+    setSelectedNodePath((current) => (
+      current === firstMatchingWorkflowPreferenceNodePath ? current : firstMatchingWorkflowPreferenceNodePath
+    ));
+  }, [firstMatchingWorkflowPreferenceNodePath, nodeSearch, open]);
 
   const toggleNodeBranch = (nodePath: string) => {
     setCollapsedNodePaths((current) =>
