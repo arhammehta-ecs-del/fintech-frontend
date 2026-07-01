@@ -62,13 +62,12 @@ const tabCountBadgeClassName: Record<string, string> = {
 };
 
 type WorkflowTableColumnTemplate = {
-  workflow: number;
-  alias: number;
-  module: number;
-  node: number;
-  type: number;
-  status: number;
-  manage: number;
+  workflow: string;
+  alias: string;
+  module: string;
+  node: string;
+  status: string;
+  manage: string;
 };
 
 const getLockErrorMessage = (error: unknown, fallback: string) => {
@@ -110,59 +109,33 @@ const buildWorkflowColumnTemplate = (workflows: typeof paginatedWorkflows): Work
       alias: Math.max(accumulator.alias, (workflow.alias || "").trim().length),
       module: Math.max(accumulator.module, (workflow.module || workflow.rawModule || "").trim().length),
       node: Math.max(accumulator.node, getWorkflowNodeHeading(workflow).length),
-      type: Math.max(accumulator.type, getWorkflowTypeLabel(workflow).length),
     }),
-    { workflow: 16, alias: 10, module: 12, node: 24, type: 10 },
+    { workflow: 16, alias: 10, module: 12, node: 24 },
   );
 
-  const baseWeights: WorkflowTableColumnTemplate = {
-    workflow: 18,
-    alias: 13,
-    module: 14,
-    node: 23,
-    type: 11,
-    status: 13,
-    manage: 8,
-  };
+  const workflowTrack = metrics.workflow > 28 ? "minmax(220px, 1.6fr)" : "minmax(200px, 1.45fr)";
+  const aliasTrack = metrics.alias > 12 ? "minmax(120px, 0.95fr)" : "minmax(110px, 0.85fr)";
+  const moduleTrack = metrics.module > 14 ? "minmax(140px, 1fr)" : "minmax(130px, 0.9fr)";
+  const nodeTrack = metrics.node > 30 ? "minmax(240px, 1.5fr)" : "minmax(220px, 1.3fr)";
 
-  const workflowBoost = Math.min(Math.max(metrics.workflow - 28, 0) * 0.26, 6);
-  const aliasBoost = Math.min(Math.max(metrics.alias - 16, 0) * 0.2, 3);
-  const moduleBoost = Math.min(Math.max(metrics.module - 18, 0) * 0.2, 4);
-  const nodeBoost = Math.min(Math.max(metrics.node - 28, 0) * 0.32, 7);
-  const typeBoost = Math.min(Math.max(metrics.type - 12, 0) * 0.24, 3);
-  const reclaim = workflowBoost + aliasBoost + moduleBoost + nodeBoost + typeBoost;
-
-  const weights: WorkflowTableColumnTemplate = {
-    workflow: baseWeights.workflow + workflowBoost,
-    alias: baseWeights.alias + aliasBoost,
-    module: baseWeights.module + moduleBoost,
-    node: baseWeights.node + nodeBoost,
-    type: baseWeights.type + typeBoost,
-    status: Math.max(12, baseWeights.status - reclaim * 0.12),
-    manage: Math.max(7, baseWeights.manage - reclaim * 0.1),
-  };
-
-  const total = Object.values(weights).reduce((sum, value) => sum + value, 0);
   return {
-    workflow: Number(((weights.workflow / total) * 100).toFixed(2)),
-    alias: Number(((weights.alias / total) * 100).toFixed(2)),
-    module: Number(((weights.module / total) * 100).toFixed(2)),
-    node: Number(((weights.node / total) * 100).toFixed(2)),
-    type: Number(((weights.type / total) * 100).toFixed(2)),
-    status: Number(((weights.status / total) * 100).toFixed(2)),
-    manage: Number(((weights.manage / total) * 100).toFixed(2)),
+    workflow: workflowTrack,
+    alias: aliasTrack,
+    module: moduleTrack,
+    node: nodeTrack,
+    status: "minmax(138px, 0.78fr)",
+    manage: "minmax(112px, 0.72fr)",
   };
 };
 
 const buildWorkflowGridTemplate = (template: WorkflowTableColumnTemplate) =>
   [
-    `minmax(120px, ${template.workflow}fr)`,
-    `minmax(96px, ${template.alias}fr)`,
-    `minmax(110px, ${template.module}fr)`,
-    `minmax(220px, ${template.node}fr)`,
-    `minmax(96px, ${template.type}fr)`,
-    `minmax(120px, ${template.status}fr)`,
-    `minmax(72px, ${template.manage}fr)`,
+    template.workflow,
+    template.alias,
+    template.module,
+    template.node,
+    template.status,
+    template.manage,
   ].join(" ");
 
 const isDescendantNodePath = (parentPath: string, candidatePath: string) => {
@@ -1336,14 +1309,14 @@ export default function WorkflowManagementView() {
           <div className="p-8 text-sm text-slate-500">No {activeStatus.toLowerCase()} workflows available.</div>
         ) : (
           <div className="min-h-0 flex-1 overflow-auto">
-            <div className="min-w-[920px]" style={{ ["--workflow-grid-template" as string]: workflowGridTemplate }}>
+            <div className="min-w-[1040px]" style={{ ["--workflow-grid-template" as string]: workflowGridTemplate }}>
               <div className="sticky top-0 z-20 grid grid-cols-1 gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur md:items-center md:gap-x-6 md:[grid-template-columns:var(--workflow-grid-template)]">
               <div className="min-w-0 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Workflow</div>
               <div className="min-w-0 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Alias</div>
               <div className="min-w-0 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Module</div>
               <div className="min-w-0 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Node Name</div>
-              <div className="min-w-0 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Type</div>
-              <div className="min-w-0 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 md:text-center">Status</div>
+
+              <div className="min-w-0 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Status</div>
               <div className="min-w-0 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 md:text-center">Manage</div>
             </div>
 
@@ -1424,9 +1397,9 @@ export default function WorkflowManagementView() {
                         return pathPreview ? <NodePathMarquee text={pathPreview} /> : null;
                       })()}
                     </div>
-                    <div className="min-w-0 break-words text-sm text-slate-700">{getWorkflowTypeLabel(workflow) || "-"}</div>
+
                     <div>
-                      <div className="flex flex-col items-center gap-1 md:items-center">
+                      <div className="flex flex-col items-start gap-1">
                         <span
                           className={cn(
                             "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
