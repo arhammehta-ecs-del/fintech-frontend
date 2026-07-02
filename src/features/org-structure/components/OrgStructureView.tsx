@@ -127,8 +127,7 @@ export function OrgStructureView({ embedded = false }: { embedded?: boolean }) {
   const isNotificationsPanelOpen = useNotificationsPanelOpen();
   const { refreshLabel, lastRefreshedAt, markRefreshed } = useRefreshTimestamp();
   const isAnyOrgDialogOpen = isNewNodePopupOpen || Boolean(pendingNodeForReview) || Boolean(statusUpdateNode);
-  const historyLayoutOffset =
-    isOrgHistoryOpen && historyViewContext === "pending" ? { top: 0, left: 0 } : shellOffset;
+  const historyLayoutOffset = shellOffset;
 
   const handleClosePendingNodePopup = () => {
     setPendingNodeForReview(null);
