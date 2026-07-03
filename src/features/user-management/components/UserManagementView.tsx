@@ -15,6 +15,7 @@ import { useUserManagement } from "@/features/user-management/hooks/useUserManag
 import { UserManagePreview } from "./UserManagePreview";
 import UserHistorySidebar from "./UserHistorySidebar";
 import {
+  type UserBulkDialogMode,
   UserBulkUploadDialog,
 } from "./UserBulkUploadDialog";
 import { RemarkDialog } from "@/components/RemarkDialog";
@@ -138,6 +139,7 @@ export function UserManagementView() {
   const [onboardingSeedMember, setOnboardingSeedMember] = useState<AppUser | null>(null);
   const [showDeleteActions, setShowDeleteActions] = useState(false);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+  const [bulkDialogMode, setBulkDialogMode] = useState<UserBulkDialogMode>("upload");
   const [deleteWorkflow, setDeleteWorkflow] = useState("__none__");
   const [deleteWorkflowOptions, setDeleteWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [pendingManageActionType, setPendingManageActionType] = useState<"archive" | "active" | "inactive" | null>(null);
@@ -891,10 +893,25 @@ export function UserManagementView() {
               size="sm"
               variant="outline"
               className="border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
-              onClick={() => setBulkUploadOpen(true)}
+              onClick={() => {
+                setBulkDialogMode("upload");
+                setBulkUploadOpen(true);
+              }}
             >
               <UploadCloud className="mr-1.5 h-4 w-4 text-[hsl(235,60%,50%)]" />
               Bulk Upload
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
+              onClick={() => {
+                setBulkDialogMode("modify");
+                setBulkUploadOpen(true);
+              }}
+            >
+              <UploadCloud className="mr-1.5 h-4 w-4 text-[hsl(235,60%,50%)]" />
+              Bulk Modify
             </Button>
             <Button
               size="sm"
@@ -995,6 +1012,7 @@ export function UserManagementView() {
 
       <UserBulkUploadDialog
         open={bulkUploadOpen}
+        mode={bulkDialogMode}
         onOpenChange={setBulkUploadOpen}
         onUploadComplete={() => {}}
       />

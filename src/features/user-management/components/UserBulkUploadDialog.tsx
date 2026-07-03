@@ -1,11 +1,13 @@
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Check,
   Download,
   FileSpreadsheet,
   LoaderCircle,
   Play,
+  SlidersHorizontal,
   Sparkles,
   UploadCloud,
   X,
@@ -26,7 +28,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSingleSelectMenu } from "@/components/filter-search-dropdown";
+import { buildWorkflowOptions, findSelectedWorkflowOption } from "@/features/user-management/components/user-onboarding/useUserOnboardingForm.utils";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { getApiErrorMessage } from "@/services/client";
+import type {
+  UserAppliedFilters,
+  UserFilterDateRange,
+  UserFilterDropdownOption,
+  UserFilterDropdowns,
+  UserFilterNodeOption,
+} from "@/services/user.service";
+import { fetchCompanyNodesWithAccess, fetchUserBulkTemplate, fetchUserFilterDropdowns } from "@/services/user.service";
 
 export type UserBulkUploadHistoryItem = {
   id: string;
@@ -37,8 +51,11 @@ export type UserBulkUploadHistoryItem = {
   file: File;
 };
 
+export type UserBulkDialogMode = "upload" | "modify";
+
 type UserBulkUploadDialogProps = {
   open: boolean;
+  mode: UserBulkDialogMode;
   onOpenChange: (open: boolean) => void;
   onUploadComplete: (entry: UserBulkUploadHistoryItem) => void;
 };
@@ -53,7 +70,40 @@ type UserBulkUploadHistorySheetProps = {
   };
 };
 
-type UploadStage = "choose" | "checking" | "result";
+type UploadStage = "filters" | "choose" | "checking" | "result";
+
+type ModifyFilterDraft = {
+  designation: string | null;
+  nodeName: string | null;
+  category: string | null;
+  currentStatus: null;
+  nodeType: string | null;
+  onboardingDate: UserFilterDateRange;
+  reportingManager: string | null;
+  role: string | null;
+  subCategory: string | null;
+};
+
+const DEFAULT_FILTER_DROPDOWNS: UserFilterDropdowns = {
+  designation: [],
+  nodeName: [],
+  nodeType: [],
+  category: [],
+  subCategory: {},
+  reportingManager: [],
+};
+
+const DEFAULT_MODIFY_FILTERS: ModifyFilterDraft = {
+  designation: null,
+  nodeName: null,
+  category: null,
+  currentStatus: null,
+  nodeType: null,
+  onboardingDate: null,
+  reportingManager: null,
+  role: null,
+  subCategory: null,
+};
 
 const TEMPLATE_HEADERS = [
   "Full Name *",
@@ -72,6 +122,29 @@ const TEMPLATE_HEADERS = [
 ];
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+const stepMeta: Array<{ step: 1 | 2 | 3; label: string }> = [
+  { step: 1, label: "Choose File" },
+  { step: 2, label: "Check Data" },
+  { step: 3, label: "Result" },
+];
+
+const BULK_ACCESS_COMPLEXITY_OPTIONS = [
+  { value: "10", label: "Basic Details + 10 Access Rights" },
+];
+
+const ROLE_OPTIONS = [
+  { value: "Maker", label: "Maker" },
+  { value: "Checker", label: "Checker" },
+  { value: "User", label: "User" },
+];
+
+const DATE_RANGE_OPTIONS: Array<{ value: Exclude<UserFilterDateRange, "CUSTOM" | null>; label: string }> = [
+  { value: "7DAYS", label: "Last 7 days" },
+  { value: "15DAYS", label: "Last 15 days" },
+  { value: "1MONTH", label: "Last 1 month" },
+  { value: "1YEAR", label: "Last 1 year" },
+];
 
 const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
@@ -101,49 +174,128 @@ const downloadFile = (blob: Blob, fileName: string) => {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
-const downloadTemplate = () => {
-  const csv = `${TEMPLATE_HEADERS.join(",")}\n`;
-  downloadFile(new Blob([csv], { type: "text/csv;charset=utf-8;" }), "user_bulk_upload_template.csv");
-};
+const toSingleValueArray = (value: string | null) => (value ? [value] : null);
 
-const stepMeta: Array<{ step: 1 | 2 | 3; label: string }> = [
-  { step: 1, label: "Choose File" },
-  { step: 2, label: "Check Data" },
-  { step: 3, label: "Result" },
-];
+const buildModifyAppliedFilters = (draft: ModifyFilterDraft): UserAppliedFilters => ({
+  designation: toSingleValueArray(draft.designation),
+  nodeName: {
+    values: toSingleValueArray(draft.nodeName),
+    nodeAccess: null,
+  },
+  category: toSingleValueArray(draft.category),
+  currentStatus: draft.currentStatus,
+  nodeType: toSingleValueArray(draft.nodeType),
+  onboardingDate: draft.onboardingDate
+    ? {
+        dateRange: draft.onboardingDate,
+        fromDate: null,
+        toDate: null,
+      }
+    : null,
+  reportingManager: toSingleValueArray(draft.reportingManager),
+  role: toSingleValueArray(draft.role),
+  subCategory: toSingleValueArray(draft.subCategory),
+  status: null,
+  hasPending: null,
+});
 
-const WORKFLOW_OPTIONS = [
-  { value: "maker-checker", label: "Maker Checker Workflow" },
-  { value: "ops-review", label: "Ops Review Workflow" },
-  { value: "admin-approval", label: "Admin Approval Workflow" },
-];
+const mapDropdownOptions = (options: UserFilterDropdownOption[]) =>
+  options.map((option) => ({
+    value: option.value,
+    label: option.value,
+    count: option.count,
+  }));
+
+const mapNodeOptions = (options: UserFilterNodeOption[]) =>
+  options.map((option) => ({
+    value: option.value,
+    label: option.value,
+    path: option.path,
+    level: option.level,
+    count: option.count ?? option.permissionCount,
+  }));
+
+const buildTemplatePayload = (mode: UserBulkDialogMode, filters: ModifyFilterDraft, maxAccess: string) =>
+  mode === "modify"
+    ? {
+        type: "modify" as const,
+        maxAccess: null,
+        filter: true,
+        applied: buildModifyAppliedFilters(filters),
+      }
+    : {
+        type: "initiate" as const,
+        maxAccess,
+        filter: false,
+        applied: null,
+      };
+
+const getTemplateFallbackName = (mode: UserBulkDialogMode) =>
+  mode === "modify" ? "user_bulk_modify_template.xlsx" : "user_bulk_upload_template.xlsx";
+
+const getDefaultRemark = (mode: UserBulkDialogMode) =>
+  mode === "modify" ? "Prefilled modification draft template" : "";
+
+const FilterField = ({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children: ReactNode;
+}) => (
+  <div className="space-y-1.5">
+    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+      {title} ({count})
+    </div>
+    {children}
+  </div>
+);
 
 export function UserBulkUploadDialog({
   open,
+  mode,
   onOpenChange,
   onUploadComplete,
 }: UserBulkUploadDialogProps) {
+  const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const uploadTimerRef = useRef<number | null>(null);
   const completionTimerRef = useRef<number | null>(null);
-  const [stage, setStage] = useState<UploadStage>("choose");
+  const [stage, setStage] = useState<UploadStage>(mode === "modify" ? "filters" : "choose");
   const [progressValue, setProgressValue] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState("");
   const [selectedWorkflow, setSelectedWorkflow] = useState("");
-  const [remark, setRemark] = useState("");
+  const [workflowOptions, setWorkflowOptions] = useState<Array<{ levelsHash: string; label: string }>>([]);
+  const [isWorkflowLoading, setIsWorkflowLoading] = useState(false);
+  const [selectedComplexity, setSelectedComplexity] = useState(BULK_ACCESS_COMPLEXITY_OPTIONS[0].value);
+  const [remark, setRemark] = useState(getDefaultRemark(mode));
+  const [modifyFilters, setModifyFilters] = useState<ModifyFilterDraft>(DEFAULT_MODIFY_FILTERS);
+  const [filterDropdowns, setFilterDropdowns] = useState<UserFilterDropdowns>(DEFAULT_FILTER_DROPDOWNS);
+  const [isFilterLoading, setIsFilterLoading] = useState(false);
+  const [isTemplateDownloading, setIsTemplateDownloading] = useState(false);
 
-  const currentStep = stage === "choose" ? 1 : stage === "checking" ? 2 : 3;
+  const currentStep = stage === "checking" ? 2 : stage === "result" ? 3 : 1;
+  const isModifyMode = mode === "modify";
 
   const resetState = () => {
-    setStage("choose");
+    setStage(mode === "modify" ? "filters" : "choose");
     setProgressValue(0);
     setSelectedFile(null);
     setDragging(false);
     setFileError("");
     setSelectedWorkflow("");
-    setRemark("");
+    setWorkflowOptions([]);
+    setIsWorkflowLoading(false);
+    setSelectedComplexity(BULK_ACCESS_COMPLEXITY_OPTIONS[0].value);
+    setRemark(getDefaultRemark(mode));
+    setModifyFilters(DEFAULT_MODIFY_FILTERS);
+    setFilterDropdowns(DEFAULT_FILTER_DROPDOWNS);
+    setIsFilterLoading(false);
+    setIsTemplateDownloading(false);
     if (inputRef.current) inputRef.current.value = "";
     if (uploadTimerRef.current) {
       window.clearInterval(uploadTimerRef.current);
@@ -158,8 +310,17 @@ export function UserBulkUploadDialog({
   useEffect(() => {
     if (!open) {
       resetState();
+      return;
     }
-  }, [open]);
+
+    setStage(mode === "modify" ? "filters" : "choose");
+    setRemark(getDefaultRemark(mode));
+    setModifyFilters(DEFAULT_MODIFY_FILTERS);
+    setSelectedFile(null);
+    setSelectedWorkflow("");
+    setSelectedComplexity(BULK_ACCESS_COMPLEXITY_OPTIONS[0].value);
+    setFileError("");
+  }, [mode, open]);
 
   useEffect(() => {
     return () => {
@@ -167,6 +328,76 @@ export function UserBulkUploadDialog({
       if (completionTimerRef.current) window.clearTimeout(completionTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+
+    const loadWorkflows = async () => {
+      setIsWorkflowLoading(true);
+      try {
+        const { nodes } = await fetchCompanyNodesWithAccess("USER_ACC");
+        if (cancelled) return;
+        const nextOptions = buildWorkflowOptions(nodes);
+        const nextSelectedWorkflow = findSelectedWorkflowOption(nodes);
+        setWorkflowOptions(nextOptions);
+        setSelectedWorkflow((current) => {
+          if (current && nextOptions.some((option) => option.levelsHash === current)) return current;
+          return nextSelectedWorkflow?.levelsHash ?? nextOptions[0]?.levelsHash ?? "";
+        });
+      } catch {
+        if (!cancelled) {
+          setWorkflowOptions([]);
+          setSelectedWorkflow("");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsWorkflowLoading(false);
+        }
+      }
+    };
+
+    void loadWorkflows();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !isModifyMode) return;
+
+    let cancelled = false;
+
+    const loadDropdowns = async () => {
+      setIsFilterLoading(true);
+      try {
+        const dropdowns = await fetchUserFilterDropdowns("USER_ACC");
+        if (!cancelled) {
+          setFilterDropdowns(dropdowns);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          toast({
+            title: "Unable to load modify filters",
+            description: getApiErrorMessage(error, "Failed to load the filter options for bulk modify."),
+            variant: "destructive",
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          setIsFilterLoading(false);
+        }
+      }
+    };
+
+    void loadDropdowns();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isModifyMode, open, toast]);
 
   const isValidXlsxFile = (file: File) => file.name.trim().toLowerCase().endsWith(".xlsx");
 
@@ -225,27 +456,84 @@ export function UserBulkUploadDialog({
 
   const handleDialogClose = () => onOpenChange(false);
 
+  const handleTemplateDownload = async (targetMode: UserBulkDialogMode) => {
+    setIsTemplateDownloading(true);
+    try {
+      const response = await fetchUserBulkTemplate(buildTemplatePayload(targetMode, modifyFilters, selectedComplexity));
+      downloadFile(response.blob, response.fileName || getTemplateFallbackName(targetMode));
+      toast({
+        title: "Template downloaded",
+        description:
+          targetMode === "modify"
+            ? "The filtered bulk modify template is ready."
+            : "The bulk upload template is ready.",
+      });
+      return true;
+    } catch (error) {
+      toast({
+        title: "Unable to download template",
+        description: getApiErrorMessage(error, "Failed to download the requested user template."),
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsTemplateDownloading(false);
+    }
+  };
+
+  const subCategoryOptions = useMemo(
+    () =>
+      modifyFilters.category
+        ? filterDropdowns.subCategory[modifyFilters.category] ?? []
+        : Object.values(filterDropdowns.subCategory).flat(),
+    [filterDropdowns.subCategory, modifyFilters.category],
+  );
+
+  const modifyNodeOptions = useMemo(() => mapNodeOptions(filterDropdowns.nodeName), [filterDropdowns.nodeName]);
+  const modifyDesignationOptions = useMemo(() => mapDropdownOptions(filterDropdowns.designation), [filterDropdowns.designation]);
+  const modifyNodeTypeOptions = useMemo(() => mapDropdownOptions(filterDropdowns.nodeType), [filterDropdowns.nodeType]);
+  const modifyCategoryOptions = useMemo(
+    () => mapDropdownOptions(filterDropdowns.category.filter((option) => option.value.trim().toLowerCase() !== "all")),
+    [filterDropdowns.category],
+  );
+  const modifySubCategoryOptions = useMemo(
+    () => mapDropdownOptions(subCategoryOptions.filter((option) => option.value.trim().toLowerCase() !== "all")),
+    [subCategoryOptions],
+  );
+  const modifyReportingManagerOptions = useMemo(
+    () => mapDropdownOptions(filterDropdowns.reportingManager),
+    [filterDropdowns.reportingManager],
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
         overlayClassName="bg-[rgba(15,23,42,0.18)] backdrop-blur-[3px]"
-        className="max-w-[min(80vw,700px)] gap-0 overflow-hidden rounded-[22px] border border-slate-200 bg-white p-0 shadow-[0_24px_70px_rgba(15,23,42,0.16)]"
+        className="max-w-[min(84vw,720px)] gap-0 overflow-hidden rounded-[22px] border border-slate-200 bg-white p-0 shadow-[0_24px_70px_rgba(15,23,42,0.16)]"
       >
-        <DialogTitle className="sr-only">Import staff using excel sheet</DialogTitle>
+        <DialogTitle className="sr-only">
+          {isModifyMode ? "Modify staff using excel sheet" : "Import staff using excel sheet"}
+        </DialogTitle>
         <DialogDescription className="sr-only">
-          Local UI flow for uploading a user excel file.
+          {isModifyMode
+            ? "Apply filters, download a prefilled template, and upload the updated staff sheet."
+            : "Download a template and upload a user excel file."}
         </DialogDescription>
 
         <div className="border-b border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#faf7ff_100%)] px-5 py-3.5 text-slate-900">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-[hsl(235,60%,50%)] ring-1 ring-blue-100">
-                <UploadCloud className="h-4.5 w-4.5" />
+                {isModifyMode ? <SlidersHorizontal className="h-4.5 w-4.5" /> : <UploadCloud className="h-4.5 w-4.5" />}
               </div>
               <div>
-                <p className="text-[19px] font-bold leading-none tracking-[-0.02em] text-slate-900">Import Staff Using Excel Sheet</p>
-                <p className="mt-1 text-[12px] text-slate-500">Add multiple staff members in one go</p>
+                <p className="text-[19px] font-bold leading-none tracking-[-0.02em] text-slate-900">
+                  {isModifyMode ? "Modify Staff Using Excel Sheet" : "Import Staff Using Excel Sheet"}
+                </p>
+                <p className="mt-1 text-[12px] text-slate-500">
+                  {isModifyMode ? "Apply custom filters to pre-fill dynamic records" : "Add multiple staff members in one go"}
+                </p>
               </div>
             </div>
             <button
@@ -291,23 +579,178 @@ export function UserBulkUploadDialog({
             </div>
           </div>
 
-          {stage === "choose" ? (
+          {stage === "filters" ? (
+            <div className="mt-4 rounded-[20px] border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <p className="text-[28px] font-semibold tracking-[-0.03em] text-slate-900">Filter Members</p>
+                  <p className="mt-1 text-[13px] text-slate-500">
+                    Filter the records you want to pre-fill into the spreadsheet template
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-1 py-1 text-[13px] font-semibold text-[hsl(235,60%,50%)] hover:bg-transparent hover:text-[hsl(235,60%,45%)]"
+                  onClick={() => setModifyFilters(DEFAULT_MODIFY_FILTERS)}
+                >
+                  Clear all
+                </Button>
+              </div>
+
+              <div className="mt-4 space-y-5">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Identity</p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <FilterField title="Designation" count={modifyDesignationOptions.length}>
+                      <SearchableSingleSelectMenu
+                        title="Designation"
+                        placeholder={isFilterLoading ? "Loading designations..." : "Select designation"}
+                        options={modifyDesignationOptions}
+                        value={modifyFilters.designation}
+                        onChange={(value) => setModifyFilters((current) => ({ ...current, designation: value }))}
+                        disabled={isFilterLoading}
+                      />
+                    </FilterField>
+
+                    <FilterField title="Node Name" count={modifyNodeOptions.length}>
+                      <SearchableSingleSelectMenu
+                        title="Node Name"
+                        placeholder={isFilterLoading ? "Loading node names..." : "Select node name"}
+                        options={modifyNodeOptions}
+                        value={modifyFilters.nodeName}
+                        onChange={(value) => setModifyFilters((current) => ({ ...current, nodeName: value }))}
+                        disabled={isFilterLoading}
+                      />
+                    </FilterField>
+
+                    <FilterField title="Node Type" count={modifyNodeTypeOptions.length}>
+                      <SearchableSingleSelectMenu
+                        title="Node Type"
+                        placeholder={isFilterLoading ? "Loading node types..." : "Select node type"}
+                        options={modifyNodeTypeOptions}
+                        value={modifyFilters.nodeType}
+                        onChange={(value) => setModifyFilters((current) => ({ ...current, nodeType: value }))}
+                        disabled={isFilterLoading}
+                      />
+                    </FilterField>
+
+                    <FilterField title="Reporting Manager" count={modifyReportingManagerOptions.length}>
+                      <SearchableSingleSelectMenu
+                        title="Reporting Manager"
+                        placeholder={isFilterLoading ? "Loading reporting managers..." : "Select reporting manager"}
+                        options={modifyReportingManagerOptions}
+                        value={modifyFilters.reportingManager}
+                        onChange={(value) => setModifyFilters((current) => ({ ...current, reportingManager: value }))}
+                        disabled={isFilterLoading}
+                      />
+                    </FilterField>
+
+                    <FilterField title="Category" count={modifyCategoryOptions.length}>
+                      <SearchableSingleSelectMenu
+                        title="Category"
+                        placeholder={isFilterLoading ? "Loading categories..." : "Select category"}
+                        options={modifyCategoryOptions}
+                        value={modifyFilters.category}
+                        onChange={(value) =>
+                          setModifyFilters((current) => ({
+                            ...current,
+                            category: value,
+                            subCategory: current.category === value ? current.subCategory : null,
+                          }))
+                        }
+                        disabled={isFilterLoading}
+                      />
+                    </FilterField>
+
+                    <FilterField title="Subcategory" count={modifySubCategoryOptions.length}>
+                      <SearchableSingleSelectMenu
+                        title="Subcategory"
+                        placeholder={isFilterLoading ? "Loading subcategories..." : "Select subcategory"}
+                        options={modifySubCategoryOptions}
+                        value={modifyFilters.subCategory}
+                        onChange={(value) => setModifyFilters((current) => ({ ...current, subCategory: value }))}
+                        disabled={isFilterLoading}
+                      />
+                    </FilterField>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Activity & Roles</p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <FilterField title="Roles" count={ROLE_OPTIONS.length}>
+                      <SearchableSingleSelectMenu
+                        title="Roles"
+                        placeholder="Select role"
+                        options={ROLE_OPTIONS}
+                        value={modifyFilters.role}
+                        onChange={(value) => setModifyFilters((current) => ({ ...current, role: value }))}
+                      />
+                    </FilterField>
+
+                    <FilterField title="Onboarding Date" count={DATE_RANGE_OPTIONS.length}>
+                      <SearchableSingleSelectMenu
+                        title="Onboarding Date"
+                        placeholder="Select onboarding date"
+                        options={DATE_RANGE_OPTIONS}
+                        value={modifyFilters.onboardingDate}
+                        onChange={(value) =>
+                          setModifyFilters((current) => ({ ...current, onboardingDate: value as UserFilterDateRange }))
+                        }
+                      />
+                    </FilterField>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDialogClose}
+                  className="h-10 rounded-xl border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={async () => {
+                    const downloaded = await handleTemplateDownload("modify");
+                    if (downloaded) {
+                      setStage("choose");
+                    }
+                  }}
+                  disabled={isTemplateDownloading || isFilterLoading}
+                  className="h-10 rounded-xl bg-[hsl(235,60%,50%)] px-4 text-[13px] font-semibold text-white hover:bg-[hsl(235,60%,45%)]"
+                >
+                  {isTemplateDownloading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  Get Users Data
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {stage === "choose" && !isModifyMode ? (
             <div className="mt-3.5 space-y-3.5">
-              <div className="rounded-[18px] border border-blue-100/80 bg-[linear-gradient(180deg,rgba(247,249,255,0.95)_0%,rgba(255,255,255,1)_100%)] p-3.5">
+              <div className="rounded-[18px] border border-indigo-100 bg-[linear-gradient(180deg,rgba(243,245,255,0.95)_0%,rgba(255,255,255,1)_100%)] p-4">
                 <div className="flex items-center gap-2 text-[13px] font-semibold text-[hsl(235,60%,50%)]">
                   <Sparkles className="h-4 w-4" />
-                  <span>Please match your column names exactly:</span>
+                  <span>Instructions: Use template, fill the data, and submit it</span>
                 </div>
-                <div className="mt-3 rounded-[16px] border border-slate-100 bg-white p-3.5">
-                  <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
-                    {TEMPLATE_HEADERS.map((header, index) => (
-                      <div key={header} className="flex items-center gap-2.5 text-[13px] text-slate-600">
-                        <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-50 px-1 text-[10px] font-semibold leading-none text-[hsl(235,60%,50%)] ring-1 ring-blue-100">
-                          {index + 1}
-                        </span>
-                        <span>{header}</span>
-                      </div>
-                    ))}
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-center">
+                    <p className="text-[18px] font-semibold tracking-[-0.02em] text-[hsl(235,60%,50%)]">Step 1</p>
+                    <p className="mt-1 text-[12px] leading-5 text-slate-500">Get the official Excel (.xlsx) template</p>
+                  </div>
+                  <div className="rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-center">
+                    <p className="text-[18px] font-semibold tracking-[-0.02em] text-[hsl(235,60%,50%)]">Step 2</p>
+                    <p className="mt-1 text-[12px] leading-5 text-slate-500">Fill in your active staff parameters</p>
+                  </div>
+                  <div className="rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-center">
+                    <p className="text-[18px] font-semibold tracking-[-0.02em] text-[hsl(235,60%,50%)]">Step 3</p>
+                    <p className="mt-1 text-[12px] leading-5 text-slate-500">Drop the file below and submit logs</p>
                   </div>
                 </div>
               </div>
@@ -373,35 +816,136 @@ export function UserBulkUploadDialog({
                 )}
               </button>
 
-              <input
-                ref={inputRef}
-                type="file"
-                accept=".xlsx"
-                onChange={(event) => handleFileSelection(event.target.files)}
-                className="hidden"
-              />
-
-              {fileError ? (
-                <div className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-medium text-rose-700">
-                  {fileError}
+              <div className="rounded-[16px] border border-slate-200 bg-slate-50/80 p-3.5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-[13px] font-semibold text-slate-800">
+                      <UploadCloud className="h-4 w-4 text-[hsl(235,60%,50%)]" />
+                      Select Access Rights Complexity:
+                    </p>
+                    <p className="mt-1 text-[12px] text-slate-500">
+                      Pre-fill the downloaded template with configured access logs.
+                    </p>
+                  </div>
+                  <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+                    <Select value={selectedComplexity} onValueChange={setSelectedComplexity}>
+                      <SelectTrigger className="h-10 min-w-[260px] rounded-xl border-slate-200 bg-white text-[13px]">
+                        <SelectValue placeholder="Select complexity" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BULK_ACCESS_COMPLEXITY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void handleTemplateDownload("upload")}
+                      disabled={isTemplateDownloading}
+                      className="h-10 rounded-xl border-blue-200 bg-white px-4 text-[13px] font-semibold text-[hsl(235,60%,50%)] hover:bg-blue-50"
+                    >
+                      {isTemplateDownloading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : "Get Template"}
+                      {!isTemplateDownloading ? <Download className="h-4 w-4" /> : null}
+                    </Button>
+                  </div>
                 </div>
-              ) : null}
+              </div>
+            </div>
+          ) : null}
 
-              <div className="flex flex-col gap-3 rounded-[16px] border border-slate-200 bg-slate-50/80 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2 text-[13px] text-slate-500">
-                  <UploadCloud className="h-4 w-4 text-slate-400" />
-                  <span>Don&apos;t have a file ready yet?</span>
+          {stage === "choose" && isModifyMode ? (
+            <div className="mt-3.5 space-y-3.5">
+              <div className="rounded-[18px] border border-indigo-100 bg-[linear-gradient(180deg,rgba(243,245,255,0.95)_0%,rgba(255,255,255,1)_100%)] p-4">
+                <div className="flex items-center gap-2 text-[13px] font-semibold text-[hsl(235,60%,50%)]">
+                  <Sparkles className="h-4 w-4" />
+                  <span>Instructions: Edit the downloaded Excel template and upload the updated file back in the drop box below.</span>
                 </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-center">
+                    <p className="text-[18px] font-semibold tracking-[-0.02em] text-[hsl(235,60%,50%)]">Step 1</p>
+                    <p className="mt-1 text-[12px] leading-5 text-slate-500">
+                      Edit and configure your parameters inside the downloaded .xlsx sheet
+                    </p>
+                  </div>
+                  <div className="rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-center">
+                    <p className="text-[18px] font-semibold tracking-[-0.02em] text-[hsl(235,60%,50%)]">Step 2</p>
+                    <p className="mt-1 text-[12px] leading-5 text-slate-500">
+                      Upload or post the updated file in the dropbox container below
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDragging(false);
+                  handleFileSelection(event.dataTransfer.files);
+                }}
+                className={cn(
+                  "group flex min-h-[142px] w-full flex-col items-center justify-center rounded-[18px] border border-dashed bg-white px-4 text-center transition",
+                  dragging
+                    ? "border-[hsl(235,60%,50%)] bg-blue-50 shadow-[0_14px_34px_rgba(53,83,233,0.08)]"
+                    : selectedFile
+                      ? "border-emerald-200 bg-emerald-50/40"
+                      : "border-indigo-300 hover:border-[hsl(235,60%,50%)] hover:bg-blue-50/30",
+                )}
+              >
+                {selectedFile ? (
+                  <>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                      <FileSpreadsheet className="h-6 w-6" />
+                    </div>
+                    <p className="mt-3 max-w-full truncate text-[15px] font-semibold text-slate-900">{selectedFile.name}</p>
+                    <p className="mt-1 text-[12px] text-slate-500">Updated modify template selected | {formatBytes(selectedFile.size)}</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-50 text-[hsl(235,60%,50%)]">
+                      <UploadCloud className="h-6 w-6" />
+                    </div>
+                    <p className="mt-3 text-[15px] font-semibold text-slate-900">
+                      <span className="text-[hsl(235,60%,50%)]">Click here</span> to upload, or drag and drop file in this dropbox
+                    </p>
+                    <p className="mt-1 text-[12px] text-slate-500">Accepts updated Excel (.xlsx) file templates only</p>
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center justify-start gap-2">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={downloadTemplate}
-                  className="h-9 rounded-xl border-blue-200 bg-white px-4 text-[13px] font-semibold text-[hsl(235,60%,50%)] hover:bg-blue-50"
+                  onClick={() => setStage("filters")}
+                  className="h-9 rounded-xl border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
                 >
-                  Get Template
-                  <Download className="h-4 w-4" />
+                  Previous Step
                 </Button>
               </div>
+            </div>
+          ) : null}
+
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".xlsx"
+            onChange={(event) => handleFileSelection(event.target.files)}
+            className="hidden"
+          />
+
+          {stage !== "filters" && fileError ? (
+            <div className="mt-3 rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-medium text-rose-700">
+              {fileError}
             </div>
           ) : null}
 
@@ -439,7 +983,6 @@ export function UserBulkUploadDialog({
                       <p className="mt-0.5 text-[20px] font-semibold tracking-[-0.02em] text-slate-900">File Captured Successfully</p>
                     </div>
                   </div>
-
                 </div>
 
                 <div className="space-y-3 p-4">
@@ -459,11 +1002,14 @@ export function UserBulkUploadDialog({
                     <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <p className="truncate text-[16px] font-semibold text-slate-900">{selectedFile?.name || "Selected spreadsheet"}</p>
-                       
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[13px] text-slate-600 sm:min-w-[170px]">
-                        <p>Size: <span className="font-semibold text-slate-800">{formatBytes(selectedFile?.size ?? 0)}</span></p>
-                        <p className="mt-1">Status: <span className="font-semibold text-[hsl(235,60%,50%)]">Ready for integration</span></p>
+                        <p>
+                          Size: <span className="font-semibold text-slate-800">{formatBytes(selectedFile?.size ?? 0)}</span>
+                        </p>
+                        <p className="mt-1">
+                          Status: <span className="font-semibold text-[hsl(235,60%,50%)]">Ready for integration</span>
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -472,7 +1018,7 @@ export function UserBulkUploadDialog({
             </div>
           ) : null}
 
-          {stage === "choose" ? (
+          {stage === "choose" && !isModifyMode ? (
             <div className="mt-4 rounded-[16px] border border-slate-200 bg-slate-50/80 p-3.5">
               <div className="space-y-2.5">
                 <div className="space-y-1.5">
@@ -480,7 +1026,7 @@ export function UserBulkUploadDialog({
                   <input
                     value={remark}
                     onChange={(event) => setRemark(event.target.value)}
-                    placeholder="Add a short remark for this upload"
+                    placeholder={isModifyMode ? "Prefilled modification draft template" : "Add a short remark for this upload"}
                     className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
@@ -490,11 +1036,11 @@ export function UserBulkUploadDialog({
                     <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Workflow</p>
                     <Select value={selectedWorkflow} onValueChange={setSelectedWorkflow}>
                       <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-[13px]">
-                        <SelectValue placeholder="Select workflow" />
+                        <SelectValue placeholder={isWorkflowLoading ? "Loading workflow..." : "Select workflow"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {WORKFLOW_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
+                        {workflowOptions.map((option) => (
+                          <SelectItem key={option.levelsHash} value={option.levelsHash}>
                             {option.label}
                           </SelectItem>
                         ))}
@@ -524,6 +1070,32 @@ export function UserBulkUploadDialog({
                     </Button>
                   </div>
                 </div>
+              </div>
+            </div>
+          ) : null}
+
+          {stage === "choose" && isModifyMode ? (
+            <div className="mt-4 flex items-center justify-end rounded-[16px] border border-slate-200 bg-slate-50/80 p-3.5">
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDialogClose}
+                  className="h-10 rounded-xl border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (selectedFile) beginUploadFlow(selectedFile);
+                  }}
+                  disabled={!selectedFile}
+                  className="h-10 rounded-xl bg-[hsl(235,60%,50%)] px-4 text-[13px] font-semibold text-white hover:bg-[hsl(235,60%,45%)]"
+                >
+                  <Play className="h-4 w-4" />
+                  Submit
+                </Button>
               </div>
             </div>
           ) : null}
@@ -579,8 +1151,8 @@ export function UserBulkUploadHistorySheet({
         <div className="border-b border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#faf7ff_100%)] px-5 py-4 text-slate-900">
           <div className="flex items-start justify-between gap-4">
             <div className="pr-6">
-            <p className="text-[22px] font-bold tracking-[-0.02em]">Bulk Import Logs</p>
-            <p className="mt-1 text-[13px] text-slate-500">Inspect recent uploads created in this browser session</p>
+              <p className="text-[22px] font-bold tracking-[-0.02em]">Bulk Import Logs</p>
+              <p className="mt-1 text-[13px] text-slate-500">Inspect recent uploads created in this browser session</p>
             </div>
             <button
               type="button"

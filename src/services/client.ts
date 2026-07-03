@@ -48,7 +48,25 @@ export const getApiErrorMessage = (error: unknown, fallback: string) => {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
 };
 
-export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+const extractApiError = async (response: Response) => {
+  let apiMessage: string | undefined;
+  let details: ApiErrorDetail[] | undefined;
+  let payload: ApiErrorPayload | undefined;
+
+  try {
+    payload = (await response.json()) as ApiErrorPayload;
+    apiMessage = typeof payload.message === "string" ? payload.message : undefined;
+    details = Array.isArray(payload.details) ? payload.details : undefined;
+  } catch {
+    apiMessage = undefined;
+    details = undefined;
+    payload = undefined;
+  }
+
+  return { apiMessage, details, payload };
+};
+
+const buildRequestInit = (path: string, options: RequestInit = {}) => {
   const url = buildApiUrl(path);
   const headers = new Headers(options.headers ?? {});
   headers.set("x-tracking-id", generateTrackId());
@@ -59,28 +77,23 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(url, {
-    ...options,
-    method: options.method ?? "POST",
-    credentials: "include",
-    headers,
-  });
+  return {
+    url,
+    init: {
+      ...options,
+      method: options.method ?? "POST",
+      credentials: "include" as const,
+      headers,
+    },
+  };
+};
+
+export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const { url, init } = buildRequestInit(path, options);
+  const response = await fetch(url, init);
 
   if (!response.ok) {
-    let apiMessage: string | undefined;
-    let details: ApiErrorDetail[] | undefined;
-    let payload: ApiErrorPayload | undefined;
-
-    try {
-      payload = (await response.json()) as ApiErrorPayload;
-      apiMessage = typeof payload.message === "string" ? payload.message : undefined;
-      details = Array.isArray(payload.details) ? payload.details : undefined;
-    } catch {
-      apiMessage = undefined;
-      details = undefined;
-      payload = undefined;
-    }
-
+    const { apiMessage, details, payload } = await extractApiError(response);
     throw new ApiRequestError(
       response.status,
       `Request failed: ${response.status}`,
@@ -111,4 +124,33 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   }
 
   return payload;
+}
+
+export async function apiFetchBlob(path: string, options: RequestInit = {}) {
+  const { url, init } = buildRequestInit(path, options);
+  const response = await fetch(url, init);
+
+  if (!response.ok) {
+    const { apiMessage, details, payload } = await extractApiError(response);
+    throw new ApiRequestError(
+      response.status,
+      `Request failed: ${response.status}`,
+      apiMessage,
+      details,
+      payload,
+    );
+  }
+
+  const blob = await response.blob();
+  const contentDisposition = response.headers.get("content-disposition") || "";
+  const fileNameMatch =
+    contentDisposition.match(/filename\*=UTF-8''([^;]+)/i) ??
+    contentDisposition.match(/filename="?([^"]+)"?/i);
+  const fileName = fileNameMatch?.[1] ? decodeURIComponent(fileNameMatch[1].trim()) : null;
+
+  return {
+    blob,
+    fileName,
+    contentType: response.headers.get("content-type"),
+  };
 }

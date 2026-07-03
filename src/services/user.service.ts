@@ -1,5 +1,5 @@
 import type { AppUser } from "@/contexts/AppContext";
-import { apiFetch } from "@/services/client";
+import { apiFetch, apiFetchBlob } from "@/services/client";
 
 export type UserOnboardingPermission = {
   roleCategory: "TRANSACTIONAL" | "OPERATIONAL" | "SYSTEM_ACCESS" | "ALL";
@@ -114,6 +114,13 @@ export type UserAppliedFilters = {
   currentStatus: "modify" | "initiate" | null;
   role: string[] | null;
   hasPending: "Yes" | "No" | null;
+};
+
+export type UserBulkTemplateRequest = {
+  type: "initiate" | "modify";
+  maxAccess: string | null;
+  filter: boolean;
+  applied: UserAppliedFilters | null;
 };
 
 export type UserPaginatedRequest = {
@@ -245,10 +252,10 @@ export type GlobalSignatoryOnboardingPayload = {
 const COMPANY_USERS_PATH = "/api/v1/company-settings/user/fetch-all-user";
 const COMPANY_NODES_PATH = "/api/v1/company-settings/user/fetch-company-nodes";
 const NEW_USER_ONBOARD_PATH = "/api/v1/company-settings/user/initiate";
-const NEW_GLOBAL_SIGNATORY_ONBOARD_PATH = "/api/v1/company-settings/user/initiate-global-signatory";
 const USER_STATUS_UPDATE_PATH = "/api/v1/company-settings/user/action";
 const USER_HISTORY_PATH = "/api/v1/company-settings/user/fetch-history";
 const USER_DETAILS_PATH = "/api/v1/company-settings/user/details";
+const USER_BULK_TEMPLATE_PATH = "/api/v1/company-settings/user/bulk-upload/template";
 const COMPANY_NODES_CACHE_TTL_MS = 5000;
 const companyNodesInFlight = new Map<string, Promise<CompanyNodesFetchResult>>();
 const companyNodesCache = new Map<string, { expiresAt: number; value: CompanyNodesFetchResult }>();
@@ -524,12 +531,6 @@ const mapUserPageInfo = (pageInfo?: Partial<UserPageInfo>): UserPageInfo => ({
 
 export async function createUserOnboarding(payload: UserOnboardingPayload) {
   return apiFetch<UserOnboardingResponse>(NEW_USER_ONBOARD_PATH, {
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function createGlobalSignatoryOnboarding(payload: GlobalSignatoryOnboardingPayload) {
-  return apiFetch<UserOnboardingResponse>(NEW_GLOBAL_SIGNATORY_ONBOARD_PATH, {
     body: JSON.stringify(payload),
   });
 }
@@ -878,6 +879,12 @@ export async function fetchUserDetails(
     normalizedRecord,
     statusTab === "pending" ? "Pending" : statusTab === "inactive" ? "Inactive" : "Active",
   );
+}
+
+export async function fetchUserBulkTemplate(payload: UserBulkTemplateRequest) {
+  return apiFetchBlob(USER_BULK_TEMPLATE_PATH, {
+    body: JSON.stringify(payload),
+  });
 }
 
 
