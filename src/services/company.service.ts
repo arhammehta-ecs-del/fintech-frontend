@@ -10,7 +10,7 @@ export type OnboardingPayload = {
   company: {
     name: string;
     gst: string | null;
-    brand: string | null;
+    brand: string | null;dsgd
     ieCode: string | null;
     registeredAt: string;
     address: string;

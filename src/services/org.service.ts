@@ -154,10 +154,10 @@ const mapImpactSummary = (value: unknown): OrgNode["impactSummary"] | undefined 
         return {
           name,
           email,
-          access: accessRecord && Object.keys(accessRecord).length > 0 ? accessRecord : undefined,
+          access: accessRecord && Object.keys(accessRecord).length > 0 ? accessRecord : {},
         };
       })
-      .filter((item): item is { name: string; email: string; access?: Record<string, string[]> } => item !== null)
+      .filter((item): item is { name: string; email: string; access: Record<string, string[]> } => item !== null)
     : [];
 
   const workflow = Array.isArray(impactSource.workflow)

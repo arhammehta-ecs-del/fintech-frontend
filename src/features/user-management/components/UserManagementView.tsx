@@ -1,6 +1,6 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { EyeOff, UploadCloud, Users, UserPlus } from "lucide-react";
+import { EyeOff, Users, UserPlus } from "lucide-react";
 import type { AppUser } from "@/contexts/AppContext";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,6 @@ import UserTable from "@/features/user-management/components/UserTable";
 import { useUserManagement } from "@/features/user-management/hooks/useUserManagement";
 import { UserManagePreview } from "./UserManagePreview";
 import UserHistorySidebar from "./UserHistorySidebar";
-import {
-  type UserBulkDialogMode,
-  UserBulkUploadDialog,
-} from "./UserBulkUploadDialog";
 import { RemarkDialog } from "@/components/RemarkDialog";
 import { useToast } from "@/hooks/use-toast";
 import { getApiErrorMessage } from "@/services/client";
@@ -138,8 +134,7 @@ export function UserManagementView() {
   const [isManagePreviewReady, setIsManagePreviewReady] = useState(false);
   const [onboardingSeedMember, setOnboardingSeedMember] = useState<AppUser | null>(null);
   const [showDeleteActions, setShowDeleteActions] = useState(false);
-  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
-  const [bulkDialogMode, setBulkDialogMode] = useState<UserBulkDialogMode>("upload");
+
   const [deleteWorkflow, setDeleteWorkflow] = useState("__none__");
   const [deleteWorkflowOptions, setDeleteWorkflowOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [pendingManageActionType, setPendingManageActionType] = useState<"archive" | "active" | "inactive" | null>(null);
@@ -889,30 +884,7 @@ export function UserManagementView() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
-              onClick={() => {
-                setBulkDialogMode("upload");
-                setBulkUploadOpen(true);
-              }}
-            >
-              <UploadCloud className="mr-1.5 h-4 w-4 text-[hsl(235,60%,50%)]" />
-              Bulk Upload
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
-              onClick={() => {
-                setBulkDialogMode("modify");
-                setBulkUploadOpen(true);
-              }}
-            >
-              <UploadCloud className="mr-1.5 h-4 w-4 text-[hsl(235,60%,50%)]" />
-              Bulk Modify
-            </Button>
+
             <Button
               size="sm"
               className="bg-[hsl(235,60%,50%)] text-white shadow-[0_10px_24px_rgba(30,35,80,0.22)] hover:bg-[hsl(235,60%,45%)]"
@@ -1010,12 +982,7 @@ export function UserManagementView() {
         seedMember={onboardingSeedMember}
       />
 
-      <UserBulkUploadDialog
-        open={bulkUploadOpen}
-        mode={bulkDialogMode}
-        onOpenChange={setBulkUploadOpen}
-        onUploadComplete={() => {}}
-      />
+
 
       {(viewingMember || isOpeningMemberPreview) && typeof document !== "undefined"
         ? createPortal(
@@ -1284,6 +1251,8 @@ export function UserManagementView() {
     </div>
   );
 }
+
+
 
 
 
